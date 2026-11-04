@@ -1,0 +1,42 @@
+name: hermes-artifacts
+version: 0.1.0
+description: >
+  Claude-style artifacts for Hermes. The agent publishes an HTML page (versioned: the same id adds a new
+  version), and it replaces the built-in Artifacts page of Hermes Desktop with a list and a sandboxed
+  viewer. The page talks back through a small bridge: window.hermes.storage (per-artifact persistent
+  store), window.hermes.send (a message into the chat) and allowlisted tools. Works with Hermes Desktop
+  connected to a remote Hermes server. Can also attach to a local Hermes Desktop over CDP, or launch it
+  with a debugging port.
+author: MrSakal
+license: MIT
+homepage: https://github.com/MrSakal/hermes-artifacts
+requires_hermes: ">=0.22.5"
+tags: [artifacts, desktop, html, ui, preview]
+provides_tools:
+  - artifact_publish
+  - artifact_list
+  - artifact_read
+  - artifact_open
+  - artifact_inbox
+  - artifact_desktop_cdp
+config_schema:
+  shell_port:
+    type: int
+    default: 8797
+    label: Browser viewer port
+    description: Loopback port of the optional browser viewer (started only by artifact_open where=browser or `hermes artifacts serve`).
+  content_port:
+    type: int
+    default: 8798
+    label: Browser viewer content port
+    description: Loopback port the browser viewer serves artifact HTML from (a separate origin, sandboxed).
+  cdp_port:
+    type: int
+    default: 9222
+    label: Hermes Desktop CDP port
+    description: Debugging port artifact_desktop_cdp attaches to, or launches the local Hermes Desktop with.
+  bridge_tools:
+    type: str
+    default: ""
+    label: Bridge tool allowlist
+    description: Comma-separated tool names an artifact may call through window.hermes.callTool in the browser viewer. Empty means none.

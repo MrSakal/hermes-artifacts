@@ -1,0 +1,7 @@
+{
+  "name": "hermes-artifacts",
+  "label": "Artifacts",
+  "description": "Backend for the Hermes Desktop artifact pane (list, per-artifact storage, inbox).",
+  "version": "0.1.0",
+  "api": "plugin_api.py"
+}

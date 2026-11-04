@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bridge demo</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#1d1c1a; --line:#ddd; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1b1a18; --fg:#eee; --line:#333; } }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,sans-serif; }
+  button, input { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:transparent; color:inherit; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  #log { font:12px ui-monospace,monospace; white-space:pre-wrap; opacity:.8; }
+</style>
+</head>
+<body>
+  <h1>Bridge demo</h1>
+  <p>Counter: <b id="n">…</b> (kept in this artifact's storage, survives reloads)</p>
+  <div class="row"><button id="inc">+1</button><button id="reset">Reset</button></div>
+  <div class="row"><input id="msg" placeholder="Message to Hermes" style="flex:1;min-width:0"><button id="send">Send</button></div>
+  <div id="log"></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const log = (t) => { $('log').textContent = t + '\n' + $('log').textContent; };
+  async function show() { $('n').textContent = (await hermes.storage.get('count')) ?? 0; }
+  $('inc').onclick = async () => { const n = ((await hermes.storage.get('count')) ?? 0) + 1; await hermes.storage.set('count', n); show(); };
+  $('reset').onclick = async () => { await hermes.storage.remove('count'); show(); };
+  $('send').onclick = async () => { const r = await hermes.send($('msg').value, { count: await hermes.storage.get('count') }); log('send → ' + JSON.stringify(r)); $('msg').value = ''; };
+  show().catch((e) => log('error: ' + e.message));
+</script>
+</body>
+</html>

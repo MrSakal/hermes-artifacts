@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests (stdlib only)
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax-check browser and desktop JS
+        shell: bash
+        run: |
+          cp desktop/plugin.js "$RUNNER_TEMP/plugin.mjs" && node --check "$RUNNER_TEMP/plugin.mjs"
+          node --check hermes_artifacts/assets/bridge.js
+          node --check hermes_artifacts/assets/shell.js
