@@ -16,7 +16,18 @@
  * Plain ESM, loaded uncompiled. Only @hermes/plugin-sdk, react and react/jsx-runtime resolve.
  */
 
-import { atom, host, ROUTES_AREA, SandboxedFrame, usePluginI18n, useValue } from '@hermes/plugin-sdk'
+import {
+  atom,
+  Codicon,
+  host,
+  ROUTES_AREA,
+  SandboxedFrame,
+  SIDEBAR_NAV_AREA,
+  SIDEBAR_NAV_PREFS_AREA,
+  TITLEBAR_AREAS,
+  usePluginI18n,
+  useValue
+} from '@hermes/plugin-sdk'
 import { useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
@@ -41,7 +52,8 @@ const STRINGS = {
       `The plugin backend is not reachable (${err}). Install and enable hermes-artifacts on the Hermes ` +
       'this app is connected to, then restart its gateway.',
     sessionFiles: 'Session files and images →',
-    sessionFilesTip: 'The built-in view: images and files from your sessions'
+    sessionFilesTip: 'The built-in view: images and files from your sessions',
+    back: 'Back to Artifacts'
   },
   hu: {
     title: 'Artifacts',
@@ -56,7 +68,8 @@ const STRINGS = {
       `A plugin backend nem érhető el (${err}). Telepítsd és engedélyezd a hermes-artifacts plugint azon a ` +
       'Hermesen, amihez az app kapcsolódik, majd indítsd újra a gatewayt.',
     sessionFiles: 'Session-fájlok és képek →',
-    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből'
+    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből',
+    back: 'Vissza az Artifactsra'
   }
 }
 
@@ -279,9 +292,12 @@ function Page({ ctx }) {
 /** Plain #/artifacts (sidebar row, keybind, palette) -> our page. #/artifacts?from=... stays: that is
  *  the built-in view opened from our link, and clicking the sidebar row there changes the hash back to
  *  plain #/artifacts, so the user is never stuck. */
+let syncBack = () => {} // set in register(): titlebar back button while the built-in view is open
+
 function redirectCore() {
   const h = window.location.hash
   if (h === `#${CORE}` || (h.startsWith(`#${CORE}?`) && h !== `#${CORE_KEEP}`)) window.location.replace(`#${PAGE}`)
+  syncBack(window.location.hash === `#${CORE_KEEP}`)
 }
 
 export default {
@@ -291,6 +307,35 @@ export default {
   register(ctx) {
     ctx.i18n.register(STRINGS)
     ctx.register({ id: 'page', area: ROUTES_AREA, title: 'Artifacts', data: { path: PAGE }, render: () => jsx(Page, { ctx }) })
+
+    // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.
+    // order 1000 = after other plugins' preferences (the skin's own nav order wins over ours).
+    ctx.register({ id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PAGE, label: 'Artifacts', codicon: 'files', tier: 'advanced' } })
+    ctx.register({
+      id: 'nav-prefs',
+      area: SIDEBAR_NAV_PREFS_AREA,
+      order: 1000,
+      data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
+    })
+
+    // Titlebar back button (right cluster), only while the built-in view opened from our link is shown.
+    let backShown = null
+    syncBack = show => {
+      if (show === backShown) return
+      backShown = show
+      ctx.register({
+        id: 'back',
+        area: TITLEBAR_AREAS.right,
+        order: 0,
+        data: {
+          id: `${ID}-back`,
+          label: ctx.i18n.t('back'),
+          icon: jsx(Codicon, { name: 'arrow-left' }),
+          hidden: !show,
+          onSelect: () => host.navigate(PAGE)
+        }
+      })
+    }
 
     // Route changes: the app router uses history.pushState (no hashchange), so listen on the Navigation
     // API, which reports same-document entries too. One listener across hot reloads.
@@ -321,6 +366,7 @@ export default {
       window.removeEventListener('hashchange', redirectCore)
       nav?.removeEventListener?.('currententrychange', redirectCore)
       if (window[KEY] === redirectCore) delete window[KEY]
+      syncBack = () => {}
     }
   }
 }
