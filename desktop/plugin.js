@@ -39,7 +39,8 @@ const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
 // The built-in view opened on purpose: the router ignores the query, the redirect does not.
 const CORE_KEEP = `${CORE}?from=${'hermes-artifacts'}`
-const SANDBOX = 'allow-forms allow-downloads'
+// allow-scripts must be listed: SandboxedFrame falls back to its default posture only when no token is given.
+const SANDBOX = 'allow-scripts allow-forms allow-downloads'
 const ASK_TIMEOUT_MS = 15 * 60 * 1000
 
 const STRINGS = {

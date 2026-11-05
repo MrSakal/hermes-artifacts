@@ -25,13 +25,13 @@
       rows: "Saved rows", calc: "Calculation", params: "Filters", failed: "Failed to load", none: "Nothing on this dashboard yet.",
       bad: "dashboard.json is missing or not valid JSON.", stopped: "This page's code stopped", stale: "Out of date",
       updated: "updated", unused: "Not read by the page", preview: "Result", formula: "Formula", desc: "",
-      saved: "Downloaded", notmarked: "Nothing on the page links here" },
+      saved: "Downloaded", notmarked: "Nothing on the page links here", value: "a value", rowsN: "rows" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
       bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
       updated: "frissítve", unused: "Az oldal nem olvassa", preview: "Eredmény", formula: "Képlet", desc: "",
-      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá" }
+      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor" }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -343,7 +343,8 @@
     var open = picked && picked.id === id;
     var stale = !isCalc && isStale(d);
     var kind = isCalc ? T.calc : d.source && d.source.kind === "file" ? T.file + " · " + (d.source.path || "") : T.rows;
-    var meta = [kind, r.status === "ok" ? (r.rows || []).length + " rows" : r.status];
+    var isValue = r.status === "ok" && r.value !== undefined && !(r.rows || []).length;
+    var meta = [kind, r.status !== "ok" ? r.status : isValue ? T.value : (r.rows || []).length + " " + T.rowsN];
     if (!isCalc && d.updated && d.updated.at) meta.push(T.updated + " " + ago(d.updated.at));
     var body = null;
     if (open) {
