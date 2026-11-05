@@ -123,6 +123,14 @@ def _read(args: dict, **_kw) -> str:
         return _err(str(e))
 
 
+def _guide(args: dict, **_kw) -> str:
+    kind = args.get("type", "page")
+    if kind not in store.TYPES:
+        return _err(f"unknown type {kind!r}")
+    from .hermes_artifacts.render import TYPES_DIR
+    return _ok(type=kind, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
+
+
 def _delete(args: dict, **_kw) -> str:
     try:
         dest = store.delete(args["id"])
@@ -210,17 +218,26 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
-        "Publish an HTML artifact (a page the user looks at or uses: report, dashboard, tool, prototype). "
-        "Pass `path` (an .html file or a folder with index.html) or `html`. Reusing `id` adds a new version "
-        "at the same URL and the open viewer reloads. The page runs sandboxed and gets `window.hermes`: "
-        "storage.get/set/remove/list (per artifact, persistent), send(text, data) (message to you, read it "
-        "with artifact_inbox or it arrives in the chat), callTool(name,args) (allowlist only). "
-        "Single file, inline CSS/JS; CDN scripts are fine. Max 16 MB.",
-        {"path": {"type": "string"}, "html": {"type": "string"}, "title": {"type": "string"},
+        "Publish an artifact: something the user looks at or uses, shown on the Hermes Desktop Artifacts page. "
+        "Types: `page` (any web page/tool, default), `dashboard` (numbers, charts, tables from datasets; "
+        "every figure traceable), `slides` (a 16:9 deck to present; exports PDF/PPTX), `doc` (a Markdown "
+        "document; exports DOCX/PDF). Before the first publish of a type, call artifact_guide(type) for its "
+        "file format. Content: `files` ({path: text, or {\"base64\": ...} for binary}), or `path` (a file or "
+        "folder), or `html` (a single page). Reusing `id` adds a version and the open view reloads; with "
+        "`base=true` only the files you pass change (null removes one). Max 16 MB.",
+        {"type": {"type": "string", "enum": ["page", "dashboard", "slides", "doc"]},
+         "files": {"type": "object", "description": "Relative path -> file text (JSON values are written as "
+                                                     "JSON; {\"base64\": \"...\"} for images)."},
+         "path": {"type": "string"}, "html": {"type": "string"}, "title": {"type": "string"},
          "id": {"type": "string", "description": "Existing artifact id to add a version to."},
+         "base": {"type": "boolean", "description": "Start from the latest version's files."},
          "description": {"type": "string"},
          "open": {"type": "boolean", "description": "Show it in Hermes Desktop (default true)."}}),
      _publish, "🧩"),
+    ("artifact_guide", _schema("artifact_guide", "How to write an artifact of a type: its files, format, API "
+                               "and design rules. Read it before creating one.",
+                               {"type": {"type": "string", "enum": ["page", "dashboard", "slides", "doc"]}},
+                               ["type"]), _guide, "📘"),
     ("artifact_list", _schema("artifact_list", "List published artifacts, newest first.",
                               {"limit": {"type": "integer"}}), _list, "🧩"),
     ("artifact_read", _schema("artifact_read", "Read an artifact: its file list and one file (default: its "

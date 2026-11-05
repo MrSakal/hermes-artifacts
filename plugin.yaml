@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.1.0
+version: 0.2.0
 description: >
   Claude-style artifacts for Hermes. The agent publishes an HTML page (versioned: the same id adds a new
   version), and it replaces the built-in Artifacts page of Hermes Desktop with a list and a sandboxed
@@ -14,6 +14,7 @@ requires_hermes: ">=0.22.5"
 tags: [artifacts, desktop, html, ui, preview]
 provides_tools:
   - artifact_publish
+  - artifact_guide
   - artifact_list
   - artifact_read
   - artifact_open
