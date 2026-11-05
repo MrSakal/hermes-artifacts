@@ -16,13 +16,15 @@
  * Plain ESM, loaded uncompiled. Only @hermes/plugin-sdk, react and react/jsx-runtime resolve.
  */
 
-import { atom, Codicon, host, ROUTES_AREA, SandboxedFrame, TITLEBAR_AREAS, usePluginI18n, useValue } from '@hermes/plugin-sdk'
+import { atom, host, ROUTES_AREA, SandboxedFrame, usePluginI18n, useValue } from '@hermes/plugin-sdk'
 import { useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'hermes-artifacts'
 const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
+// The built-in view opened on purpose: the router ignores the query, the redirect does not.
+const CORE_KEEP = `${CORE}?from=${'hermes-artifacts'}`
 const SANDBOX = 'allow-forms allow-downloads'
 
 const STRINGS = {
@@ -39,8 +41,7 @@ const STRINGS = {
       `The plugin backend is not reachable (${err}). Install and enable hermes-artifacts on the Hermes ` +
       'this app is connected to, then restart its gateway.',
     sessionFiles: 'Session files and images →',
-    sessionFilesTip: 'The built-in view: images and files from your sessions',
-    back: 'Back to Artifacts'
+    sessionFilesTip: 'The built-in view: images and files from your sessions'
   },
   hu: {
     title: 'Artifacts',
@@ -55,8 +56,7 @@ const STRINGS = {
       `A plugin backend nem érhető el (${err}). Telepítsd és engedélyezd a hermes-artifacts plugint azon a ` +
       'Hermesen, amihez az app kapcsolódik, majd indítsd újra a gatewayt.',
     sessionFiles: 'Session-fájlok és képek →',
-    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből',
-    back: 'Vissza az Artifactsra'
+    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből'
   }
 }
 
@@ -66,8 +66,6 @@ const $shown = atom(null) // pinned version, null = latest
 const $nonce = atom(0)
 const $error = atom(null)
 
-let bypassCoreOnce = false
-let syncBackButton = () => {} // set in register(): shows the titlebar back button on the built-in page
 
 const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
 const current = () => $list.get().find(a => a.id === $selected.get()) || null
@@ -77,7 +75,8 @@ async function refresh(ctx) {
     const r = await ctx.rest('/artifacts')
     const list = r.artifacts || []
     const prev = current()
-    $list.set(list)
+    // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
+    if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
     $error.set(null)
     if (!$selected.get() && list.length) {
       const last = ctx.storage.get('last')
@@ -160,10 +159,7 @@ function ListColumn({ ctx }) {
         className:
           'shrink-0 border-t border-(--ui-stroke-secondary) px-3 py-2 text-left text-[0.6875rem] text-(--ui-text-quaternary) hover:text-foreground',
         title: t('sessionFilesTip'),
-        onClick: () => {
-          bypassCoreOnce = true
-          host.navigate(CORE)
-        },
+        onClick: () => host.navigate(CORE_KEEP),
         children: t('sessionFiles')
       })
     ]
@@ -280,22 +276,12 @@ function Page({ ctx }) {
 
 // ---------------------------------------------------------------- entry
 
+/** Plain #/artifacts (sidebar row, keybind, palette) -> our page. #/artifacts?from=... stays: that is
+ *  the built-in view opened from our link, and clicking the sidebar row there changes the hash back to
+ *  plain #/artifacts, so the user is never stuck. */
 function redirectCore() {
   const h = window.location.hash
-  const onCore = h === `#${CORE}` || h.startsWith(`#${CORE}?`)
-  if (!onCore) {
-    // Left the built-in page: the next visit to it redirects again.
-    bypassCoreOnce = false
-    return
-  }
-  // "Session files and images" opened the built-in page on purpose: stay there while it is open.
-  if (bypassCoreOnce) return
-  window.location.replace(`#${PAGE}`)
-}
-
-function tick() {
-  redirectCore()
-  syncBackButton(bypassCoreOnce)
+  if (h === `#${CORE}` || (h.startsWith(`#${CORE}?`) && h !== `#${CORE_KEEP}`)) window.location.replace(`#${PAGE}`)
 }
 
 export default {
@@ -306,34 +292,20 @@ export default {
     ctx.i18n.register(STRINGS)
     ctx.register({ id: 'page', area: ROUTES_AREA, title: 'Artifacts', data: { path: PAGE }, render: () => jsx(Page, { ctx }) })
 
-    // One listener across hot reloads (register's return value may not be used as a disposer).
+    // Route changes: the app router uses history.pushState (no hashchange), so listen on the Navigation
+    // API, which reports same-document entries too. One listener across hot reloads.
     const KEY = '__hermesArtifactsRedirect'
-    if (window[KEY]) window.removeEventListener('hashchange', window[KEY])
-    // Titlebar back button, visible only while the built-in page is open (re-registered on change only).
-    let backShown = null
-    syncBackButton = show => {
-      if (show === backShown) return
-      backShown = show
-      ctx.register({
-        id: 'back',
-        area: TITLEBAR_AREAS.left,
-        data: {
-          id: 'hermes-artifacts-back',
-          label: ctx.i18n.t('back'),
-          icon: jsx(Codicon, { name: 'arrow-left' }),
-          hidden: !show,
-          onSelect: () => {
-            bypassCoreOnce = false
-            host.navigate(PAGE)
-          }
-        }
-      })
+    const nav = window.navigation
+    const prev = window[KEY]
+    if (prev) {
+      nav?.removeEventListener?.('currententrychange', prev)
+      window.removeEventListener('hashchange', prev)
     }
-    window[KEY] = tick
-    window.addEventListener('hashchange', tick)
-    // The app router navigates with history.pushState, which fires no hashchange: check cheaply.
-    ctx.setInterval(tick, 150)
-    tick()
+    window[KEY] = redirectCore
+    window.addEventListener('hashchange', redirectCore)
+    if (nav?.addEventListener) nav.addEventListener('currententrychange', redirectCore)
+    else ctx.setInterval(redirectCore, 250) // fallback for runtimes without the Navigation API
+    redirectCore()
 
     ctx.onEvent(`plugin.${ID}.open`, async ev => {
       const p = payloadOf(ev)
@@ -346,9 +318,9 @@ export default {
     }, 5000)
 
     return () => {
-      window.removeEventListener('hashchange', tick)
-      if (window[KEY] === tick) delete window[KEY]
-      syncBackButton = () => {}
+      window.removeEventListener('hashchange', redirectCore)
+      nav?.removeEventListener?.('currententrychange', redirectCore)
+      if (window[KEY] === redirectCore) delete window[KEY]
     }
   }
 }
