@@ -88,3 +88,22 @@ class TypeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LayoutRuntimeTests(unittest.TestCase):
+    def test_layout_examples_render_with_their_components(self):
+        for example, kind, marker in (("dashboard-layout", "dashboard", "window.dashLayout"),
+                                      ("slides-layout", "slides", "window.slideLayout")):
+            m = store.publish(path=str(ROOT / "examples" / example), title=example, type=kind)
+            html = render.render(m, store.version_dir(m["id"]))
+            self.assertIn(marker, html)
+            entry = "dashboard.json" if kind == "dashboard" else "deck.json"
+            spec = json.loads((ROOT / "examples" / example / entry).read_text(encoding="utf-8"))
+            self.assertTrue(spec.get("layout") or spec.get("slides"))
+
+    def test_guides_lead_with_the_declarative_form(self):
+        g = (render.TYPES_DIR / "dashboard" / "GUIDE.md").read_text(encoding="utf-8")
+        self.assertIn('"layout"', g)
+        self.assertIn("rowsAt", g)
+        s = (render.TYPES_DIR / "slides" / "GUIDE.md").read_text(encoding="utf-8")
+        self.assertIn('"layout": "kpis"', s)

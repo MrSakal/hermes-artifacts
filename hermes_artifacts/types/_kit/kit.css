@@ -1,66 +1,72 @@
-/* Shared look of the hermes-artifacts type runtimes (dashboard, slides, doc).
-   Tokens follow the theme: the host sends its colors through the bridge ("theme" event); until then
-   prefers-color-scheme decides. Pages written for a type use these variables, never fixed colors. */
+/* The Hermes look: cool slate surfaces, a teal accent, sans-serif throughout with tabular figures. */
 :root {
   color-scheme: light dark;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
-  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Inter Tight", "Inter", "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-display); /* pages written for the earlier look keep working */
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
 
-  --color-bg: #faf9f5;
+  --color-bg: #f5f7fa;
   --color-panel: #ffffff;
-  --color-fg: #1f1e1d;
-  --color-fg-secondary: #3d3c39;
-  --color-fg-muted: #6f6d66;
-  --color-border-line: #e7e5dd;
-  --color-border-strong: #cfccc0;
-  --color-accent: #c96442;
-  --color-ok: #2e7d4f;
-  --color-warn: #a86a07;
-  --color-bad: #c0392b;
-  --color-hover: rgba(0, 0, 0, 0.05);
+  --color-fg: #0f1720;
+  --color-fg-secondary: #334155;
+  --color-fg-muted: #64748b;
+  --color-border-line: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+  --color-accent: #0d9488;
+  --color-accent-soft: rgba(13, 148, 136, 0.10);
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-bad: #dc2626;
+  --color-hover: rgba(15, 23, 32, 0.05);
 
-  --chart-1: #c96442; --chart-2: #3b6fb6; --chart-3: #2e8b6a; --chart-4: #b5892b;
-  --chart-5: #7b5ea7; --chart-6: #c0567d; --chart-7: #4f8fa3; --chart-8: #8a8579;
-  --chart-muted: #c9c6bb;
-  --chart-grid: #ecebe4;
-  --chart-axis: #bdbab0;
-  --chart-reference: #8a8579;
+  --chart-1: #0d9488; --chart-2: #4f46e5; --chart-3: #f59e0b; --chart-4: #e11d48;
+  --chart-5: #0284c7; --chart-6: #65a30d; --chart-7: #9333ea; --chart-8: #64748b;
+  --chart-muted: #cbd5e1;
+  --chart-grid: #edf1f6;
+  --chart-axis: #94a3b8;
+  --chart-reference: #64748b;
 
-  --size-caption: 12px; --size-body: 14px; --size-heading: 16px; --size-title: 28px; --size-display: 44px;
-  --gap-xs: 4px; --gap-sm: 8px; --gap-md: 16px; --gap-lg: 24px; --gap-xl: 40px;
-  --pad-xs: 4px; --pad-sm: 8px; --pad-md: 12px; --pad-lg: 16px; --pad-xl: 24px;
-  --radius: 10px;
-  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.14);
+  --size-caption: 12px; --size-body: 14px; --size-heading: 15px; --size-title: 26px; --size-display: 38px;
+  --gap-xs: 4px; --gap-sm: 8px; --gap-md: 14px; --gap-lg: 22px; --gap-xl: 36px;
+  --pad-xs: 4px; --pad-sm: 8px; --pad-md: 12px; --pad-lg: 18px; --pad-xl: 24px;
+  --radius: 14px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 32, 0.04), 0 1px 1px rgba(15, 23, 32, 0.03);
+  --shadow-popover: 0 10px 30px rgba(15, 23, 32, 0.16);
   --dur: 180ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg: #1f1e1d; --color-panel: #262624; --color-fg: #f5f4ef; --color-fg-secondary: #d9d7cf;
-    --color-fg-muted: #a29f95; --color-border-line: #3a3936; --color-border-strong: #4c4b47;
-    --color-accent: #d97757; --color-ok: #5cb57e; --color-warn: #e0a43c; --color-bad: #e5675a;
-    --color-hover: rgba(255, 255, 255, 0.06);
-    --chart-1: #d97757; --chart-2: #6c9be0; --chart-3: #4fbf95; --chart-4: #d9ad4e;
-    --chart-5: #a68bd6; --chart-6: #e07ea4; --chart-7: #6fb4c9; --chart-8: #a6a294;
-    --chart-muted: #4c4b47; --chart-grid: #34332f; --chart-axis: #5a5953; --chart-reference: #a6a294;
-    --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5);
+    --color-bg: #0e131a; --color-panel: #151c25; --color-fg: #e6edf5; --color-fg-secondary: #c2cddb;
+    --color-fg-muted: #8796a8; --color-border-line: #222d3a; --color-border-strong: #314052;
+    --color-accent: #2dd4bf; --color-accent-soft: rgba(45, 212, 191, 0.12);
+    --color-ok: #4ade80; --color-warn: #fbbf24; --color-bad: #f87171;
+    --color-hover: rgba(230, 237, 245, 0.06);
+    --chart-1: #2dd4bf; --chart-2: #818cf8; --chart-3: #fbbf24; --chart-4: #fb7185;
+    --chart-5: #38bdf8; --chart-6: #a3e635; --chart-7: #c084fc; --chart-8: #94a3b8;
+    --chart-muted: #314052; --chart-grid: #1c2632; --chart-axis: #475569; --chart-reference: #94a3b8;
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+    --shadow-popover: 0 10px 30px rgba(0, 0, 0, 0.55);
   }
 }
 :root[data-theme="dark"] {
-  --color-bg: #1f1e1d; --color-panel: #262624; --color-fg: #f5f4ef; --color-fg-secondary: #d9d7cf;
-  --color-fg-muted: #a29f95; --color-border-line: #3a3936; --color-border-strong: #4c4b47;
-  --color-accent: #d97757; --color-ok: #5cb57e; --color-warn: #e0a43c; --color-bad: #e5675a;
-  --color-hover: rgba(255, 255, 255, 0.06);
-  --chart-1: #d97757; --chart-2: #6c9be0; --chart-3: #4fbf95; --chart-4: #d9ad4e;
-  --chart-5: #a68bd6; --chart-6: #e07ea4; --chart-7: #6fb4c9; --chart-8: #a6a294;
-  --chart-muted: #4c4b47; --chart-grid: #34332f; --chart-axis: #5a5953; --chart-reference: #a6a294;
-  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5);
+  --color-bg: #0e131a; --color-panel: #151c25; --color-fg: #e6edf5; --color-fg-secondary: #c2cddb;
+  --color-fg-muted: #8796a8; --color-border-line: #222d3a; --color-border-strong: #314052;
+  --color-accent: #2dd4bf; --color-accent-soft: rgba(45, 212, 191, 0.12);
+  --color-ok: #4ade80; --color-warn: #fbbf24; --color-bad: #f87171;
+  --color-hover: rgba(230, 237, 245, 0.06);
+  --chart-1: #2dd4bf; --chart-2: #818cf8; --chart-3: #fbbf24; --chart-4: #fb7185;
+  --chart-5: #38bdf8; --chart-6: #a3e635; --chart-7: #c084fc; --chart-8: #94a3b8;
+  --chart-muted: #314052; --chart-grid: #1c2632; --chart-axis: #475569; --chart-reference: #94a3b8;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  --shadow-popover: 0 10px 30px rgba(0, 0, 0, 0.55);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size-body)/1.45 var(--font-sans); }
+body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size-body)/1.5 var(--font-sans);
+  font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
 
 /* Kit chrome: a slim toolbar, buttons, menus, a side drawer. Class names are kit- prefixed so a
    page's own CSS never collides with them. */

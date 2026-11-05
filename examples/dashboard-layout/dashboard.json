@@ -1,0 +1,204 @@
+{
+  "title": "Facade orders 2026",
+  "params": {
+    "region": ""
+  },
+  "datasets": {
+    "monthly": {
+      "title": "Orders per month",
+      "description": "Signed facade orders per month, in million HUF.",
+      "source": {
+        "kind": "file",
+        "path": "data/monthly.csv"
+      },
+      "types": {
+        "orders": "number",
+        "value": "number",
+        "target": "number"
+      },
+      "updated": {
+        "at": "2026-11-04T08:00:00Z",
+        "by": "hermes"
+      }
+    },
+    "regions": {
+      "title": "Orders by region",
+      "source": {
+        "kind": "rows",
+        "rows": [
+          {
+            "region": "Budapest",
+            "orders": 41,
+            "value": 512.4,
+            "url": "https://example.com/bp"
+          },
+          {
+            "region": "Pest",
+            "orders": 17,
+            "value": 198.0,
+            "url": "https://example.com/pest"
+          },
+          {
+            "region": "Győr",
+            "orders": 9,
+            "value": 121.7,
+            "url": "https://example.com/gyor"
+          },
+          {
+            "region": "Debrecen",
+            "orders": 6,
+            "value": 77.3,
+            "url": "https://example.com/deb"
+          }
+        ]
+      }
+    }
+  },
+  "layout": [
+    {
+      "type": "header",
+      "title": "Facade orders 2026",
+      "subtitle": "**{orders}** orders worth **{value} M HUF** so far; October is the weakest month against target."
+    },
+    {
+      "type": "filters",
+      "items": [
+        {
+          "param": "region",
+          "label": "Region",
+          "input": "select",
+          "options": {
+            "source": "regions",
+            "field": "region"
+          }
+        }
+      ]
+    },
+    {
+      "type": "kpis",
+      "items": [
+        {
+          "id": "orders",
+          "label": "Orders, year to date",
+          "source": "monthly",
+          "field": "orders",
+          "agg": "sum",
+          "format": "int"
+        },
+        {
+          "id": "value",
+          "label": "Value, M HUF",
+          "source": "monthly",
+          "field": "value",
+          "agg": "sum",
+          "format": "number"
+        },
+        {
+          "label": "October",
+          "source": "monthly",
+          "field": "value",
+          "where": {
+            "month": "2026-10"
+          },
+          "format": "number",
+          "unit": "M HUF",
+          "delta": {
+            "where": {
+              "month": "2026-09"
+            },
+            "label": "vs September"
+          }
+        },
+        {
+          "label": "Region selected",
+          "source": "regions",
+          "field": "orders",
+          "agg": "sum",
+          "where": {
+            "region": "{region}"
+          },
+          "format": "int",
+          "note": "orders in {param:region}"
+        }
+      ]
+    },
+    {
+      "type": "chart",
+      "kind": "bar",
+      "title": "Value per month",
+      "note": "M HUF, dashed = 100 target",
+      "source": "monthly",
+      "x": "month",
+      "y": "value",
+      "xFormat": "month",
+      "reference": {
+        "value": 100,
+        "label": "target"
+      }
+    },
+    {
+      "type": "chart",
+      "kind": "line",
+      "title": "Value vs target",
+      "source": "monthly",
+      "x": "month",
+      "y": [
+        "value",
+        "target"
+      ],
+      "xFormat": "month",
+      "labels": {
+        "value": "Value",
+        "target": "Target"
+      }
+    },
+    {
+      "type": "chart",
+      "kind": "donut",
+      "title": "Share by region",
+      "source": "regions",
+      "x": "region",
+      "y": "value"
+    },
+    {
+      "type": "chart",
+      "kind": "hbar",
+      "title": "Orders by region",
+      "source": "regions",
+      "x": "region",
+      "y": "orders",
+      "sort": "-orders",
+      "format": "int"
+    },
+    {
+      "type": "table",
+      "title": "By region",
+      "source": "regions",
+      "key": "region",
+      "search": true,
+      "sort": "-value",
+      "columns": [
+        {
+          "field": "region",
+          "label": "Region",
+          "link": "url"
+        },
+        {
+          "field": "orders",
+          "label": "Orders",
+          "format": "int"
+        },
+        {
+          "field": "value",
+          "label": "M HUF",
+          "format": "number",
+          "bar": true
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "text": "Figures are sample data. Source: [example](https://example.com)."
+    }
+  ]
+}

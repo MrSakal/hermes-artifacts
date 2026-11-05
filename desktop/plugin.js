@@ -367,17 +367,17 @@ const C = {
   line: 'var(--ui-stroke-secondary)',
   hover: 'var(--chrome-action-hover)',
   card: 'var(--ui-bg-elevated, var(--background))',
-  accent: 'var(--ui-accent, #d97757)'
+  accent: '#14b8a6'
 }
 const font = { fontFamily: 'inherit' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
 const hoverFill = `linear-gradient(${C.hover}, ${C.hover}), ${C.bg}`
 
 const TYPE_LOOK = {
-  page: { bg: '#4b3fb3', icon: 'page' },
-  dashboard: { bg: '#8f2a24', icon: 'chart' },
-  slides: { bg: '#8a4313', icon: 'slides' },
-  doc: { bg: '#1d4f91', icon: 'doc' }
+  page: { bg: '#4f46e5', bg2: '#7c3aed', icon: 'page' },
+  dashboard: { bg: '#0d9488', bg2: '#0e7490', icon: 'chart' },
+  slides: { bg: '#d97706', bg2: '#db2777', icon: 'slides' },
+  doc: { bg: '#0369a1', bg2: '#4338ca', icon: 'doc' }
 }
 
 const ICONS = {
@@ -526,7 +526,7 @@ function NewTile({ ctx, kind }) {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'rgba(255,255,255,.92)',
-          background: `radial-gradient(120% 90% at 80% 10%, rgba(255,255,255,.16), transparent 60%), ${look.bg}`,
+          background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,.22), transparent 55%), linear-gradient(135deg, ${look.bg}, ${look.bg2})`,
           transform: h ? 'translateY(-2px)' : 'none',
           boxShadow: h ? '0 6px 18px rgba(0,0,0,.25)' : 'none',
           transition: 'transform 140ms ease, box-shadow 140ms ease'
@@ -580,7 +580,7 @@ function Thumb({ ctx, art, height }) {
 function TypeBadge({ type, size = 32 }) {
   const look = TYPE_LOOK[type] || TYPE_LOOK.page
   return jsx('div', {
-    style: { width: size, height: size, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: look.bg },
+    style: { width: size, height: size, borderRadius: Math.round(size * 0.3), flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${look.bg}, ${look.bg2 || look.bg})` },
     children: jsx(Icon, { name: look.icon, size: size * 0.55 })
   })
 }
@@ -609,7 +609,7 @@ function Card({ ctx, art }) {
     },
     children: [
       jsx('div', {
-        style: { padding: '14px 14px 0', background: `linear-gradient(180deg, ${(TYPE_LOOK[art.type] || TYPE_LOOK.page).bg}55, transparent)` },
+        style: { padding: '14px 14px 0', background: `radial-gradient(90% 120% at 0% 0%, ${(TYPE_LOOK[art.type] || TYPE_LOOK.page).bg}40, transparent 70%)` },
         children: jsx('div', {
           style: { borderRadius: '8px 8px 0 0', overflow: 'hidden', boxShadow: '0 1px 0 rgba(0,0,0,.08)' },
           children: jsx(Thumb, { ctx, art, height: 150 })
@@ -719,7 +719,7 @@ function Gallery({ ctx, pageRef }) {
         children: jsxs('div', {
           style: { maxWidth: 1180, margin: '0 auto', padding: '28px 28px 40px' },
           children: [
-            jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, fontWeight: 400, fontFamily: 'var(--font-serif, Georgia, serif)', color: C.fg }, children: t('title') }),
+            jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
             jsxs('div', {
               style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26 },
               children: [

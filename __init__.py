@@ -223,9 +223,10 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
         "Publish an artifact: something the user looks at or uses, shown on the Hermes Desktop Artifacts page. "
-        "Types: `page` (any web page/tool, default), `dashboard` (numbers, charts, tables from datasets; "
-        "every figure traceable), `slides` (a 16:9 deck to present; exports PDF/PPTX), `doc` (a Markdown "
-        "document; exports DOCX/PDF). Before the first publish of a type, call artifact_guide(type) for its "
+        "Types: `page` (any web page/tool, default), `dashboard` (one dashboard.json: datasets + a layout of "
+        "KPIs, charts, tables, filters that the plugin draws; live MCP queries), `slides` (one deck.json: "
+        "slides as layouts the plugin draws; exports PDF/PPTX), `doc` (doc.md; exports DOCX/PDF). Write data, "
+        "not HTML or chart code, unless the layout can't express it. Before the first publish of a type, call artifact_guide(type) for its "
         "file format. Content: `files` ({path: text, or {\"base64\": ...} for binary}), or `path` (a file or "
         "folder), or `html` (a single page). Reusing `id` adds a version and the open view reloads; with "
         "`base=true` only the files you pass change (null removes one). Max 16 MB.",

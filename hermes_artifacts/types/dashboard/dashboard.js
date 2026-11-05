@@ -192,6 +192,10 @@
       } catch (e) { return { status: "error", message: String(e && e.message || e) }; }
     }
     var raw = loadRaw(id);
+    if (raw.status === "ok" && datasets[id] && (datasets[id].rowsAt || datasets[id].fields || datasets[id].types)) {
+      try { raw = reshape(datasets[id], raw, live[id] && live[id].answer); }
+      catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
+    }
     if (raw.status === "ok" && loaders[id]) {
       try {
         var ans = live[id] && live[id].answer !== undefined ? live[id].answer : raw.value !== undefined ? raw.value : raw.rows;
@@ -201,6 +205,52 @@
       } catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
     }
     return raw;
+  }
+
+  function parseMaybe(v) {
+    if (typeof v === "string") { var t = v.trim(); if (t[0] === "{" || t[0] === "[") { try { return JSON.parse(t); } catch (e) {} } }
+    return v;
+  }
+  /** rowsAt: "result.results" (JSON strings parsed on the way, MCP content[] unwrapped);
+   *  fields: {"title": "title", "url": "contentUrl"} (new name -> source path);
+   *  types: {"hours": "number", "day": "date"}. */
+  function reshape(d, raw, answer) {
+    var base = answer !== undefined ? answer : raw.value !== undefined ? raw.value : raw.rows;
+    var rows = raw.rows;
+    if (d.rowsAt) {
+      var cur = parseMaybe(base);
+      if (cur && Array.isArray(cur.content) && cur.content[0] && cur.content[0].text != null) cur = parseMaybe(cur.content[0].text);
+      String(d.rowsAt).split(".").filter(Boolean).forEach(function (k) { cur = parseMaybe(cur == null ? cur : cur[k]); });
+      if (!Array.isArray(cur)) throw new Error("rowsAt " + d.rowsAt + " is not a list");
+      rows = cur;
+    }
+    if (d.fields) {
+      var map = d.fields;
+      rows = rows.map(function (r) {
+        var o = {};
+        Object.keys(map).forEach(function (k) {
+          var v = r;
+          String(map[k]).split(".").forEach(function (p) { v = v == null ? v : parseMaybe(v)[p]; });
+          o[k] = v;
+        });
+        return o;
+      });
+    }
+    if (d.types) {
+      rows = rows.map(function (r) {
+        var o = Object.assign({}, r);
+        Object.keys(d.types).forEach(function (k) {
+          var t = d.types[k], v = o[k];
+          if (v == null) return;
+          if (t === "number") o[k] = typeof v === "number" ? v : +String(v).replace(/\s/g, "").replace(",", ".");
+          else if (t === "date") o[k] = String(v).slice(0, 10);
+          else if (t === "month") o[k] = String(v).slice(0, 7);
+          else if (t === "text") o[k] = String(v);
+        });
+        return o;
+      });
+    }
+    return Object.assign({ status: "ok" }, asTable(rows));
   }
 
   function get(id) {
@@ -306,7 +356,19 @@
   function mount() {
     var pagePath = (spec && spec.page) || "index.html";
     var html = kit.fileText(pagePath);
+    if (spec && Array.isArray(spec.layout) && window.dashLayout) {
+      try { window.dashLayout(spec.layout, root); } catch (e) { pageError(e, "layout"); }
+      if (html == null) { stamp(); return; }
+      var extra = h("div", { "class": "c-page c-custom" });
+      root.appendChild(extra);
+      mountHtml(html, pagePath, extra);
+      return;
+    }
     if (html == null) { root.appendChild(h("div", { "class": "kit-empty", text: T.none })); return; }
+    mountHtml(html, pagePath, root);
+  }
+
+  function mountHtml(html, pagePath, into) {
     var tpl = document.createElement("template");
     tpl.innerHTML = html;
     var frag = tpl.content, scripts = [], styles = [];
@@ -337,7 +399,7 @@
       if (u) n.setAttribute("src", u);
     });
     if (styles.length) document.head.appendChild(h("style", { "data-page": "", text: styles.join("\n") }));
-    root.replaceChildren(frag);
+    into.replaceChildren(frag);
     scripts.forEach(function (s) {
       currentFile = s.file;
       try { new Function("dash", "d3", "(function(){" + s.code + "\n}).call(this);\n//# sourceURL=dash-page/" + s.file)(dash, window.d3); }

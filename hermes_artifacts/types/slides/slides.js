@@ -63,11 +63,19 @@
     var m = /^slides\/([A-Za-z0-9_-]{1,64})\.html$/.exec(p);
     if (m && order.indexOf(m[1]) < 0) order.push(m[1]);
   });
-  var slides = order.filter(function (id) { return kit.fileText("slides/" + id + ".html") != null; }).map(function (id) {
-    return { id: id, sec: clean(kit.fileText("slides/" + id + ".html"), id), dirty: false };
+  // A slide is its own HTML file, or a layout described in deck.json "slides" (drawn by layouts.js).
+  // A saved in-place edit of a layout slide becomes its HTML file, which then takes precedence.
+  var defs = {};
+  (Array.isArray(deck.slides) ? deck.slides : []).forEach(function (d) {
+    if (d && /^[A-Za-z0-9_-]{1,64}$/.test(d.id || "")) { defs[d.id] = d; if (order.indexOf(d.id) < 0) order.push(d.id); }
+  });
+  var slides = order.filter(function (id) { return kit.fileText("slides/" + id + ".html") != null || defs[id]; }).map(function (id) {
+    var html = kit.fileText("slides/" + id + ".html");
+    if (html == null && window.slideLayout) html = window.slideLayout(defs[id], deck.theme);
+    return { id: id, sec: clean(html, id), dirty: false, layout: html == null ? null : defs[id] ? defs[id].layout : null };
   });
   function notesOf(s) { var a = s.sec.querySelector("aside"); return a ? a.textContent.trim() : ""; }
-  function titleOf(s) { var t = s.sec.querySelector("h1,h2,h3,p"); return t ? t.textContent.trim().slice(0, 60) : s.id; }
+  function titleOf(s) { var t = s.sec.querySelector("h1,h2,h3") || s.sec.querySelector("p"); return t ? t.textContent.trim().slice(0, 60) : s.id; }
 
   // Fonts the deck names (Google Fonts css2 links only).
   Object.keys(deck.faces || {}).forEach(function (k) {

@@ -1,0 +1,176 @@
+{
+  "title": "Q4 facade pipeline",
+  "cover": "cover",
+  "theme": {
+    "mode": "dark"
+  },
+  "order": [
+    "cover",
+    "agenda",
+    "numbers",
+    "trend",
+    "regions",
+    "plan",
+    "voice",
+    "next",
+    "close"
+  ],
+  "slides": [
+    {
+      "id": "cover",
+      "layout": "title",
+      "kicker": "Quarterly review",
+      "title": "Q4 facade pipeline",
+      "subtitle": "Where orders stand, and what we do next",
+      "footer": "Sample data · November 2026",
+      "notes": "Welcome. Ten minutes."
+    },
+    {
+      "id": "agenda",
+      "layout": "section",
+      "number": "01",
+      "title": "Numbers first",
+      "subtitle": "Then the plan for December",
+      "transition": "push"
+    },
+    {
+      "id": "numbers",
+      "layout": "kpis",
+      "title": "Year to date",
+      "items": [
+        {
+          "label": "Orders",
+          "value": "73",
+          "delta": "+12% YoY"
+        },
+        {
+          "label": "Value",
+          "value": "909 M",
+          "note": "HUF, net"
+        },
+        {
+          "label": "October",
+          "value": "60%",
+          "delta": "-40% vs target"
+        }
+      ],
+      "takeaway": "October is the **weak month**; the rest tracks target."
+    },
+    {
+      "id": "trend",
+      "layout": "chart",
+      "kind": "bar",
+      "title": "Value per month (M HUF)",
+      "labels": [
+        "J",
+        "F",
+        "M",
+        "A",
+        "M",
+        "J",
+        "J",
+        "A",
+        "S",
+        "O"
+      ],
+      "values": [
+        71.5,
+        88,
+        104.2,
+        97.9,
+        131,
+        92.4,
+        79,
+        66.3,
+        118.8,
+        60.3
+      ],
+      "note": "Target: 100 M HUF per month"
+    },
+    {
+      "id": "regions",
+      "layout": "table",
+      "title": "By region",
+      "columns": [
+        "Region",
+        "Orders",
+        "M HUF",
+        "Share"
+      ],
+      "rows": [
+        [
+          "Budapest",
+          "41",
+          "512.4",
+          "56%"
+        ],
+        [
+          "Pest",
+          "17",
+          "198.0",
+          "22%"
+        ],
+        [
+          "Győr",
+          "9",
+          "121.7",
+          "13%"
+        ],
+        [
+          "Debrecen",
+          "6",
+          "77.3",
+          "9%"
+        ]
+      ]
+    },
+    {
+      "id": "plan",
+      "layout": "two-col",
+      "title": "The plan",
+      "left": {
+        "heading": "Sales",
+        "accent": true,
+        "bullets": [
+          "Two more estimators in **Pest**",
+          "Weekly pipeline review"
+        ]
+      },
+      "right": {
+        "heading": "Estimating",
+        "bullets": [
+          "Close the Győr tender by Dec 10",
+          {
+            "text": "Template library",
+            "sub": [
+              "curtain wall",
+              "ventilated facade"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "voice",
+      "layout": "quote",
+      "quote": "Fast quotes win the tender, not the cheapest ones.",
+      "by": "Sales lead"
+    },
+    {
+      "id": "next",
+      "layout": "bullets",
+      "title": "Next steps",
+      "bullets": [
+        "Approve the two hires",
+        "Review the Győr bid on **Dec 3**",
+        "Re-forecast Q1"
+      ]
+    },
+    {
+      "id": "close",
+      "layout": "closing",
+      "title": "Questions?",
+      "subtitle": "facade-pipeline · sample data"
+    }
+  ]
+}

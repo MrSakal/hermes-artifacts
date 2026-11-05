@@ -1,102 +1,135 @@
 # Dashboard artifacts
 
-A dashboard is a page of numbers, charts and tables drawn from **datasets**. Every figure comes from a
-dataset, so a reader can click it and see where it came from ("Where numbers come from").
+A dashboard is a page of numbers, charts and tables drawn from **datasets**. You write data and a
+short **layout**; the plugin draws everything:
+- the header, filters, KPI cards, charts and tables;
+- the loading and error states;
+- "Where numbers come from";
+- refresh and exports.
 
-## Files (publish them with `artifact_publish type=dashboard files={...}`)
+Don't write HTML or chart code unless a part can't be expressed in the layout.
 
-- `dashboard.json`
-  ```json
-  {"title": "Signups", "params": {"region": ""},
-   "datasets": {
-     "daily": {"title": "Signups per day", "description": "Completed signups, UTC days.",
-               "source": {"kind": "file", "path": "data/daily.csv"},
-               "updated": {"at": "2026-11-05T08:00:00Z", "by": "hermes"},
-               "schedule": "daily at 8:00", "staleAfterHours": 48},
-     "plans": {"title": "Plans", "source": {"kind": "rows", "rows": [{"plan": "pro", "n": 12}]}, "fixed": true}}}
-  ```
-  `source.kind`: `call` (a live MCP query, below), `file` (a CSV, TSV or JSON file of the artifact;
-  JSON is an array of row objects or `{"rows": [...]}`), or `rows` (rows inline). Ids: letters, digits,
-  `_`, `-`.
+## The whole dashboard is one file: `dashboard.json`
 
-## Live data: a stored MCP call (prefer this when the data came from a connector)
-
-If you got the numbers from an MCP tool, the dashboard should get them the same way, so it stays
-current. Store the call that worked in your session as the dataset's source, with its `args` unchanged:
+Publish it with `artifact_publish type=dashboard files={"dashboard.json": {...}}`, plus any data files.
 
 ```json
-"sales": {"title": "Sales per month", "description": "Signed orders, net HUF.",
-  "source": {"kind": "call", "tool": "mcp_mydb_query",
-             "args": {"sql": "SELECT month, SUM(net) AS net FROM orders WHERE ('{{region}}' = '' OR region = '{{region}}') GROUP BY month ORDER BY month"},
-             "rules": {"region": {"pattern": "^[A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű .-]{0,40}$"}}},
-  "maxAgeMinutes": 10}
+{
+  "title": "Orders 2026",
+  "params": {"region": "", "year": "2026"},
+  "datasets": {
+    "monthly": {"title": "Orders per month", "description": "Signed orders, net M HUF.",
+                "source": {"kind": "call", "tool": "mcp_mydb_query", "args": {"sql": "SELECT month, orders, value FROM monthly WHERE year = {{year}}"},
+                           "rules": {"year": {"type": "number", "minimum": 2000, "maximum": 2100}}},
+                "types": {"orders": "number", "value": "number"}},
+    "regions": {"title": "Regions", "source": {"kind": "rows", "rows": [{"region": "Pest", "orders": 17, "value": 198}]}}
+  },
+  "layout": [
+    {"type": "header", "title": "Orders 2026", "subtitle": "**{orders}** orders worth **{value} M HUF** so far."},
+    {"type": "filters", "items": [
+      {"param": "region", "label": "Region", "input": "select", "options": {"source": "regions", "field": "region"}},
+      {"param": "year", "label": "Year", "input": "select", "options": ["2025", "2026"], "all": false}]},
+    {"type": "kpis", "items": [
+      {"id": "orders", "label": "Orders", "source": "monthly", "field": "orders", "agg": "sum", "format": "int"},
+      {"id": "value", "label": "Value", "source": "monthly", "field": "value", "agg": "sum", "format": "number", "unit": "M HUF"},
+      {"label": "October", "source": "monthly", "field": "value", "where": {"month": "2026-10"}, "format": "number",
+       "delta": {"where": {"month": "2026-09"}, "label": "vs September"}},
+      {"label": "Selected region", "source": "regions", "field": "orders", "agg": "sum", "where": {"region": "{region}"}}]},
+    {"type": "chart", "kind": "bar", "title": "Value per month", "note": "M HUF", "source": "monthly", "x": "month", "y": "value",
+     "xFormat": "month", "reference": {"value": 100, "label": "target"}},
+    {"type": "chart", "kind": "line", "title": "Orders vs value", "source": "monthly", "x": "month", "y": ["orders", "value"]},
+    {"type": "table", "title": "By region", "source": "regions", "key": "region", "search": true, "sort": "-value",
+     "columns": [{"field": "region", "label": "Region"}, {"field": "value", "label": "M HUF", "format": "number", "bar": true}]},
+    {"type": "text", "text": "Sample data. **Bold**, *italic* and [links](https://example.com) work."}
+  ]
+}
 ```
 
-- `tool` is the tool's name exactly as you called it (MCP tools only; built-in tools are refused).
-  Make the call read-only. Let the connector aggregate and filter, and ask only for the columns the page uses.
-- The dashboard runs the call when it opens, when the viewer presses Refresh (which skips the cache),
-  and when a filter it names changes. Answers are cached on the server for `maxAgeMinutes` (default 10).
-- The first time, the user sees the query and allows it with a click. A changed `tool`, `args` or
-  `rules` needs a new approval.
-- `{{name}}` is a filter from `dash.params()` (defaults from `params`). As a whole argument
-  (`"limit": "{{n}}"`) it is the typed value. Inside text it is written in as-is, so put the language's
-  quotes around it yourself and give every name a `rules` entry: `pattern`, `enum`, `type: "number"` with
-  `minimum`/`maximum`, `type: "boolean"`, `minLength`/`maxLength`. Never let a pattern admit the quote you
-  wrapped it in. A text value with no rule may only be plain text (no quotes, backslashes or new lines).
-- Answers that are row objects (bare or under `rows`/`data`/`results`), or BigQuery's
-  `{schema, rows: [{f: [{v}]}]}`, arrive as rows. Anything else comes as `dash.data(id).data`. Add a
-  `dash.loader(id, {description, fn: ({answer}) => rows})` to reshape it into rows.
-- Use a `file` source only when the data has no connector, or when the user asked for a fixed copy.
-- The user can edit a live query's `args` in Sources (a new version, marked `"edit": {"via": "user"}`), so read
-  `dashboard.json` before you change the dashboard, and keep their edit unless they ask otherwise.
-- `index.html`: the page. It is mounted into `<div id="dash-root">`; no `<html>`, `<head>` or `<body>`.
-  Its `<script>`s run in order, each in its own scope, with `dash` and `d3` (v7) available.
-  `<link rel="stylesheet" href="x.css">` and `<script src="x.js">` may name the artifact's own files.
-- `data/*.csv|tsv|json`: the data files.
+### Datasets
 
-No network, forms, frames or `on…=` attributes (they are dropped). Show data values with
-`textContent` or d3 `.text()`, never `innerHTML`.
+| `source.kind` | What it is |
+|---|---|
+| `call` | A live MCP query, below. Prefer it when the data came from a connector. |
+| `file` | A CSV, TSV or JSON file of the artifact. |
+| `rows` | Rows inline. |
 
-## The `dash` API
+Shaping, with no code needed:
+- `"rowsAt": "result.items"` is the path to the rows inside an answer. JSON strings on the way are parsed, and an MCP `content[0].text` is unwrapped.
+- `"fields": {"title": "title", "url": "meta.link"}` renames or picks columns (new name → path).
+- `"types": {"hours": "number", "day": "date", "month": "month"}` converts values. CSV cells are text, so give numeric columns `number`.
 
-- `dash.data(id)` → `{status, data, rows, columns, message, meta, value, refreshing}`; `status` is `ok`,
-  `loading`, `connect` (waiting for the user to allow a live query), `declined`, `error` or `missing`.
-  Draw a placeholder for every status but `ok`; a refresh keeps the last data, with `refreshing` true. CSV cells are text: convert them (`Number(r.value)`).
-- `dash.onData(fn)`: runs `fn` now and on every change (filters, width). Redraw everything in it.
-- `dash.calc(id, {inputs: [ids], fn: (a, b) => ..., title, description})`: a value worked out from
-  datasets; readers see `fn`'s text. Read it with `dash.data(id)` (`.value` when it isn't rows).
-- `dash.loader(id, {description, fn: ({answer, rows, columns, params}) => rows})`: reshape a file into
-  rows (only reshaping; arithmetic goes in a calc).
-- `dash.params()`, `dash.setParams({name: value})`, `dash.resetParams()`: filters. Defaults come from
-  `dashboard.json` `params`; the viewer's choice is remembered.
-- `dash.colors` (8 theme-aware series colors), `dash.format(n, intlOptions)`, `dash.setLink(id)`.
+Dataset ids contain only letters, digits, `_` and `-`.
 
-## Marking (what makes "Where numbers come from" work)
+### Layout blocks
 
-Put a placeholder `—` in the markup and fill it in `onData`. Mark the smallest element that shows a value:
+Blocks are full width, except charts and tables, which sit two to a row. Set `"width": "full"` on a chart
+or `"half"` on a table to change that. `{"type": "grid", "columns": 3, "items": [...]}` puts any blocks
+side by side.
 
-- one value: `data-source="<id>" data-field="<column>"`, plus `data-where="col=value"` or `data-row="0"`;
-- a computed value: `data-source="<calc id>" data-field="<key>"`;
-- a chart: `data-source="<id> [<id>…]"` once, on its container;
-- a table from rows: `<table data-source="<id>" data-row-key="<key column>">`, `data-field` on each
-  `<th>`, and `data-key="<key value>"` on each body `<tr>`.
+| Block | Fields |
+|---|---|
+| `header` | `title`, `subtitle`. `{kpiId}` inserts a KPI's formatted value; `{param:name}` inserts a filter value. |
+| `filters` | `items: [{param, label, input: select\|text\|number\|date, options: [..] or {source, field}, all, placeholder, pattern}]`. A Reset button is added (`"reset": false` hides it). |
+| `kpis` | `items: [{id, label, source, field, agg, where, format, unit, note, delta: {where, agg, field, label, good: up\|down}}]` |
+| `chart` | `kind: bar\|line\|area\|hbar\|donut`, `title`, `note`, `source`, `x`, `y` (a field or a list of fields), `agg` (group by x), `where`, `sort` (`"-value"`), `limit`, `format`, `xFormat`, `labels: {field: name}`, `reference: {value, label}`, `height` |
+| `table` | `title`, `note`, `source`, `key` (unique column), `columns: [{field, label, format, align, bar: true, link: "urlField" \| "https://…/{id}"}]`, `search: true`, `sort`, `limit`, `where`, `maxHeight` |
+| `text` | `text`: paragraphs, with `**bold**`, `*italic*`, `[link](https://…)` and `{kpiId}`. |
 
-## Look
+Common fields:
+- **`agg`:** `sum`, `avg`, `min`, `max`, `count`, `countDistinct`, `first` (the default) or `last`.
+- **`where`:** `{"column": "value"}`. A value of `"{param}"` follows that filter, and an empty filter means all rows.
+- **`format`:** `int`, `number`, `number:2`, `compact`, `percent` (0–1), `percent100`, `currency:HUF`, `date`, `month`, `datetime` or `text`.
 
-Use the theme variables, never fixed colors: `--color-fg`, `--color-fg-muted`, `--color-bg`,
-`--color-panel`, `--color-border-line`, `--color-ok`, `--color-warn`, `--color-bad`, `--chart-1` to
-`--chart-8`, `--chart-grid`, `--chart-axis`, `--chart-reference`. Sizes: `--size-caption|body|heading|title|display`,
-`--gap-*`, `--pad-*`, `--radius`. Fonts: `--font-sans`, `--font-serif`, `--font-mono`.
-Ready classes: `.card`, `.grid` (cards side by side), `.kpis`, `.big` (a headline number), `.muted`,
-`.caption`, `.up`/`.down`, `.dash-skeleton` (a loading bar), `.dash-tooltip`.
+A filter whose `param` appears in a live query's `args` (`{{year}}`) re-runs that query. A filter used
+in a `where` filters the rows already loaded.
 
-A dashboard serves one decision. Give it a one-line title and one sentence of takeaway filled from the
-data. Put the figure nearest the outcome first, then charts in cards that state their time window.
-Size charts from `clientWidth` as `<svg width="100%" viewBox>`. Use bars for counts per period and
-lines for rates.
+## Live data: a stored MCP call
+
+If you got the numbers from an MCP tool, store the call that worked as the dataset's source, with its
+`args` unchanged. The dashboard runs it when it opens, when the viewer presses Refresh, and when a filter
+it names changes. Answers are cached for `maxAgeMinutes` (default 10).
+
+- **`tool`:** the name exactly as you called it. Only MCP tools run, and only read-only queries: SQL
+  must be a single `SELECT`/`WITH`. Let the connector aggregate and filter.
+- **Approval:** the user allows each query once, with a click. A changed `tool`, `args` or `rules`
+  needs a new approval.
+- **Filters in `args`:** `{{name}}` takes the value of a filter (defaults come from `params`). Used
+  as a whole argument (`"limit": "{{n}}"`), it keeps its type. Inside text, it is written in as-is:
+  - put the quotes around it yourself;
+  - give every name a `rules` entry: `pattern`, `enum`, `type: number` with `minimum`/`maximum`,
+    `type: boolean`, `minLength` or `maxLength`;
+  - never let a pattern admit the quote you used.
+- **Answers:** row objects (bare, or under `rows`/`data`/`results`), `{result: "<json>"}` and
+  BigQuery's `{schema, rows}` arrive as rows. Anything else needs a `rowsAt`/`fields` dataset.
+- **User edits:** the user can edit a query's `args` in Sources (`"edit": {"via": "user"}`). Read
+  `dashboard.json` before you change the dashboard, and keep their edit.
+
+Use a `file` source only when the data has no connector, or when the user asked for a fixed copy.
+
+## When the layout isn't enough (rare)
+
+Add `index.html`. It is drawn below the layout, or on its own when there is no `layout`. Its scripts run
+with `dash` and `d3` v7:
+- `dash.data(id)` returns `{status, rows, columns, data, message}`;
+- `dash.onData(fn)` redraws on every change;
+- `dash.calc(id, {inputs, fn, title})` defines a computed source;
+- also `dash.params()`, `dash.setParams()`, `dash.colorValues()` and `dash.format()`.
+
+Mark the values you show with `data-source` / `data-field` / `data-where`. Tables take `data-row-key`
+plus `data-key` on each row. Use the theme variables (`--color-*`, `--chart-1..8`, `--font-sans`,
+`--font-display`), never fixed colors. No network, forms, frames or `on…=` attributes.
+
+## Design
+
+A dashboard serves one decision:
+- a short title, and a subtitle that states the takeaway from the KPIs;
+- the KPI nearest the outcome first, at most about six of them;
+- charts that state their unit and time window in `note`;
+- bars for counts per period, lines for rates and trends, `hbar` for ranked categories, `donut` only
+  for a few shares of a whole;
+- a table for detail, with a `bar` column for the main number.
 
 ## Changing it
 
-Republish with the same `id` and `base=true`, passing only the files that change. To refresh data,
-write the new file and update the dataset's `updated`. Readers can download every dataset as CSV,
-and the page as an HTML snapshot or as JSON.
+Republish with the same `id` and `base=true`, passing only the files that change. Readers can download
+every dataset as CSV, and the page as an HTML snapshot or as JSON.
