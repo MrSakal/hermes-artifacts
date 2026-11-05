@@ -24,7 +24,6 @@ import {
   SandboxedFrame,
   SIDEBAR_NAV_AREA,
   SIDEBAR_NAV_PREFS_AREA,
-  TITLEBAR_AREAS,
   usePluginI18n,
   useValue
 } from '@hermes/plugin-sdk'
@@ -318,20 +317,26 @@ export default {
       data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
     })
 
-    // Titlebar back button (right cluster), only while the built-in view opened from our link is shown.
-    let backShown = null
+    // Titlebar back button (right cluster), registered only while the built-in view opened from our link
+    // is shown and disposed right after. It goes in 'titleBar.tools.right' (TitlebarTool data), never in
+    // TITLEBAR_AREAS: a non-empty titleBar.left/right slot means "this page owns the titlebar" and makes
+    // Hermes hide its fixed controls on contributed pages.
+    let disposeBack = null
     syncBack = show => {
-      if (show === backShown) return
-      backShown = show
-      ctx.register({
+      if (show === Boolean(disposeBack)) return
+      if (!show) {
+        disposeBack()
+        disposeBack = null
+        return
+      }
+      disposeBack = ctx.register({
         id: 'back',
-        area: TITLEBAR_AREAS.right,
+        area: 'titleBar.tools.right',
         order: 0,
         data: {
           id: `${ID}-back`,
           label: ctx.i18n.t('back'),
           icon: jsx(Codicon, { name: 'arrow-left' }),
-          hidden: !show,
           onSelect: () => host.navigate(PAGE)
         }
       })
@@ -366,6 +371,7 @@ export default {
       window.removeEventListener('hashchange', redirectCore)
       nav?.removeEventListener?.('currententrychange', redirectCore)
       if (window[KEY] === redirectCore) delete window[KEY]
+      syncBack(false)
       syncBack = () => {}
     }
   }
