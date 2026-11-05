@@ -143,3 +143,9 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { outline-style: soli
 .dash-conn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dash-conn-row p { margin: 2px 0 0; }
 .dash-conn .kit-btn:first-of-type { background: var(--color-warn); color: #111; }
+.src-test { margin-top: 8px; }
+.src-test.stale { opacity: .45; }
+.src-hist { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow: auto; }
+.src-hist-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 0; border-radius: 6px; background: none;
+  color: var(--color-fg); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.src-hist-row:hover { background: var(--color-hover); }

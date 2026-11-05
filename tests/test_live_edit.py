@@ -60,3 +60,38 @@ class EditTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HistoryAndTestTests(unittest.TestCase):
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        from test_types import load_plugin
+        self.p = load_plugin()
+        out = json.loads(self.p._publish({"type": "dashboard", "title": "h", "open": False,
+                                          "files": {"dashboard.json": SPEC, "index.html": "x"}}))
+        self.aid = out["id"]
+
+    def test_history_records_agent_publish_and_user_edits(self):
+        live.edit_args(self.aid, "q", {"sql": "SELECT 2"})
+        live.edit_args(self.aid, "q", {"sql": "SELECT 3"})
+        h = store.history(self.aid, "q")
+        self.assertEqual([e["args"]["sql"] for e in h], ["SELECT 1", "SELECT 2", "SELECT 3"])
+        self.assertEqual(h[0]["via"], "agent")
+        self.assertEqual(h[-1]["via"], "user")
+
+    def test_test_runs_without_saving(self):
+        calls = []
+        reg = type("R", (), {"get_entry": lambda s, n, scope=None: type("E", (), {"toolset": "mcp-db"})(),
+                             "get_toolset_for_tool": lambda s, n: "mcp-db",
+                             "dispatch": lambda s, n, a, scope=None: (calls.append(a), json.dumps([{"n": 1}, {"n": 2}]))[1]})()
+        orig = live._registry_entry
+        live._registry_entry = lambda tool: (reg, reg.get_entry(tool), None)
+        try:
+            r = live.test_args(self.aid, "q", {"sql": "SELECT 7"})
+            self.assertEqual((r["status"], r["total"]), ("ok", 2))
+            self.assertEqual(calls[0]["sql"], "SELECT 7")
+            spec = json.loads(store.read_file(self.aid, "dashboard.json").decode())
+            self.assertEqual(spec["datasets"]["q"]["source"]["args"]["sql"], "SELECT 1")  # nothing saved
+            self.assertEqual(live.test_args(self.aid, "q", {"sql": "DELETE FROM t"})["status"], "refused")
+        finally:
+            live._registry_entry = orig

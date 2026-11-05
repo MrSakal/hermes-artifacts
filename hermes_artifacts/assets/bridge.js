@@ -158,6 +158,10 @@
       },
       approve: function (id, version) { return call("dataset.approve", { id: String(id), version: version || null }); },
       decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); },
+      /** Sources' Test: run edited args without saving (needs a click). */
+      test: function (id, args, params) { return call("dataset.test", { id: String(id), args: args, params: params || {} }); },
+      /** Sources' history of a live query's args. */
+      history: function (id) { return call("dataset.history", { id: String(id) }).then(function (r) { return r.entries; }); },
       /** The user editing a live query in Sources: new args for that dataset, saved as a new version. */
       edit: function (id, args, baseVersion) { return call("dataset.edit", { id: String(id), args: args, base_version: baseVersion || null }); }
     }),

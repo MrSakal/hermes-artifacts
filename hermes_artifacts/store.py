@@ -10,7 +10,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _LOCK = threading.RLock()
@@ -507,3 +507,35 @@ def report_set(aid: str, kind: str, data: dict) -> None:
 def reports(aid: str) -> dict:
     p = _reports_path(aid)
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+
+
+# --- query history: each saved version of a live query's args (90 days, 200 KB) ------------------
+
+HISTORY_DAYS = 90
+MAX_HISTORY_BYTES = 200 * 1024
+
+
+def _history_path(aid: str) -> Path:
+    return _dir(aid) / "history.json"
+
+
+def history(aid: str, dsid: Optional[str] = None) -> Any:
+    p = _history_path(aid)
+    data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return data.get(dsid, []) if dsid is not None else data
+
+
+def history_add(aid: str, dsid: str, args: dict, via: str) -> None:
+    with _LOCK:
+        data = history(aid)
+        entries = data.get(dsid, [])
+        if entries and entries[-1].get("args") == args:
+            return
+        now = time.time()
+        entries.append({"at": now, "args": args, "via": via})
+        entries = [e for e in entries if now - e.get("at", 0) <= HISTORY_DAYS * 86400]
+        data[dsid] = entries
+        while len(json.dumps(data).encode()) > MAX_HISTORY_BYTES and any(len(v) > 1 for v in data.values()):
+            longest = max(data, key=lambda k: len(data[k]))
+            data[longest] = data[longest][1:]
+        _write_json(_history_path(aid), data)

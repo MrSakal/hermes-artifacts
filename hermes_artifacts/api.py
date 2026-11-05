@@ -103,6 +103,11 @@ def _op(aid: str, op: str, a: dict) -> dict:
         cid = live.call_id(d["tool"], d["args"], d["rules"])
         store.set_approval(aid, cid, d["tool"], op == "dataset.approve")
         return {"ok": True, "call": cid, "allowed": op == "dataset.approve"}
+    if op == "dataset.test":
+        params = a.get("params") if isinstance(a.get("params"), dict) else {}
+        return live.test_args(aid, str(a.get("id", "")), a.get("args"), params)
+    if op == "dataset.history":
+        return {"entries": store.history(aid, str(a.get("id", "")))[-50:]}
     if op == "dataset.edit":
         return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")),
                               auto_approve=not require_approval())

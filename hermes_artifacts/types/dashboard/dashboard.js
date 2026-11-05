@@ -36,7 +36,10 @@
       offTitle: "{s} is turned off", offBody: "Turn it on in Hermes to fetch these numbers.",
       affected: "Waiting", signIn: "Sign in", openConnectors: "Open connectors", retry: "Try again",
       editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version and runs the changed query.",
-      save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved" },
+      save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved",
+      test: "Test", testing: "Running the test…", testOk: "Test ran: {n} rows in {ms} ms. Nothing is saved until you press Save.",
+      testStale: "Edited since the test: test again before saving.", history: "History", historyHint: "Pick one to put it in the editor. Nothing changes until you save.",
+      historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
@@ -53,7 +56,10 @@
       offTitle: "{s} ki van kapcsolva", offBody: "Kapcsold be a Hermesben, hogy le tudja kérni ezeket a számokat.",
       affected: "Erre vár", signIn: "Bejelentkezés", openConnectors: "Kapcsolatok megnyitása", retry: "Újrapróbálás",
       editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít, és lefuttatja a módosított lekérdezést.",
-      save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve" }
+      save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve",
+      test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
+      testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
+      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi" }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -564,6 +570,43 @@
     var ta = h("textarea", { "class": "src-edit", spellcheck: "false", rows: "10" });
     ta.value = JSON.stringify(d.source.args || {}, null, 2);
     var msg = h("p", { "class": "src-meta", text: T.editHint });
+    var testOut = h("div", { "class": "src-test" });
+    var histBox = h("div", { "class": "src-hist", hidden: true });
+    var tested = null; // the text that was tested, so a later edit marks the result as out of date
+    function parse() {
+      var args;
+      try { args = JSON.parse(ta.value); } catch (e) { msg.textContent = T.badJson + ": " + e.message; return null; }
+      if (!args || typeof args !== "object" || Array.isArray(args)) { msg.textContent = T.badJson; return null; }
+      return args;
+    }
+    function test() {
+      var args = parse();
+      if (!args) return;
+      if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.test) { msg.textContent = T.noBridge; return; }
+      msg.textContent = T.testing;
+      tested = ta.value;
+      window.hermes.dataset.test(id, args, params).then(function (r) {
+        msg.textContent = r.status === "ok" ? T.testOk.replace("{n}", r.total != null ? r.total : "—").replace("{ms}", r.ms) : T.failed + ": " + (r.message || r.status);
+        testOut.replaceChildren();
+        if (r.status === "ok" && r.rows) testOut.appendChild(table({ columns: r.columns, rows: r.rows }, null));
+        else if (r.status === "ok") testOut.appendChild(h("pre", { text: JSON.stringify(r.answer, null, 2).slice(0, 4000) }));
+      }).catch(function (e) { msg.textContent = String(e && e.message || e); });
+    }
+    ta.addEventListener("input", function () { if (tested !== null && ta.value !== tested) { testOut.classList.add("stale"); msg.textContent = T.testStale; } });
+    function showHistory() {
+      if (!histBox.hidden) { histBox.hidden = true; return; }
+      if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.history) { msg.textContent = T.noBridge; return; }
+      window.hermes.dataset.history(id).then(function (entries) {
+        histBox.replaceChildren(h("p", { "class": "src-meta", text: entries.length ? T.historyHint : T.historyNone }));
+        entries.slice().reverse().forEach(function (e) {
+          var same = JSON.stringify(e.args) === JSON.stringify(d.source.args || {});
+          histBox.appendChild(h("button", { "class": "src-hist-row", type: "button", onclick: function () {
+            ta.value = JSON.stringify(e.args, null, 2); msg.textContent = T.restored; ta.dispatchEvent(new Event("input"));
+          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString() }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
+        });
+        histBox.hidden = false;
+      }).catch(function (e) { msg.textContent = String(e && e.message || e); });
+    }
     function save() {
       var args;
       try { args = JSON.parse(ta.value); } catch (e) { msg.textContent = T.badJson + ": " + e.message; return; }
@@ -583,9 +626,11 @@
     }
     ta.addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
     return h("div", {}, [ta, msg, h("div", { "class": "src-actions" }, [
+      kit.labelled(kit.button(T.test, "play", test, T.test), T.test),
       kit.labelled(kit.button(T.save, "", save, T.save), T.save),
+      kit.labelled(kit.button(T.history, "notes", showHistory, T.history), T.history),
       kit.labelled(kit.button(T.cancel, "", function () { editing = null; renderSources(); }, T.cancel), T.cancel)
-    ])]);
+    ]), histBox, testOut]);
   }
 
   function toggleSources(on) {

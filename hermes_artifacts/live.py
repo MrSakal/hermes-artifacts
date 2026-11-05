@@ -476,7 +476,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
         args = fill(d["args"], merged, d["rules"])
         guard(args)
     except LiveError as e:
-        return {"status": "error", "message": e.message, **info, **e.extra}
+        return {"status": e.status if e.status in ("refused",) else "error", "message": e.message, **info, **e.extra}
     key = hashlib.sha256(json.dumps([aid, cid, args], sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
     if mode == "cached" and not force:
         hit = cache_get(aid, key)
@@ -531,11 +531,14 @@ def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None
         raise LiveError("missing", f"no live dataset {dsid!r}")
     if len(json.dumps(args, ensure_ascii=False)) > MAX_ARGS_CHARS:
         raise LiveError("refused", "the query's arguments are too long")
+    store.history_add(aid, dsid, d["source"].get("args") or {}, "before edit")
     d["source"]["args"] = args
     d["edit"] = {"via": "user", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     nm = store.publish(aid=aid, base=True, files={"dashboard.json": spec})
     if auto_approve:
         approve_all(aid, "user")  # the user's own save is the approval
+    else:
+        store.history_add(aid, dsid, args, "user")
     return {"ok": True, "version": nm["versions"][-1]["n"]}
 
 
@@ -553,5 +556,35 @@ def approve_all(aid: str, via: str) -> list[str]:
         if src.get("kind") in ("call", "query") and isinstance(src.get("tool"), str):
             cid = call_id(src["tool"], src.get("args") or {}, src.get("rules") or {})
             store.set_approval(aid, cid, src["tool"], True)
+            store.history_add(aid, dsid, src.get("args") or {}, via)
             out.append(cid)
     return out
+
+
+def test_args(aid: str, dsid: str, args: Any, params: Optional[dict] = None) -> dict:
+    """Run edited args for one live dataset without saving them (Sources' Test). Same tool, rules,
+    guard and MCP-only rule as a saved query; the answer is not cached."""
+    if not isinstance(args, dict):
+        raise LiveError("error", "args must be an object")
+    d = dataset(aid, dsid)
+    used = names(args)
+    merged = {k: v for k, v in {**d["defaults"], **(params or {})}.items() if k in used}
+    try:
+        filled = fill(args, merged, d["rules"])
+        guard(filled)
+    except LiveError as e:
+        return {"status": e.status if e.status in ("refused",) else "error", "message": e.message, **e.extra}
+    started = time.time()
+    try:
+        answer = run_tool(d["tool"], filled)
+        table = rows_of(answer)
+        out = {"status": "ok", "tool": d["tool"], "args": filled, "ms": int((time.time() - started) * 1000), "test": True}
+        if table is not None:
+            out.update({"columns": table["columns"], "rows": table["rows"][:200], "total": len(table["rows"])})
+        else:
+            out["answer"] = answer
+        return out
+    except LiveError as e:
+        return {"status": e.status, "message": e.message, "args": filled, **e.extra}
+    except Exception as e:
+        return {"status": "failed", "message": f"{type(e).__name__}: {str(e)[:1000]}", "args": filled}
