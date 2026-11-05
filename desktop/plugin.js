@@ -279,11 +279,14 @@ function Page({ ctx }) {
 
 function redirectCore() {
   const h = window.location.hash
-  if (h !== `#${CORE}` && !h.startsWith(`#${CORE}?`)) return
-  if (bypassCoreOnce) {
+  const onCore = h === `#${CORE}` || h.startsWith(`#${CORE}?`)
+  if (!onCore) {
+    // Left the built-in page: the next visit to it redirects again.
     bypassCoreOnce = false
     return
   }
+  // "Session files and images" opened the built-in page on purpose: stay there while it is open.
+  if (bypassCoreOnce) return
   window.location.replace(`#${PAGE}`)
 }
 
