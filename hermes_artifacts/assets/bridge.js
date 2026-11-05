@@ -152,8 +152,9 @@
     },
     /** Dashboards only: run a live dataset's stored call; approve/decline it (approve needs a click). */
     dataset: Object.freeze({
-      run: function (id, params, force, version) {
-        return call("dataset.run", { id: String(id), params: params || {}, force: !!force, version: version || null });
+      run: function (id, params, force, version, mode) {
+        return call("dataset.run", { id: String(id), params: params || {}, force: !!force, version: version || null,
+          mode: mode === "cached" ? "cached" : "live" });
       },
       approve: function (id, version) { return call("dataset.approve", { id: String(id), version: version || null }); },
       decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); },

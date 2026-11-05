@@ -86,8 +86,9 @@ in a `where` filters the rows already loaded.
 ## Live data: a stored MCP call
 
 If you got the numbers from an MCP tool, store the call that worked as the dataset's source, with its
-`args` unchanged. The dashboard runs it when it opens, when the viewer presses Refresh, and when a filter
-it names changes. Answers are cached for `maxAgeMinutes` (default 10).
+`args` unchanged. The dashboard runs it live every time it opens, when the viewer presses Refresh, and when a
+filter it names changes. On open it paints the last answer (kept 24 h) at once while the live run
+finishes. Gallery thumbnails use only that last answer.
 
 - **`tool`:** the name exactly as you called it. Only MCP tools run, and only read-only queries: SQL
   must be a single `SELECT`/`WITH`. Let the connector aggregate and filter.

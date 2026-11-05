@@ -94,8 +94,8 @@ def _op(aid: str, op: str, a: dict) -> dict:
         return {"ok": True, "version": nm["versions"][-1]["n"]}
     if op == "dataset.run":
         params = a.get("params") if isinstance(a.get("params"), dict) else {}
-        return live.run_dataset(aid, str(a.get("id", "")), params, force=bool(a.get("force")),
-                                version=_int(a.get("version")))
+        mode = "cached" if a.get("mode") == "cached" else "live"
+        return live.run_dataset(aid, str(a.get("id", "")), params, version=_int(a.get("version")), mode=mode)
     if op in ("dataset.approve", "dataset.decline"):
         # The page names a dataset; what gets approved is the call stored in the artifact, never one
         # the page describes. The host only forwards this on a user gesture.

@@ -120,14 +120,16 @@
       job().then(function () { liveActive--; pump(); });
     }
   }
-  function loadLive(id, force) {
+  /** mode "live": run the query (open, refresh, filter change). mode "cached": the last answer if
+   *  there is one (thumbnails, and the instant paint on open), else a live run. */
+  function loadLive(id, force, mode) {
     var st = live[id] || (live[id] = { status: "loading" });
     if (!window.hermes || !window.hermes.dataset) { st.status = "error"; st.message = T.noBridge; return; }
-    if (st.running) { st.again = st.again || !!force; return; }
+    if (st.running) { st.again = st.again || true; return; }
     st.running = true;
     if (st.status === "ok") st.refreshing = true; else if (st.status !== "approval") st.status = "loading";
     liveQueue.push(function () {
-      return window.hermes.dataset.run(id, params, !!force, C.version).then(function (r) {
+      return window.hermes.dataset.run(id, params, false, C.version, mode === "cached" ? "cached" : "live").then(function (r) {
         var keep = st.status === "ok" ? { rows: st.rows, columns: st.columns, answer: st.answer } : {};
         Object.keys(st).forEach(function (k) { if (k !== "running" && k !== "again") delete st[k]; });
         Object.assign(st, r || {});
@@ -137,7 +139,9 @@
       }).then(function () {
         st.running = false; st.refreshing = false;
         gen++; redraw(); banner();
-        if (st.again) { var f = st.again; st.again = false; loadLive(id, f); }
+        if (st.again) { st.again = false; loadLive(id, true); return; }
+        // Opened from the last answer: now the live run, keeping those numbers on screen meanwhile.
+        if (st.cached && st.status === "ok" && !C.thumb && !st.revalidated) { st.revalidated = true; loadLive(id, true); }
       });
     });
     pump();
@@ -154,7 +158,7 @@
   }
   function liveResult(id) {
     var st = live[id];
-    if (!st) { loadLive(id, false); st = live[id]; }
+    if (!st) { loadLive(id, false, "cached"); st = live[id]; } // instant paint; live follows (thumbnails stop there)
     if (st.status === "ok") {
       var t = st.rows ? { columns: st.columns || [], rows: st.rows } : asTable(st.answer);
       return Object.assign({ status: "ok", meta: st.meta || [] }, t);
@@ -501,7 +505,7 @@
     var kind = isCalc ? T.calc : lv ? T.live + " · " + (d.source.tool || "") : d.source && d.source.kind === "file" ? T.file + " · " + (d.source.path || "") : T.rows;
     var isValue = r.status === "ok" && r.value !== undefined && !(r.rows || []).length;
     var meta = [kind, r.status !== "ok" ? r.status : isValue ? T.value : (r.rows || []).length + " " + T.rowsN];
-    if (lv && lv.at) meta.push(T.ago + " " + ago(lv.at) + (lv.cached ? " · " + T.cached : ""));
+    if (lv && lv.at) meta.push(T.ago + " " + ago(lv.at) + (lv.cached ? " · " + T.cached : "") + (lv.running ? " · " + T.refreshing : ""));
     else if (!isCalc && d.updated && d.updated.at) meta.push(T.updated + " " + ago(d.updated.at));
     var dot = lv && (lv.running || lv.status === "loading") ? "loading" : lv && lv.status === "approval" ? "loading" : stale ? "stale" : r.status;
     var body = null;
@@ -658,7 +662,7 @@
 
   function freshness() {
     var ids = Object.keys(datasets).filter(function (id) { return used[id]; });
-    var busy = ids.some(function (id) { return live[id] && (live[id].running || live[id].status === "loading"); });
+    var busy = ids.some(function (id) { return live[id] && (live[id].running || live[id].status === "loading" || (live[id].cached && !live[id].revalidated && !C.thumb)); });
     if (busy) return T.refreshing;
     var times = ids.map(function (id) {
       if (live[id] && live[id].at) return live[id].at * 1000;

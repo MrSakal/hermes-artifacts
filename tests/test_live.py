@@ -70,7 +70,7 @@ class LiveTests(unittest.TestCase):
         with self.assertRaises(live.LiveError):
             live.decode({"isError": True, "content": [{"type": "text", "text": "denied"}]})
 
-    def test_approval_cache_and_force(self):
+    def test_approval_live_always_and_cached_for_thumbs(self):
         r = live.run_dataset(self.aid, "sales", {})
         self.assertEqual(r["status"], "approval")
         self.assertEqual(self.reg.calls, [])  # nothing runs before the user allows it
@@ -80,11 +80,33 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["rows"], [{"region": "Pest", "n": 3}])
         self.assertIn("LIMIT 5", self.reg.calls[0][1]["sql"])  # default from dashboard.json params
-        self.assertTrue(live.run_dataset(self.aid, "sales", {"region": "Pest"})["cached"])
-        self.assertEqual(len(self.reg.calls), 1)
-        live.run_dataset(self.aid, "sales", {"region": "Pest"}, force=True)
+        # live (open, refresh, filter change) always runs the call, like Claude's dashboards
+        self.assertFalse(live.run_dataset(self.aid, "sales", {"region": "Pest"})["cached"])
         self.assertEqual(len(self.reg.calls), 2)
+        # cached (thumbnails, the instant first paint) answers from the last run
+        hit = live.run_dataset(self.aid, "sales", {"region": "Pest"}, mode="cached")
+        self.assertTrue(hit["cached"])
+        self.assertEqual(hit["rows"], [{"region": "Pest", "n": 3}])
+        self.assertEqual(len(self.reg.calls), 2)
+        # the last answer is on disk: a restart (empty memory) still paints it
+        live._cache.clear()
+        self.assertTrue(live.run_dataset(self.aid, "sales", {"region": "Pest"}, mode="cached")["cached"])
+        self.assertEqual(len(self.reg.calls), 2)
+        # cached with no answer yet runs once
+        live.run_dataset(self.aid, "sales", {"region": "Debrecen"}, mode="cached")
+        self.assertEqual(len(self.reg.calls), 3)
         self.assertEqual(live.run_dataset(self.aid, "sales", {"region": "Pe'st"})["status"], "error")
+
+    def test_old_answers_expire_after_24h(self):
+        d = live.dataset(self.aid, "sales")
+        store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"]), d["tool"], True)
+        live.run_dataset(self.aid, "sales", {})
+        for k in list(live._cache):
+            live._cache[k]["at"] -= 25 * 3600
+        for f in (store._dir(self.aid) / "cache").glob("*.json"):
+            e = json.loads(f.read_text(encoding="utf-8")); e["at"] -= 25 * 3600; f.write_text(json.dumps(e), encoding="utf-8")
+        live.run_dataset(self.aid, "sales", {}, mode="cached")
+        self.assertEqual(len(self.reg.calls), 2)  # too old to paint: ran live
 
     def test_changed_query_needs_new_approval(self):
         d = live.dataset(self.aid, "sales")

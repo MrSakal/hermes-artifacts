@@ -17,6 +17,7 @@ What keeps a page from turning this into a remote control:
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 import re
 import threading
@@ -25,7 +26,6 @@ from typing import Any, Optional
 
 from . import store
 
-DEFAULT_MAX_AGE_S = 10 * 60
 MAX_ANSWER_BYTES = 8 * 1024 * 1024
 _PARAM = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}")
 _WHOLE = re.compile(r"^\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}$")
@@ -73,7 +73,6 @@ def dataset(aid: str, dsid: str, version: Optional[int] = None) -> dict:
     if not isinstance(src.get("args", {}), dict):
         raise LiveError("error", "args must be an object")
     return {"tool": src["tool"], "args": src.get("args") or {}, "rules": src.get("rules") or {},
-            "max_age": int(d.get("maxAgeMinutes", DEFAULT_MAX_AGE_S // 60)) * 60,
             "defaults": spec.get("params") or {}}
 
 
@@ -403,8 +402,69 @@ def rows_of(answer: Any) -> Optional[dict]:
     return None
 
 
-def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, version: Optional[int] = None) -> dict:
-    """Run one live dataset: approval, filters, cache, the call. Returns the page's dataset payload."""
+# ----------------------------------------------------------------------------- the last answer, kept 24 h
+#
+# The model Claude's dashboards use: every open, refresh and filter change runs the query live. The last
+# answer is kept (24 h, on disk, so a restart keeps it) only to paint something at once while the live
+# call runs, and to draw gallery thumbnails without running every dashboard's queries.
+
+KEEP_S = 24 * 3600
+_MEM_MAX = 300
+
+
+def _cache_dir(aid: str):
+    return store._dir(aid) / "cache"
+
+
+def cache_get(aid: str, key: str) -> Optional[dict]:
+    with _cache_lock:
+        hit = _cache.get(key)
+    if hit is None:
+        p = _cache_dir(aid) / f"{key}.json"
+        try:
+            hit = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    if time.time() - hit.get("at", 0) > KEEP_S:
+        return None
+    with _cache_lock:
+        _cache[key] = hit
+    return hit
+
+
+def cache_put(aid: str, key: str, payload: dict) -> float:
+    at = time.time()
+    entry = {"at": at, "payload": payload}
+    with _cache_lock:
+        _cache[key] = entry
+        if len(_cache) > _MEM_MAX:
+            for k in sorted(_cache, key=lambda k: _cache[k]["at"])[:_MEM_MAX // 3]:
+                _cache.pop(k, None)
+    try:
+        d = _cache_dir(aid)
+        d.mkdir(exist_ok=True)
+        blob = json.dumps(entry, ensure_ascii=False, default=str)
+        if len(blob) <= MAX_ANSWER_BYTES:
+            tmp = d / f"{key}.tmp"
+            tmp.write_text(blob, encoding="utf-8")
+            os.replace(tmp, d / f"{key}.json")
+        for old in d.glob("*.json"):  # drop answers past their 24 h
+            try:
+                if at - old.stat().st_mtime > KEEP_S:
+                    old.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return at
+
+
+def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, version: Optional[int] = None,
+                mode: str = "live") -> dict:
+    """Run one live dataset. ``mode="live"`` (open, refresh, filter change) always runs the call;
+    a call already running with the same arguments is shared, not repeated. ``mode="cached"`` returns
+    the last answer when there is one (a thumbnail, or the instant first paint before the live call),
+    and runs the call only when there is none. ``force`` is the old name for live."""
     d = dataset(aid, dsid, version)
     cid = call_id(d["tool"], d["args"], d["rules"])
     info = {"tool": d["tool"], "call": cid}
@@ -418,20 +478,19 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
     except LiveError as e:
         return {"status": "error", "message": e.message, **info, **e.extra}
     key = hashlib.sha256(json.dumps([aid, cid, args], sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
-    now = time.time()
-    with _cache_lock:
-        hit = _cache.get(key)
-        if hit and not force and now - hit["at"] < d["max_age"]:
+    if mode == "cached" and not force:
+        hit = cache_get(aid, key)
+        if hit:
             return {**hit["payload"], "cached": True, "at": hit["at"]}
+    with _cache_lock:
         wait = _inflight.get(key)
         if wait is None:
             _inflight[key] = threading.Event()
-    if wait is not None:  # the same call is already running for another viewer: share its answer
-        wait.wait(120)
-        with _cache_lock:
-            hit = _cache.get(key)
+    if wait is not None:  # the same call is already running (another viewer, a thumbnail): share its answer
+        wait.wait(180)
+        hit = cache_get(aid, key)
         if hit:
-            return {**hit["payload"], "cached": True, "at": hit["at"]}
+            return {**hit["payload"], "cached": False, "at": hit["at"], "shared": True}
     started = time.time()
     try:
         answer = run_tool(d["tool"], args)
@@ -441,12 +500,8 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
             payload.update(table)
         else:
             payload["answer"] = answer
-        with _cache_lock:
-            _cache[key] = {"at": time.time(), "payload": payload}
-            if len(_cache) > 500:
-                for k in sorted(_cache, key=lambda k: _cache[k]["at"])[:100]:
-                    _cache.pop(k, None)
-        return {**payload, "cached": False, "at": time.time()}
+        at = cache_put(aid, key, payload)
+        return {**payload, "cached": False, "at": at}
     except LiveError as e:
         return {"status": e.status, "message": e.message, **info, "args": args, **e.extra}
     except Exception as e:  # the tool itself raised
