@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doc</title>
+<link rel="stylesheet" href="../_kit/kit.css">
+<link rel="stylesheet" href="doc.css">
+</head>
+<body>
+<div id="doc-bar"></div>
+<div id="doc-app">
+  <nav id="doc-toc" aria-label="Outline"></nav>
+  <div id="doc-edit" hidden><textarea id="doc-src" spellcheck="true" aria-label="Markdown"></textarea></div>
+  <main id="doc-view"><article id="doc-page" class="doc-prose"></article></main>
+</div>
+<script src="markdown.js"></script>
+<script src="../_kit/kit.js"></script>
+<script src="doc.js"></script>
+</body>
+</html>
