@@ -1,0 +1,71 @@
+<div class="wrap">
+  <h1 id="top">Facade orders 2026</h1>
+  <p class="muted takeaway" data-source="ytd" data-field="note">—</p>
+
+  <div class="kpis" style="margin:20px 0">
+    <div class="card"><div class="caption">Orders, year to date</div>
+      <div class="big" data-source="ytd" data-field="orders">—</div></div>
+    <div class="card"><div class="caption">Value, M HUF</div>
+      <div class="big" data-source="ytd" data-field="value">—</div></div>
+    <div class="card"><div class="caption">October vs target</div>
+      <div class="big" data-source="monthly" data-field="value" data-where="month=2026-10">—</div>
+      <div class="caption" data-source="monthly" data-field="target" data-where="month=2026-10">—</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="trend"><h2>Value per month</h2><div class="caption">M HUF, line = target</div>
+      <div class="chart" data-source="monthly" style="min-height:240px"></div></div>
+    <div class="card" id="regions"><h2>By region</h2><div class="caption">Year to date</div>
+      <table data-source="regions" data-row-key="region">
+        <thead><tr><th data-field="region">Region</th><th data-field="orders">Orders</th><th data-field="value">M HUF</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+  </div>
+</div>
+<script>
+  dash.calc('ytd', {
+    title: 'Year to date', description: 'Sums of the monthly rows.', inputs: ['monthly'],
+    fn: (monthly) => {
+      const orders = monthly.reduce((s, r) => s + Number(r.orders), 0);
+      const value = monthly.reduce((s, r) => s + Number(r.value), 0);
+      return { orders, value: Math.round(value * 10) / 10, note: orders + ' orders so far; October is the weakest month against target.' };
+    }
+  });
+  const fmt = d3.format(',.1f');
+  dash.onData(() => {
+    const y = dash.data('ytd');
+    document.querySelectorAll('[data-source="ytd"]').forEach(el => {
+      el.textContent = y.status === 'ok' ? (el.dataset.field === 'value' ? fmt(y.value.value) : y.value[el.dataset.field]) : '—';
+    });
+    const m = dash.data('monthly');
+    if (m.status !== 'ok') return;
+    const oct = m.rows.find(r => r.month === '2026-10');
+    document.querySelector('[data-field="value"][data-where]').textContent = fmt(+oct.value);
+    document.querySelector('[data-field="target"][data-where]').textContent = 'target ' + oct.target;
+
+    const box = document.querySelector('#trend .chart');
+    const W = box.clientWidth || 400, H = 240, M = {t: 10, r: 10, b: 24, l: 36};
+    const x = d3.scaleBand(m.rows.map(r => r.month), [M.l, W - M.r]).padding(0.25);
+    const yS = d3.scaleLinear([0, d3.max(m.rows, r => Math.max(+r.value, +r.target))], [H - M.b, M.t]).nice();
+    const svg = d3.create('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+    svg.append('g').attr('transform', `translate(0,${H - M.b})`).call(d3.axisBottom(x).tickFormat(d => d.slice(5)))
+      .attr('font-size', null).attr('font-family', null).attr('color', 'var(--color-fg-muted)');
+    svg.append('g').attr('transform', `translate(${M.l},0)`).call(d3.axisLeft(yS).ticks(4))
+      .attr('font-size', null).attr('font-family', null).attr('color', 'var(--color-fg-muted)');
+    svg.append('g').selectAll('rect').data(m.rows).join('rect')
+      .attr('x', r => x(r.month)).attr('width', x.bandwidth()).attr('y', r => yS(+r.value))
+      .attr('height', r => yS(0) - yS(+r.value)).attr('rx', 4).attr('fill', dash.colors[0]);
+    svg.append('path').attr('fill', 'none').attr('stroke', 'var(--chart-reference)').attr('stroke-width', 2)
+      .attr('stroke-dasharray', '4 4')
+      .attr('d', d3.line().x(r => x(r.month) + x.bandwidth() / 2).y(r => yS(+r.target))(m.rows));
+    box.replaceChildren(svg.node());
+
+    const g = dash.data('regions');
+    document.querySelector('#regions tbody').replaceChildren(...g.rows.map(r => {
+      const tr = document.createElement('tr'); tr.dataset.key = r.region;
+      [r.region, r.orders, fmt(r.value)].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+      return tr;
+    }));
+  });
+</script>
+<style>.wrap { max-width: 1100px; margin-inline: auto; } .takeaway { margin: 0; }</style>

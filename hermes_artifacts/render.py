@@ -34,10 +34,10 @@ def content_json(vdir: Path) -> dict:
 
 def runtime(kind: str) -> str:
     """types/<kind>/runtime.html with its local scripts and styles inlined."""
-    d = TYPES_DIR / kind
-    if not (d / "runtime.html").is_file():
+    if not (TYPES_DIR / kind / "runtime.html").is_file():
         raise ValueError(f"no viewer for type {kind!r} in this plugin version")
-    return bundle.bundle(d, "runtime.html")
+    # Rooted at types/ so every runtime can share types/_kit/.
+    return bundle.bundle(TYPES_DIR, f"{kind}/runtime.html")
 
 
 def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False) -> str:

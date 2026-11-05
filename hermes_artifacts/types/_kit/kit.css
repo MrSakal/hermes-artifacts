@@ -1,0 +1,89 @@
+/* Shared look of the hermes-artifacts type runtimes (dashboard, slides, doc).
+   Tokens follow the theme: the host sends its colors through the bridge ("theme" event); until then
+   prefers-color-scheme decides. Pages written for a type use these variables, never fixed colors. */
+:root {
+  color-scheme: light dark;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+  --color-bg: #faf9f5;
+  --color-panel: #ffffff;
+  --color-fg: #1f1e1d;
+  --color-fg-secondary: #3d3c39;
+  --color-fg-muted: #6f6d66;
+  --color-border-line: #e7e5dd;
+  --color-border-strong: #cfccc0;
+  --color-accent: #c96442;
+  --color-ok: #2e7d4f;
+  --color-warn: #a86a07;
+  --color-bad: #c0392b;
+  --color-hover: rgba(0, 0, 0, 0.05);
+
+  --chart-1: #c96442; --chart-2: #3b6fb6; --chart-3: #2e8b6a; --chart-4: #b5892b;
+  --chart-5: #7b5ea7; --chart-6: #c0567d; --chart-7: #4f8fa3; --chart-8: #8a8579;
+  --chart-muted: #c9c6bb;
+  --chart-grid: #ecebe4;
+  --chart-axis: #bdbab0;
+  --chart-reference: #8a8579;
+
+  --size-caption: 12px; --size-body: 14px; --size-heading: 16px; --size-title: 28px; --size-display: 44px;
+  --gap-xs: 4px; --gap-sm: 8px; --gap-md: 16px; --gap-lg: 24px; --gap-xl: 40px;
+  --pad-xs: 4px; --pad-sm: 8px; --pad-md: 12px; --pad-lg: 16px; --pad-xl: 24px;
+  --radius: 10px;
+  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.14);
+  --dur: 180ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #1f1e1d; --color-panel: #262624; --color-fg: #f5f4ef; --color-fg-secondary: #d9d7cf;
+    --color-fg-muted: #a29f95; --color-border-line: #3a3936; --color-border-strong: #4c4b47;
+    --color-accent: #d97757; --color-ok: #5cb57e; --color-warn: #e0a43c; --color-bad: #e5675a;
+    --color-hover: rgba(255, 255, 255, 0.06);
+    --chart-1: #d97757; --chart-2: #6c9be0; --chart-3: #4fbf95; --chart-4: #d9ad4e;
+    --chart-5: #a68bd6; --chart-6: #e07ea4; --chart-7: #6fb4c9; --chart-8: #a6a294;
+    --chart-muted: #4c4b47; --chart-grid: #34332f; --chart-axis: #5a5953; --chart-reference: #a6a294;
+    --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  --color-bg: #1f1e1d; --color-panel: #262624; --color-fg: #f5f4ef; --color-fg-secondary: #d9d7cf;
+  --color-fg-muted: #a29f95; --color-border-line: #3a3936; --color-border-strong: #4c4b47;
+  --color-accent: #d97757; --color-ok: #5cb57e; --color-warn: #e0a43c; --color-bad: #e5675a;
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --chart-1: #d97757; --chart-2: #6c9be0; --chart-3: #4fbf95; --chart-4: #d9ad4e;
+  --chart-5: #a68bd6; --chart-6: #e07ea4; --chart-7: #6fb4c9; --chart-8: #a6a294;
+  --chart-muted: #4c4b47; --chart-grid: #34332f; --chart-axis: #5a5953; --chart-reference: #a6a294;
+  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size-body)/1.45 var(--font-sans); }
+
+/* Kit chrome: a slim toolbar, buttons, menus, a side drawer. Class names are kit- prefixed so a
+   page's own CSS never collides with them. */
+.kit-bar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 6px; height: 44px;
+  padding: 0 12px; background: var(--color-bg); border-bottom: 1px solid var(--color-border-line); }
+.kit-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0;
+  border-radius: 6px; background: transparent; color: var(--color-fg-secondary); font: inherit;
+  font-size: 13px; cursor: pointer; }
+.kit-btn:hover, .kit-btn[aria-pressed="true"] { background: var(--color-hover); color: var(--color-fg); }
+.kit-btn svg { width: 16px; height: 16px; }
+.kit-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--color-hover); }
+.kit-seg .kit-btn { height: 24px; }
+.kit-seg .kit-btn[aria-pressed="true"] { background: var(--color-panel); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.kit-menu { position: absolute; z-index: 60; min-width: 200px; padding: 4px; border-radius: 8px;
+  border: 1px solid var(--color-border-line); background: var(--color-panel); box-shadow: var(--shadow-popover); }
+.kit-menu button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none;
+  color: var(--color-fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.kit-menu button:hover { background: var(--color-hover); }
+.kit-menu .kit-hint { padding: 4px 10px 6px; font-size: 11px; color: var(--color-fg-muted); }
+.kit-drawer { position: fixed; top: 44px; right: 0; bottom: 0; z-index: 40; width: min(420px, 100%); overflow: auto;
+  background: var(--color-panel); border-left: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
+.kit-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 70; padding: 8px 14px;
+  border-radius: 8px; background: var(--color-fg); color: var(--color-bg); font-size: 12px; }
+.kit-empty { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: var(--color-fg-muted); }
+html[data-thumb] .kit-bar, html[data-thumb] .kit-drawer { display: none !important; }
