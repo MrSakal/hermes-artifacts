@@ -29,6 +29,7 @@ def _view(m: dict) -> dict:
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
+            "session": m.get("session"),
             "comments": sum(1 for c in store.comments_list(m["id"], include_resolved=False)
                             if c["author"] == "user")}
 
@@ -54,10 +55,10 @@ def get_artifact(aid: str):
 
 
 @router.get("/artifacts/{aid}/html")
-def get_html(aid: str, v: Optional[int] = None, page: Optional[str] = None):
+def get_html(aid: str, v: Optional[int] = None, page: Optional[str] = None, thumb: bool = False):
     m = _meta(aid)
     try:
-        html = render.render(m, store.version_dir(aid, v), page=page)
+        html = render.render(m, store.version_dir(aid, v), page=page, thumb=thumb)
     except FileNotFoundError:
         raise HTTPException(404, "unknown version or page")
     except ValueError as e:

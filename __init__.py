@@ -80,12 +80,12 @@ def _view(meta: dict) -> dict:
 
 # ----------------------------------------------------------------------------- tools
 
-def _publish(args: dict, **_kw) -> str:
+def _publish(args: dict, **kw) -> str:
     try:
         meta = store.publish(html=args.get("html"), path=args.get("path"), files=args.get("files"),
                              title=args.get("title", ""), aid=args.get("id"),
                              description=args.get("description", ""), type=args.get("type"),
-                             base=bool(args.get("base", False)))
+                             base=bool(args.get("base", False)), session=kw.get("session_id"))
         view = _view(meta)
         if args.get("open", True):
             view["shown_in_desktop"] = _broadcast("open", view)

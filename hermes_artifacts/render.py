@@ -40,7 +40,7 @@ def runtime(kind: str) -> str:
     return bundle.bundle(d, "runtime.html")
 
 
-def render(meta: dict, vdir: Path, page: Optional[str] = None) -> str:
+def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False) -> str:
     kind = meta.get("type", "page")
     if kind == "page":
         entry = store.safe_rel(page) if page else "index.html"
@@ -48,7 +48,7 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None) -> str:
             raise FileNotFoundError(entry)
         return bundle.bundle(vdir, entry)
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
-            "version": int(vdir.name[1:]), "files": content_json(vdir)}
+            "version": int(vdir.name[1:]), "thumb": bool(thumb), "files": content_json(vdir)}
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'
