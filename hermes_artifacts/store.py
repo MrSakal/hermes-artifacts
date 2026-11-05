@@ -192,17 +192,82 @@ def update_meta(aid: str, **fields) -> dict:
         return meta
 
 
+TRASH_MARK = ".deleted.json"
+
+
 def delete(aid: str) -> Path:
-    """Move an artifact to <root>/.trash/ (recoverable by moving it back)."""
+    """Move an artifact to <root>/.trash/ (recoverable by moving it back until it is purged). The
+    deletion time is written into it, so each item's retention counts from its own deletion."""
     with _LOCK:
         d = _dir(aid)
-        if not (d / "meta.json").is_file():
+        meta = get_meta(aid)
+        if meta is None:
             raise FileNotFoundError(aid)
         trash = root() / ".trash"
         trash.mkdir(exist_ok=True)
-        dest = trash / f"{aid}-{int(time.time())}"
+        now = time.time()
+        dest = trash / f"{aid}-{int(now)}"
+        n = 1
+        while dest.exists():
+            n += 1
+            dest = trash / f"{aid}-{int(now)}-{n}"
         shutil.move(str(d), str(dest))
+        _write_json(dest / TRASH_MARK, {"id": aid, "title": meta.get("title", aid), "deleted_at": now})
         return dest
+
+
+def _deleted_at(item: Path) -> Optional[float]:
+    """When a trashed item was deleted: its mark, else the time in its folder name, else its mtime."""
+    try:
+        return float(json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))["deleted_at"])
+    except Exception:
+        pass
+    m = re.search(r"-(\d{9,11})(?:-\d+)?$", item.name)
+    if m:
+        return float(m.group(1))
+    try:
+        return item.stat().st_mtime
+    except OSError:
+        return None
+
+
+def trash_list() -> list[dict]:
+    trash = root() / ".trash"
+    if not trash.is_dir():
+        return []
+    out = []
+    for item in sorted(trash.iterdir()):
+        if item.is_dir():
+            title = item.name
+            try:
+                title = json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("title", title)
+            except Exception:
+                pass
+            out.append({"name": item.name, "title": title, "deleted_at": _deleted_at(item)})
+    return out
+
+
+def purge_trash(days: float, now: Optional[float] = None) -> list[str]:
+    """Delete for good every trashed item deleted more than ``days`` ago (each counted from its own
+    deletion). ``days <= 0`` keeps everything. Returns the purged folder names."""
+    if not days or days <= 0:
+        return []
+    now = time.time() if now is None else now
+    limit = float(days) * 86400
+    purged = []
+    trash = root() / ".trash"
+    if not trash.is_dir():
+        return []
+    with _LOCK:
+        for item in list(trash.iterdir()):
+            if not item.is_dir():
+                continue
+            at = _deleted_at(item)
+            if at is not None and now - at >= limit:
+                shutil.rmtree(item, ignore_errors=True)
+                if not item.exists():
+                    purged.append(item.name)
+    return purged
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:

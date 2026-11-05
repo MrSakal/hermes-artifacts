@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 import webbrowser
 from typing import Any
 
@@ -135,7 +136,10 @@ def _delete(args: dict, **_kw) -> str:
     try:
         dest = store.delete(args["id"])
         _broadcast("deleted", {"id": args["id"]})
-        return _ok(id=args["id"], moved_to=str(dest), note="Moved to the plugin's .trash folder.")
+        days = _trash_days()
+        return _ok(id=args["id"], moved_to=str(dest),
+                   note=(f"Moved to the plugin's .trash folder; deleted for good after {days:g} days."
+                         if days else "Moved to the plugin's .trash folder; kept until removed by hand."))
     except Exception as e:
         return _err(str(e))
 
@@ -321,9 +325,53 @@ def _cli(args):
 
 # ----------------------------------------------------------------------------- entry
 
+# ----------------------------------------------------------------------------- trash retention
+
+_PURGE_EVERY_S = 3600
+_purger_started = False
+_purger_lock = threading.Lock()
+
+
+def _trash_days() -> float:
+    try:
+        return max(0.0, float(_setting("trash_days", 30)))
+    except (TypeError, ValueError):
+        return 30.0
+
+
+def _purge_once() -> list[str]:
+    try:
+        purged = store.purge_trash(_trash_days())
+        if purged:
+            logger.info("hermes-artifacts: purged %d trashed artifact(s): %s", len(purged), ", ".join(purged))
+        return purged
+    except Exception:
+        logger.debug("trash purge failed", exc_info=True)
+        return []
+
+
+def _start_purger() -> None:
+    """A daemon timer that empties the trash on a schedule: each item goes once it has been deleted
+    for longer than ``trash_days`` (re-read every round, so a changed setting applies without a
+    restart). Checked at start and then every hour."""
+    global _purger_started
+    with _purger_lock:
+        if _purger_started:
+            return
+        _purger_started = True
+
+    def loop():
+        while True:
+            _purge_once()
+            time.sleep(_PURGE_EVERY_S)
+
+    threading.Thread(target=loop, name="hermes-artifacts-trash", daemon=True).start()
+
+
 def register(ctx) -> None:
     global _ctx
     _ctx = ctx
+    _start_purger()
     for name, schema, handler, emoji in TOOLS:
         # The CDP tool only makes sense where Hermes Desktop is installed (not on a headless server).
         check = desktop_cdp.desktop_installed if name == "artifact_desktop_cdp" else None

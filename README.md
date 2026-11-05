@@ -144,8 +144,9 @@ which decides what is allowed.
   processes (`Get-Process` / `pgrep`) and start `Hermes` with `--remote-debugging-port` bound to
   `127.0.0.1`. With `restart=true` they also close it (`CloseMainWindow`, then `taskkill`/`pkill`). A
   debugging port lets any local process control the desktop renderer, so open it only while you use it.
-- **Reads and writes:** only `<HERMES_HOME>/plugin-data/hermes-artifacts/` (deleting moves an artifact
-  to `.trash/` there) and the files you pass to `artifact_publish`.
+- **Reads and writes:** only `<HERMES_HOME>/plugin-data/hermes-artifacts/` and the files you pass to
+  `artifact_publish`. Deleting moves an artifact to `.trash/` there. Each one is removed for good
+  `trash_days` after its own deletion (default 30; `0` keeps them). A background timer checks every hour.
 - **Credentials:** none.
 - **Bridge tools:** `window.hermes.callTool` is off by default. In the browser viewer it is limited to the
   `bridge_tools` allowlist. In the desktop it is not available. Artifact HTML is untrusted content: only
