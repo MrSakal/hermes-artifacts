@@ -18,8 +18,23 @@ through the plugin's own API and renders it as a `data:` URL, so no extra port h
 
 ## Install
 
-Install the plugin on the Hermes that runs your sessions: the server your desktop connects to, or this
-machine.
+The plugin has two halves in one repo. The **agent half** (tools, page API) runs on the Hermes your
+sessions run on. The **desktop half** (`desktop/plugin.js`) runs inside Hermes Desktop on your computer.
+
+**One step for both, from Hermes Desktop (recommended):** open this link, or use **Capabilities →
+Plugins → Install from Git** with `MrSakal/hermes-artifacts`, and keep both components ticked:
+
+```
+hermes://plugin/install?repo=MrSakal/hermes-artifacts&enable=1
+```
+
+Desktop installs the agent half on the backend it is connected to, including a remote server, and the
+desktop half on this computer. Restart that backend's gateway afterwards (`hermes gateway restart`) so
+the page API mounts, and start a new session to get the tools.
+
+**From a terminal** (agent half only): this installs on the machine you run it on. If your Desktop
+talks to a remote server, also install the desktop half through **Install from Git** with only the
+Desktop component ticked. Otherwise the Plugins page shows it as *unavailable (remote backend)*.
 
 ```bash
 hermes plugins install MrSakal/hermes-artifacts
@@ -27,8 +42,8 @@ hermes plugins enable hermes-artifacts
 hermes gateway restart
 ```
 
-Hermes Desktop ships a package's desktop half switched off. Turn it on in **Settings → Plugins →
-Artifacts**. Sessions started after the restart get the tools.
+A desktop half installed from the terminal ships switched off. Turn it on in **Capabilities → Plugins →
+Artifacts**.
 
 Requires Hermes 0.22.5 or newer. No Python dependencies.
 
