@@ -43,8 +43,12 @@ hermes://plugin/install?repo=MrSakal/hermes-artifacts&enable=1
 ```
 
 Desktop installs the agent half on the backend it is connected to, including a remote server, and the
-desktop half on this computer. Restart that backend's gateway afterwards (`hermes gateway restart`) so
-the page API mounts, and start a new session to get the tools.
+desktop half on this computer. Start a new session to get the tools.
+
+The page API is served by the Hermes **web server** (`hermes dashboard`), a separate process from the
+gateway. Restart it once after the first install of 0.2.1 or later, so it mounts the plugin's router:
+`systemctl --user restart hermes-dashboard`, or stop and rerun `hermes dashboard`. Later updates
+reload the API code by themselves, with no restart.
 
 **From a terminal** (agent half only): this installs on the machine you run it on. If your Desktop
 talks to a remote server, also install the desktop half through **Install from Git** with only the
