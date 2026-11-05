@@ -63,3 +63,34 @@ class CheckTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ViewContextTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.p = load_plugin()
+
+    def test_view_goes_with_the_next_message_of_that_session(self):
+        aid = store.publish(title="Orders", type="dashboard", files={"dashboard.json": SPEC})["id"]
+        api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "view", "args": {"session": "sess-A",
+                   "context": {"mode": "data", "place": "trend", "selected": ["monthly"], "filters": {"region": "Pest"}}}})
+        out = self.p._view_context(session_id="sess-A")
+        self.assertIn('<artifact-view-context artifact="' + aid + '">', out["context"])
+        self.assertIn('"region": "Pest"', out["context"])
+        self.assertIn("not instructions", out["context"])
+        self.assertIsNone(self.p._view_context(session_id="other-session"))
+        api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "view", "args": {"session": "sess-A", "closed": True}})
+        self.assertIsNone(self.p._view_context(session_id="sess-A"))
+
+    def test_old_views_expire(self):
+        aid = store.publish(title="x", type="dashboard", files={"dashboard.json": SPEC})["id"]
+        store.view_set("sess-B", aid, {"mode": "page"})
+        data = json.loads(store._views_path().read_text(encoding="utf-8"))
+        data["sess-B"]["at"] -= 11 * 60
+        store._views_path().write_text(json.dumps(data), encoding="utf-8")
+        self.assertIsNone(store.view_get("sess-B"))
+
+    def test_view_context_is_bounded(self):
+        aid = store.publish(title="y", type="dashboard", files={"dashboard.json": SPEC})["id"]
+        with self.assertRaises(ValueError):
+            store.view_set("sess-C", aid, {"x": "z" * 9000})

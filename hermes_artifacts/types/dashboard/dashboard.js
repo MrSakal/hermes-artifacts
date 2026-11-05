@@ -301,6 +301,7 @@
       tickFresh();
       if (srcOpen) renderSources();
       scheduleCheck();
+      sendView();
     });
   }
   function run(fn) {
@@ -639,6 +640,7 @@
     if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; }
     document.documentElement.setAttribute("data-dash-mode", srcOpen ? "data" : "page");
     srcBtn.setAttribute("aria-pressed", String(srcOpen));
+    sendView();
     document.getElementById("dash-main").style.marginRight = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
     if (srcOpen) renderSources();
     redraw();
@@ -748,6 +750,25 @@
   }
   window.addEventListener("focus", retryFailed);
   document.addEventListener("visibilitychange", retryFailed);
+
+  // ------------------------------------------------------------------ view context (with the next chat message)
+  function viewContext() {
+    var place = kit.inView("#dash-root [id], #dash-root .c-h, #dash-root h1, #dash-root h2");
+    var placeName = place ? (place.id || place.textContent.trim().slice(0, 60)) : null;
+    var filters = {};
+    Object.keys(params).forEach(function (k) {
+      if (JSON.stringify(params[k]) !== JSON.stringify(paramDefaults[k])) filters[k] = params[k];
+    });
+    var failures = Object.keys(used).filter(function (id) {
+      var s = statusOf(id).status;
+      return /^(error|failed|reauth|absent|off|refused|missing)$/.test(s);
+    });
+    return { mode: srcOpen ? "data" : "page", place: placeName,
+      selected: picked ? [picked.id] : [], field: picked && picked.field || null, filters: filters,
+      failed: failures.length, failures: failures.slice(0, 5).map(function (id) { return { id: id, label: datasets[id] && datasets[id].title || id }; }) };
+  }
+  function sendView() { kit.view(viewContext); }
+  window.addEventListener("scroll", sendView, { passive: true });
 
   // ------------------------------------------------------------------ check + runs (feedback to the agent)
   var checkTimer = null, lastSent = { check: "", runs: "" };

@@ -125,6 +125,7 @@
     if (on) on.scrollIntoView({ block: "nearest" });
     counter.textContent = (cur + 1) + " " + T.of + " " + slides.length;
     notesEl.textContent = notesOf(slides[cur]) || T.nonotes;
+    sendView();
     try { history.replaceState(null, "", "#slide-" + (cur + 1)); } catch (e) {}
   }
 
@@ -149,8 +150,20 @@
     if (gridEl) return closeGrid();
     gridEl = h("div", { id: "sl-grid" }, slides.map(function (s, i) { return thumb(s, i, true); }));
     document.body.appendChild(gridEl);
+    sendView();
   }
   function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; } }
+
+  // ------------------------------------------------------------------ view context (with the next chat message)
+  function sendView() {
+    kit.view(function () {
+      var i = pres ? pres.i : cur, s = slides[i];
+      var sel = editing ? { kind: editing.tagName.toLowerCase(), label: editing.textContent.trim().slice(0, 60) } : null;
+      return { mode: pres ? "present" : gridEl ? "grid" : "edit", slideId: s ? s.id : null, slideTitle: s ? titleOf(s) : null,
+        slideIndex: s ? i + 1 : 0, slideCount: slides.length, dirty: slides.some(function (x) { return x.dirty; }),
+        selected: sel ? [sel.label] : [], selection: sel ? [sel] : [] };
+    });
+  }
 
   // ------------------------------------------------------------------ editing (text in place)
   var editing = null;
@@ -163,6 +176,7 @@
     editing = el;
     el.setAttribute("contenteditable", "true");
     el.focus();
+    sendView();
   });
   stage.addEventListener("input", function () { slides[cur].dirty = true; saveBtn.hidden = false; });
   stage.addEventListener("keydown", function (e) { if (e.key === "Escape") { stopEdit(); e.stopPropagation(); } }, true);
@@ -241,6 +255,7 @@
       }
     } else if (old) old.remove();
     pres.count.textContent = (pres.i + 1) + " / " + slides.length;
+    sendView();
   }
   function build(n) {
     n.removeAttribute("data-build-hidden");

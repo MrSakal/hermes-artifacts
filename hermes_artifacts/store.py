@@ -539,3 +539,46 @@ def history_add(aid: str, dsid: str, args: dict, via: str) -> None:
             longest = max(data, key=lambda k: len(data[k]))
             data[longest] = data[longest][1:]
         _write_json(_history_path(aid), data)
+
+
+# --- view context: what the user has open in an artifact, per chat session (for the next message) --
+
+VIEW_TTL_S = 10 * 60
+MAX_VIEW_BYTES = 8 * 1024
+
+
+def _views_path() -> Path:
+    return root() / "views.json"
+
+
+def view_set(session: str, aid: Optional[str], context: Optional[dict]) -> None:
+    """Record (or with ``aid=None`` clear) the artifact a chat session's user is looking at."""
+    if not isinstance(session, str) or not 0 < len(session) <= 200:
+        raise ValueError("bad session")
+    with _LOCK:
+        p = _views_path()
+        data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        now = time.time()
+        data = {k: v for k, v in data.items() if now - v.get("at", 0) <= VIEW_TTL_S}
+        if aid is None:
+            data.pop(session, None)
+        else:
+            meta = get_meta(aid)
+            if meta is None:
+                raise FileNotFoundError(aid)
+            blob = json.dumps(context or {}, ensure_ascii=False, default=str)
+            if len(blob.encode()) > MAX_VIEW_BYTES:
+                raise ValueError("view context too large")
+            data[session] = {"artifact": aid, "title": meta.get("title", aid), "type": meta.get("type", "page"),
+                             "version": meta["versions"][-1]["n"], "context": json.loads(blob), "at": now}
+        _write_json(p, data)
+
+
+def view_get(session: str) -> Optional[dict]:
+    p = _views_path()
+    if not p.is_file():
+        return None
+    v = json.loads(p.read_text(encoding="utf-8")).get(session)
+    if not v or time.time() - v.get("at", 0) > VIEW_TTL_S:
+        return None
+    return v

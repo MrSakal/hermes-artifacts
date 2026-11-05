@@ -171,6 +171,30 @@
     ]);
   }
 
-  window.kit = { hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** Tell the host where the user is in the page (it goes along with their next chat message).
+   *  Debounced, and only when it changed. Thumbnails never report. */
+  var viewTimer = null, viewLast = "";
+  function view(get) {
+    if (content.thumb || !window.hermes || !window.hermes.view) return;
+    clearTimeout(viewTimer);
+    viewTimer = setTimeout(function () {
+      var ctx;
+      try { ctx = get(); } catch (e) { return; }
+      var s = JSON.stringify(ctx);
+      if (s === viewLast) return;
+      viewLast = s;
+      window.hermes.view(ctx).catch(function () {});
+    }, 600);
+  }
+  function inView(selector) {
+    var best = null;
+    document.querySelectorAll(selector).forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.bottom > 60 && r.top < innerHeight * 0.6 && (!best || r.top > best.r.top)) best = { el: el, r: r };
+    });
+    return best ? best.el : null;
+  }
+
+  window.kit = { view: view, inView: inView, hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
 })();

@@ -202,6 +202,7 @@ const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
 const $toast = atom(null)
 const $presenting = atom(false) // a deck is presenting: its frame fills the screen
+const viewSessions = new Map() // artifact id -> chat session its view context went to
 const presentExit = new Set() // per mounted frame: tell the page full screen ended
 const $exports = atom([]) // exports the open artifact's runtime offers ([{id, label}]), shown in our toolbar
 // Where our "Session files" link sits: the floating back button on the built-in view takes that spot.
@@ -829,6 +830,16 @@ function useBridge(ref, art, ctx, portRef) {
             $exports.set(list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) })))
             return reply({ ok: true, value: { ok: true } })
           }
+          if (m.op === 'view') {
+            const session = host.state.focusedStoredSessionId?.get?.() || art.session
+            if (!session) return reply({ ok: true, value: { ok: false } })
+            const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, {
+              method: 'POST',
+              body: { op: 'view', args: { session, context: m.args?.context || {} } }
+            })
+            viewSessions.set(aid, session)
+            return reply({ ok: true, value })
+          }
           if (m.op === 'connectors') {
             const server = String(m.args?.server || '').slice(0, 100)
             host.navigate(`/capabilities?tab=connectors${server ? `&server=${enc(server)}` : ''}`)
@@ -879,6 +890,11 @@ function useBridge(ref, art, ctx, portRef) {
     return () => {
       window.removeEventListener('message', onMessage)
       presentExit.delete(exit)
+      const session = viewSessions.get(aid)
+      if (session) {
+        viewSessions.delete(aid)
+        ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: 'view', args: { session, closed: true } } }).catch(() => {})
+      }
       portRef.current = null
       if ($presenting.get()) $presenting.set(false)
     }

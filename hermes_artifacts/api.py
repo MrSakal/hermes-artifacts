@@ -111,6 +111,11 @@ def _op(aid: str, op: str, a: dict) -> dict:
     if op == "dataset.edit":
         return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")),
                               auto_approve=not require_approval())
+    if op == "view":
+        # The host adds the chat session; the context itself is the page's (data, bounded).
+        store.view_set(str(a.get("session", "")), aid if not a.get("closed") else None,
+                       a.get("context") if isinstance(a.get("context"), dict) else {})
+        return {"ok": True}
     if op == "report":
         kind = str(a.get("kind", ""))
         store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})

@@ -172,6 +172,8 @@
     /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
      *  then sends an "export" event with the id the user picked. */
     chrome: function (opts) { return call("chrome", opts || {}); },
+    /** Type runtimes: where the user is in the page (sent along with their next chat message). */
+    view: function (context) { return call("view", { context: context || {} }); },
     /** Type runtimes: report what the page found ("check") and how its sources ran ("runs"). */
     report: function (kind, data) { return call("report", { kind: String(kind), data: data || {} }); },
     /** Dashboards: open Hermes' Connectors page at a server, to sign in again or turn it on. */

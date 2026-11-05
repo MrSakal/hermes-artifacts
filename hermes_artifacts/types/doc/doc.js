@@ -40,6 +40,20 @@
     titleEl.textContent = title();
   }
 
+  // ------------------------------------------------------------------ view context (with the next chat message)
+  function sendView() {
+    kit.view(function () {
+      var head = kit.inView("#doc-page h1, #doc-page h2, #doc-page h3");
+      var sel = "";
+      if (editing && document.activeElement === src) sel = src.value.slice(src.selectionStart, src.selectionEnd);
+      else { var s = window.getSelection && window.getSelection(); sel = s ? String(s) : ""; }
+      return { mode: editing ? "edit" : "read", section: head ? head.textContent.trim().slice(0, 80) : null,
+        selected: sel ? [sel.trim().slice(0, 300)] : [], dirty: text !== saved, version: C.version };
+    });
+  }
+  window.addEventListener("scroll", sendView, { passive: true });
+  document.addEventListener("selectionchange", sendView);
+
   // ------------------------------------------------------------------ edit / save
   var editing = false;
   function setEditing(on) {
@@ -49,6 +63,7 @@
     kit.labelled(editBtn, on ? T.done : T.edit);
     editBtn.setAttribute("aria-pressed", String(on));
     if (on) { src.value = text; src.focus(); }
+    sendView();
   }
   var timer = null;
   src.addEventListener("input", function () {
