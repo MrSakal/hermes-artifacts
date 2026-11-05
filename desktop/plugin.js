@@ -79,7 +79,7 @@ const $nonce = atom(0)
 const $error = atom(null)
 // Where our "Session files" link sits (left / bottom offsets in px): the floating back button on the
 // built-in view takes the same spot, since that view fills the same workspace pane.
-const $backSpot = atom({ left: 260, bottom: 20, width: 256 })
+const $backSpot = atom({ left: 260, bottom: 20, width: 1000 })
 
 
 const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
@@ -124,9 +124,14 @@ const ghostBtn =
   'h-6 rounded px-1.5 text-xs text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground'
 
 /** The footer row of the list column ("Session files and images →") and its twin on the built-in view
- *  ("← Back to Artifacts"): one look, so the two are the same size and sit in the same spot. Inline
- *  styles with theme variables (a runtime plugin can only use utility classes the app ships). */
-function FooterRow({ label, title, onClick, floating, spot }) {
+ *  ("← Back to Artifacts"): one look, the same height and text. The twin is a full-width opaque footer
+ *  bar over the built-in view with only its label clickable. Inline styles with theme variables (a
+ *  runtime plugin can only use utility classes the app ships). */
+const rowText = { padding: '8px 12px', fontSize: '0.6875rem', lineHeight: '1rem', textAlign: 'left' }
+// --chrome-action-hover is translucent: layer it over the opaque page background so nothing shows through.
+const hoverFill = 'linear-gradient(var(--chrome-action-hover), var(--chrome-action-hover)), var(--background)'
+
+function RowButton({ label, title, onClick, opaque }) {
   const [hover, setHover] = useState(false)
   return jsx('button', {
     type: 'button',
@@ -135,39 +140,44 @@ function FooterRow({ label, title, onClick, floating, spot }) {
     onMouseEnter: () => setHover(true),
     onMouseLeave: () => setHover(false),
     style: {
+      ...rowText,
       display: 'block',
-      width: floating ? spot.width : '100%',
-      flexShrink: 0,
-      padding: '8px 12px',
-      textAlign: 'left',
-      fontSize: '0.6875rem',
-      lineHeight: '1rem',
       border: 0,
-      borderTop: '1px solid var(--ui-stroke-secondary)',
       color: hover ? 'var(--ui-text-secondary)' : 'var(--ui-text-quaternary)',
-      background: hover ? 'var(--chrome-action-hover)' : 'transparent',
+      background: hover ? hoverFill : opaque ? 'var(--background)' : 'transparent',
       cursor: 'pointer',
-      transition: 'color 120ms ease, background-color 120ms ease',
-      ...(floating
-        ? {
-            position: 'fixed',
-            left: spot.left,
-            bottom: spot.bottom,
-            zIndex: 40,
-            // Opaque so it stays readable over the built-in view's content.
-            backgroundColor: hover
-              ? 'color-mix(in srgb, var(--chrome-action-hover) 100%, var(--background))'
-              : 'var(--background)'
-          }
-        : null)
+      transition: 'color 120ms ease'
     },
     children: label
   })
 }
 
+function FooterRow({ label, title, onClick }) {
+  return jsx('div', {
+    style: { flexShrink: 0, borderTop: '1px solid var(--ui-stroke-secondary)' },
+    children: jsx('div', { style: { display: 'flex' }, children: jsx(RowButton, { label, title, onClick }) })
+  })
+}
+
+function FloatingFooter({ label, onClick, spot }) {
+  return jsx('div', {
+    style: {
+      position: 'fixed',
+      left: spot.left,
+      width: spot.width,
+      bottom: spot.bottom,
+      zIndex: 40,
+      display: 'flex',
+      background: 'var(--background)',
+      borderTop: '1px solid var(--ui-stroke-secondary)'
+    },
+    children: jsx(RowButton, { label, onClick, opaque: true })
+  })
+}
+
 // ---------------------------------------------------------------- list column
 
-function ListColumn({ ctx }) {
+function ListColumn({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
   const list = useValue($list)
   const sel = useValue($selected)
@@ -215,8 +225,10 @@ function ListColumn({ ctx }) {
         label: t('sessionFiles'),
         title: t('sessionFilesTip'),
         onClick: e => {
-          const r = e.currentTarget.getBoundingClientRect()
-          $backSpot.set({ left: r.left, bottom: window.innerHeight - r.bottom, width: r.width })
+          // Full width of our page (the workspace pane) at the height of this row.
+          const row = e.currentTarget.getBoundingClientRect()
+          const page = pageRef.current?.getBoundingClientRect() ?? row
+          $backSpot.set({ left: page.left, bottom: window.innerHeight - row.bottom, width: page.width })
           ctx.storage.set('backSpot', $backSpot.get())
           host.navigate(CORE_KEEP)
         }
@@ -330,14 +342,19 @@ function Viewer({ ctx }) {
 function FloatingBack() {
   const t = usePluginI18n(ID)
   const spot = useValue($backSpot)
-  return jsx(FooterRow, { label: `← ${t('back')}`, title: t('back'), floating: true, spot, onClick: () => host.navigate(PAGE) })
+  return jsx(FloatingFooter, { label: `← ${t('back')}`, spot, onClick: () => host.navigate(PAGE) })
 }
 
 function Page({ ctx }) {
+  const pageRef = useRef(null)
   useEffect(() => {
     refresh(ctx)
   }, [])
-  return jsxs('div', { className: 'flex h-full min-h-0', children: [jsx(ListColumn, { ctx }), jsx(Viewer, { ctx })] })
+  return jsxs('div', {
+    ref: pageRef,
+    className: 'flex h-full min-h-0',
+    children: [jsx(ListColumn, { ctx, pageRef }), jsx(Viewer, { ctx })]
+  })
 }
 
 // ---------------------------------------------------------------- entry
