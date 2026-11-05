@@ -106,6 +106,10 @@ def _op(aid: str, op: str, a: dict) -> dict:
     if op == "dataset.edit":
         return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")),
                               auto_approve=not require_approval())
+    if op == "report":
+        kind = str(a.get("kind", ""))
+        store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})
+        return {"ok": True}
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")

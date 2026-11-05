@@ -476,3 +476,34 @@ def set_approval(aid: str, call_id: str, tool: str, allowed: bool) -> dict:
         data[call_id] = {"tool": str(tool)[:200], "allowed": bool(allowed), "ts": time.time()}
         _write_json(_approvals_path(aid), data)
         return data[call_id]
+
+
+# --- page reports: what the open dashboard found (check) and how its sources ran (runs) ----------
+
+MAX_REPORT_BYTES = 64 * 1024
+
+
+def _reports_path(aid: str) -> Path:
+    return _dir(aid) / "reports.json"
+
+
+def report_set(aid: str, kind: str, data: dict) -> None:
+    """Store the page's own ``check`` or ``runs`` report. The page is untrusted: it is kept as data
+    (bounded), for the agent to read as claims."""
+    if kind not in ("check", "runs") or not isinstance(data, dict):
+        raise ValueError("bad report")
+    if get_meta(aid) is None:
+        raise FileNotFoundError(aid)
+    blob = json.dumps(data, ensure_ascii=False, default=str)
+    if len(blob.encode()) > MAX_REPORT_BYTES:
+        raise ValueError("report too large")
+    with _LOCK:
+        p = _reports_path(aid)
+        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr[kind] = {**json.loads(blob), "received": time.time()}
+        _write_json(p, allr)
+
+
+def reports(aid: str) -> dict:
+    p = _reports_path(aid)
+    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}

@@ -168,6 +168,8 @@
     /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
      *  then sends an "export" event with the id the user picked. */
     chrome: function (opts) { return call("chrome", opts || {}); },
+    /** Type runtimes: report what the page found ("check") and how its sources ran ("runs"). */
+    report: function (kind, data) { return call("report", { kind: String(kind), data: data || {} }); },
     /** Dashboards: open Hermes' Connectors page at a server, to sign in again or turn it on. */
     connectors: function (server) { return call("connectors", { server: server ? String(server) : "" }); },
     /** Slides: present full screen (the host makes the frame fill the window and goes full screen). */

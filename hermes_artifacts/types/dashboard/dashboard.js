@@ -294,6 +294,7 @@
       stamp();
       tickFresh();
       if (srcOpen) renderSources();
+      scheduleCheck();
     });
   }
   function run(fn) {
@@ -362,7 +363,16 @@
 
   // ------------------------------------------------------------------ page
   var DROP = "script,link,meta,base,form,iframe,frame,frameset,object,embed,portal";
+  var errorLog = {}; // name+message -> {kind, name, message, file, count}: what the page's code threw
+  function logError(kind, e, file) {
+    var name = (e && e.name) || "Error", message = String((e && e.message) || e || "").slice(0, 300);
+    var key = kind + "|" + name + "|" + message;
+    var rec = errorLog[key] || (errorLog[key] = { kind: kind, name: name, message: message, file: file || undefined, count: 0 });
+    rec.count++;
+    scheduleCheck();
+  }
   function pageError(e, file) {
+    logError("stopped", e, file);
     var msg = T.stopped + " (" + (file || "page") + "): " + (e && e.message || e);
     errors.push(msg);
     console.error(msg, e);
@@ -428,7 +438,11 @@
     if (named) named.scrollIntoView();
   }
 
-  window.addEventListener("error", function (e) { if (e.filename && e.filename.indexOf("dash-page/") >= 0) pageError(e.error || e.message, e.filename.split("dash-page/")[1]); });
+  window.addEventListener("error", function (e) {
+    if (e.filename && e.filename.indexOf("dash-page/") >= 0) pageError(e.error || e.message, e.filename.split("dash-page/")[1]);
+    else logError("error", e.error || e.message);
+  });
+  window.addEventListener("unhandledrejection", function (e) { logError("rejection", e.reason); });
 
   var lastW = 0;
   new ResizeObserver(function () { var w = root.clientWidth; if (w !== lastW) { lastW = w; redraw(); } }).observe(root);
@@ -689,6 +703,50 @@
   }
   window.addEventListener("focus", retryFailed);
   document.addEventListener("visibilitychange", retryFailed);
+
+  // ------------------------------------------------------------------ check + runs (feedback to the agent)
+  var checkTimer = null, lastSent = { check: "", runs: "" };
+  function settled() {
+    return Object.keys(used).every(function (id) {
+      var st = live[id];
+      return !st || !(st.running || st.status === "loading" || (st.cached && !st.revalidated));
+    });
+  }
+  function statusOf(id) {
+    var r = cache[id] && cache[id].r, lv = live[id] || {};
+    if (!used[id]) return { status: "unused" };
+    if (!r) return { status: "loading" };
+    return { status: lv.status && lv.status !== "ok" && r.status !== "ok" ? lv.status : r.status, message: r.message || lv.message,
+      rows: (r.rows || []).length, ms: lv.ms, at: lv.at, cached: lv.cached };
+  }
+  function rowsForCheck(id) {
+    var v = view(id);
+    if (v.rows.length) return v.rows;
+    return v.value && typeof v.value === "object" && !Array.isArray(v.value) ? [v.value] : v.rows; // a calc's one value
+  }
+  /** The check as it stands, without sending it (for debugging a page). */
+  window.dashCheckNow = function () {
+    return window.dashCheck.run({ root: root, datasets: datasets, version: C.version, params: params,
+      errors: Object.keys(errorLog).map(function (k) { return errorLog[k]; }), statusOf: statusOf, rowsOf: rowsForCheck });
+  };
+  function scheduleCheck() {
+    if (C.thumb || !window.dashCheck || !window.hermes || !window.hermes.report) return;
+    clearTimeout(checkTimer);
+    checkTimer = setTimeout(function () {
+      if (!settled()) return scheduleCheck();
+      requestAnimationFrame(function () { requestAnimationFrame(function () {
+        var out = window.dashCheck.run({ root: root, datasets: datasets, version: C.version, params: params,
+          errors: Object.keys(errorLog).map(function (k) { return errorLog[k]; }),
+          statusOf: statusOf, rowsOf: rowsForCheck });
+        ["check", "runs"].forEach(function (kind) {
+          var body = JSON.stringify(Object.assign({}, out[kind], { at: undefined }));
+          if (body === lastSent[kind]) return;
+          lastSent[kind] = body;
+          window.hermes.report(kind, out[kind]).catch(function () {});
+        });
+      }); });
+    }, 900);
+  }
 
   // ------------------------------------------------------------------ approval banner
   var bannerEl = null, connEl = null;

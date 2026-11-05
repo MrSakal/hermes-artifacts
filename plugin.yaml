@@ -14,6 +14,7 @@ tags: [artifacts, desktop, html, ui, preview]
 provides_tools:
   - artifact_publish
   - artifact_guide
+  - artifact_check
   - artifact_list
   - artifact_read
   - artifact_open

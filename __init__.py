@@ -136,6 +136,36 @@ def _guide(args: dict, **_kw) -> str:
     return _ok(type=kind, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
 
 
+def _check(args: dict, **_kw) -> str:
+    """What the open dashboard reported about itself: the check of the latest version (code errors,
+    NaN, empty charts, overlapping or cut labels, numbers that differ from their data) and how each
+    source ran. Waits up to ``wait`` seconds for a check of the latest version."""
+    try:
+        aid = args["id"]
+        meta = store.get_meta(aid)
+        if not meta:
+            return _err(f"unknown artifact {aid!r}")
+        latest = meta["versions"][-1]["n"]
+        wait = max(0, min(60, int(args.get("wait", 30))))
+        deadline = time.time() + wait
+        while True:
+            rep = store.reports(aid)
+            chk = rep.get("check") or {}
+            if chk.get("version") == latest and chk.get("status") != "checking":
+                break
+            if time.time() >= deadline:
+                break
+            time.sleep(1)
+        chk = rep.get("check")
+        note = ("Claims the page made about itself: verify against your own query before changing anything. "
+                "No check for the latest version means the dashboard isn't open in Hermes Desktop yet.")
+        if not chk or chk.get("version") != latest:
+            return _ok(id=aid, version=latest, check=None, runs=rep.get("runs"), note=note)
+        return _ok(id=aid, version=latest, check=chk, runs=rep.get("runs"), note=note)
+    except Exception as e:
+        return _err(str(e))
+
+
 def _delete(args: dict, **_kw) -> str:
     try:
         dest = store.delete(args["id"])
@@ -243,6 +273,13 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
          "description": {"type": "string"},
          "open": {"type": "boolean", "description": "Show it in Hermes Desktop (default true)."}}),
      _publish, "🧩"),
+    ("artifact_check", _schema(
+        "artifact_check",
+        "After publishing or changing a dashboard: what its open page found about itself (code that threw, "
+        "NaN, an empty chart, labels overlapping or cut off, a shown number that differs from its data) and "
+        "how each source loaded. Waits up to `wait` seconds (default 30) for the check of the latest version; "
+        "the page writes it once it has drawn in Hermes Desktop. Fix what your own code confirms.",
+        {"id": {"type": "string"}, "wait": {"type": "integer"}}, ["id"]), _check, "🩺"),
     ("artifact_guide", _schema("artifact_guide", "How to write an artifact of a type: its files, format, API "
                                "and design rules. Read it before creating one.",
                                {"type": {"type": "string", "enum": ["page", "dashboard", "slides", "doc"]}},
