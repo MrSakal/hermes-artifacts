@@ -107,3 +107,27 @@ class LiveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuardTests(unittest.TestCase):
+    def ok(self, v):
+        live.guard({"sql": v})
+
+    def bad(self, v):
+        with self.assertRaises(live.LiveError):
+            live.guard({"sql": v})
+
+    def test_guard(self):
+        self.ok("SELECT month, SUM(net) FROM orders WHERE region = 'update' GROUP BY month")
+        self.ok("WITH x AS (SELECT 1) SELECT * FROM x;")
+        self.ok("-- monthly\nSELECT 1")
+        live.guard({"query": "Azure Functions"})       # a search phrase is not SQL
+        live.guard({"query": "update notes for Teams"})  # starts with a SQL word, still a search phrase
+        live.guard({"query": "select the best Azure SKU"})
+        self.bad("DELETE FROM orders")
+        self.bad("SELECT 1; DROP TABLE orders")
+        self.bad("SELECT * INTO OUTFILE '/tmp/x' FROM t")
+        self.bad("SELECT 'unclosed FROM t")
+        self.bad("UPDATE t SET a = 1")
+        with self.assertRaises(live.LiveError):
+            live.guard({"q": "x" * 40_000})

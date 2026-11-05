@@ -31,6 +31,19 @@ _PARAM = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}")
 _WHOLE = re.compile(r"^\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}$")
 # A text value with no rule that pins it: one plain line, nothing that could close a quote.
 _PLAIN = re.compile(r"^[^'\"`\\\r\n‘’“”]{0,200}$")
+MAX_ARGS_CHARS = 36_000
+MAX_SQL_CHARS = 16_000
+# An argument that reads as SQL must be one read-only statement (the same guard Claude's dashboards apply).
+_SQL_START = re.compile(r"^\s*(?:--[^\n]*\n\s*|/\*.*?\*/\s*)*([A-Za-z]+)", re.S)
+_SQL_KEYWORDS = {"select", "with", "insert", "update", "delete", "merge", "upsert", "replace", "create", "alter",
+                 "drop", "truncate", "grant", "revoke", "call", "exec", "execute", "set", "begin", "commit",
+                 "rollback", "copy", "unload", "vacuum", "analyze", "attach", "detach", "pragma", "use", "declare"}
+_SQL_WRITE = re.compile(r"\b(insert|update|delete|merge|upsert|replace\s+into|create|alter|drop|truncate|grant|revoke|"
+                        r"call|exec|execute|begin|commit|rollback|copy|unload|vacuum|attach|detach|pragma|declare|"
+                        r"into\s+outfile|set\s+\w+\s*=)\b", re.I)
+# SQL is told from text by its shape, so a search phrase like "update notes" is not taken for SQL.
+_SQL_READ_HEAD = re.compile(r"(select\b[\s\S]*\bfrom\b|select\s+[\w*(]|with\s+\w+\s+as\s*\()", re.I)
+_SQL_WRITE_HEAD = re.compile(r"(insert\s+into|update\s+\S+\s+set\b|delete\s+from|merge\s+into|(drop|create|alter|truncate)\s+(table|view|index|schema|database|or\s+replace)|grant\s+\w+\s+on|exec(ute)?\s+\w+|call\s+\w+\s*\()", re.I)
 _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 _inflight: dict[str, threading.Event] = {}
@@ -138,6 +151,61 @@ def fill(args: Any, params: dict, rules: dict) -> Any:
             return ",".join("true" if x is True else "false" if x is False else str(x) for x in v)
         return "true" if v is True else "false" if v is False else "" if v is None else str(v)
     return _PARAM.sub(text, args)
+
+
+def _strip_sql_text(sql: str) -> str:
+    """SQL without its string literals, quoted identifiers and comments (what keywords are read from)."""
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c in "'\"`":
+            j = i + 1
+            while j < n and not (sql[j] == c and (j + 1 >= n or sql[j + 1] != c)):
+                j += 2 if sql[j] == c else 1
+            if j >= n:
+                raise LiveError("refused", "the query has an unclosed quote")
+            out.append(" "); i = j + 1
+        elif sql.startswith("--", i):
+            j = sql.find("\n", i); i = n if j < 0 else j
+        elif sql.startswith("/*", i):
+            j = sql.find("*/", i + 2)
+            if j < 0:
+                raise LiveError("refused", "the query has an unclosed comment")
+            i = j + 2
+        else:
+            out.append(c); i += 1
+    return "".join(out)
+
+
+def guard(args: Any) -> None:
+    """Refuse calls that could write: any string argument that reads as SQL must be a single
+    SELECT/WITH statement with no write keyword; the filled arguments stay under 36 KB."""
+    if len(json.dumps(args, ensure_ascii=False, default=str)) > MAX_ARGS_CHARS:
+        raise LiveError("refused", "the query's arguments are too long")
+
+    def walk(v):
+        if isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+        elif isinstance(v, str):
+            m = _SQL_START.match(v)
+            head = v[m.start(1):] if m else ""
+            if _SQL_WRITE_HEAD.match(head):
+                raise LiveError("refused", "a dashboard only runs read-only queries (this one writes)")
+            if not _SQL_READ_HEAD.match(head):
+                return  # not SQL: a search phrase, a name, a URL
+            if len(v) > MAX_SQL_CHARS:
+                raise LiveError("refused", "the query is over 16,000 characters")
+            body = _strip_sql_text(v)
+            if ";" in body.rstrip().rstrip(";"):
+                raise LiveError("refused", "a dashboard query must be a single statement")
+            w = _SQL_WRITE.search(body)
+            if w:
+                raise LiveError("refused", f"a dashboard only runs read-only queries (found {w.group(1).upper()})")
+    walk(args)
 
 
 # ----------------------------------------------------------------------------- running it
@@ -271,6 +339,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
     merged = {k: v for k, v in {**d["defaults"], **(params or {})}.items() if k in used}
     try:
         args = fill(d["args"], merged, d["rules"])
+        guard(args)
     except LiveError as e:
         return {"status": "error", "message": e.message, **info, **e.extra}
     key = hashlib.sha256(json.dumps([aid, cid, args], sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
