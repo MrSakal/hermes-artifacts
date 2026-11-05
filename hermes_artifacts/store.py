@@ -65,11 +65,51 @@ def get_meta(aid: str) -> Optional[dict]:
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 
-def publish(*, html: Optional[str] = None, path: Optional[str] = None, title: str = "",
-            aid: Optional[str] = None, description: str = "") -> dict:
-    """Write a new version. ``path`` may be an .html file or a directory with index.html."""
-    if (html is None) == (path is None):
-        raise ValueError("pass exactly one of html or path")
+TYPES = ("page", "dashboard", "slides", "doc")
+# The file a type's content starts from (validated at publish).
+TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md"}
+_REL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){0,7}$")
+MAX_FILES = 512
+
+
+def safe_rel(rel: str) -> str:
+    """A relative path inside a version dir: no '..', no absolute, no backslash, no hidden names."""
+    rel = str(rel).replace("\\", "/")
+    if rel.startswith("./"):
+        rel = rel[2:]
+    if not _REL_RE.match(rel) or ".." in rel.split("/"):
+        raise ValueError(f"invalid file path: {rel!r}")
+    return rel
+
+
+def _write_files(vdir: Path, files: dict) -> None:
+    import base64
+    if not isinstance(files, dict) or not files:
+        raise ValueError("files must be a non-empty {path: content} map")
+    if len(files) > MAX_FILES:
+        raise ValueError(f"at most {MAX_FILES} files")
+    for rel, content in files.items():
+        p = vdir / safe_rel(rel)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, dict) and "base64" in content:
+            p.write_bytes(base64.b64decode(content["base64"], validate=True))
+        elif isinstance(content, (dict, list)):
+            p.write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf-8")
+        else:
+            p.write_text(str(content), encoding="utf-8")
+
+
+def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Optional[dict] = None,
+            title: str = "", aid: Optional[str] = None, description: str = "",
+            type: Optional[str] = None, base: bool = False) -> dict:
+    """Write a new version from exactly one of ``html``, ``path`` (an .html file or a folder) or
+    ``files`` ({relative path: text | JSON value | {"base64": ...}}).
+
+    ``base=True`` starts the new version as a copy of the latest one, so ``files`` only needs the
+    files that change (a ``None`` value removes one). ``type`` is fixed by the first version.
+    """
+    if sum(x is not None for x in (html, path, files)) != 1:
+        raise ValueError("pass exactly one of html, path or files")
     with _LOCK:
         meta = get_meta(aid) if aid else None
         if aid and meta is None:
@@ -77,29 +117,53 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, title: st
         aid = aid or slugify(title or "artifact")
         d = _dir(aid)
         d.mkdir(parents=True, exist_ok=True)
-        meta = meta or {"id": aid, "title": title or aid, "created": time.time(), "versions": []}
+        kind = (meta or {}).get("type") or type or "page"
+        if type and meta and type != kind:
+            raise ValueError(f"{aid} is a {kind}; its type can't change")
+        if kind not in TYPES:
+            raise ValueError(f"unknown type {kind!r} (one of {', '.join(TYPES)})")
+        meta = meta or {"id": aid, "title": title or aid, "created": time.time(), "versions": [],
+                        "type": kind}
         n = len(meta["versions"]) + 1
         vdir = d / f"v{n}"
-        if path is not None:
-            src = Path(path)
-            if src.is_dir():
-                if not (src / "index.html").is_file():
-                    raise ValueError(f"{src} has no index.html")
-                shutil.copytree(src, vdir)
-            elif src.is_file():
-                vdir.mkdir()
-                shutil.copy2(src, vdir / "index.html")
-            else:
-                raise FileNotFoundError(str(src))
-        else:
-            if len(html.encode("utf-8")) > MAX_HTML_BYTES:
-                raise ValueError("html exceeds 16 MB")
-            vdir.mkdir()
-            (vdir / "index.html").write_text(html, encoding="utf-8")
-        size = sum(f.stat().st_size for f in vdir.rglob("*") if f.is_file())
-        if size > MAX_HTML_BYTES:
+        if vdir.exists():
             shutil.rmtree(vdir)
-            raise ValueError("artifact exceeds 16 MB")
+        try:
+            if base and meta["versions"]:
+                shutil.copytree(d / f"v{meta['versions'][-1]['n']}", vdir)
+            if path is not None:
+                src = Path(path)
+                if src.is_dir():
+                    shutil.copytree(src, vdir, dirs_exist_ok=True)
+                elif src.is_file():
+                    vdir.mkdir(exist_ok=True)
+                    shutil.copy2(src, vdir / TYPE_ENTRY[kind] if kind != "page" else vdir / "index.html")
+                else:
+                    raise FileNotFoundError(str(src))
+            elif files is not None:
+                vdir.mkdir(exist_ok=True)
+                removed = [r for r, c in files.items() if c is None]
+                for rel in removed:
+                    (vdir / safe_rel(rel)).unlink(missing_ok=True)
+                rest = {r: c for r, c in files.items() if c is not None}
+                if rest:
+                    _write_files(vdir, rest)
+            else:
+                if len(html.encode("utf-8")) > MAX_HTML_BYTES:
+                    raise ValueError("html exceeds 16 MB")
+                vdir.mkdir(exist_ok=True)
+                (vdir / "index.html").write_text(html, encoding="utf-8")
+            if not (vdir / TYPE_ENTRY[kind]).is_file():
+                raise ValueError(f"a {kind} needs {TYPE_ENTRY[kind]}")
+            all_files = [f for f in vdir.rglob("*") if f.is_file()]
+            size = sum(f.stat().st_size for f in all_files)
+            if size > MAX_HTML_BYTES:
+                raise ValueError("artifact exceeds 16 MB")
+            if len(all_files) > MAX_FILES:
+                raise ValueError(f"at most {MAX_FILES} files")
+        except Exception:
+            shutil.rmtree(vdir, ignore_errors=True)
+            raise
         if title:
             meta["title"] = title
         if description:
@@ -108,6 +172,46 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, title: st
         meta["updated"] = time.time()
         _write_json(d / "meta.json", meta)
         return meta
+
+
+def update_meta(aid: str, **fields) -> dict:
+    """Change list-level fields (title, description, pinned) without a new version."""
+    with _LOCK:
+        meta = get_meta(aid)
+        if meta is None:
+            raise FileNotFoundError(aid)
+        for k, v in fields.items():
+            if k not in ("title", "description", "pinned"):
+                raise ValueError(f"can't set {k}")
+            if v is not None:
+                meta[k] = bool(v) if k == "pinned" else str(v)[:300]
+        _write_json(_dir(aid) / "meta.json", meta)
+        return meta
+
+
+def delete(aid: str) -> Path:
+    """Move an artifact to <root>/.trash/ (recoverable by moving it back)."""
+    with _LOCK:
+        d = _dir(aid)
+        if not (d / "meta.json").is_file():
+            raise FileNotFoundError(aid)
+        trash = root() / ".trash"
+        trash.mkdir(exist_ok=True)
+        dest = trash / f"{aid}-{int(time.time())}"
+        shutil.move(str(d), str(dest))
+        return dest
+
+
+def list_files(aid: str, n: Optional[int] = None) -> list[str]:
+    vdir = version_dir(aid, n)
+    return sorted(f.relative_to(vdir).as_posix() for f in vdir.rglob("*") if f.is_file())
+
+
+def read_file(aid: str, rel: str, n: Optional[int] = None) -> bytes:
+    p = version_dir(aid, n) / safe_rel(rel)
+    if not p.is_file():
+        raise FileNotFoundError(rel)
+    return p.read_bytes()
 
 
 def list_all() -> list[dict]:
@@ -170,11 +274,11 @@ def _inbox_path() -> Path:
     return root() / "inbox.jsonl"
 
 
-def inbox_add(aid: str, text: str, data=None) -> dict:
+def inbox_add(aid: str, text: str, data=None, *, kind: str = "send") -> dict:
     if get_meta(aid) is None:
         raise FileNotFoundError(aid)
     item = {"id": secrets.token_hex(6), "artifact": aid, "text": str(text)[:8000],
-            "data": data, "ts": time.time(), "acked": False}
+            "data": data, "kind": kind, "ts": time.time(), "acked": False}
     with _LOCK, _inbox_path().open("a", encoding="utf-8") as f:
         f.write(json.dumps(item, ensure_ascii=False) + "\n")
     return item
@@ -199,3 +303,83 @@ def inbox_ack(ids: list[str]) -> int:
         tmp.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items), encoding="utf-8")
         os.replace(tmp, _inbox_path())
         return n
+
+
+def inbox_get(item_id: str) -> Optional[dict]:
+    return next((i for i in inbox_list(include_acked=True) if i["id"] == item_id), None)
+
+
+# --- replies (window.hermes.ask -> the agent answers with artifact_reply) ----
+
+def _replies_path(aid: str) -> Path:
+    return _dir(aid) / "replies.json"
+
+
+def reply_set(aid: str, request: str, text: str = "", data=None) -> dict:
+    item = inbox_get(request)
+    if not item or item["artifact"] != aid:
+        raise FileNotFoundError(f"no request {request!r} from {aid}")
+    with _LOCK:
+        p = _replies_path(aid)
+        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr[request] = {"text": str(text)[:20000], "data": data, "ts": time.time()}
+        if len(json.dumps(allr).encode()) > MAX_KV_BYTES * 4:  # keep the newest when it grows
+            for k in sorted(allr, key=lambda k: allr[k]["ts"])[: len(allr) // 2]:
+                allr.pop(k)
+        _write_json(p, allr)
+        return allr[request]
+
+
+def reply_get(aid: str, request: str) -> Optional[dict]:
+    p = _replies_path(aid)
+    return (json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}).get(request)
+
+
+# --- comments (anchored notes on a page, sent to the agent on request) -------
+
+def _comments_path(aid: str) -> Path:
+    return _dir(aid) / "comments.json"
+
+
+def comments_list(aid: str, include_resolved: bool = True) -> list[dict]:
+    p = _comments_path(aid)
+    items = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
+    return [c for c in items if include_resolved or not c.get("resolved")]
+
+
+def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[dict] = None,
+                parent: Optional[str] = None, version: Optional[int] = None) -> dict:
+    meta = get_meta(aid)
+    if meta is None:
+        raise FileNotFoundError(aid)
+    text = str(text).strip()
+    if not text:
+        raise ValueError("empty comment")
+    if author not in ("user", "hermes"):
+        raise ValueError("bad author")
+    anchor = anchor if isinstance(anchor, dict) else None
+    if anchor:  # only short, plain fields
+        anchor = {k: str(anchor[k])[:500] for k in ("selector", "text", "label") if anchor.get(k)}
+    with _LOCK:
+        items = comments_list(aid)
+        if parent and not any(c["id"] == parent for c in items):
+            raise ValueError(f"unknown thread {parent!r}")
+        c = {"id": secrets.token_hex(5), "text": text[:4000], "author": author, "anchor": anchor,
+             "parent": parent, "version": version or meta["versions"][-1]["n"], "ts": time.time(),
+             "resolved": False}
+        items.append(c)
+        if len(items) > 2000:
+            raise ValueError("too many comments")
+        _write_json(_comments_path(aid), items)
+        return c
+
+
+def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
+    with _LOCK:
+        items = comments_list(aid)
+        for c in items:
+            if c["id"] == cid:
+                c["resolved"] = bool(resolved)
+                _write_json(_comments_path(aid), items)
+                return c
+    raise FileNotFoundError(cid)

@@ -18,16 +18,19 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from hermes_artifacts import store  # noqa: E402
+from hermes_artifacts import render, store  # noqa: E402
 from hermes_artifacts.server import inject_bridge  # noqa: E402
 
 router = APIRouter()
 
 
 def _view(m: dict) -> dict:
-    return {"id": m["id"], "title": m["title"], "version": m["versions"][-1]["n"],
-            "versions": [x["n"] for x in m["versions"]], "updated": m.get("updated"),
-            "description": m.get("description", "")}
+    return {"id": m["id"], "title": m["title"], "type": m.get("type", "page"),
+            "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
+            "created": m.get("created"), "updated": m.get("updated"),
+            "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
+            "comments": sum(1 for c in store.comments_list(m["id"], include_resolved=False)
+                            if c["author"] == "user")}
 
 
 def _meta(aid: str) -> dict:
@@ -51,13 +54,79 @@ def get_artifact(aid: str):
 
 
 @router.get("/artifacts/{aid}/html")
-def get_html(aid: str, v: Optional[int] = None):
+def get_html(aid: str, v: Optional[int] = None, page: Optional[str] = None):
+    m = _meta(aid)
+    try:
+        html = render.render(m, store.version_dir(aid, v), page=page)
+    except FileNotFoundError:
+        raise HTTPException(404, "unknown version or page")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"id": aid, "version": v, "type": m.get("type", "page"),
+            "html": inject_bridge(html.encode("utf-8")).decode("utf-8")}
+
+
+@router.get("/artifacts/{aid}/files")
+def get_files(aid: str, v: Optional[int] = None):
     _meta(aid)
     try:
-        html = store.read_html(aid, v)
+        return {"files": store.list_files(aid, v)}
     except FileNotFoundError:
         raise HTTPException(404, "unknown version")
-    return {"id": aid, "version": v, "html": inject_bridge(html.encode("utf-8")).decode("utf-8")}
+
+
+class MetaPatch(BaseModel):
+    title: Optional[str] = None
+    pinned: Optional[bool] = None
+
+
+@router.post("/artifacts/{aid}/meta")
+def patch_meta(aid: str, body: MetaPatch):
+    _meta(aid)
+    return _view(store.update_meta(aid, title=body.title, pinned=body.pinned))
+
+
+@router.delete("/artifacts/{aid}")
+def delete_artifact(aid: str):
+    _meta(aid)
+    store.delete(aid)
+    return {"ok": True}
+
+
+@router.get("/artifacts/{aid}/comments")
+def get_comments(aid: str):
+    _meta(aid)
+    return {"comments": store.comments_list(aid)}
+
+
+class CommentIn(BaseModel):
+    text: str
+    anchor: Optional[dict] = None
+    parent: Optional[str] = None
+    version: Optional[int] = None
+
+
+@router.post("/artifacts/{aid}/comments")
+def add_comment(aid: str, body: CommentIn):
+    _meta(aid)
+    try:
+        return store.comment_add(aid, body.text, author="user", anchor=body.anchor,
+                                 parent=body.parent, version=body.version)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class Resolve(BaseModel):
+    resolved: bool = True
+
+
+@router.post("/artifacts/{aid}/comments/{cid}/resolve")
+def resolve_comment(aid: str, cid: str, body: Resolve):
+    _meta(aid)
+    try:
+        return store.comment_resolve(aid, cid, body.resolved)
+    except FileNotFoundError:
+        raise HTTPException(404, "unknown comment")
 
 
 class Op(BaseModel):
@@ -67,6 +136,7 @@ class Op(BaseModel):
 
 @router.post("/artifacts/{aid}/op")
 def bridge_op(aid: str, body: Op):
+    """Operations an artifact page asks for through the bridge. The page is untrusted: only these."""
     a = body.args
     try:
         if body.op == "storage.get":
@@ -76,9 +146,11 @@ def bridge_op(aid: str, body: Op):
         if body.op == "storage.set":
             store.kv_set(aid, a.get("key"), a.get("value"))
             return {"ok": True}
-        if body.op == "send":
-            item = store.inbox_add(aid, a.get("text", ""), a.get("data"))
+        if body.op in ("send", "ask"):
+            item = store.inbox_add(aid, a.get("text", ""), a.get("data"), kind=body.op)
             return {"ok": True, "id": item["id"]}
+        if body.op == "reply.get":
+            return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     except FileNotFoundError:
         raise HTTPException(404, "unknown artifact")
     except (ValueError, TypeError) as e:

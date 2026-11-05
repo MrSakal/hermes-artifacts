@@ -18,6 +18,9 @@ provides_tools:
   - artifact_read
   - artifact_open
   - artifact_inbox
+  - artifact_delete
+  - artifact_comments
+  - artifact_reply
   - artifact_desktop_cdp
 config_schema:
   shell_port:
