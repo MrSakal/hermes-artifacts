@@ -25,13 +25,21 @@
       rows: "Saved rows", calc: "Calculation", params: "Filters", failed: "Failed to load", none: "Nothing on this dashboard yet.",
       bad: "dashboard.json is missing or not valid JSON.", stopped: "This page's code stopped", stale: "Out of date",
       updated: "updated", unused: "Not read by the page", preview: "Result", formula: "Formula", desc: "",
-      saved: "Downloaded", notmarked: "Nothing on the page links here", value: "a value", rowsN: "rows" },
+      saved: "Downloaded", notmarked: "Nothing on the page links here", value: "a value", rowsN: "rows",
+      live: "Live", ago: "refreshed", cached: "from cache", noBridge: "Live data needs Hermes Desktop",
+      askTitle: "This dashboard gets its numbers live", askBody: "It runs these queries through Hermes each time it opens or refreshes:",
+      allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
+      query: "Query", refreshSrc: "Refresh this source", took: "took" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
       bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
       updated: "frissítve", unused: "Az oldal nem olvassa", preview: "Eredmény", formula: "Képlet", desc: "",
-      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor" }
+      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor",
+      live: "Élő", ago: "frissítve", cached: "gyorsítótárból", noBridge: "Az élő adathoz a Hermes Desktop kell",
+      askTitle: "Ez a dashboard élőben kéri le a számait", askBody: "Megnyitáskor és frissítéskor ezeket a lekérdezéseket futtatja a Hermesen keresztül:",
+      allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
+      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam" }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -82,10 +90,72 @@
     return { columns: [], rows: [], value: v };
   }
 
+  // ---------------------------------------------------------------- live sources (stored MCP calls)
+  var live = {}, liveQueue = [], liveActive = 0, LIVE_MAX = 4;
+  function isLive(d) { var k = d && d.source && d.source.kind; return k === "call" || k === "query"; }
+  function paramNames(v, out) {
+    out = out || {};
+    if (typeof v === "string") v.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}/g, function (_, n) { out[n] = 1; });
+    else if (v && typeof v === "object") Object.keys(v).forEach(function (k) { paramNames(v[k], out); });
+    return out;
+  }
+  function pump() {
+    while (liveActive < LIVE_MAX && liveQueue.length) {
+      var job = liveQueue.shift();
+      liveActive++;
+      job().then(function () { liveActive--; pump(); });
+    }
+  }
+  function loadLive(id, force) {
+    var st = live[id] || (live[id] = { status: "loading" });
+    if (!window.hermes || !window.hermes.dataset) { st.status = "error"; st.message = T.noBridge; return; }
+    if (st.running) { st.again = st.again || !!force; return; }
+    st.running = true;
+    if (st.status === "ok") st.refreshing = true; else if (st.status !== "approval") st.status = "loading";
+    liveQueue.push(function () {
+      return window.hermes.dataset.run(id, params, !!force, C.version).then(function (r) {
+        var keep = st.status === "ok" ? { rows: st.rows, columns: st.columns, answer: st.answer } : {};
+        Object.keys(st).forEach(function (k) { if (k !== "running" && k !== "again") delete st[k]; });
+        Object.assign(st, r || {});
+        if (st.status !== "ok" && keep.rows && st.status !== "approval") Object.assign(st, { stale: keep });
+      }).catch(function (e) {
+        st.status = "error"; st.message = String(e && e.message || e);
+      }).then(function () {
+        st.running = false; st.refreshing = false;
+        gen++; redraw(); banner();
+        if (st.again) { var f = st.again; st.again = false; loadLive(id, f); }
+      });
+    });
+    pump();
+  }
+  function liveIds() { return Object.keys(datasets).filter(function (id) { return isLive(datasets[id]); }); }
+  function refreshLive(force, changed) {
+    liveIds().forEach(function (id) {
+      if (changed) {
+        var ns = paramNames(datasets[id].source.args || {});
+        if (!changed.some(function (k) { return ns[k]; })) return;
+      }
+      loadLive(id, force);
+    });
+  }
+  function liveResult(id) {
+    var st = live[id];
+    if (!st) { loadLive(id, false); st = live[id]; }
+    if (st.status === "ok") {
+      var t = st.rows ? { columns: st.columns || [], rows: st.rows } : asTable(st.answer);
+      return Object.assign({ status: "ok", meta: st.meta || [] }, t);
+    }
+    if (st.status === "loading") return { status: "loading" };
+    if (st.status === "approval") return { status: "connect", message: T.waiting };
+    if (st.status === "declined") return { status: "declined", message: T.declined };
+    return { status: "error", message: st.message || st.status };
+  }
+
   function loadRaw(id) {
     var d = datasets[id];
     if (!d) return { status: "missing", message: "no dataset " + id };
     var s = d.source || {};
+    if (isLive(d)) return liveResult(id);
     try {
       if (s.kind === "rows") return Object.assign({ status: "ok" }, asTable(s.rows || []));
       if (s.kind === "file") {
@@ -118,7 +188,8 @@
     var raw = loadRaw(id);
     if (raw.status === "ok" && loaders[id]) {
       try {
-        var res = loaders[id].fn({ answer: raw.value !== undefined ? raw.value : raw.rows, rows: raw.rows, columns: raw.columns, params: params });
+        var ans = live[id] && live[id].answer !== undefined ? live[id].answer : raw.value !== undefined ? raw.value : raw.rows;
+        var res = loaders[id].fn({ answer: ans, rows: raw.rows, columns: raw.columns, params: params });
         var tt = asTable(res);
         raw = Object.assign({ status: "ok" }, tt);
       } catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
@@ -136,7 +207,7 @@
     var r = get(id);
     var rows = (r.rows || []).map(function (o) { return Object.assign({}, o); });
     return { status: r.status, data: r.value !== undefined && !rows.length ? r.value : rows, rows: rows,
-      columns: (r.columns || []).slice(), message: r.message || null, refreshing: false, meta: r.meta || [],
+      columns: (r.columns || []).slice(), message: r.message || null, refreshing: !!(live[id] && live[id].refreshing), meta: r.meta || [],
       value: r.value };
   }
 
@@ -172,7 +243,7 @@
       gen++; redraw();
     },
     loader: function (id, o) { loaders[id] = { fn: o.fn, description: o.description || "" }; gen++; redraw(); },
-    refresh: function () { gen++; redraw(); },
+    refresh: function (id) { if (id && live[id]) loadLive(id, true); else refreshLive(true); gen++; redraw(); },
     params: function () { return JSON.parse(JSON.stringify(params)); },
     setParams: function (p) {
       for (var k in p) {
@@ -181,8 +252,9 @@
         else if (["string", "number", "boolean"].indexOf(typeof v) >= 0 || Array.isArray(v)) params[k] = v;
       }
       saveParams(); gen++; redraw();
+      refreshLive(false, Object.keys(p || {}));
     },
-    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); },
+    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); refreshLive(false); },
     setLink: function (name) { try { history.replaceState(null, "", "#" + encodeURIComponent(name || "")); } catch (e) {} },
     colors: colors,
     colorValues: colorValues,
@@ -205,7 +277,8 @@
       for (var j = 0; j < ids.length; j++) {
         var r = cache[ids[j]] && cache[ids[j]].r;
         var s = r ? r.status : "loading";
-        if (s === "error" || s === "missing") { st = "error"; break; }
+        if (live[ids[j]] && live[ids[j]].refreshing) { st = st || "refreshing"; continue; }
+        if (s === "error" || s === "missing" || s === "declined" || s === "connect") { st = "error"; break; }
         if (s === "loading") st = "loading";
       }
       if (!st && !m.children.length && /^\s*[—-]?\s*$/.test(m.textContent)) st = "empty";
@@ -342,16 +415,24 @@
     var r = cache[id] ? cache[id].r : get(id);
     var open = picked && picked.id === id;
     var stale = !isCalc && isStale(d);
-    var kind = isCalc ? T.calc : d.source && d.source.kind === "file" ? T.file + " · " + (d.source.path || "") : T.rows;
+    var lv = !isCalc && isLive(d) ? live[id] || {} : null;
+    var kind = isCalc ? T.calc : lv ? T.live + " · " + (d.source.tool || "") : d.source && d.source.kind === "file" ? T.file + " · " + (d.source.path || "") : T.rows;
     var isValue = r.status === "ok" && r.value !== undefined && !(r.rows || []).length;
     var meta = [kind, r.status !== "ok" ? r.status : isValue ? T.value : (r.rows || []).length + " " + T.rowsN];
-    if (!isCalc && d.updated && d.updated.at) meta.push(T.updated + " " + ago(d.updated.at));
+    if (lv && lv.at) meta.push(T.ago + " " + ago(lv.at) + (lv.cached ? " · " + T.cached : ""));
+    else if (!isCalc && d.updated && d.updated.at) meta.push(T.updated + " " + ago(d.updated.at));
+    var dot = lv && (lv.running || lv.status === "loading") ? "loading" : lv && lv.status === "approval" ? "loading" : stale ? "stale" : r.status;
     var body = null;
     if (open) {
       var kids = [];
       if (d.description) kids.push(h("p", { text: d.description }));
       if (stale) kids.push(h("p", { "class": "src-warn", text: T.stale + (d.schedule ? " · " + d.schedule : "") }));
       if (r.status !== "ok") kids.push(h("p", { "class": "src-warn", text: T.failed + ": " + (r.message || r.status) }));
+      if (lv) {
+        kids.push(h("p", { "class": "src-meta", text: T.query + " · " + (d.source.tool || "") + (lv.ms != null ? " · " + T.took + " " + lv.ms + " ms" : "") }));
+        kids.push(h("pre", { text: JSON.stringify(lv.args || d.source.args || {}, null, 2) }));
+        kids.push(h("div", { "class": "src-actions" }, [kit.labelled(kit.button(T.refresh, "refresh", function () { loadLive(id, true); renderSources(); }, T.refreshSrc), T.refresh)]));
+      }
       if (isCalc) kids.push(h("p", { text: T.formula + " (" + d.inputs.join(", ") + ")" }), h("pre", { text: String(d.fn) }));
       if (!isCalc && loaders[id]) kids.push(h("p", { text: loaders[id].description || "loader" }), h("pre", { text: String(loaders[id].fn) }));
       if (!marked(id) && !isCalc) kids.push(h("p", { "class": "src-meta", text: used[id] ? T.notmarked : T.unused }));
@@ -366,7 +447,7 @@
     }
     return h("div", { "class": "src-item" + (open ? " picked" : "") }, [
       h("button", { "class": "src-row", type: "button", onclick: function () { picked = open ? null : { id: id }; renderSources(); } }, [
-        h("span", { "class": "src-dot " + (stale ? "stale" : r.status) }),
+        h("span", { "class": "src-dot " + dot }),
         h("span", { style: "flex:1;min-width:0" }, [h("div", { text: d.title || id }), h("div", { "class": "src-meta", text: meta.join(" · ") })])
       ]),
       body
@@ -452,9 +533,38 @@
   bar.className = "kit-bar";
   bar.append(h("span", { "class": "kit-title", text: (spec && spec.title) || C.title || "Dashboard" }),
     h("span", { "class": "kit-seg" }, [segUse, segWhere]),
-    kit.button("", "refresh", function () { gen++; redraw(); kit.toast(T.refresh); }, T.refresh),
+    kit.button("", "refresh", function () { refreshLive(true); gen++; redraw(); kit.toast(T.refresh); }, T.refresh),
     expBtn);
   segUse.setAttribute("aria-pressed", "true");
+
+  // ------------------------------------------------------------------ approval banner
+  var bannerEl = null;
+  function banner() {
+    var pending = liveIds().filter(function (id) { return live[id] && live[id].status === "approval"; });
+    if (!pending.length || C.thumb) { if (bannerEl) { bannerEl.remove(); bannerEl = null; } return; }
+    var tools = {};
+    pending.forEach(function (id) { tools[live[id].tool || datasets[id].source.tool] = 1; });
+    var box = h("div", { "class": "dash-ask" }, [
+      h("b", { text: T.askTitle }),
+      h("p", { text: T.askBody }),
+      h("ul", {}, pending.map(function (id) {
+        return h("li", {}, [h("code", { text: live[id].tool || datasets[id].source.tool }), " — " + (datasets[id].title || id)]);
+      })),
+      h("div", { "class": "src-actions" }, [
+        kit.labelled(kit.button(T.allow, "data", function () {
+          Promise.all(pending.map(function (id) { return window.hermes.dataset.approve(id, C.version); }))
+            .then(function () { pending.forEach(function (id) { loadLive(id, true); }); })
+            .catch(function (e) { kit.toast(String(e && e.message || e)); });
+        }), T.allow),
+        kit.labelled(kit.button(T.decline, "", function () {
+          pending.forEach(function (id) { live[id].status = "declined"; window.hermes.dataset.decline(id, C.version).catch(function () {}); });
+          gen++; redraw(); banner();
+        }), T.decline)
+      ])
+    ]);
+    if (bannerEl) bannerEl.replaceWith(box); else root.parentNode.insertBefore(box, root);
+    bannerEl = box;
+  }
 
   // ------------------------------------------------------------------ boot
   if (!spec) {
@@ -465,6 +575,7 @@
   function boot() {
     if (booted) return; booted = true;
     mount();
+    liveIds().forEach(function (id) { if (!live[id]) loadLive(id, false); });
     redraw();
     kit.ready();
   }

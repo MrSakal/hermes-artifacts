@@ -386,3 +386,28 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
                 _write_json(_comments_path(aid), items)
                 return c
     raise FileNotFoundError(cid)
+
+
+# --- approvals of live dashboard calls (per artifact, per call template) ----
+
+def _approvals_path(aid: str) -> Path:
+    return _dir(aid) / "approvals.json"
+
+
+def approvals(aid: str) -> dict:
+    p = _approvals_path(aid)
+    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+
+
+def approved(aid: str, call_id: str) -> bool:
+    return approvals(aid).get(call_id, {}).get("allowed") is True
+
+
+def set_approval(aid: str, call_id: str, tool: str, allowed: bool) -> dict:
+    if get_meta(aid) is None:
+        raise FileNotFoundError(aid)
+    with _LOCK:
+        data = approvals(aid)
+        data[call_id] = {"tool": str(tool)[:200], "allowed": bool(allowed), "ts": time.time()}
+        _write_json(_approvals_path(aid), data)
+        return data[call_id]

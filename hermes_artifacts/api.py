@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from . import render, store
+from . import live, render, store
 from .server import inject_bridge
 
 
@@ -80,6 +80,17 @@ def _op(aid: str, op: str, a: dict) -> dict:
             return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files)
         return {"ok": True, "version": nm["versions"][-1]["n"]}
+    if op == "dataset.run":
+        params = a.get("params") if isinstance(a.get("params"), dict) else {}
+        return live.run_dataset(aid, str(a.get("id", "")), params, force=bool(a.get("force")),
+                                version=_int(a.get("version")))
+    if op in ("dataset.approve", "dataset.decline"):
+        # The page names a dataset; what gets approved is the call stored in the artifact, never one
+        # the page describes. The host only forwards this on a user gesture.
+        d = live.dataset(aid, str(a.get("id", "")), _int(a.get("version")))
+        cid = live.call_id(d["tool"], d["args"], d["rules"])
+        store.set_approval(aid, cid, d["tool"], op == "dataset.approve")
+        return {"ok": True, "call": cid, "allowed": op == "dataset.approve"}
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")
@@ -138,6 +149,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 return _op(aid, str(body.get("op", "")), body.get("args") if isinstance(body.get("args"), dict) else {})
     except ApiError:
         raise
+    except live.LiveError as e:
+        raise ApiError(404 if e.status == "missing" else 400, e.message)
     except FileNotFoundError as e:
         raise ApiError(404, f"not found: {e}")
     except (ValueError, TypeError) as e:

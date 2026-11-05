@@ -150,6 +150,14 @@
     download: function (name, content, type) {
       return call("download", { name: String(name), content: content, type: type || "application/octet-stream" });
     },
+    /** Dashboards only: run a live dataset's stored call; approve/decline it (approve needs a click). */
+    dataset: Object.freeze({
+      run: function (id, params, force, version) {
+        return call("dataset.run", { id: String(id), params: params || {}, force: !!force, version: version || null });
+      },
+      approve: function (id, version) { return call("dataset.approve", { id: String(id), version: version || null }); },
+      decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); }
+    }),
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */
