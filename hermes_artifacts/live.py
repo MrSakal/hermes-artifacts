@@ -230,6 +230,71 @@ def _registry_entry(tool: str):
     return registry, entry, scope
 
 
+_AUTH_TEXT = re.compile(r"re-?authenticat|needs?[_ ]re-?auth|401|unauthori[sz]ed|token (has )?expired|invalid[_ ]token|"
+                        r"sign in again|log ?in again|hermes mcp login", re.I)
+
+
+def server_of(tool: str) -> Optional[str]:
+    """The MCP server a tool belongs to: its registry toolset (``mcp-<name>``), else its name."""
+    try:
+        from tools.registry import registry
+        ts = registry.get_toolset_for_tool(tool)
+        if ts and ts.startswith("mcp-"):
+            return ts[4:]
+    except Exception:
+        pass
+    norm = lambda n: n.replace("-", "_").lower()
+    names = []
+    try:  # names are normalized in tool names (dashes to underscores): match a configured server
+        from tools.mcp_tool_discovery import get_mcp_status
+        names = [s.get("name", "") for s in get_mcp_status(include_runtime=False)]
+    except Exception:
+        pass
+    if tool.startswith("mcp__") and "__" in tool[5:]:
+        guess = tool[5:].split("__", 1)[0]  # mcp__<server>__<tool>
+    else:
+        hits = [n for n in names if norm(tool).startswith("mcp_" + norm(n) + "_")]
+        if hits:
+            return max(hits, key=len)
+        m = re.match(r"^mcp_([^_]+)_", tool)
+        guess = m.group(1) if m else None
+    if not guess:
+        return None
+    return next((n for n in names if norm(n) == norm(guess)), guess)
+
+
+def server_state(server: Optional[str]) -> dict:
+    """{state: ok|reauth|off|absent, error?} of an MCP server, from Hermes' own status."""
+    if not server:
+        return {"state": "absent"}
+    try:
+        from tools.mcp_tool_discovery import get_mcp_status
+        for s in get_mcp_status():
+            if s.get("name") == server:
+                if s.get("needs_auth"):
+                    return {"state": "reauth"}
+                if s.get("disabled"):
+                    return {"state": "off"}
+                if s.get("connected") or s.get("status") == "lazy":
+                    return {"state": "ok"}
+                return {"state": "absent", "error": s.get("error")}
+        return {"state": "absent", "error": "not configured on this Hermes"}
+    except Exception:
+        return {"state": "absent"}
+
+
+def _unavailable(tool: str) -> "LiveError":
+    server = server_of(tool)
+    st = server_state(server)
+    name = server or tool
+    if st["state"] == "reauth":
+        return LiveError("reauth", f"Sign in to {name} again: its login has expired.", server=server)
+    if st["state"] == "off":
+        return LiveError("off", f"{name} is turned off in Hermes.", server=server)
+    detail = f" ({st['error']})" if st.get("error") else ""
+    return LiveError("absent", f"{name} is not connected{detail}.", server=server)
+
+
 def run_tool(tool: str, args: dict) -> Any:
     """Dispatch an MCP tool by its registry name and return its decoded answer."""
     try:
@@ -237,12 +302,19 @@ def run_tool(tool: str, args: dict) -> Any:
     except ImportError:
         raise LiveError("error", "live data needs the Hermes server (no tool registry here)")
     if entry is None:
-        raise LiveError("connect", f"the tool {tool!r} isn't available on this Hermes (is its MCP server connected?)")
+        raise _unavailable(tool)
     toolset = getattr(entry, "toolset", "") or ""
     if not toolset.startswith("mcp-"):
         raise LiveError("refused", f"{tool!r} is not an MCP tool; a dashboard can only run MCP tools")
     out = registry.dispatch(tool, args, scope=scope) if scope else registry.dispatch(tool, args)
-    return decode(out)
+    try:
+        return decode(out)
+    except LiveError as e:
+        # A connector failing on its login says so in its own words: name it as a sign-in problem.
+        if e.status == "failed" and _AUTH_TEXT.search(e.message):
+            server = e.extra.get("server") or server_of(tool)
+            raise LiveError("reauth", f"Sign in to {server or tool} again: {e.message}", server=server)
+        raise
 
 
 def decode(out: Any) -> Any:
@@ -257,6 +329,9 @@ def decode(out: Any) -> Any:
         except ValueError:
             return out
     if isinstance(out, dict):
+        if out.get("needs_reauth"):
+            raise LiveError("reauth", str(out.get("error") or "the connector needs a new sign-in")[:2000],
+                            server=out.get("server"))
         if out.get("error") and len(out) <= 3:
             raise LiveError("failed", str(out["error"])[:2000])
         if out.get("isError"):

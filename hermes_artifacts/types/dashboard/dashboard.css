@@ -138,3 +138,8 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { outline-style: soli
 .c-unit { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--color-fg-muted); }
 #dash-root .c-table th.num, #dash-root .c-table td.num { text-align: right; }
 #dash-root .c-table td, #dash-root .c-table th { border-bottom-color: var(--color-border-line); }
+.dash-conn { border-color: color-mix(in srgb, var(--color-warn) 50%, transparent); background: color-mix(in srgb, var(--color-warn) 9%, transparent);
+  display: flex; flex-direction: column; gap: 10px; }
+.dash-conn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash-conn-row p { margin: 2px 0 0; }
+.dash-conn .kit-btn:first-of-type { background: var(--color-warn); color: #111; }

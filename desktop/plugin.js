@@ -829,6 +829,11 @@ function useBridge(ref, art, ctx, portRef) {
             $exports.set(list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) })))
             return reply({ ok: true, value: { ok: true } })
           }
+          if (m.op === 'connectors') {
+            const server = String(m.args?.server || '').slice(0, 100)
+            host.navigate(`/capabilities?tab=connectors${server ? `&server=${enc(server)}` : ''}`)
+            return reply({ ok: true, value: { ok: true } })
+          }
           if (m.op === 'present') {
             const on = Boolean(m.args?.on)
             $presenting.set(on)

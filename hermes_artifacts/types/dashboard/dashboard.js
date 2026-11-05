@@ -31,6 +31,10 @@
       allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
       query: "Query", refreshSrc: "Refresh this source", took: "took",
       refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV",
+      reauthTitle: "Sign in to {s} again", reauthBody: "Its login has expired, so these numbers can't be fetched until you sign in.",
+      absentTitle: "{s} is not connected", absentBody: "Connect it in Hermes to fetch these numbers.",
+      offTitle: "{s} is turned off", offBody: "Turn it on in Hermes to fetch these numbers.",
+      affected: "Waiting", signIn: "Sign in", openConnectors: "Open connectors", retry: "Try again",
       editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version and runs the changed query.",
       save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
@@ -44,6 +48,10 @@
       allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
       query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
       refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV",
+      reauthTitle: "Jelentkezz be újra: {s}", reauthBody: "Lejárt a bejelentkezés, ezért amíg újra be nem lépsz, ezeket a számokat nem tudja lekérni.",
+      absentTitle: "{s} nincs csatlakoztatva", absentBody: "Csatlakoztasd a Hermesben, hogy le tudja kérni ezeket a számokat.",
+      offTitle: "{s} ki van kapcsolva", offBody: "Kapcsold be a Hermesben, hogy le tudja kérni ezeket a számokat.",
+      affected: "Erre vár", signIn: "Bejelentkezés", openConnectors: "Kapcsolatok megnyitása", retry: "Újrapróbálás",
       editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít, és lefuttatja a módosított lekérdezést.",
       save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve" }
   }[L];
@@ -154,6 +162,11 @@
     if (st.status === "loading") return { status: "loading" };
     if (st.status === "approval") return { status: "connect", message: T.waiting };
     if (st.status === "declined") return { status: "declined", message: T.declined };
+    if (st.status === "reauth" || st.status === "absent" || st.status === "off") {
+      // Keep the last numbers on screen (dimmed) while the connector is out; say why in the banner.
+      if (st.stale && st.stale.rows) return Object.assign({ status: "ok", stale: true }, { columns: st.stale.columns || [], rows: st.stale.rows });
+      return { status: st.status, message: st.message };
+    }
     return { status: "error", message: st.message || st.status };
   }
 
@@ -335,7 +348,7 @@
         var r = cache[ids[j]] && cache[ids[j]].r;
         var s = r ? r.status : "loading";
         if (live[ids[j]] && live[ids[j]].refreshing) { st = st || "refreshing"; continue; }
-        if (s === "error" || s === "missing" || s === "declined" || s === "connect") { st = "error"; break; }
+        if (/^(error|missing|declined|connect|reauth|absent|off)$/.test(s)) { st = "error"; break; }
         if (s === "loading") st = "loading";
       }
       if (!st && !m.children.length && /^\s*[—-]?\s*$/.test(m.textContent)) st = "empty";
@@ -667,15 +680,45 @@
     lastRetry = Date.now();
     liveIds().forEach(function (id) {
       var st = live[id];
-      if (st && !st.running && /^(error|failed|connect)$/.test(st.status)) loadLive(id, false);
+      if (st && !st.running && /^(error|failed|reauth|absent|off)$/.test(st.status)) loadLive(id, false);
     });
   }
   window.addEventListener("focus", retryFailed);
   document.addEventListener("visibilitychange", retryFailed);
 
   // ------------------------------------------------------------------ approval banner
-  var bannerEl = null;
+  var bannerEl = null, connEl = null;
+  // A connector that's out (login expired, turned off, not connected): one line per server, with the
+  // way back. The sources retry when the viewer returns to the dashboard.
+  function connBanner() {
+    var by = {};
+    liveIds().forEach(function (id) {
+      var st = live[id];
+      if (!st || !/^(reauth|absent|off)$/.test(st.status)) return;
+      var key = (st.server || datasets[id].source.tool) + "|" + st.status;
+      (by[key] = by[key] || { server: st.server, status: st.status, message: st.message, ids: [] }).ids.push(id);
+    });
+    var list = Object.keys(by).map(function (k) { return by[k]; });
+    if (!list.length || C.thumb) { if (connEl) { connEl.remove(); connEl = null; } return; }
+    var box = h("div", { "class": "dash-ask dash-conn" }, list.map(function (c) {
+      var title = c.status === "reauth" ? T.reauthTitle : c.status === "off" ? T.offTitle : T.absentTitle;
+      return h("div", { "class": "dash-conn-row" }, [
+        h("div", { style: "flex:1;min-width:0" }, [
+          h("b", { text: title.replace("{s}", c.server || "MCP") }),
+          h("p", { text: (c.status === "reauth" ? T.reauthBody : c.status === "off" ? T.offBody : T.absentBody) + " " +
+            T.affected + ": " + c.ids.map(function (id) { return datasets[id].title || id; }).join(", ") })
+        ]),
+        kit.labelled(kit.button(c.status === "reauth" ? T.signIn : T.openConnectors, "data", function () {
+          if (window.hermes && window.hermes.connectors) window.hermes.connectors(c.server || "").catch(function () {});
+        }), c.status === "reauth" ? T.signIn : T.openConnectors),
+        kit.labelled(kit.button(T.retry, "refresh", function () { c.ids.forEach(function (id) { loadLive(id, true); }); }), T.retry)
+      ]);
+    }));
+    if (connEl) connEl.replaceWith(box); else root.parentNode.insertBefore(box, root);
+    connEl = box;
+  }
   function banner() {
+    connBanner();
     var pending = liveIds().filter(function (id) { return live[id] && live[id].status === "approval"; });
     if (!pending.length || C.thumb) { if (bannerEl) { bannerEl.remove(); bannerEl = null; } return; }
     var tools = {};
