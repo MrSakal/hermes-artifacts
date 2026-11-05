@@ -167,6 +167,8 @@
     /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
      *  then sends an "export" event with the id the user picked. */
     chrome: function (opts) { return call("chrome", opts || {}); },
+    /** Slides: present full screen (the host makes the frame fill the window and goes full screen). */
+    present: function (on) { return call("present", { on: !!on }); },
     /** Host events for type runtimes (e.g. "theme"). */
     on: on
   });

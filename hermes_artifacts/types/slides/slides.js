@@ -66,12 +66,20 @@
   // A slide is its own HTML file, or a layout described in deck.json "slides" (drawn by layouts.js).
   // A saved in-place edit of a layout slide becomes its HTML file, which then takes precedence.
   var defs = {};
+  /** The deck's theme; without one, Hermes' own colors and font (once the host sends them). */
+  function deckTheme() {
+    if (deck.theme) return deck.theme;
+    var t = kit.hostTheme && kit.hostTheme();
+    if (!t) return null;
+    return { mode: t.mode, bg: t.bg, surface: t.panel, fg: t.fg, muted: t.muted, line: t.line, accent: t.accent,
+      font: t.font, headingFont: t.font };
+  }
   (Array.isArray(deck.slides) ? deck.slides : []).forEach(function (d) {
     if (d && /^[A-Za-z0-9_-]{1,64}$/.test(d.id || "")) { defs[d.id] = d; if (order.indexOf(d.id) < 0) order.push(d.id); }
   });
   var slides = order.filter(function (id) { return kit.fileText("slides/" + id + ".html") != null || defs[id]; }).map(function (id) {
     var html = kit.fileText("slides/" + id + ".html");
-    if (html == null && window.slideLayout) html = window.slideLayout(defs[id], deck.theme);
+    if (html == null && window.slideLayout) html = window.slideLayout(defs[id], deckTheme());
     return { id: id, sec: clean(html, id), dirty: false, layout: html == null ? null : defs[id] ? defs[id].layout : null };
   });
   function notesOf(s) { var a = s.sec.querySelector("aside"); return a ? a.textContent.trim() : ""; }
@@ -201,7 +209,9 @@
     pres = { el: h("div", { id: "sl-present", tabindex: "0" }, [box, count]), box: box, count: count, i: cur, steps: [] };
     document.body.appendChild(pres.el);
     pres.el.focus();
-    if (pres.el.requestFullscreen) pres.el.requestFullscreen().catch(function () {});
+    // Full screen is the host's: the frame can't ask for it. Outside Hermes, try the page itself.
+    if (window.hermes && window.hermes.present) window.hermes.present(true).catch(function () {});
+    else if (pres.el.requestFullscreen) pres.el.requestFullscreen().catch(function () {});
     var hideTimer;
     pres.el.addEventListener("mousemove", function () {
       pres.el.classList.add("cursor"); clearTimeout(hideTimer);
@@ -253,17 +263,18 @@
     else if (k === "Home") { pres.i = 0; paint(-1); }
     else if (k === "End") { pres.i = slides.length - 1; paint(1); }
     else if (/^[1-9]$/.test(k)) { pres.i = Math.min(slides.length - 1, +k - 1); paint(1); }
-    else if (k === "f" || k === "F") { if (document.fullscreenElement) document.exitFullscreen(); else if (pres.el.requestFullscreen) pres.el.requestFullscreen().catch(function () {}); }
+    else if ((k === "f" || k === "F") && !(window.hermes && window.hermes.present)) { if (document.fullscreenElement) document.exitFullscreen(); else if (pres.el.requestFullscreen) pres.el.requestFullscreen().catch(function () {}); }
     else if (k === "Escape") endPresent();
   }
   function endPresent() {
     if (!pres) return;
     var i = pres.i;
+    if (window.hermes && window.hermes.present) window.hermes.present(false).catch(function () {});
     if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
     pres.el.remove(); pres = null;
     show(i);
   }
-  document.addEventListener("fullscreenchange", function () { /* keep presenting in the frame after Esc leaves fullscreen */ });
+  if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { if (pres) endPresent(); });
   window.addEventListener("resize", function () { fit(); if (pres) paint(null); });
 
   document.addEventListener("keydown", function (e) {
@@ -284,6 +295,11 @@
   }
 
   function rgba(c) {
+    var cm = (c || "").match(/color\(srgb\s+([^)]+)\)/);
+    if (cm) {
+      var q = cm[1].split(/[\s\/]+/).filter(Boolean).map(Number);
+      c = "rgba(" + q.slice(0, 3).map(function (x) { return Math.round(x * 255); }).join(",") + "," + (q.length > 3 ? q[3] : 1) + ")";
+    }
     var m = (c || "").match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
     var p = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
@@ -569,6 +585,14 @@
   if (!slides.length) { stage.replaceWith(h("div", { "class": "kit-empty", text: T.empty })); return; }
   buildRail();
   show(cur);
+  if (!deck.theme && kit.hostTheme) kit.hostTheme(function () {
+    slides.forEach(function (s) {
+      if (!s.layout || s.dirty || kit.fileText("slides/" + s.id + ".html") != null) return;
+      s.sec = clean(window.slideLayout(defs[s.id], deckTheme()), s.id);
+    });
+    buildRail();
+    if (!pres) show(cur);
+  });
   new ResizeObserver(fit).observe(stageWrap);
   kit.ready();
 })();

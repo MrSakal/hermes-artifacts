@@ -1,9 +1,6 @@
 {
   "title": "Q4 facade pipeline",
   "cover": "cover",
-  "theme": {
-    "mode": "dark"
-  },
   "order": [
     "cover",
     "agenda",

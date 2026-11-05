@@ -11,7 +11,6 @@ Publish it with `artifact_publish type=slides files={"deck.json": {...}}`, plus 
 ```json
 {
   "title": "Q3 review",
-  "theme": {"mode": "dark", "accent": "#2dd4bf"},
   "order": ["cover", "agenda", "numbers", "trend", "plan", "close"],
   "cover": "cover",
   "slides": [
@@ -43,6 +42,8 @@ Every slide also takes:
 - `transition`: `fade` or `push`.
 
 Text fields accept `**bold**` and `*italic*`.
+
+Leave `theme` out and the deck wears Hermes' own colors and font, following the user's theme and skin. This is the recommended default. Set it only for a deck that needs its own brand.
 
 `theme` sets the look for the whole deck:
 - `mode`: `dark` or `light`;

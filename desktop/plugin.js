@@ -201,6 +201,8 @@ const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
 const $toast = atom(null)
+const $presenting = atom(false) // a deck is presenting: its frame fills the screen
+const presentExit = new Set() // per mounted frame: tell the page full screen ended
 const $exports = atom([]) // exports the open artifact's runtime offers ([{id, label}]), shown in our toolbar
 // Where our "Session files" link sits: the floating back button on the built-in view takes that spot.
 const $backSpot = atom({ left: 260, bottom: 20, width: 1000 })
@@ -827,6 +829,15 @@ function useBridge(ref, art, ctx, portRef) {
             $exports.set(list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) })))
             return reply({ ok: true, value: { ok: true } })
           }
+          if (m.op === 'present') {
+            const on = Boolean(m.args?.on)
+            $presenting.set(on)
+            try {
+              if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen()
+              if (!on && document.fullscreenElement) await document.exitFullscreen()
+            } catch {} // without a gesture the frame still fills the window
+            return reply({ ok: true, value: { ok: true, fullscreen: Boolean(document.fullscreenElement) } })
+          }
           if (m.op === 'vendor') {
             return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
           }
@@ -853,18 +864,54 @@ function useBridge(ref, art, ctx, portRef) {
         }
       }
       frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: 2 }, '*', [ch.port2])
-      postToPage(portRef, 'theme', { mode: hostMode() })
+      postToPage(portRef, 'theme', { mode: hostMode(), vars: hostTheme() })
       sendPins(portRef)
     }
     window.addEventListener('message', onMessage)
+    const exit = () => postToPage(portRef, 'present-exit', {})
+    presentExit.add(exit)
     return () => {
       window.removeEventListener('message', onMessage)
+      presentExit.delete(exit)
       portRef.current = null
+      if ($presenting.get()) $presenting.set(false)
     }
   }, [art?.id, art?.title])
 }
 
 const keepFrame = new Map() // artifact id -> version its own page just saved
+
+/** The app's own theme, resolved to plain colors (its variables are color-mix() expressions the
+ *  frame can't see), so artifact chrome wears Hermes' colors and fonts, a skin's too. */
+function hostTheme() {
+  const probe = document.createElement('div')
+  probe.style.display = 'none'
+  document.body.appendChild(probe)
+  const color = v => {
+    probe.style.color = ''
+    probe.style.color = `var(${v})`
+    const c = getComputedStyle(probe).color
+    return c && c !== 'rgba(0, 0, 0, 0)' ? c : null
+  }
+  const root = getComputedStyle(document.documentElement)
+  const val = v => root.getPropertyValue(v).trim() || null
+  const out = {
+    bg: color('--background'),
+    panel: color('--ui-bg-elevated'),
+    fg: color('--foreground'),
+    fg2: color('--ui-text-secondary'),
+    muted: color('--ui-text-tertiary'),
+    line: color('--ui-stroke-secondary'),
+    strong: color('--ui-stroke-primary'),
+    accent: color('--ui-accent'),
+    hover: color('--chrome-action-hover'),
+    font: val('--font-sans') || getComputedStyle(document.body).fontFamily,
+    mono: val('--font-mono'),
+    radius: val('--radius')
+  }
+  probe.remove()
+  return out
+}
 
 /** Light or dark, from the app's own background. */
 function hostMode() {
@@ -1156,6 +1203,7 @@ function Viewer({ ctx }) {
   const panel = useValue($panel)
   const ref = useRef(null)
   const portRef = useRef(null)
+  const presenting = useValue($presenting)
   const art = current()
   const [src, setSrc] = useState(null)
   const [loadErr, setLoadErr] = useState(null)
@@ -1186,7 +1234,16 @@ function Viewer({ ctx }) {
         style: { display: 'flex', flex: 1, minHeight: 0 },
         children: [
           src
-            ? jsx(SandboxedFrame, { key: `${art.id}:${v}:${nonce}:${page || ''}`, ref, sandbox: SANDBOX, src, title: art.title, style: { flex: 1, minWidth: 0, height: '100%', border: 0, background: '#fff' } })
+            ? jsx(SandboxedFrame, {
+                key: `${art.id}:${v}:${nonce}:${page || ''}`,
+                ref,
+                sandbox: SANDBOX,
+                src,
+                title: art.title,
+                style: presenting
+                  ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0, background: '#000' }
+                  : { flex: 1, minWidth: 0, height: '100%', border: 0, background: '#fff' }
+              })
             : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
           panel ? jsx(CommentsPanel, { ctx, art, portRef }) : null
         ]
@@ -1297,6 +1354,19 @@ export default {
       if (p.id) openArtifact(ctx, p.id)
       host.navigate(PAGE)
     })
+    // Leaving full screen (Esc, F11) ends the presentation in the page too.
+    const onFs = () => {
+      if (!document.fullscreenElement && $presenting.get()) {
+        $presenting.set(false)
+        presentExit.forEach(fn => fn())
+        document.querySelectorAll('iframe').forEach(f => {
+          try {
+            f.contentWindow?.postMessage({ __hermes_bridge: 1, kind: 'present-exit' }, '*')
+          } catch {}
+        })
+      }
+    }
+    document.addEventListener('fullscreenchange', onFs)
     ctx.onEvent(`plugin.${ID}.reply`, ev => replyWaiters.get(payloadOf(ev).request)?.())
     ctx.onEvent(`plugin.${ID}.comments`, () => loadComments(ctx))
     ctx.onEvent(`plugin.${ID}.deleted`, () => refresh(ctx))
@@ -1305,6 +1375,7 @@ export default {
     }, 5000)
 
     return () => {
+      document.removeEventListener('fullscreenchange', onFs)
       window.removeEventListener('hashchange', redirectCore)
       nav?.removeEventListener?.('currententrychange', redirectCore)
       if (window[KEY] === redirectCore) delete window[KEY]

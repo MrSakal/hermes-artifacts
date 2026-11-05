@@ -16,8 +16,10 @@
   function rich(s) {
     return esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\*([^*]+)\*/g, "<i>$1</i>");
   }
-  function safeColor(c, fb) { return /^#[0-9a-f]{3,8}$/i.test(c || "") || /^rgba?\([\d\s.,%]+\)$/i.test(c || "") ? c : fb; }
-  function safeFont(f, fb) { return /^[\w\s,"'-]{1,120}$/.test(f || "") ? f : fb; }
+  function safeColor(c, fb) {
+    return /^#[0-9a-f]{3,8}$/i.test(c || "") || /^rgba?\([\d\s.,%]+\)$/i.test(c || "") || /^color\(srgb[\d\s.,\/-]+\)$/i.test(c || "") ? c : fb;
+  }
+  function safeFont(f, fb) { return /^[\w\s,"'.-]{1,400}$/.test(f || "") ? f.replace(/"/g, "'") : fb; }
 
   function themeOf(t) {
     t = t || {};

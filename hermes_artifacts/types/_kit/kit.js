@@ -112,11 +112,35 @@
   }
 
   // Theme from the host (Hermes Desktop sends its light/dark mode once the bridge connects).
+  var COLOR = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%/]+\)|color\(srgb[\d\s.,%/-]+\)|hsla?\([\d\s.,%/deg]+\))$/i;
+  var host = null, themeListeners = [];
+  function applyTheme(v) {
+    var st = document.documentElement.style, ok = function (c) { return typeof c === "string" && COLOR.test(c.trim()); };
+    var set = function (name, val) { if (ok(val)) st.setProperty(name, val); };
+    set("--color-bg", v.bg); set("--color-panel", v.panel); set("--color-fg", v.fg); set("--color-fg-secondary", v.fg2);
+    set("--color-fg-muted", v.muted); set("--color-border-line", v.line); set("--color-border-strong", v.strong);
+    set("--color-hover", v.hover);
+    if (ok(v.accent)) {
+      st.setProperty("--color-accent", v.accent);
+      st.setProperty("--chart-1", v.accent);
+      st.setProperty("--color-accent-soft", "color-mix(in srgb, " + v.accent + " 14%, transparent)");
+    }
+    if (typeof v.font === "string" && /^[\w\s"',.-]{1,400}$/.test(v.font)) { st.setProperty("--font-sans", v.font); st.setProperty("--font-display", v.font); }
+    if (typeof v.mono === "string" && /^[\w\s"',.-]{1,400}$/.test(v.mono)) st.setProperty("--font-mono", v.mono);
+    if (typeof v.radius === "string" && /^[\d.]+(px|rem)$/.test(v.radius)) st.setProperty("--radius", v.radius);
+  }
   if (window.hermes && window.hermes.on) {
     window.hermes.on("theme", function (d) {
       if (d && (d.mode === "dark" || d.mode === "light")) document.documentElement.setAttribute("data-theme", d.mode);
+      if (d && d.vars && typeof d.vars === "object") {
+        host = Object.assign({ mode: d.mode }, d.vars);
+        applyTheme(d.vars);
+        themeListeners.forEach(function (fn) { try { fn(host); } catch (e) {} });
+      }
     });
   }
+  /** The host's theme (null until it arrives); fn runs when it does. */
+  function hostTheme(fn) { if (fn) themeListeners.push(fn); return host; }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -147,6 +171,6 @@
     ]);
   }
 
-  window.kit = { exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
 })();
