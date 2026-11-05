@@ -1,0 +1,57 @@
+body { overflow: hidden; }
+#sl-app { display: flex; height: calc(100vh - 44px); }
+#sl-rail { width: 200px; flex-shrink: 0; overflow-y: auto; padding: 12px 10px 24px; border-right: 1px solid var(--color-border-line); }
+#sl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#sl-stage-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
+#sl-stage { position: relative; box-shadow: 0 4px 24px rgba(0,0,0,.18); border-radius: 4px; overflow: hidden; background: #fff; }
+#sl-notes { flex-shrink: 0; max-height: 30%; overflow: auto; padding: 12px 20px; border-top: 1px solid var(--color-border-line);
+  font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: var(--color-fg-secondary); }
+
+/* A slide: a fixed 1920x1080 canvas, scaled to its box. */
+.sl-canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; }
+.sl-canvas > section { position: relative; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; font-family: var(--font-sans); color: #1a1a1a; background: #fff; }
+.sl-canvas > section h1, .sl-canvas > section h2, .sl-canvas > section h3, .sl-canvas > section p,
+.sl-canvas > section ul, .sl-canvas > section ol { margin: 0; }
+.sl-canvas > section h1 { font-size: 96px; font-weight: 600; line-height: 1.1; }
+.sl-canvas > section h2 { font-size: 64px; font-weight: 600; line-height: 1.15; }
+.sl-canvas > section h3 { font-size: 44px; font-weight: 600; line-height: 1.2; }
+.sl-canvas > section p, .sl-canvas > section li { font-size: 32px; line-height: 1.4; }
+.sl-canvas > section ul, .sl-canvas > section ol { padding-left: 1.2em; }
+.sl-canvas > section aside { display: none; }
+.sl-canvas > section img { display: block; }
+.sl-canvas > section table { border-collapse: collapse; }
+.sl-canvas > section td, .sl-canvas > section th { padding: .35em .6em; border-bottom: 1px solid rgba(0,0,0,.15); text-align: left; }
+.sl-canvas [contenteditable="true"] { outline: 3px solid #d97757; outline-offset: 4px; cursor: text; }
+
+.sl-thumb { position: relative; display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 2px solid transparent;
+  border-radius: 6px; background: none; cursor: pointer; }
+.sl-thumb.on { border-color: var(--color-accent); }
+.sl-thumb .sl-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 4px;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); pointer-events: none; }
+.sl-num { position: absolute; left: -2px; top: 2px; transform: translateX(-100%); font-size: 11px; color: var(--color-fg-muted); }
+#sl-rail { padding-left: 26px; }
+
+/* Grid view */
+#sl-grid { position: fixed; inset: 44px 0 0 0; z-index: 30; overflow: auto; padding: 24px; background: var(--color-bg);
+  display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; }
+#sl-grid .sl-thumb { margin: 0; }
+#sl-grid .sl-cap { display: block; margin-top: 6px; font-size: 12px; color: var(--color-fg-muted); text-align: left; }
+
+/* Present */
+#sl-present { position: fixed; inset: 0; z-index: 100; background: #000; display: flex; align-items: center; justify-content: center; cursor: none; }
+#sl-present.cursor { cursor: default; }
+#sl-present .sl-pbox { position: relative; overflow: hidden; }
+#sl-present .sl-count { position: absolute; right: 16px; bottom: 12px; color: rgba(255,255,255,.5); font-size: 12px; }
+[data-build-hidden] { opacity: 0 !important; }
+
+/* Thumbnail mode: just the cover, filling the frame. */
+html[data-thumb] body { background: #fff; }
+html[data-thumb] #sl-app { height: 100vh; }
+html[data-thumb] #sl-rail, html[data-thumb] #sl-notes { display: none; }
+html[data-thumb] #sl-stage-wrap { padding: 0; }
+html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
+
+.sl-save { background: var(--color-accent) !important; color: #fff !important; }
+.sl-busy { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent); font-size: 14px; }

@@ -215,7 +215,10 @@ async function refresh(ctx) {
     $error.set(null)
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
     const now = current()
-    if (prev && now && now.version !== prev.version && $shown.get() === null) $nonce.set($nonce.get() + 1)
+    if (prev && now && now.version !== prev.version && $shown.get() === null) {
+      if (keepFrame.get(now.id) === now.version) keepFrame.delete(now.id)
+      else $nonce.set($nonce.get() + 1)
+    }
     if (now && (now.comments !== prev?.comments || $panel.get())) loadComments(ctx)
   } catch (err) {
     $error.set(String(err?.message || err))
@@ -814,7 +817,15 @@ function useBridge(ref, art, ctx, portRef) {
             saveFile(a.name, a.content instanceof ArrayBuffer || ArrayBuffer.isView(a.content) || typeof a.content === 'string' ? a.content : JSON.stringify(a.content), a.type)
             return reply({ ok: true, value: { ok: true } })
           }
+          if (m.op === 'vendor') {
+            return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
+          }
+          if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
           const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: m.op, args: m.args || {} } })
+          if (m.op === 'save' && value.ok) {
+            keepFrame.set(aid, value.version) // the page already shows what it saved: don't reload it
+            refresh(ctx)
+          }
           if (m.op === 'send') {
             value.mode = await toChat(t('sendMsg', title, String(m.args?.text ?? '')), gesture, art)
             return reply({ ok: true, value })
@@ -830,6 +841,7 @@ function useBridge(ref, art, ctx, portRef) {
         }
       }
       frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: 2 }, '*', [ch.port2])
+      postToPage(portRef, 'theme', { mode: hostMode() })
       sendPins(portRef)
     }
     window.addEventListener('message', onMessage)
@@ -838,6 +850,16 @@ function useBridge(ref, art, ctx, portRef) {
       portRef.current = null
     }
   }, [art?.id, art?.title])
+}
+
+const keepFrame = new Map() // artifact id -> version its own page just saved
+
+/** Light or dark, from the app's own background. */
+function hostMode() {
+  const m = getComputedStyle(document.body).backgroundColor.match(/\d+(\.\d+)?/g)
+  if (!m) return 'dark'
+  const [r, g, b] = m.map(Number)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'dark' : 'light'
 }
 
 const replyWaiters = new Map() // request id -> () => void (poll now)

@@ -87,3 +87,4 @@ body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size
   border-radius: 8px; background: var(--color-fg); color: var(--color-bg); font-size: 12px; }
 .kit-empty { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: var(--color-fg-muted); }
 html[data-thumb] .kit-bar, html[data-thumb] .kit-drawer { display: none !important; }
+.kit-btn[hidden] { display: none; }

@@ -150,6 +150,10 @@
     download: function (name, content, type) {
       return call("download", { name: String(name), content: content, type: type || "application/octet-stream" });
     },
+    /** Type runtimes only: a vendored export library's source text (loaded on demand). */
+    vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
+    /** Type runtimes only (slides, doc): save edited files as a new version. */
+    save: function (files, baseVersion) { return call("save", { files: files, base_version: baseVersion || null }); },
     /** Host events for type runtimes (e.g. "theme"). */
     on: on
   });

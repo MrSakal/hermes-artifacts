@@ -1,0 +1,3 @@
+*.min.js -text
+hermes_artifacts/types/vendor/* -text
+hermes_artifacts/types/dashboard/vendor/* -text

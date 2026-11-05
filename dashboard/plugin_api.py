@@ -130,6 +130,22 @@ def resolve_comment(aid: str, cid: str, body: Resolve):
         raise HTTPException(404, "unknown comment")
 
 
+_VENDOR = Path(render.TYPES_DIR / "vendor")
+
+
+@router.get("/vendor/{name}")
+def vendor(name: str):
+    """Big export libraries a type runtime loads on demand (only files in types/vendor/)."""
+    p = (_VENDOR / name).resolve()
+    if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
+        raise HTTPException(404, "unknown asset")
+    return {"name": name, "text": p.read_text("utf-8")}
+
+
+# What a typed artifact's own viewer may write back (its editor saving a change), per type.
+_SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html)$", "doc": r"^doc\.md$"}
+
+
 class Op(BaseModel):
     op: str
     args: dict[str, Any] = {}
@@ -150,6 +166,20 @@ def bridge_op(aid: str, body: Op):
         if body.op in ("send", "ask"):
             item = store.inbox_add(aid, a.get("text", ""), a.get("data"), kind=body.op)
             return {"ok": True, "id": item["id"]}
+        if body.op == "save":
+            import re
+            m = _meta(aid)
+            pat = _SAVE_PATHS.get(m.get("type", "page"))
+            files = a.get("files")
+            if not pat or not isinstance(files, dict) or not files:
+                raise ValueError("this artifact can't save from its page")
+            for rel, val in files.items():
+                if not re.match(pat, str(rel)) or not (val is None or isinstance(val, str)):
+                    raise ValueError(f"can't save {rel!r} here")
+            if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:
+                return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
+            nm = store.publish(aid=aid, base=True, files=files)
+            return {"ok": True, "version": nm["versions"][-1]["n"]}
         if body.op == "reply.get":
             return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     except FileNotFoundError:

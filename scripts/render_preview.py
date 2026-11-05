@@ -20,5 +20,12 @@ m = store.publish(path=src, title=Path(src).name, type=kind)
 html = render.render(m, store.version_dir(m["id"]), thumb=thumb)
 out = ROOT / "docs" / "preview" / f"{Path(src).name}{'-thumb' if thumb else ''}.html"
 out.parent.mkdir(parents=True, exist_ok=True)
+if "--vendor" in sys.argv:  # inline the on-demand export libraries, for testing exports without the bridge
+    vend = render.TYPES_DIR / "vendor"
+    esc = "<" + chr(92) + "/script"
+    tags = "".join("<script>" + (vend / n).read_text("utf-8").replace("</script", esc).replace("<!--", "<" + chr(92) + "!--") + "</script>"
+                   for n in ("pptxgen.bundle.js", "pdf-lib.min.js", "fflate.umd.js"))
+    a, _, b = html.rpartition("</body>")
+    html = a + tags + "</body>" + b
 out.write_text(inject_bridge(html.encode()).decode(), encoding="utf-8")
 print(out, len(html))
