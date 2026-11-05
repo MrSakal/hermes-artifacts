@@ -383,7 +383,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
             ev.set()
 
 
-def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None) -> dict:
+def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None, auto_approve: bool = True) -> dict:
     """Replace the ``args`` of one existing live dataset and publish that as a new version. The tool
     and rules stay as the agent stored them, so the edit can not point the dashboard at another tool;
     the changed call needs a new approval before it runs."""
@@ -404,4 +404,24 @@ def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None
     d["source"]["args"] = args
     d["edit"] = {"via": "user", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     nm = store.publish(aid=aid, base=True, files={"dashboard.json": spec})
+    if auto_approve:
+        approve_all(aid, "user")  # the user's own save is the approval
     return {"ok": True, "version": nm["versions"][-1]["n"]}
+
+
+def approve_all(aid: str, via: str) -> list[str]:
+    """Mark every live call in the latest dashboard.json as approved. Used when the agent publishes
+    the dashboard (it ran these calls in the chat, in front of the user) and when the user saves an
+    edited query: the approval step adds nothing there. Returns the approved call ids."""
+    try:
+        spec = json.loads(store.read_file(aid, "dashboard.json").decode("utf-8"))
+    except (FileNotFoundError, ValueError):
+        return []
+    out = []
+    for dsid, d in (spec.get("datasets") or {}).items():
+        src = (d or {}).get("source") or {}
+        if src.get("kind") in ("call", "query") and isinstance(src.get("tool"), str):
+            cid = call_id(src["tool"], src.get("args") or {}, src.get("rules") or {})
+            store.set_approval(aid, cid, src["tool"], True)
+            out.append(cid)
+    return out

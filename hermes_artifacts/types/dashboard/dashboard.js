@@ -31,7 +31,7 @@
       allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
       query: "Query", refreshSrc: "Refresh this source", took: "took",
       refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV",
-      editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version; the changed query asks for approval before it runs.",
+      editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version and runs the changed query.",
       save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
@@ -44,7 +44,7 @@
       allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
       query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
       refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV",
-      editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít; a módosított lekérdezés futás előtt újra jóváhagyást kér.",
+      editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít, és lefuttatja a módosított lekérdezést.",
       save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve" }
   }[L];
 
@@ -545,7 +545,7 @@
         d.source.args = args;
         editing = null;
         delete live[id];
-        loadLive(id, true); // a changed query needs approval again: the banner asks
+        loadLive(id, true); // saved by the user, so already approved (unless approval is required)
         kit.toast(T.querySaved);
         renderSources();
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });

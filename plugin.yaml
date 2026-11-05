@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.4.1
+version: 0.4.2
 description: >
   Claude-style artifacts for Hermes. The agent publishes pages, dashboards (charts and tables from
   datasets, every figure traceable to its source), slide decks (present; export PDF/PPTX) and docs
@@ -38,6 +38,11 @@ config_schema:
     default: 9222
     label: Hermes Desktop CDP port
     description: Debugging port artifact_desktop_cdp attaches to, or launches the local Hermes Desktop with.
+  require_approval:
+    type: bool
+    default: false
+    label: Ask before every live dashboard query
+    description: Off, a live query that Hermes published, or that you saved in Sources, runs without a click; only queries that came in some other way ask first. On, every new or changed query waits for your click.
   trash_days:
     type: int
     default: 30

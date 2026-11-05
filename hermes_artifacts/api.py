@@ -15,6 +15,18 @@ from . import live, render, store
 from .server import inject_bridge
 
 
+def require_approval() -> bool:
+    """The plugin setting: true makes every live query wait for the user's click, even ones the
+    agent published or the user saved. Read from Hermes' config; off when it can't be read."""
+    try:
+        from hermes_cli.config import load_config_readonly
+        cfg = load_config_readonly() or {}
+        v = (((cfg.get("plugins") or {}).get("entries") or {}).get("hermes-artifacts") or {}).get("settings", {}).get("require_approval")
+        return v is True or str(v).lower() in ("true", "1", "yes")
+    except Exception:
+        return False
+
+
 class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(detail)
@@ -92,7 +104,8 @@ def _op(aid: str, op: str, a: dict) -> dict:
         store.set_approval(aid, cid, d["tool"], op == "dataset.approve")
         return {"ok": True, "call": cid, "allowed": op == "dataset.approve"}
     if op == "dataset.edit":
-        return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")))
+        return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")),
+                              auto_approve=not require_approval())
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")

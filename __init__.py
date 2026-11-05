@@ -88,6 +88,10 @@ def _publish(args: dict, **kw) -> str:
                              description=args.get("description", ""), type=args.get("type"),
                              base=bool(args.get("base", False)), session=kw.get("session_id"))
         view = _view(meta)
+        if meta.get("type") == "dashboard" and not bool(_setting("require_approval", False)):
+            # The agent ran these calls in the chat; the dashboard may run them again without a click.
+            from .hermes_artifacts import live
+            view["live_queries_approved"] = len(live.approve_all(meta["id"], "agent"))
         if args.get("open", True):
             view["shown_in_desktop"] = _broadcast("open", view)
         return _ok(**view, note="Republish with the same id to add a version; the Artifacts page reloads it.")

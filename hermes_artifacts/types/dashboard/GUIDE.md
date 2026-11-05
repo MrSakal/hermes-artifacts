@@ -91,8 +91,9 @@ it names changes. Answers are cached for `maxAgeMinutes` (default 10).
 
 - **`tool`:** the name exactly as you called it. Only MCP tools run, and only read-only queries: SQL
   must be a single `SELECT`/`WITH`. Let the connector aggregate and filter.
-- **Approval:** the user allows each query once, with a click. A changed `tool`, `args` or `rules`
-  needs a new approval.
+- **Approval:** queries you publish run straight away, because you ran them in the chat. Queries the
+  user saves in Sources run straight away too. If the user turned on "Ask before every live dashboard
+  query", each new or changed query waits for their click.
 - **Filters in `args`:** `{{name}}` takes the value of a filter (defaults come from `params`). Used
   as a whole argument (`"limit": "{{n}}"`), it keeps its type. Inside text, it is written in as-is:
   - put the quotes around it yourself;
