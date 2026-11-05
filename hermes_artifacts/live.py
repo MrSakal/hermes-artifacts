@@ -381,3 +381,27 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
             ev = _inflight.pop(key, None)
         if ev:
             ev.set()
+
+
+def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None) -> dict:
+    """Replace the ``args`` of one existing live dataset and publish that as a new version. The tool
+    and rules stay as the agent stored them, so the edit can not point the dashboard at another tool;
+    the changed call needs a new approval before it runs."""
+    if not isinstance(args, dict):
+        raise LiveError("error", "args must be an object")
+    meta = store.get_meta(aid)
+    if not meta or meta.get("type") != "dashboard":
+        raise LiveError("missing", "not a dashboard")
+    latest = meta["versions"][-1]["n"]
+    if base_version and int(base_version) != latest:
+        return {"ok": False, "conflict": True, "version": latest}
+    spec = json.loads(store.read_file(aid, "dashboard.json").decode("utf-8"))
+    d = (spec.get("datasets") or {}).get(dsid)
+    if not isinstance(d, dict) or (d.get("source") or {}).get("kind") not in ("call", "query"):
+        raise LiveError("missing", f"no live dataset {dsid!r}")
+    if len(json.dumps(args, ensure_ascii=False)) > MAX_ARGS_CHARS:
+        raise LiveError("refused", "the query's arguments are too long")
+    d["source"]["args"] = args
+    d["edit"] = {"via": "user", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    nm = store.publish(aid=aid, base=True, files={"dashboard.json": spec})
+    return {"ok": True, "version": nm["versions"][-1]["n"]}

@@ -91,6 +91,8 @@ def _op(aid: str, op: str, a: dict) -> dict:
         cid = live.call_id(d["tool"], d["args"], d["rules"])
         store.set_approval(aid, cid, d["tool"], op == "dataset.approve")
         return {"ok": True, "call": cid, "allowed": op == "dataset.approve"}
+    if op == "dataset.edit":
+        return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")))
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")
@@ -121,7 +123,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 m = _meta(aid)
                 try:
                     html = render.render(m, store.version_dir(aid, _int(query.get("v"))), page=query.get("page") or None,
-                                         thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"))
+                                         thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
+                                         lang=str(query.get("lang") or "")[:8])
                 except FileNotFoundError:
                     raise ApiError(404, "unknown version or page")
                 return {"id": aid, "version": _int(query.get("v")), "type": m.get("type", "page"),

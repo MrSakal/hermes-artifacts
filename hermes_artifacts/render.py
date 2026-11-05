@@ -8,6 +8,7 @@ artifact (dashboard, slides, doc) is the type's runtime, shipped with this plugi
 from __future__ import annotations
 
 import base64
+import re
 import json
 import mimetypes
 from pathlib import Path
@@ -40,7 +41,7 @@ def runtime(kind: str) -> str:
     return bundle.bundle(TYPES_DIR, f"{kind}/runtime.html")
 
 
-def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False) -> str:
+def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:
     kind = meta.get("type", "page")
     if kind == "page":
         entry = store.safe_rel(page) if page else "index.html"
@@ -48,7 +49,8 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             raise FileNotFoundError(entry)
         return bundle.bundle(vdir, entry)
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
-            "version": int(vdir.name[1:]), "thumb": bool(thumb), "files": content_json(vdir)}
+            "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",
+            "files": content_json(vdir)}
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'

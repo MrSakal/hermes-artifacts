@@ -45,6 +45,7 @@ const ASK_TIMEOUT_MS = 15 * 60 * 1000
 
 const STRINGS = {
   en: {
+    lang: 'en',
     title: 'Artifacts',
     all: 'All',
     pinned: 'Pinned',
@@ -113,6 +114,7 @@ const STRINGS = {
     sendMsg: (title, text) => `[artifact: ${title}] ${text}`
   },
   hu: {
+    lang: 'hu',
     title: 'Artifacts',
     all: 'Összes',
     pinned: 'Kitűzött',
@@ -270,15 +272,16 @@ function toDataUrl(html) {
 
 // Rendered HTML per (id, version, page, thumb): a version never changes, so this is a plain LRU.
 const htmlCache = new Map()
+let hostLang = 'en' // set from the plugin's i18n (the app's active language)
 function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
-  const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}`
+  const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}:${hostLang}`
   if (htmlCache.has(key)) {
     const hit = htmlCache.get(key)
     htmlCache.delete(key)
     htmlCache.set(key, hit)
     return hit
   }
-  const q = `v=${v}` + (page ? `&page=${enc(page)}` : '') + (thumb ? '&thumb=true' : '')
+  const q = `v=${v}` + (page ? `&page=${enc(page)}` : '') + (thumb ? '&thumb=true' : '') + `&lang=${enc(hostLang)}`
   const p = ctx.rest(`/artifacts/${enc(id)}/html?${q}`).then(r => toDataUrl(r.html))
   p.catch(() => htmlCache.delete(key))
   htmlCache.set(key, p)
@@ -828,9 +831,10 @@ function useBridge(ref, art, ctx, portRef) {
             return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
           }
           if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
+          if (m.op === 'dataset.edit' && !gesture) return reply({ ok: false, error: 'saving a query needs a click in the page' })
           if (m.op === 'dataset.approve' && !gesture) return reply({ ok: false, error: 'allowing live data needs a click in the page' })
           const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: m.op, args: m.args || {} } })
-          if (m.op === 'save' && value.ok) {
+          if ((m.op === 'save' || m.op === 'dataset.edit') && value.ok) {
             keepFrame.set(aid, value.version) // the page already shows what it saved: don't reload it
             refresh(ctx)
           }
@@ -1208,6 +1212,8 @@ function FloatingBack() {
 }
 
 function Page({ ctx }) {
+  const t = usePluginI18n(ID)
+  hostLang = /^[a-z]{2}(-[A-Za-z]{2})?$/.test(t('lang')) ? t('lang') : 'en'
   const pageRef = useRef(null)
   const sel = useValue($selected)
   useEffect(() => {

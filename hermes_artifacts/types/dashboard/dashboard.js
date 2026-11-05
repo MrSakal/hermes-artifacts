@@ -18,7 +18,7 @@
   var spec = kit.json("dashboard.json", null);
   var root = document.getElementById("dash-root");
   var bar = document.getElementById("dash-bar");
-  var L = /^hu\b/i.test(navigator.language || "") ? "hu" : "en";
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = {
     en: { use: "Use the page", where: "Where numbers come from", refresh: "Refresh", sources: "Sources",
       exp: "Export", csv: "Data as CSV", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
@@ -30,7 +30,9 @@
       askTitle: "This dashboard gets its numbers live", askBody: "It runs these queries through Hermes each time it opens or refreshes:",
       allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
       query: "Query", refreshSrc: "Refresh this source", took: "took",
-      refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV" },
+      refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV",
+      editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version; the changed query asks for approval before it runs.",
+      save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
@@ -41,7 +43,9 @@
       askTitle: "Ez a dashboard élőben kéri le a számait", askBody: "Megnyitáskor és frissítéskor ezeket a lekérdezéseket futtatja a Hermesen keresztül:",
       allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
       query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
-      refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV" }
+      refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV",
+      editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít; a módosított lekérdezés futás előtt újra jóváhagyást kér.",
+      save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve" }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -434,7 +438,11 @@
       if (lv) {
         kids.push(h("p", { "class": "src-meta", text: T.query + " · " + (d.source.tool || "") + (lv.ms != null ? " · " + T.took + " " + lv.ms + " ms" : "") }));
         kids.push(h("pre", { text: JSON.stringify(lv.args || d.source.args || {}, null, 2) }));
-        kids.push(h("div", { "class": "src-actions" }, [kit.labelled(kit.button(T.refresh, "refresh", function () { loadLive(id, true); renderSources(); }, T.refreshSrc), T.refresh)]));
+        if (editing === id) kids.push(queryEditor(id, d));
+        else kids.push(h("div", { "class": "src-actions" }, [
+          kit.labelled(kit.button(T.refresh, "refresh", function () { loadLive(id, true); renderSources(); }, T.refreshSrc), T.refresh),
+          kit.labelled(kit.button(T.editQuery, "notes", function () { editing = id; renderSources(); }, T.editQuery), T.editQuery)
+        ]));
       }
       if (isCalc) kids.push(h("p", { text: T.formula + " (" + d.inputs.join(", ") + ")" }), h("pre", { text: String(d.fn) }));
       if (!isCalc && loaders[id]) kids.push(h("p", { text: loaders[id].description || "loader" }), h("pre", { text: String(loaders[id].fn) }));
@@ -456,6 +464,35 @@
       ]),
       body
     ]);
+  }
+
+  var editing = null;
+  function queryEditor(id, d) {
+    var ta = h("textarea", { "class": "src-edit", spellcheck: "false", rows: "10" });
+    ta.value = JSON.stringify(d.source.args || {}, null, 2);
+    var msg = h("p", { "class": "src-meta", text: T.editHint });
+    function save() {
+      var args;
+      try { args = JSON.parse(ta.value); } catch (e) { msg.textContent = T.badJson + ": " + e.message; return; }
+      if (!args || typeof args !== "object" || Array.isArray(args)) { msg.textContent = T.badJson; return; }
+      if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.edit) { msg.textContent = T.noBridge; return; }
+      msg.textContent = T.saving;
+      window.hermes.dataset.edit(id, args, C.version).then(function (r) {
+        if (r && r.conflict) { msg.textContent = T.conflict; return; }
+        C.version = r.version;
+        d.source.args = args;
+        editing = null;
+        delete live[id];
+        loadLive(id, true); // a changed query needs approval again: the banner asks
+        kit.toast(T.querySaved);
+        renderSources();
+      }).catch(function (e) { msg.textContent = String(e && e.message || e); });
+    }
+    ta.addEventListener("keydown", function (e) { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); } });
+    return h("div", {}, [ta, msg, h("div", { "class": "src-actions" }, [
+      kit.labelled(kit.button(T.save, "", save, T.save), T.save),
+      kit.labelled(kit.button(T.cancel, "", function () { editing = null; renderSources(); }, T.cancel), T.cancel)
+    ])]);
   }
 
   function toggleSources(on) {
@@ -560,6 +597,20 @@
   function tickFresh() { freshEl.textContent = freshness(); }
   setInterval(tickFresh, 30000);
 
+  // A source that failed (a connector down, a sign-in that expired) runs again when the viewer comes
+  // back to the dashboard, at most every 5 s.
+  var lastRetry = 0;
+  function retryFailed() {
+    if (Date.now() - lastRetry < 5000 || document.hidden) return;
+    lastRetry = Date.now();
+    liveIds().forEach(function (id) {
+      var st = live[id];
+      if (st && !st.running && /^(error|failed|connect)$/.test(st.status)) loadLive(id, false);
+    });
+  }
+  window.addEventListener("focus", retryFailed);
+  document.addEventListener("visibilitychange", retryFailed);
+
   // ------------------------------------------------------------------ approval banner
   var bannerEl = null;
   function banner() {
@@ -597,8 +648,7 @@
   var booted = false;
   function boot() {
     if (booted) return; booted = true;
-    mount();
-    liveIds().forEach(function (id) { if (!live[id]) loadLive(id, false); });
+    mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
     redraw();
     kit.ready();
   }

@@ -47,6 +47,8 @@ current. Store the call that worked in your session as the dataset's source, wit
   `{schema, rows: [{f: [{v}]}]}`, arrive as rows. Anything else comes as `dash.data(id).data`. Add a
   `dash.loader(id, {description, fn: ({answer}) => rows})` to reshape it into rows.
 - Use a `file` source only when the data has no connector, or when the user asked for a fixed copy.
+- The user can edit a live query's `args` in Sources (a new version, marked `"edit": {"via": "user"}`), so read
+  `dashboard.json` before you change the dashboard, and keep their edit unless they ask otherwise.
 - `index.html`: the page. It is mounted into `<div id="dash-root">`; no `<html>`, `<head>` or `<body>`.
   Its `<script>`s run in order, each in its own scope, with `dash` and `d3` (v7) available.
   `<link rel="stylesheet" href="x.css">` and `<script src="x.js">` may name the artifact's own files.

@@ -13,7 +13,7 @@
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content;
   var W = 1920, H = 1080;
-  var L = /^hu\b/i.test(navigator.language || "") ? "hu" : "en";
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = {
     en: { present: "Present", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "This slide (PNG)", html: "Web page (HTML)", save: "Save", saving: "Saving…", saved: "Saved",

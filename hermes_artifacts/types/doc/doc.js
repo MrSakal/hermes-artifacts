@@ -7,7 +7,7 @@
 (function () {
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md;
-  var L = /^hu\b/i.test(navigator.language || "") ? "hu" : "en";
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = {
     en: { edit: "Edit", done: "Done", save: "Save", saving: "Saving…", saved: "Saved", exp: "Export", docx: "Word (.docx)",
       pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)", conflict: "Changed meanwhile: reload to see the new version",

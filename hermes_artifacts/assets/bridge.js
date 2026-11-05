@@ -156,7 +156,9 @@
         return call("dataset.run", { id: String(id), params: params || {}, force: !!force, version: version || null });
       },
       approve: function (id, version) { return call("dataset.approve", { id: String(id), version: version || null }); },
-      decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); }
+      decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); },
+      /** The user editing a live query in Sources: new args for that dataset, saved as a new version. */
+      edit: function (id, args, baseVersion) { return call("dataset.edit", { id: String(id), args: args, base_version: baseVersion || null }); }
     }),
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },

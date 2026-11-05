@@ -74,3 +74,5 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { outline-style: soli
 .dash-fresh { font-size: 12px; color: var(--color-fg-muted); }
 .src-kind { flex-shrink: 0; color: var(--color-fg-muted); display: inline-flex; }
 .src-kind svg { width: 15px; height: 15px; }
+.src-edit { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-border-line); background: var(--color-bg);
+  color: var(--color-fg); font: 11.5px/1.5 var(--font-mono); resize: vertical; }
