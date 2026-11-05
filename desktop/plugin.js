@@ -18,7 +18,6 @@
 
 import {
   atom,
-  Codicon,
   host,
   ROUTES_AREA,
   SandboxedFrame,
@@ -124,6 +123,48 @@ const muted = 'text-xs text-(--ui-text-tertiary)'
 const ghostBtn =
   'h-6 rounded px-1.5 text-xs text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground'
 
+/** The footer row of the list column ("Session files and images →") and its twin on the built-in view
+ *  ("← Back to Artifacts"): one look, so the two are the same size and sit in the same spot. Inline
+ *  styles with theme variables (a runtime plugin can only use utility classes the app ships). */
+function FooterRow({ label, title, onClick, floating, spot }) {
+  const [hover, setHover] = useState(false)
+  return jsx('button', {
+    type: 'button',
+    title,
+    onClick,
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+    style: {
+      display: 'block',
+      width: floating ? spot.width : '100%',
+      flexShrink: 0,
+      padding: '8px 12px',
+      textAlign: 'left',
+      fontSize: '0.6875rem',
+      lineHeight: '1rem',
+      border: 0,
+      borderTop: '1px solid var(--ui-stroke-secondary)',
+      color: hover ? 'var(--ui-text-secondary)' : 'var(--ui-text-quaternary)',
+      background: hover ? 'var(--chrome-action-hover)' : 'transparent',
+      cursor: 'pointer',
+      transition: 'color 120ms ease, background-color 120ms ease',
+      ...(floating
+        ? {
+            position: 'fixed',
+            left: spot.left,
+            bottom: spot.bottom,
+            zIndex: 40,
+            // Opaque so it stays readable over the built-in view's content.
+            backgroundColor: hover
+              ? 'color-mix(in srgb, var(--chrome-action-hover) 100%, var(--background))'
+              : 'var(--background)'
+          }
+        : null)
+    },
+    children: label
+  })
+}
+
 // ---------------------------------------------------------------- list column
 
 function ListColumn({ ctx }) {
@@ -170,18 +211,15 @@ function ListColumn({ ctx }) {
         ]
       }),
       jsx('div', { className: 'min-h-0 flex-1 overflow-y-auto px-1.5 pb-2', children: body }),
-      jsx('button', {
-        type: 'button',
-        className:
-          'shrink-0 border-t border-(--ui-stroke-secondary) px-3 py-2 text-left text-[0.6875rem] text-(--ui-text-quaternary) hover:text-foreground',
+      jsx(FooterRow, {
+        label: t('sessionFiles'),
         title: t('sessionFilesTip'),
         onClick: e => {
           const r = e.currentTarget.getBoundingClientRect()
           $backSpot.set({ left: r.left, bottom: window.innerHeight - r.bottom, width: r.width })
           ctx.storage.set('backSpot', $backSpot.get())
           host.navigate(CORE_KEEP)
-        },
-        children: t('sessionFiles')
+        }
       })
     ]
   })
@@ -288,59 +326,11 @@ function Viewer({ ctx }) {
   })
 }
 
-/** The "back" twin of the Session files link: a small floating pill over the built-in view, anchored to
- *  the bottom-left corner of the same workspace pane (inset so it never touches the edges). */
+/** The "back" twin of the Session files link, floating over the built-in view in the same spot. */
 function FloatingBack() {
   const t = usePluginI18n(ID)
   const spot = useValue($backSpot)
-  const [hover, setHover] = useState(false)
-  // Inline styles on purpose: a runtime plugin can only use utility classes the app already ships, so
-  // opacity modifiers, shadows and blur are spelled out with the theme's own variables.
-  return jsxs('button', {
-    type: 'button',
-    onClick: () => host.navigate(PAGE),
-    onMouseEnter: () => setHover(true),
-    onMouseLeave: () => setHover(false),
-    title: t('back'),
-    style: {
-      position: 'fixed',
-      left: spot.left + 12,
-      bottom: spot.bottom + 12,
-      zIndex: 40,
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      height: 32,
-      padding: '0 14px 0 10px',
-      borderRadius: 9999,
-      border: `1px solid ${hover ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)'}`,
-      background: 'color-mix(in srgb, var(--ui-bg-elevated) 88%, transparent)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      boxShadow: hover
-        ? '0 10px 28px -8px rgba(0,0,0,.65), 0 0 0 3px color-mix(in srgb, var(--ui-accent) 18%, transparent)'
-        : '0 6px 20px -8px rgba(0,0,0,.6)',
-      color: hover ? 'var(--foreground, currentColor)' : 'var(--ui-text-secondary)',
-      fontSize: 12,
-      fontWeight: 500,
-      lineHeight: 1,
-      cursor: 'pointer',
-      transform: hover ? 'translateY(-1px)' : 'none',
-      transition: 'transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, color 150ms ease'
-    },
-    children: [
-      jsx('span', {
-        style: {
-          display: 'inline-flex',
-          color: 'var(--ui-accent)',
-          transform: hover ? 'translateX(-2px)' : 'none',
-          transition: 'transform 150ms ease'
-        },
-        children: jsx(Codicon, { name: 'arrow-left' })
-      }),
-      jsx('span', { children: t('back') })
-    ]
-  })
+  return jsx(FooterRow, { label: `← ${t('back')}`, title: t('back'), floating: true, spot, onClick: () => host.navigate(PAGE) })
 }
 
 function Page({ ctx }) {
