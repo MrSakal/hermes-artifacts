@@ -18,6 +18,7 @@
 
 import {
   atom,
+  Codicon,
   host,
   ROUTES_AREA,
   SandboxedFrame,
@@ -287,18 +288,58 @@ function Viewer({ ctx }) {
   })
 }
 
-/** The "back" twin of the Session files link, floating over the built-in view at the same spot. */
+/** The "back" twin of the Session files link: a small floating pill over the built-in view, anchored to
+ *  the bottom-left corner of the same workspace pane (inset so it never touches the edges). */
 function FloatingBack() {
   const t = usePluginI18n(ID)
   const spot = useValue($backSpot)
-  return jsx('button', {
+  const [hover, setHover] = useState(false)
+  // Inline styles on purpose: a runtime plugin can only use utility classes the app already ships, so
+  // opacity modifiers, shadows and blur are spelled out with the theme's own variables.
+  return jsxs('button', {
     type: 'button',
     onClick: () => host.navigate(PAGE),
-    style: { position: 'fixed', left: spot.left, bottom: spot.bottom, width: spot.width, zIndex: 40 },
-    className:
-      'rounded-md border border-(--ui-stroke-secondary) bg-background px-3 py-2 text-left text-[0.6875rem] ' +
-      'text-(--ui-text-secondary) shadow-lg hover:text-foreground',
-    children: `← ${t('back')}`
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+    title: t('back'),
+    style: {
+      position: 'fixed',
+      left: spot.left + 12,
+      bottom: spot.bottom + 12,
+      zIndex: 40,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      height: 32,
+      padding: '0 14px 0 10px',
+      borderRadius: 9999,
+      border: `1px solid ${hover ? 'var(--ui-accent)' : 'var(--ui-stroke-secondary)'}`,
+      background: 'color-mix(in srgb, var(--ui-bg-elevated) 88%, transparent)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      boxShadow: hover
+        ? '0 10px 28px -8px rgba(0,0,0,.65), 0 0 0 3px color-mix(in srgb, var(--ui-accent) 18%, transparent)'
+        : '0 6px 20px -8px rgba(0,0,0,.6)',
+      color: hover ? 'var(--foreground, currentColor)' : 'var(--ui-text-secondary)',
+      fontSize: 12,
+      fontWeight: 500,
+      lineHeight: 1,
+      cursor: 'pointer',
+      transform: hover ? 'translateY(-1px)' : 'none',
+      transition: 'transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, color 150ms ease'
+    },
+    children: [
+      jsx('span', {
+        style: {
+          display: 'inline-flex',
+          color: 'var(--ui-accent)',
+          transform: hover ? 'translateX(-2px)' : 'none',
+          transition: 'transform 150ms ease'
+        },
+        children: jsx(Codicon, { name: 'arrow-left' })
+      }),
+      jsx('span', { children: t('back') })
+    ]
   })
 }
 
