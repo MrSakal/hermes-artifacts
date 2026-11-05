@@ -18,12 +18,12 @@
 
 import {
   atom,
-  Codicon,
   host,
   ROUTES_AREA,
   SandboxedFrame,
   SIDEBAR_NAV_AREA,
   SIDEBAR_NAV_PREFS_AREA,
+  STATUSBAR_AREAS,
   usePluginI18n,
   useValue
 } from '@hermes/plugin-sdk'
@@ -77,6 +77,9 @@ const $selected = atom(null) // artifact id
 const $shown = atom(null) // pinned version, null = latest
 const $nonce = atom(0)
 const $error = atom(null)
+// Where our "Session files" link sits (left / bottom offsets in px): the floating back button on the
+// built-in view takes the same spot, since that view fills the same workspace pane.
+const $backSpot = atom({ left: 260, bottom: 20, width: 256 })
 
 
 const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
@@ -171,7 +174,12 @@ function ListColumn({ ctx }) {
         className:
           'shrink-0 border-t border-(--ui-stroke-secondary) px-3 py-2 text-left text-[0.6875rem] text-(--ui-text-quaternary) hover:text-foreground',
         title: t('sessionFilesTip'),
-        onClick: () => host.navigate(CORE_KEEP),
+        onClick: e => {
+          const r = e.currentTarget.getBoundingClientRect()
+          $backSpot.set({ left: r.left, bottom: window.innerHeight - r.bottom, width: r.width })
+          ctx.storage.set('backSpot', $backSpot.get())
+          host.navigate(CORE_KEEP)
+        },
         children: t('sessionFiles')
       })
     ]
@@ -279,6 +287,21 @@ function Viewer({ ctx }) {
   })
 }
 
+/** The "back" twin of the Session files link, floating over the built-in view at the same spot. */
+function FloatingBack() {
+  const t = usePluginI18n(ID)
+  const spot = useValue($backSpot)
+  return jsx('button', {
+    type: 'button',
+    onClick: () => host.navigate(PAGE),
+    style: { position: 'fixed', left: spot.left, bottom: spot.bottom, width: spot.width, zIndex: 40 },
+    className:
+      'rounded-md border border-(--ui-stroke-secondary) bg-background px-3 py-2 text-left text-[0.6875rem] ' +
+      'text-(--ui-text-secondary) shadow-lg hover:text-foreground',
+    children: `← ${t('back')}`
+  })
+}
+
 function Page({ ctx }) {
   useEffect(() => {
     refresh(ctx)
@@ -317,10 +340,12 @@ export default {
       data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
     })
 
-    // Titlebar back button (right cluster), registered only while the built-in view opened from our link
-    // is shown and disposed right after. It goes in 'titleBar.tools.right' (TitlebarTool data), never in
-    // TITLEBAR_AREAS: a non-empty titleBar.left/right slot means "this page owns the titlebar" and makes
-    // Hermes hide its fixed controls on contributed pages.
+    // Floating back button on the built-in view opened from our link. It is registered only while that
+    // view is shown (and disposed after), in an always-mounted render area; the component positions
+    // itself with position:fixed over the workspace. Never a titleBar.* slot: a non-empty one makes
+    // Hermes hide its fixed titlebar controls on contributed pages.
+    const saved = ctx.storage.get('backSpot')
+    if (saved && typeof saved.left === 'number') $backSpot.set(saved)
     let disposeBack = null
     syncBack = show => {
       if (show === Boolean(disposeBack)) return
@@ -329,17 +354,7 @@ export default {
         disposeBack = null
         return
       }
-      disposeBack = ctx.register({
-        id: 'back',
-        area: 'titleBar.tools.right',
-        order: 0,
-        data: {
-          id: `${ID}-back`,
-          label: ctx.i18n.t('back'),
-          icon: jsx(Codicon, { name: 'arrow-left' }),
-          onSelect: () => host.navigate(PAGE)
-        }
-      })
+      disposeBack = ctx.register({ id: 'back', area: STATUSBAR_AREAS.left, order: 9999, render: () => jsx(FloatingBack, {}) })
     }
 
     // Route changes: the app router uses history.pushState (no hashchange), so listen on the Navigation
