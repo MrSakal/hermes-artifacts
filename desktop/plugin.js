@@ -154,7 +154,7 @@ function RowButton({ label, title, onClick, opaque }) {
 
 function FooterRow({ label, title, onClick }) {
   return jsx('div', {
-    style: { flexShrink: 0, borderTop: '1px solid var(--ui-stroke-secondary)' },
+    style: { flexShrink: 0 },
     children: jsx('div', { style: { display: 'flex' }, children: jsx(RowButton, { label, title, onClick }) })
   })
 }
