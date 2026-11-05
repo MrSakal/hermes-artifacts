@@ -168,8 +168,7 @@ function FloatingFooter({ label, onClick, spot }) {
       bottom: spot.bottom,
       zIndex: 40,
       display: 'flex',
-      background: 'var(--background)',
-      borderTop: '1px solid var(--ui-stroke-secondary)'
+      background: 'var(--background)'
     },
     children: jsx(RowButton, { label, onClick, opaque: true })
   })
