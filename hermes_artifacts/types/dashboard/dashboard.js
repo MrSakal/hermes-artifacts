@@ -29,7 +29,8 @@
       live: "Live", ago: "refreshed", cached: "from cache", noBridge: "Live data needs Hermes Desktop",
       askTitle: "This dashboard gets its numbers live", askBody: "It runs these queries through Hermes each time it opens or refreshes:",
       allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
-      query: "Query", refreshSrc: "Refresh this source", took: "took" },
+      query: "Query", refreshSrc: "Refresh this source", took: "took",
+      refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV" },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
@@ -39,7 +40,8 @@
       live: "Élő", ago: "frissítve", cached: "gyorsítótárból", noBridge: "Az élő adathoz a Hermes Desktop kell",
       askTitle: "Ez a dashboard élőben kéri le a számait", askBody: "Megnyitáskor és frissítéskor ezeket a lekérdezéseket futtatja a Hermesen keresztül:",
       allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
-      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam" }
+      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
+      refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV" }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -219,6 +221,7 @@
       scheduled = false;
       drawers.forEach(run);
       stamp();
+      tickFresh();
       if (srcOpen) renderSources();
     });
   }
@@ -448,7 +451,8 @@
     return h("div", { "class": "src-item" + (open ? " picked" : "") }, [
       h("button", { "class": "src-row", type: "button", onclick: function () { picked = open ? null : { id: id }; renderSources(); } }, [
         h("span", { "class": "src-dot " + dot }),
-        h("span", { style: "flex:1;min-width:0" }, [h("div", { text: d.title || id }), h("div", { "class": "src-meta", text: meta.join(" · ") })])
+        h("span", { style: "flex:1;min-width:0" }, [h("div", { text: d.title || id }), h("div", { "class": "src-meta", text: meta.join(" · ") })]),
+        h("span", { "class": "src-kind", title: kind, html: kit.icon(isCalc ? "braces" : lv ? "data" : d.source && d.source.kind === "file" ? "file" : "braces") })
       ]),
       body
     ]);
@@ -459,8 +463,7 @@
     if (srcOpen && !drawer) { drawer = h("aside", { "class": "kit-drawer" }); document.body.appendChild(drawer); }
     if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; }
     document.documentElement.setAttribute("data-dash-mode", srcOpen ? "data" : "page");
-    segUse.setAttribute("aria-pressed", String(!srcOpen));
-    segWhere.setAttribute("aria-pressed", String(srcOpen));
+    srcBtn.setAttribute("aria-pressed", String(srcOpen));
     document.getElementById("dash-main").style.marginRight = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
     if (srcOpen) renderSources();
     redraw();
@@ -519,23 +522,43 @@
     return JSON.stringify(out, null, 2);
   }
 
-  var segUse = kit.labelled(kit.button(T.use, "", function () { toggleSources(false); }), T.use);
-  var segWhere = kit.labelled(kit.button(T.where, "data", function () { toggleSources(true); }), T.where);
-  var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    var items = [{ label: T.snap, onClick: function () { kit.download(kit.slug(C.title) + ".html", snapshot(), "text/html"); } },
-      { label: T.json, onClick: function () { kit.download(kit.slug(C.title) + ".json", exportJson(), "application/json"); } },
-      { hint: T.csv }];
-    Object.keys(datasets).forEach(function (id) {
-      items.push({ label: (datasets[id].title || id) + ".csv", onClick: function () { kit.download(id + ".csv", toCsv(get(id)), "text/csv"); } });
-    });
-    kit.menu(expBtn, items);
-  }), T.exp);
-  bar.className = "kit-bar";
-  bar.append(h("span", { "class": "kit-title", text: (spec && spec.title) || C.title || "Dashboard" }),
-    h("span", { "class": "kit-seg" }, [segUse, segWhere]),
-    kit.button("", "refresh", function () { refreshLive(true); gen++; redraw(); kit.toast(T.refresh); }, T.refresh),
-    expBtn);
-  segUse.setAttribute("aria-pressed", "true");
+  // The same bar on every dashboard (the page below it is the agent's): refresh and how fresh the
+  // numbers are on the left, the Sources panel on the right. Exports sit in the host's toolbar.
+  var freshEl = h("span", { "class": "dash-fresh" });
+  var srcBtn = kit.button("", "panel", function () { toggleSources(); }, T.sources);
+  var exportList = [
+    { id: "snapshot", label: T.snap, run: function () { kit.download(kit.slug(C.title) + ".html", snapshot(), "text/html"); } },
+    { id: "json", label: T.json, run: function () { kit.download(kit.slug(C.title) + ".json", exportJson(), "application/json"); } }
+  ].concat(Object.keys(datasets).map(function (id) {
+    return { id: "csv:" + id, label: T.csvOf + ": " + (datasets[id].title || id),
+      run: function () { kit.download(id + ".csv", toCsv(get(id)), "text/csv"); } };
+  }));
+  bar.className = "kit-bar dash-bar";
+  bar.append(kit.button("", "refresh", function () { refreshLive(true); gen++; redraw(); }, T.refreshAll), freshEl,
+    h("span", { style: "flex:1" }), srcBtn);
+  kit.exports(exportList).then(function (hosted) {
+    if (hosted) return;
+    var own = kit.labelled(kit.button(T.exp, "download", function () {
+      kit.menu(own, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+    }), T.exp);
+    bar.insertBefore(own, srcBtn);
+  });
+
+  function freshness() {
+    var ids = Object.keys(datasets).filter(function (id) { return used[id]; });
+    var busy = ids.some(function (id) { return live[id] && (live[id].running || live[id].status === "loading"); });
+    if (busy) return T.refreshing;
+    var times = ids.map(function (id) {
+      if (live[id] && live[id].at) return live[id].at * 1000;
+      var u = datasets[id].updated && datasets[id].updated.at;
+      return u ? Date.parse(u) : null;
+    }).filter(function (t) { return t && !isNaN(t); });
+    if (!times.length) return "";
+    var oldest = Math.min.apply(null, times), sec = (Date.now() - oldest) / 1000;
+    return T.updatedAgo + " " + (sec < 60 ? T.now : ago(oldest));
+  }
+  function tickFresh() { freshEl.textContent = freshness(); }
+  setInterval(tickFresh, 30000);
 
   // ------------------------------------------------------------------ approval banner
   var bannerEl = null;

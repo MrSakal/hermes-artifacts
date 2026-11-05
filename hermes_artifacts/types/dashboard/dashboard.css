@@ -69,3 +69,8 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { outline-style: soli
 .dash-ask ul { margin: 0 0 6px; padding-left: 18px; }
 .dash-ask code { font: 12px var(--font-mono); }
 .dash-ask .kit-btn:first-child { background: var(--color-accent); color: #fff; }
+
+.dash-bar { gap: 4px; }
+.dash-fresh { font-size: 12px; color: var(--color-fg-muted); }
+.src-kind { flex-shrink: 0; color: var(--color-fg-muted); display: inline-flex; }
+.src-kind svg { width: 15px; height: 15px; }

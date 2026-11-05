@@ -544,14 +544,17 @@
   var counter = h("span", { "class": "src-meta", style: "font-size:12px;color:var(--color-fg-muted);margin-right:4px" });
   var saveBtn = kit.labelled(kit.button(T.save, "", save, T.save), T.save);
   saveBtn.classList.add("sl-save"); saveBtn.hidden = true;
+  var exportList = [{ id: "pdf", label: T.pdf, run: exportPdf }, { id: "pptx", label: T.pptx, run: exportPptx },
+    { id: "png", label: T.png, run: exportPng }, { id: "html", label: T.html, run: exportHtml }];
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, [{ label: T.pdf, onClick: exportPdf }, { label: T.pptx, onClick: exportPptx },
-      { label: T.png, onClick: exportPng }, { label: T.html, onClick: exportHtml }]);
+    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
   }), T.exp);
+  expBtn.hidden = true;
+  kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
   var notesBtn = kit.button("", "notes", function () {
     notesEl.hidden = !notesEl.hidden; notesBtn.setAttribute("aria-pressed", String(!notesEl.hidden)); fit();
   }, T.notes);
-  bar.append(h("span", { "class": "kit-title", text: deck.title || C.title || "Slides", title: T.editHint }), counter, saveBtn,
+  bar.append(h("span", { "class": "kit-title", style: "font-weight:400;font-size:12px;color:var(--color-fg-muted)", text: T.editHint }), counter, saveBtn,
     kit.button("", "grid", openGrid, T.grid), notesBtn, expBtn,
     kit.labelled(kit.button(T.present, "play", present, T.present), T.present));
 

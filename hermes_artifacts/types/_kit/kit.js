@@ -15,7 +15,10 @@
     prev: "M15 18l-6-6 6-6",
     next: "M9 18l6-6-6-6",
     notes: "M5 4h14v16H5zM8 8h8M8 12h8M8 16h5",
-    more: "M5 12h.01M12 12h.01M19 12h.01"
+    more: "M5 12h.01M12 12h.01M19 12h.01",
+    panel: "M4 5h16v14H4zM14 5v14",
+    braces: "M8 4c-2 0-2 1.5-2 3s0 3-2 5c2 2 2 3.5 2 5s0 3 2 3M16 4c2 0 2 1.5 2 3s0 3 2 5c-2 2-2 3.5-2 5s0 3-2 3",
+    file: "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5"
   };
 
   function icon(name) {
@@ -130,6 +133,20 @@
     });
   }
 
-  window.kit = { content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** Offer exports in the host's toolbar. Resolves true when the host took them; false when the page
+   *  should show its own Export button (preview, browser viewer, an older host). */
+  function exports(list) {
+    var handlers = {};
+    list.forEach(function (x) { handlers[x.id] = x.run; });
+    if (!window.hermes || !window.hermes.chrome) return Promise.resolve(false);
+    window.hermes.on("export", function (d) { var f = d && handlers[d.id]; if (f) f(); });
+    return Promise.race([
+      window.hermes.chrome({ exports: list.map(function (x) { return { id: x.id, label: x.label }; }) })
+        .then(function (r) { return !!(r && r.ok); }, function () { return false; }),
+      new Promise(function (r) { setTimeout(function () { r(false); }, 4000); })
+    ]);
+  }
+
+  window.kit = { exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
 })();

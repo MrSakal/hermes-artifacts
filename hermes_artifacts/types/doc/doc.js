@@ -309,15 +309,18 @@
   }
 
   // ------------------------------------------------------------------ chrome
-  var titleEl = h("span", { "class": "kit-title" });
+  var titleEl = h("span", { "class": "kit-title", style: "visibility:hidden" }); // the host toolbar shows the title
   var saveBtn = kit.labelled(kit.button(T.save, "", save, T.save), T.save);
   saveBtn.classList.add("doc-dirty"); saveBtn.hidden = true;
   var editBtn = kit.labelled(kit.button(T.edit, "notes", function () { setEditing(!editing); }, T.edit), T.edit);
+  var exportList = [{ id: "docx", label: T.docx, run: exportDocx }, { id: "pdf", label: T.pdf, run: exportPdf },
+    { id: "md", label: T.mdf, run: function () { kit.download(kit.slug(title()) + ".md", text, "text/markdown"); } },
+    { id: "html", label: T.html, run: exportHtml }];
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, [{ label: T.docx, onClick: exportDocx }, { label: T.pdf, onClick: exportPdf },
-      { label: T.mdf, onClick: function () { kit.download(kit.slug(title()) + ".md", text, "text/markdown"); } },
-      { label: T.html, onClick: exportHtml }]);
+    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
   }), T.exp);
+  expBtn.hidden = true;
+  kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
   bar.append(titleEl, saveBtn, editBtn, expBtn);
   if (C.thumb) editBtn.hidden = true;
 

@@ -199,6 +199,7 @@ const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
 const $toast = atom(null)
+const $exports = atom([]) // exports the open artifact's runtime offers ([{id, label}]), shown in our toolbar
 // Where our "Session files" link sits: the floating back button on the built-in view takes that spot.
 const $backSpot = atom({ left: 260, bottom: 20, width: 1000 })
 
@@ -818,6 +819,11 @@ function useBridge(ref, art, ctx, portRef) {
             saveFile(a.name, a.content instanceof ArrayBuffer || ArrayBuffer.isView(a.content) || typeof a.content === 'string' ? a.content : JSON.stringify(a.content), a.type)
             return reply({ ok: true, value: { ok: true } })
           }
+          if (m.op === 'chrome') {
+            const list = Array.isArray(m.args?.exports) ? m.args.exports : []
+            $exports.set(list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) })))
+            return reply({ ok: true, value: { ok: true } })
+          }
           if (m.op === 'vendor') {
             return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
           }
@@ -901,11 +907,13 @@ function sendPins(portRef) {
   postToPage(portRef, 'pins', roots.map((c, i) => ({ selector: c.anchor.selector, n: i + 1 })))
 }
 
-function Toolbar({ ctx, art, v }) {
+function Toolbar({ ctx, art, v, portRef }) {
   const t = usePluginI18n(ID)
   const panel = useValue($panel)
   const comments = useValue($comments)
+  const exports = useValue($exports)
   const [confirm, setConfirm] = useState(false)
+  const [expOpen, setExpOpen] = useState(false)
   const open = comments.filter(c => !c.parent && !c.resolved).length
   return jsxs('div', {
     style: { display: 'flex', alignItems: 'center', gap: 6, height: 44, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
@@ -934,7 +942,17 @@ function Toolbar({ ctx, art, v }) {
           refresh(ctx)
         }
       }),
-      art.type === 'page'
+      exports.length
+        ? jsxs('div', {
+            style: { position: 'relative' },
+            children: [
+              jsx(IconButton, { icon: 'download', title: t('download'), label: t('download'), active: expOpen, onClick: () => setExpOpen(!expOpen) }),
+              expOpen
+                ? jsx(Menu, { onClose: () => setExpOpen(false), items: exports.map(x => ({ label: x.label, onClick: () => (setExpOpen(false), postToPage(portRef, 'export', { id: x.id })) })) })
+                : null
+            ]
+          })
+        : art.type === 'page'
         ? jsx(IconButton, {
             icon: 'download',
             title: t('download'),
@@ -1145,6 +1163,7 @@ function Viewer({ ctx }) {
     let live = true
     setSrc(null)
     setLoadErr(null)
+    $exports.set([])
     if (nonce) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:${v}:`) && htmlCache.delete(k))
     fetchHtml(ctx, art.id, v, { page })
       .then(u => live && setSrc(u))
@@ -1158,7 +1177,7 @@ function Viewer({ ctx }) {
   return jsxs('div', {
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
     children: [
-      jsx(Toolbar, { ctx, art, v }),
+      jsx(Toolbar, { ctx, art, v, portRef }),
       jsxs('div', {
         style: { display: 'flex', flex: 1, minHeight: 0 },
         children: [

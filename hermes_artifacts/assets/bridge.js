@@ -162,6 +162,9 @@
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */
     save: function (files, baseVersion) { return call("save", { files: files, base_version: baseVersion || null }); },
+    /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
+     *  then sends an "export" event with the id the user picked. */
+    chrome: function (opts) { return call("chrome", opts || {}); },
     /** Host events for type runtimes (e.g. "theme"). */
     on: on
   });
