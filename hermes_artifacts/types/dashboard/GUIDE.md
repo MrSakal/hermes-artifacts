@@ -101,6 +101,11 @@ finishes. Gallery thumbnails use only that last answer.
   - give every name a `rules` entry: `pattern`, `enum`, `type: number` with `minimum`/`maximum`,
     `type: boolean`, `minLength` or `maxLength`;
   - never let a pattern admit the quote you used.
+- **Queries that keep running:** if the answer says the query is still running (BigQuery
+  `jobComplete: false`, a Databricks `PENDING`/`RUNNING` statement, "still running"), the dashboard asks
+  again, 2 s doubling to 20 s, for up to 3 minutes. It repeats the same call, or runs the source's
+  `"poll": {"tool": "…", "args": {"jobId": "{{answer.jobReference.jobId}}"}}`, whose args take values
+  from the last answer.
 - **Answers:** row objects (bare, or under `rows`/`data`/`results`), `{result: "<json>"}` and
   BigQuery's `{schema, rows}` arrive as rows. Anything else needs a `rowsAt`/`fields` dataset.
 - **User edits:** the user can edit a query's `args` in Sources (`"edit": {"via": "user"}`). Read

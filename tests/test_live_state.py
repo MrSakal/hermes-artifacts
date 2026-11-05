@@ -82,3 +82,40 @@ class StateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PollTests(unittest.TestCase):
+    def setUp(self):
+        self._rt = live.run_tool
+
+    def tearDown(self):
+        live.run_tool = self._rt
+
+    def test_repeats_until_done_with_backoff(self):
+        answers = [{"jobComplete": False, "jobReference": {"jobId": "j1"}}] * 3 + [[{"n": 1}]]
+        calls, slept = [], []
+        live.run_tool = lambda tool, args: (calls.append((tool, args)), answers[len(calls) - 1])[1]
+        out = live.run_polling("mcp_bq_query", {"sql": "SELECT 1"}, None, sleep=slept.append, clock=lambda: 0)
+        self.assertEqual(out, [{"n": 1}])
+        self.assertEqual(slept, [2.0, 4.0, 8.0])
+        self.assertTrue(all(c == ("mcp_bq_query", {"sql": "SELECT 1"}) for c in calls))
+
+    def test_poll_tool_takes_values_from_the_answer(self):
+        seq = [{"status": {"state": "RUNNING"}, "statement_id": "s-9"}, {"status": {"state": "SUCCEEDED"}, "rows": [{"a": 1}]}]
+        calls = []
+        live.run_tool = lambda tool, args: (calls.append((tool, args)), seq[len(calls) - 1])[1]
+        live.run_polling("mcp_db_run", {"sql": "SELECT 1"},
+                         {"tool": "mcp_db_poll", "args": {"id": "{{answer.statement_id}}"}}, sleep=lambda s: None, clock=lambda: 0)
+        self.assertEqual(calls[1], ("mcp_db_poll", {"id": "s-9"}))
+
+    def test_gives_up_after_three_minutes(self):
+        live.run_tool = lambda tool, args: {"jobComplete": False}
+        t = [0.0]
+        def clock():
+            return t[0]
+        def sleep(s):
+            t[0] += s
+        with self.assertRaises(live.LiveError) as cm:
+            live.run_polling("mcp_bq_query", {}, None, sleep=sleep, clock=clock)
+        self.assertIn("3 minutes", cm.exception.message)
+        self.assertLessEqual(t[0], 180)

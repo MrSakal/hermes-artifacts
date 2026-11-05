@@ -72,7 +72,8 @@ def dataset(aid: str, dsid: str, version: Optional[int] = None) -> dict:
         raise LiveError("error", f"dataset {dsid!r} is not a live call")
     if not isinstance(src.get("args", {}), dict):
         raise LiveError("error", "args must be an object")
-    return {"tool": src["tool"], "args": src.get("args") or {}, "rules": src.get("rules") or {},
+    poll = src.get("poll") if isinstance(src.get("poll"), dict) and isinstance(src["poll"].get("tool"), str) else None
+    return {"tool": src["tool"], "args": src.get("args") or {}, "rules": src.get("rules") or {}, "poll": poll,
             "defaults": spec.get("params") or {}}
 
 
@@ -493,7 +494,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
             return {**hit["payload"], "cached": False, "at": hit["at"], "shared": True}
     started = time.time()
     try:
-        answer = run_tool(d["tool"], args)
+        answer = run_polling(d["tool"], args, d.get("poll"))
         table = rows_of(answer)
         payload = {"status": "ok", **info, "args": args, "ms": int((time.time() - started) * 1000)}
         if table is not None:
@@ -576,7 +577,7 @@ def test_args(aid: str, dsid: str, args: Any, params: Optional[dict] = None) -> 
         return {"status": e.status if e.status in ("refused",) else "error", "message": e.message, **e.extra}
     started = time.time()
     try:
-        answer = run_tool(d["tool"], filled)
+        answer = run_polling(d["tool"], filled, d.get("poll"))
         table = rows_of(answer)
         out = {"status": "ok", "tool": d["tool"], "args": filled, "ms": int((time.time() - started) * 1000), "test": True}
         if table is not None:
@@ -588,3 +589,77 @@ def test_args(aid: str, dsid: str, args: Any, params: Optional[dict] = None) -> 
         return {"status": e.status, "message": e.message, "args": filled, **e.extra}
     except Exception as e:
         return {"status": "failed", "message": f"{type(e).__name__}: {str(e)[:1000]}", "args": filled}
+
+
+# ----------------------------------------------------------------------------- queries still running
+#
+# Warehouses answer a long query with "still running" (BigQuery: jobComplete false; Databricks: a
+# PENDING/RUNNING statement). The dashboard then asks again, 2 s doubling to 20 s, for up to 3 minutes,
+# the way Claude's dashboards poll: through the source's "poll" call when it names one (its args can
+# take values from the answer, "{{answer.jobReference.jobId}}"), else by repeating the same call.
+
+POLL_FIRST_S, POLL_MAX_S, POLL_DEADLINE_S = 2.0, 20.0, 180.0
+_RUNNING_STATES = {"PENDING", "RUNNING", "QUEUED", "IN_PROGRESS", "STARTING", "SUBMITTED"}
+_ANSWER_REF = re.compile(r"\{\{\s*answer((?:\.[A-Za-z_][\w-]*|\[\d+\])+)\s*\}\}")
+
+
+def still_running(answer: Any) -> bool:
+    if isinstance(answer, dict):
+        if answer.get("jobComplete") is False:
+            return True
+        st = answer.get("status")
+        state = st.get("state") if isinstance(st, dict) else answer.get("state")
+        if isinstance(state, str) and state.upper() in _RUNNING_STATES:
+            return True
+    if isinstance(answer, str) and re.search(r"\bstill running\b|\bquery is running\b", answer, re.I):
+        return True
+    return False
+
+
+def _answer_value(answer: Any, path: str) -> Any:
+    cur = answer
+    for part in re.findall(r"\.([A-Za-z_][\w-]*)|\[(\d+)\]", path):
+        key, idx = part
+        if isinstance(cur, str):
+            try:
+                cur = json.loads(cur)
+            except ValueError:
+                return None
+        if key:
+            cur = cur.get(key) if isinstance(cur, dict) else None
+        else:
+            cur = cur[int(idx)] if isinstance(cur, list) and int(idx) < len(cur) else None
+    return cur
+
+
+def _fill_from_answer(args: Any, answer: Any) -> Any:
+    if isinstance(args, dict):
+        return {k: _fill_from_answer(v, answer) for k, v in args.items()}
+    if isinstance(args, list):
+        return [_fill_from_answer(v, answer) for v in args]
+    if isinstance(args, str):
+        m = _ANSWER_REF.fullmatch(args.strip())
+        if m:
+            return _answer_value(answer, m.group(1))
+        return _ANSWER_REF.sub(lambda mm: str(_answer_value(answer, mm.group(1)) or ""), args)
+    return args
+
+
+def run_polling(tool: str, args: dict, poll: Optional[dict] = None, *, sleep=time.sleep, clock=time.time) -> Any:
+    """run_tool, asking again while the answer says the query is still running."""
+    answer = run_tool(tool, args)
+    if not still_running(answer):
+        return answer
+    deadline, wait = clock() + POLL_DEADLINE_S, POLL_FIRST_S
+    while still_running(answer):
+        if clock() + wait > deadline:
+            raise LiveError("failed", "The query is still running after 3 minutes. Refresh again in a minute.")
+        sleep(wait)
+        wait = min(POLL_MAX_S, wait * 2)
+        if poll:
+            p_args = _fill_from_answer(poll.get("args") or {}, answer)
+            guard(p_args)
+            answer = run_tool(poll["tool"], p_args)
+        else:
+            answer = run_tool(tool, args)
+    return answer
