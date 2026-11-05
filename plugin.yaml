@@ -1,12 +1,11 @@
 name: hermes-artifacts
 version: 0.2.0
 description: >
-  Claude-style artifacts for Hermes. The agent publishes an HTML page (versioned: the same id adds a new
-  version), and it replaces the built-in Artifacts page of Hermes Desktop with a list and a sandboxed
-  viewer. The page talks back through a small bridge: window.hermes.storage (per-artifact persistent
-  store), window.hermes.send (a message into the chat) and allowlisted tools. Works with Hermes Desktop
-  connected to a remote Hermes server. Can also attach to a local Hermes Desktop over CDP, or launch it
-  with a debugging port.
+  Claude-style artifacts for Hermes. The agent publishes pages, dashboards (charts and tables from
+  datasets, every figure traceable to its source), slide decks (present; export PDF/PPTX) and docs
+  (Markdown; export DOCX/PDF), versioned, and they replace the built-in Artifacts page of Hermes Desktop
+  with a gallery and a sandboxed viewer with comments. Pages talk back through a small bridge
+  (storage, send, ask). Works with Hermes Desktop connected to a remote Hermes server.
 author: MrSakal
 license: MIT
 homepage: https://github.com/MrSakal/hermes-artifacts
