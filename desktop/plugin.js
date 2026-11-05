@@ -16,7 +16,7 @@
  * Plain ESM, loaded uncompiled. Only @hermes/plugin-sdk, react and react/jsx-runtime resolve.
  */
 
-import { atom, host, ROUTES_AREA, SandboxedFrame, usePluginI18n, useValue } from '@hermes/plugin-sdk'
+import { atom, Codicon, host, ROUTES_AREA, SandboxedFrame, TITLEBAR_AREAS, usePluginI18n, useValue } from '@hermes/plugin-sdk'
 import { useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
@@ -39,7 +39,8 @@ const STRINGS = {
       `The plugin backend is not reachable (${err}). Install and enable hermes-artifacts on the Hermes ` +
       'this app is connected to, then restart its gateway.',
     sessionFiles: 'Session files and images →',
-    sessionFilesTip: 'The built-in view: images and files from your sessions'
+    sessionFilesTip: 'The built-in view: images and files from your sessions',
+    back: 'Back to Artifacts'
   },
   hu: {
     title: 'Artifacts',
@@ -54,7 +55,8 @@ const STRINGS = {
       `A plugin backend nem érhető el (${err}). Telepítsd és engedélyezd a hermes-artifacts plugint azon a ` +
       'Hermesen, amihez az app kapcsolódik, majd indítsd újra a gatewayt.',
     sessionFiles: 'Session-fájlok és képek →',
-    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből'
+    sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből',
+    back: 'Vissza az Artifactsra'
   }
 }
 
@@ -65,6 +67,7 @@ const $nonce = atom(0)
 const $error = atom(null)
 
 let bypassCoreOnce = false
+let syncBackButton = () => {} // set in register(): shows the titlebar back button on the built-in page
 
 const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
 const current = () => $list.get().find(a => a.id === $selected.get()) || null
@@ -290,6 +293,11 @@ function redirectCore() {
   window.location.replace(`#${PAGE}`)
 }
 
+function tick() {
+  redirectCore()
+  syncBackButton(bypassCoreOnce)
+}
+
 export default {
   id: ID,
   name: 'Artifacts',
@@ -301,11 +309,31 @@ export default {
     // One listener across hot reloads (register's return value may not be used as a disposer).
     const KEY = '__hermesArtifactsRedirect'
     if (window[KEY]) window.removeEventListener('hashchange', window[KEY])
-    window[KEY] = redirectCore
-    window.addEventListener('hashchange', redirectCore)
+    // Titlebar back button, visible only while the built-in page is open (re-registered on change only).
+    let backShown = null
+    syncBackButton = show => {
+      if (show === backShown) return
+      backShown = show
+      ctx.register({
+        id: 'back',
+        area: TITLEBAR_AREAS.left,
+        data: {
+          id: 'hermes-artifacts-back',
+          label: ctx.i18n.t('back'),
+          icon: jsx(Codicon, { name: 'arrow-left' }),
+          hidden: !show,
+          onSelect: () => {
+            bypassCoreOnce = false
+            host.navigate(PAGE)
+          }
+        }
+      })
+    }
+    window[KEY] = tick
+    window.addEventListener('hashchange', tick)
     // The app router navigates with history.pushState, which fires no hashchange: check cheaply.
-    ctx.setInterval(redirectCore, 150)
-    redirectCore()
+    ctx.setInterval(tick, 150)
+    tick()
 
     ctx.onEvent(`plugin.${ID}.open`, async ev => {
       const p = payloadOf(ev)
@@ -318,8 +346,9 @@ export default {
     }, 5000)
 
     return () => {
-      window.removeEventListener('hashchange', redirectCore)
-      if (window[KEY] === redirectCore) delete window[KEY]
+      window.removeEventListener('hashchange', tick)
+      if (window[KEY] === tick) delete window[KEY]
+      syncBackButton = () => {}
     }
   }
 }
