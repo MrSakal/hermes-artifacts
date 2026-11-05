@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from . import live, render, store
+from . import docs, live, render, store
 from .server import inject_bridge
 
 
@@ -120,6 +120,25 @@ def _op(aid: str, op: str, a: dict) -> dict:
         kind = str(a.get("kind", ""))
         store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})
         return {"ok": True}
+    if op == "doc.read":
+        return docs.read(aid, a.get("tab") or None, since_rev=_int(a.get("since_rev")))
+    if op == "doc.edit":
+        # The doc's own editor (the user typing). Hermes edits through its artifact_doc_edit tool.
+        try:
+            return docs.apply(aid, a.get("ops") or [], by="user", tab=a.get("tab") or None, base_rev=_int(a.get("base_rev")))
+        except docs.DocError as e:
+            if e.code == "conflict":
+                return {"ok": False, "conflict": True, **e.extra}
+            raise ValueError(e.message)
+    if op == "doc.ask":
+        # "@Hermes …" typed in the doc, or "Edit with Hermes" on a selection: into the chat (the host
+        # words the message), and kept in the inbox with where it was asked.
+        _meta(aid)
+        kind = "edit" if a.get("kind") == "edit" else "ask"
+        data = {"kind": kind, "tab": str(a.get("tab") or "")[:40], "blocks": [str(b)[:40] for b in (a.get("blocks") or [])][:50],
+                "selection": str(a.get("selection") or "")[:2000]}
+        item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="doc-" + kind)
+        return {"ok": True, "id": item["id"]}
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")
@@ -179,6 +198,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 return _op(aid, str(body.get("op", "")), body.get("args") if isinstance(body.get("args"), dict) else {})
     except ApiError:
         raise
+    except docs.DocError as e:
+        raise ApiError(404 if e.code == "absent" else 400, e.message)
     except live.LiveError as e:
         raise ApiError(404 if e.status == "missing" else 400, e.message)
     except FileNotFoundError as e:

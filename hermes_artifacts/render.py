@@ -51,6 +51,15 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
             "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",
             "files": content_json(vdir)}
+    if kind == "doc" and data["version"] == meta["versions"][-1]["n"]:
+        # The live doc (what the user and Hermes edited since this version), for the first paint
+        # and thumbnails; an open doc then follows it through doc.read.
+        try:
+            from . import docs
+            st = docs.load(meta["id"])
+            data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]]}
+        except Exception:
+            pass
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'

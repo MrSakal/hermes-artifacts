@@ -7,11 +7,6 @@
 #doc-toc a.l3 { padding-left: 18px; }
 @media (max-width: 1000px) { #doc-toc { display: none; } }
 #doc-view { flex: 1; min-width: 0; padding: 40px 24px 96px; }
-#doc-edit { flex: 1; min-width: 0; border-right: 1px solid var(--color-border-line); position: sticky; top: 44px;
-  height: calc(100vh - 44px); }
-#doc-src { width: 100%; height: 100%; padding: 28px 24px; border: 0; resize: none; outline: none; background: var(--color-bg);
-  color: var(--color-fg); font: 13.5px/1.65 var(--font-mono); tab-size: 2; }
-html[data-editing] #doc-toc { display: none; }
 
 .doc-prose { max-width: 720px; margin: 0 auto; font-size: 16px; line-height: 1.7; color: var(--color-fg); }
 .doc-prose h1 { font: 400 38px/1.2 var(--font-serif); margin: 0 0 24px; }
@@ -34,10 +29,42 @@ html[data-editing] #doc-toc { display: none; }
 .doc-prose table { border-collapse: collapse; width: 100%; margin: 0 0 16px; font-size: 14px; font-variant-numeric: tabular-nums; }
 .doc-prose th, .doc-prose td { padding: 7px 10px; border-bottom: 1px solid var(--color-border-line); text-align: left; vertical-align: top; }
 .doc-prose th { font-weight: 600; border-bottom-color: var(--color-border-strong); }
-.doc-dirty { background: var(--color-accent) !important; color: #fff !important; }
 
 /* PDF pages (rendered off-screen, then pictured) */
 .doc-pdfpage { width: 794px; height: 1123px; padding: 76px 72px; box-sizing: border-box; background: #fff; color: #1f1e1d; overflow: hidden; }
 .doc-pdfpage.doc-prose { max-width: none; margin: 0; font-size: 14px; }
 html[data-thumb] #doc-toc { display: none; }
 html[data-thumb] #doc-view { padding-top: 32px; }
+
+/* live doc: tabs, blocks edited in place, Hermes' changes, asks */
+#doc-tabs { max-width: 720px; margin: -16px auto 24px; display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--color-border-line); }
+#doc-tabs[hidden] { display: none; }
+.doc-tab { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; background: none;
+  color: var(--color-fg-muted); cursor: pointer; margin-bottom: -1px; }
+.doc-tab:hover { color: var(--color-fg); }
+.doc-tab.is-on { color: var(--color-fg); border-bottom-color: var(--color-accent); }
+.doc-tab-add { font-size: 15px; padding: 4px 10px; }
+.doc-blk { position: relative; border-radius: 6px; margin: 0 -10px; padding: 0 10px; cursor: text; transition: background .6s; }
+.doc-blk > :last-child { margin-bottom: 14px; }
+.doc-blk:hover { background: color-mix(in srgb, var(--color-hover) 45%, transparent); }
+.doc-blk.is-editing { background: var(--color-hover); }
+.doc-blk.by-hermes { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.doc-blk.is-pending { opacity: .6; }
+.doc-src { display: block; width: 100%; box-sizing: border-box; padding: 6px 0 10px; margin: 0 0 4px; border: 0; resize: none; outline: none;
+  overflow: hidden; background: transparent; color: var(--color-fg); font: 14px/1.65 var(--font-mono); tab-size: 2; }
+.doc-ph { color: var(--color-fg-muted); min-height: 1.7em; }
+.doc-ask { color: var(--color-fg-secondary); }
+.doc-ask-at { color: var(--color-accent); font-weight: 600; }
+.doc-ask-st { color: var(--color-fg-muted); font-size: 13px; font-style: italic; margin-left: 6px; }
+.doc-ask.is-pending .doc-ask-st::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%;
+  background: var(--color-accent); animation: doc-pulse 1s ease-in-out infinite; }
+@keyframes doc-pulse { 50% { opacity: .2; } }
+.doc-status, .doc-hint { font-size: 12px; color: var(--color-fg-muted); margin-left: auto; white-space: nowrap; }
+.doc-status { margin-left: 12px; }
+@media (max-width: 700px) { .doc-hint { display: none; } }
+.doc-selbar { position: fixed; z-index: 150; display: flex; gap: 4px; padding: 4px; border-radius: 9px; background: var(--color-bg-elevated, var(--color-bg));
+  border: 1px solid var(--color-border-line); box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.doc-selbar[hidden] { display: none; }
+.doc-askin { width: 260px; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--color-border-line);
+  background: transparent; color: var(--color-fg); outline: none; }
+html[data-thumb] #doc-tabs, html[data-thumb] .doc-hint { display: none; }

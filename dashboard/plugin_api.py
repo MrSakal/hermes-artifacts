@@ -26,7 +26,7 @@ if str(_ROOT) not in sys.path:
 
 _PKG = _ROOT / "hermes_artifacts"
 # Reload order: dependencies first.
-_MODULES = ("hermes_artifacts.store", "hermes_artifacts.bundle", "hermes_artifacts.render",
+_MODULES = ("hermes_artifacts.store", "hermes_artifacts.docs", "hermes_artifacts.bundle", "hermes_artifacts.render",
             "hermes_artifacts.server", "hermes_artifacts.live", "hermes_artifacts.api")
 _lock = threading.Lock()
 _stamp = None

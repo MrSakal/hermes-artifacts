@@ -165,6 +165,14 @@
       /** The user editing a live query in Sources: new args for that dataset, saved as a new version. */
       edit: function (id, args, baseVersion) { return call("dataset.edit", { id: String(id), args: args, base_version: baseVersion || null }); }
     }),
+    /** Docs: the live doc on the server (read a tab, edit blocks, ask Hermes in the doc). */
+    doc: Object.freeze({
+      read: function (tab, sinceRev) { return call("doc.read", { tab: tab || null, since_rev: sinceRev == null ? null : sinceRev }); },
+      edit: function (tab, ops, baseRev) { return call("doc.edit", { tab: tab || null, ops: ops, base_rev: baseRev == null ? null : baseRev }); },
+      ask: function (a) { return call("doc.ask", a || {}); }
+    }),
+    /** Start a comment on a part of the page (the host opens its comment form there). */
+    comment: function (anchor) { emit("comment", anchor || {}); },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */
