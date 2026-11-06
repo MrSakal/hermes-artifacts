@@ -98,10 +98,14 @@ _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-
                # Design System: tokens, the brand book, component guidelines, asset uploads.
                "design-system": r"^(design-system\.json|tokens\.json|README\.md|[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md"
                                 r"|components/[A-Za-z_][A-Za-z0-9_]{0,63}/README\.md"
-                                r"|assets/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp))$"}
+                                r"|assets/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp)"
+                                r"|fonts/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(woff2?|ttf|otf))$"}
 _IMG_PATH = re.compile(r"\.(png|jpe?g|gif|webp)$", re.I)
 # An image the slide editor uploads: a data: URI of one of these, stored as the binary file.
 _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$")
+# A font the Design System page uploads (Typography, Upload font).
+_FONT_PATH = re.compile(r"\.(woff2?|ttf|otf)$", re.I)
+_FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x-font-[a-z]+|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
@@ -151,6 +155,11 @@ def _op(aid: str, op: str, a: dict) -> dict:
                 if not im or len(im.group(2)) * 3 // 4 > MAX_UPLOAD_BYTES:
                     raise ValueError(f"{rel}: an image (png, jpeg, gif or webp) of at most 8 MB")
                 val = {"base64": im.group(2)}
+            elif _FONT_PATH.search(str(rel)) and val is not None:
+                fm = _FONT_URI.match(val)
+                if not fm or len(fm.group(1)) * 3 // 4 > MAX_UPLOAD_BYTES:
+                    raise ValueError(f"{rel}: a font file (woff2, woff, ttf or otf) of at most 8 MB")
+                val = {"base64": fm.group(1)}
             out[str(rel)] = val
         files = out
         if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:

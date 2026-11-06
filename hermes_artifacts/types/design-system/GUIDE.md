@@ -28,7 +28,21 @@ Use that one unless the user names another.
 | `components/lib/*.js` | libraries the previews load | classic scripts, in `libraries` order, before bundle.js |
 | `fonts/<file>` | font files (woff2, woff, ttf, otf) | listed in `tokens.json` `type.fonts[].file` |
 | `assets/<Group>/<file>` | logos, icons, images, SVG, video, PDF | the first folder is the group; a group's `README.md` is its usage note |
-| `tokens.css` | GENERATED | never write it: the page compiles it and exports it |
+| `tokens.css` | GENERATED | written on every publish from `tokens.json` (header `/* <title> — generated from tokens.json */`); a `tokens.css` of your own without that header is kept |
+| `manifest.json` | GENERATED | v3: name, namespace, files, libraries, components (name, group, summary), asset groups |
+| `api/tokens.md`, `api/components/<Comp>.md`, `api/assets/<Group>.md` | GENERATED | one card per thing: what it is, how to load it (`<x-import component-from-global-scope="<ns>.<Comp>">`), its props from `index.d.ts` |
+| `README.md` after `---` + `<!-- @generated below … -->` | GENERATED | "Consuming this system" and the Index, rewritten on every publish; write only above that line |
+
+Never write the GENERATED files: every publish rewrites them (and drops stale `api/` cards). Read
+`api/` and `manifest.json` to build on a system quickly. A system exported from Claude (everything
+under `project/`, with `SKILL.md`, `index.html`, `artifact-type/`) publishes as it is: the files
+come up to the root and the type's own files are dropped.
+
+The page checks contrast the way Claude's does: text 4.5:1 (large text 3:1), rings, charts, icons
+and anything whose usage says `3:1` at 3:1, measured on the surfaces the usage note names ("on
+bone and bone-raised"; `on-clay` is read on `clay`), else on the page and card surfaces. Name the
+grounds in each usage note so the check measures the right pair; a failing cell offers "Use a
+readable shade" (the nearest OKLCH lightness that passes).
 
 Images, fonts and other binaries are ordinary files: pass them as `{"base64": "..."}` (or publish a
 folder with `path`). There is no asset store and no upload step. Paths are relative, `/`-separated,

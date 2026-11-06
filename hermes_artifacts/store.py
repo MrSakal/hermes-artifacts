@@ -122,6 +122,45 @@ def _write_files(vdir: Path, files: dict) -> None:
             p.write_text(str(content), encoding="utf-8")
 
 
+_DS_TEXT = {".md", ".json", ".js", ".css", ".html", ".htm", ".svg", ".ts", ".tsx", ".jsx", ".txt", ".csv", ".yml", ".yaml", ".mdx"}
+
+
+def _ds_build(vdir: Path) -> None:
+    """A design system's generated files (tokens.css, manifest.json, api/ cards, README's tail), as
+    Claude's Design System type writes them on every save. A system brought over from Claude, kept
+    under project/, comes up to the root first (the type's own files it carried stay behind)."""
+    from . import dsbuild
+    proj = vdir / "project"
+    if proj.is_dir() and not (vdir / "design-system.json").is_file() and (proj / "design-system.json").is_file():
+        for f in sorted(p for p in proj.rglob("*") if p.is_file()):
+            dest = vdir / f.relative_to(proj)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _fresh(dest)
+            shutil.move(str(f), str(dest))
+        shutil.rmtree(proj, ignore_errors=True)
+        for extra in ("SKILL.md", "index.html"):
+            (vdir / extra).unlink(missing_ok=True)
+        shutil.rmtree(vdir / "artifact-type", ignore_errors=True)
+    files = {}
+    for f in vdir.rglob("*"):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(vdir).as_posix()
+        files[rel] = f.read_text("utf-8", "replace") if f.suffix.lower() in _DS_TEXT else f.read_bytes()
+    try:
+        index = json.loads(files.get("design-system.json") or "{}")
+    except ValueError:
+        index = {}
+    out = dsbuild.build(files, index if isinstance(index, dict) else {})
+    for rel in out.pop("_stale", []):
+        (vdir / safe_rel(rel)).unlink(missing_ok=True)
+    for rel, text in out.items():
+        dest = vdir / safe_rel(rel)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _fresh(dest)
+        dest.write_text(text, encoding="utf-8")
+
+
 def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Optional[dict] = None,
             title: str = "", aid: Optional[str] = None, description: str = "",
             type: Optional[str] = None, base: bool = False,
@@ -178,6 +217,8 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 vdir.mkdir(exist_ok=True)
                 _fresh(vdir / "index.html")
                 (vdir / "index.html").write_text(html, encoding="utf-8")
+            if kind == "design-system":
+                _ds_build(vdir)
             if not (vdir / TYPE_ENTRY[kind]).is_file():
                 raise ValueError(f"a {kind} needs {TYPE_ENTRY[kind]}")
             all_files = [f for f in vdir.rglob("*") if f.is_file()]
