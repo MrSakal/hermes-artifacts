@@ -49,7 +49,7 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             raise FileNotFoundError(entry)
         return bundle.bundle(vdir, entry)
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
-            "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",
+            "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": "en",  # English everywhere, whatever the viewer's language (the pages' hu tables stay unused)
             "files": content_json(vdir)}
     if kind == "doc" and data["version"] == meta["versions"][-1]["n"]:
         # The live doc (what the user and Hermes edited since this version), for the first paint

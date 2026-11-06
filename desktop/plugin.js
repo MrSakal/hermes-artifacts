@@ -2149,7 +2149,8 @@ export default {
   description: 'Replaces the built-in Artifacts page with agent-published, versioned artifacts (pages, dashboards, slides, docs).',
   register(ctx) {
     CTX = ctx
-    ctx.i18n.register(STRINGS)
+    // English everywhere, whatever the app's language (the hu table stays for a later switch).
+    ctx.i18n.register({ en: STRINGS.en, hu: STRINGS.en })
     ctx.register({ id: 'page', area: ROUTES_AREA, title: 'Artifacts', data: { path: PAGE }, render: () => jsx(Page, { ctx }) })
 
     // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.
