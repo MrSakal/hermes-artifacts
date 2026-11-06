@@ -202,15 +202,22 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
 
 
 def update_meta(aid: str, **fields) -> dict:
-    """Change list-level fields (title, description, pinned) without a new version."""
+    """Change list-level fields (title, description, pinned, session) without a new version."""
     with _LOCK:
         meta = get_meta(aid)
         if meta is None:
             raise FileNotFoundError(aid)
         for k, v in fields.items():
-            if k not in ("title", "description", "pinned"):
+            if k not in ("title", "description", "pinned", "session"):
                 raise ValueError(f"can't set {k}")
-            if v is not None:
+            if v is None:
+                continue
+            if k == "session":
+                # The chat the artifact belongs to now (its old chat was archived or deleted).
+                if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", str(v)):
+                    raise ValueError("bad session id")
+                meta[k] = str(v)
+            else:
                 meta[k] = bool(v) if k == "pinned" else str(v)[:300]
         _write_json(_dir(aid) / "meta.json", meta)
         return meta

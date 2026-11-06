@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +32,45 @@ class ViewerApiTests(unittest.TestCase):
 
     def test_rename(self):
         self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"title": "Megrendelések"})["title"], "Megrendelések")
+
+
+class ChatTests(unittest.TestCase):
+    """Claude's Chat: the artifact's chat while it exists and isn't archived, else a new one it moves to."""
+
+    def setUp(self):
+        self.aid = store.publish(html="<p>x</p>", title="P", session="s-old")["id"]
+
+    def fake_db(self, rows):
+        import types
+        class DB:
+            def __init__(self, read_only=False):
+                assert read_only
+            def get_session_list_row(self, sid):
+                return rows.get(sid)
+            def close(self):
+                pass
+        mod = types.ModuleType("hermes_state")
+        mod.SessionDB = DB
+        return mock.patch.dict(sys.modules, {"hermes_state": mod})
+
+    def test_status(self):
+        with self.fake_db({"s-old": {"id": "s-old", "archived": 0}}):
+            self.assertEqual(api.handle("GET", f"artifacts/{self.aid}/chat", {}, None),
+                             {"session": "s-old", "known": True, "exists": True, "archived": False})
+        with self.fake_db({"s-old": {"id": "s-old", "archived": 1}}):
+            self.assertTrue(api.handle("GET", f"artifacts/{self.aid}/chat", {}, None)["archived"])
+        with self.fake_db({}):
+            self.assertFalse(api.handle("GET", f"artifacts/{self.aid}/chat", {}, None)["exists"])
+
+    def test_moves_to_the_new_chat(self):
+        self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"session": "s-new"})["session"], "s-new")
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"session": "../x y"})
+
+    def test_a_page_cannot_relink(self):
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", f"artifacts/{self.aid}/op", {}, {"op": "meta", "args": {"session": "s-evil"}})
+        self.assertEqual(store.get_meta(self.aid)["session"], "s-old")
 
 
 if __name__ == "__main__":

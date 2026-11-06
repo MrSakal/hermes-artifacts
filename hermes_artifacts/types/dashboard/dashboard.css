@@ -41,7 +41,8 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { background: color-m
 .dash-err { margin: 16px var(--dash-gutter, 24px); padding: 10px 12px; border-radius: 8px; font-size: 13px;
   border: 1px solid color-mix(in srgb, var(--color-bad) 40%, transparent); background: color-mix(in srgb, var(--color-bad) 8%, transparent); }
 
-/* Sources panel */
+/* Sources panel: the frame's full height, from the top (the bar stops beside it) */
+.kit-drawer.dash-drawer { top: 0; z-index: 60; border-left: 1px solid var(--color-border-line); }
 .src-head { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px 0 16px; position: sticky; top: 0;
   background: var(--color-panel); z-index: 2; }
 .src-head b { flex: 1; font-size: 15px; font-weight: 600; }

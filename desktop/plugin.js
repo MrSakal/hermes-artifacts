@@ -69,9 +69,15 @@ const STRINGS = {
     delete: 'Delete artifact',
     describeChange: 'Describe the change you want…',
     working: 'Hermes is working…',
-    noChat: 'This artifact was not made in a chat here.',
+    noChat: 'This artifact was not made in a chat. Write here and a new chat starts with it.',
     startChat: 'Start a chat',
     send: 'Send',
+    chatRef: (title, aid, old) =>
+      `[artifact: ${title}] Let's keep working on this artifact (artifact ${aid}${old ? `; its earlier chat ${old} is archived or gone` : ''}). ` +
+      `Read it with artifact_read id=${aid} before changing it; publish changes with artifact_publish id=${aid}.`,
+    newChatMade: 'The earlier chat is gone: started a new one with this artifact',
+    sentNew: 'The earlier chat is gone: sent into a new chat with this artifact',
+    chatGone: 'The chat this artifact was made in is archived or deleted. Write here and a new chat starts with this artifact.',
     title: 'Artifacts',
     all: 'All',
     pinned: 'Pinned',
@@ -175,9 +181,15 @@ const STRINGS = {
     delete: 'Artifact törlése',
     describeChange: 'Írd le, mit változtasson…',
     working: 'A Hermes dolgozik…',
-    noChat: 'Ez az artifact nem itt, chatben készült.',
+    noChat: 'Ez az artifact nem chatben készült. Írj ide, és új chat indul vele.',
     startChat: 'Chat indítása',
     send: 'Küldés',
+    chatRef: (title, aid, old) =>
+      `[artifact: ${title}] Folytassuk ezt az artifactot (artifact ${aid}${old ? `; a korábbi chatje (${old}) archivált vagy törölt` : ''}). ` +
+      `Módosítás előtt olvasd be: artifact_read id=${aid}; a változást artifact_publish id=${aid} hívással publikáld.`,
+    newChatMade: 'A korábbi chat már nincs meg: új chat indult ezzel az artifacttal',
+    sentNew: 'A korábbi chat már nincs meg: új chatbe küldve, ezzel az artifacttal',
+    chatGone: 'A chat, amelyben ez az artifact készült, archivált vagy törölt. Írj ide, és új chat indul ezzel az artifacttal.',
     title: 'Artifacts',
     all: 'Összes',
     pinned: 'Kitűzött',
@@ -289,6 +301,8 @@ const $backSpot = atom({ left: 260, bottom: 20, width: 1000 })
 const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
 const current = () => $list.get().find(a => a.id === $selected.get()) || null
 const enc = encodeURIComponent
+let CTX = null // the plugin context (set in register)
+let T = k => k // the plugin's translate, kept current by Page
 
 async function refresh(ctx) {
   try {
@@ -396,14 +410,12 @@ function pumpThumbs() {
  *  message), only on a user gesture; otherwise the composer draft. */
 async function toChat(text, gesture, art) {
   // The artifact's own chat first (Claude sends a comment into the conversation the artifact is from).
-  if (gesture && art?.session) {
+  if (gesture && art && CTX) {
     try {
-      const rid = await chatRuntime(art)
-      if (rid) {
-        await host.request('prompt.submit', { session_id: rid, text })
-        $chatPing.set($chatPing.get() + 1)
-        return 'submitted'
-      }
+      const c = await ensureChat(art)
+      await host.request('prompt.submit', { session_id: c.runtime, text })
+      $chatPing.set($chatPing.get() + 1)
+      return c.created ? 'submitted-new' : 'submitted'
     } catch {}
   }
   const sid = host.state.focusedSessionId.get() || host.state.activeSessionId.get()
@@ -1121,6 +1133,43 @@ async function chatRuntime(art) {
   return r?.session_id || null
 }
 
+/** The artifact's chat, as Claude's Chat button decides: 'open' while it exists and is not archived,
+ *  'gone' when it was archived or deleted, 'none' when the artifact was not made in a chat. */
+async function chatState(art) {
+  if (!art?.session) return 'none'
+  const st = await CTX.rest(`/artifacts/${enc(art.id)}/chat`).catch(() => null)
+  if (st && st.known) return st.exists && !st.archived ? 'open' : 'gone'
+  try {
+    return (await chatRuntime(art)) ? 'open' : 'gone'
+  } catch {
+    return 'gone'
+  }
+}
+
+/** A new chat that refers to the artifact (Claude's "Start one now"); the artifact moves to it, so
+ *  Chat, comments and Pop out chat use it from now on. */
+async function newChatFor(art) {
+  const r = await host.request('session.create', {
+    title: art.title,
+    source: 'desktop',
+    messages: [{ role: 'user', content: T('chatRef', art.title, art.id, art.session || '') }]
+  })
+  const stored = r?.stored_session_id || r?.session_id
+  if (!stored) throw new Error('no session')
+  await CTX.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body: { session: stored } })
+  await refresh(CTX)
+  return { stored, runtime: r.session_id, created: true }
+}
+
+/** The chat to talk in: the artifact's own while it is there, else a new one referring to it. */
+async function ensureChat(art) {
+  if ((await chatState(art)) === 'open') {
+    const runtime = await chatRuntime(art)
+    if (runtime) return { stored: art.session, runtime, created: false }
+  }
+  return newChatFor(art)
+}
+
 /** Chat: the chat the artifact was made in, with the artifact docked to its right (a main-area
  *  workspace tile, not the right rail). Older desktops without openWorkspace get the floating chat. */
 async function openSplit(ctx, art) {
@@ -1130,8 +1179,9 @@ async function openSplit(ctx, art) {
   }
   closeDock()
   try {
-    if (art.session) await host.openSession(art.session)
-    else host.newChat()
+    const c = await ensureChat(art)
+    await host.openSession(c.stored)
+    if (c.created) toast(T('newChatMade'))
   } catch {
     $chat.set('float')
     return
@@ -1191,6 +1241,7 @@ function FloatingChat({ ctx, art }) {
   const [ready, setReady] = useState(false)
   const [err, setErr] = useState(null)
   const [waiting, setWaiting] = useState(false)
+  const [state, setState] = useState(null)
   const sentAt = useRef(0)
   const listRef = useRef(null)
   const load = async id => {
@@ -1205,7 +1256,10 @@ function FloatingChat({ ctx, art }) {
     setErr(null)
     ;(async () => {
       try {
-        const id = await chatRuntime(art)
+        const st = await chatState(art)
+        if (!live) return
+        setState(st)
+        const id = st === 'open' ? await chatRuntime(art) : null
         if (!live) return
         setRid(id)
         if (id) await load(id)
@@ -1244,13 +1298,26 @@ function FloatingChat({ ctx, art }) {
   }, [msgs.length, waiting])
   const send = async () => {
     const body = text.trim()
-    if (!body || !rid) return
+    if (!body) return
+    let id = rid
+    if (!id) {
+      try {
+        const c = await ensureChat(art)
+        id = c.runtime
+        setRid(id)
+        setState('open')
+        await load(id).catch(() => {})
+      } catch (e) {
+        setErr(String(e?.message || e))
+        return
+      }
+    }
     setText('')
     setMsgs(m => [...m, { role: 'user', text: body, pending: true }])
     sentAt.current = Date.now()
     setWaiting(true)
     try {
-      await host.request('prompt.submit', { session_id: rid, text: t('sendMsg', art.title, body) })
+      await host.request('prompt.submit', { session_id: id, text: t('sendMsg', art.title, body) })
     } catch (e) {
       setErr(String(e?.message || e))
       setWaiting(false)
@@ -1271,11 +1338,8 @@ function FloatingChat({ ctx, art }) {
         style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px 12px', display: 'flex', flexDirection: 'column', gap: 12 },
         children: [
           !ready ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('loading') }) : null,
-          ready && !art.session
-            ? jsxs('div', {
-                style: { margin: 'auto', textAlign: 'center', fontSize: 13, color: C.text3, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' },
-                children: [t('noChat'), jsx(IconButton, { icon: 'comment', label: t('startChat'), title: t('startChat'), onClick: () => host.newChat() })]
-              })
+          ready && !rid && (state === 'gone' || state === 'none')
+            ? jsx('div', { style: { margin: 'auto', textAlign: 'center', fontSize: 13, color: C.text3, lineHeight: 1.5 }, children: t(state === 'gone' ? 'chatGone' : 'noChat') })
             : null,
           ...msgs.map((m, i) => jsx(ChatMessage, { m }, m.row_id || i)),
           waiting || running ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('working') }) : null,
@@ -1290,7 +1354,7 @@ function FloatingChat({ ctx, art }) {
             jsx('textarea', {
               value: text,
               rows: 2,
-              disabled: !rid,
+              disabled: !ready,
               placeholder: t('describeChange'),
               onChange: e => setText(e.target.value),
               onKeyDown: e => {
@@ -1308,7 +1372,7 @@ function FloatingChat({ ctx, art }) {
                   type: 'button',
                   title: t('send'),
                   'aria-label': t('send'),
-                  disabled: !rid || !text.trim(),
+                  disabled: !ready || !text.trim(),
                   onClick: send,
                   style: { width: 30, height: 30, borderRadius: 8, border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: text.trim() ? C.fg : C.hover, color: text.trim() ? C.bg : C.text3 },
                   children: jsx(Icon, { name: 'enter' })
@@ -1435,7 +1499,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
           toast(t('duplicated'))
         })
       },
-      { icon: 'comment', label: t('openChat'), onClick: close(() => (art.session ? host.openSession(art.session).catch(() => {}) : host.newChat())) },
+      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored); if (c.created) toast(t('newChatMade')) } catch (e) { toast(String(e?.message || e)) } }) },
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
@@ -1682,7 +1746,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       if (send) {
         const where = anchor ? `${anchor.label || 'element'} “${(anchor.text || '').slice(0, 80)}”` : ''
         const mode = await toChat(t('commentMsg', art.title, art.id, parent || c.id, where, body), gesture, art)
-        toast(mode === 'submitted' ? t('sent') : mode === 'draft' ? t('drafted') : t('notDelivered'))
+        toast(mode === 'submitted' ? t('sent') : mode === 'submitted-new' ? t('sentNew') : mode === 'draft' ? t('drafted') : t('notDelivered'))
       }
       setText('')
       onDone()
@@ -1864,6 +1928,7 @@ function FloatingBack() {
 function Page({ ctx }) {
   const t = usePluginI18n(ID)
   hostLang = /^[a-z]{2}(-[A-Za-z]{2})?$/.test(t('lang')) ? t('lang') : 'en'
+  T = t
   const pageRef = useRef(null)
   const sel = useValue($selected)
   useEffect(() => {
@@ -1897,6 +1962,7 @@ export default {
   name: 'Artifacts',
   description: 'Replaces the built-in Artifacts page with agent-published, versioned artifacts (pages, dashboards, slides, docs).',
   register(ctx) {
+    CTX = ctx
     ctx.i18n.register(STRINGS)
     ctx.register({ id: 'page', area: ROUTES_AREA, title: 'Artifacts', data: { path: PAGE }, render: () => jsx(Page, { ctx }) })
 

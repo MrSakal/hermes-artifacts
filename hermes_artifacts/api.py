@@ -43,6 +43,27 @@ def _view(m: dict) -> dict:
                             if c["author"] == "user")}
 
 
+def chat_status(session: Optional[str]) -> dict:
+    """The artifact's chat, as Claude's Chat button decides: open it while it exists and is not
+    archived, else start a new chat that refers to the artifact. ``known`` is false when Hermes'
+    session store can't be read here (the desktop then asks the gateway)."""
+    if not session:
+        return {"session": None, "known": True, "exists": False, "archived": False}
+    try:
+        from hermes_state import SessionDB
+        db = SessionDB(read_only=True)
+        try:
+            row = db.get_session_list_row(session)
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    except Exception:
+        return {"session": session, "known": False, "exists": None, "archived": None}
+    return {"session": session, "known": True, "exists": bool(row), "archived": bool(row and row.get("archived"))}
+
+
 def _meta(aid: str) -> dict:
     try:
         m = store.get_meta(aid)
@@ -243,7 +264,11 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 return _view(store.get_meta(new["id"]))
             elif rest == ["meta"] and method == "POST":
                 _meta(aid)
-                return _view(store.update_meta(aid, title=body.get("title"), pinned=body.get("pinned")))
+                return _view(store.update_meta(aid, title=body.get("title"), pinned=body.get("pinned"),
+                                               session=body.get("session")))
+            elif rest == ["chat"] and method == "GET":
+                # Host only (a page reaches nothing but /op): is the artifact's chat still there?
+                return chat_status(_meta(aid).get("session"))
             elif rest == ["comments"] and method == "GET":
                 _meta(aid)
                 return {"comments": store.comments_list(aid)}

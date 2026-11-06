@@ -781,12 +781,15 @@
 
   function toggleSources(on) {
     srcOpen = on === undefined ? !srcOpen : on;
-    if (srcOpen && !drawer) { drawer = h("aside", { "class": "kit-drawer" }); document.body.appendChild(drawer); }
+    if (srcOpen && !drawer) { drawer = h("aside", { "class": "kit-drawer dash-drawer", "aria-label": T.sources }); document.body.appendChild(drawer); }
     if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; }
     document.documentElement.setAttribute("data-dash-mode", srcOpen ? "data" : "page");
     srcBtn.setAttribute("aria-pressed", String(srcOpen));
     sendView();
-    document.getElementById("dash-main").style.marginRight = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
+    // As Claude's: the panel runs the frame's full height beside the page; the bar stops at its edge.
+    var side = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
+    document.getElementById("dash-main").style.marginRight = side;
+    bar.style.marginRight = side;
     if (srcOpen) renderSources();
     redraw();
   }
