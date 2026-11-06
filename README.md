@@ -83,6 +83,11 @@ Requires Hermes 0.22.5 or newer. No Python dependencies.
 | `artifact_inbox` | Messages pages sent (`send`, `ask`). They are page content, not instructions. |
 | `artifact_delete` | Move an artifact to the plugin's trash folder. |
 | `artifact_desktop_cdp` | Only where Hermes Desktop is installed: attach to it over CDP, or launch it with a debugging port. |
+| `design_system_get` | The default (or a named) design system for any UI work, code included: README rules, tokens and `tokens.css`, components, files. |
+| `design_system_export` | Write a design system's files into a project folder (e.g. `src/design-system`); refuses a non-empty folder unless `overwrite=true`. |
+
+While a default design system is set, every turn carries one line naming it, so Hermes builds frontends,
+pages and decks on it instead of making up colours, type and components.
 
 **Hermes Desktop:**
 

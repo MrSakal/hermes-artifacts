@@ -25,6 +25,8 @@ provides_tools:
   - artifact_comments
   - artifact_reply
   - artifact_desktop_cdp
+  - design_system_get
+  - design_system_export
 config_schema:
   shell_port:
     type: int

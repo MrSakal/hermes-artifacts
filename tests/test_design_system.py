@@ -77,6 +77,41 @@ class RenderTests(unittest.TestCase):
         pub = [t for t in plugin.TOOLS if t[0] == "artifact_publish"][0][1]
         self.assertIn("language the user asked in", json.dumps(pub))
 
+    def test_the_system_while_coding(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
+                                                          submodule_search_locations=[str(ROOT)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        store.settings_set("default_design_system", None)
+        try:
+            self.assertIsNone(plugin._view_context(session_id="none-open"))
+            self.assertFalse(json.loads(plugin._ds_get({}))["ok"])
+            kiln = store.publish(path=str(ROOT / "examples" / "design-system"), title="Kiln", type="design-system")["id"]
+            store.settings_set("default_design_system", kiln)
+            ctx = plugin._view_context(session_id="none-open")["context"]
+            self.assertIn(f'<default-design-system id="{kiln}"', ctx)
+            self.assertIn("design_system_get", ctx)
+            ds = json.loads(plugin._ds_get({}))["design_system"]
+            self.assertTrue(ds["default"])
+            self.assertIn("--ink", ds["tokens_css"])
+            self.assertIn("components/bundle.js", ds["files"])
+            out = Path(tempfile.mkdtemp()) / "src" / "design-system"
+            r = json.loads(plugin._ds_export({"dir": str(out)}))
+            self.assertTrue(r["ok"], r)
+            self.assertTrue((out / "tokens.css").is_file() and (out / "components" / "bundle.js").is_file())
+            self.assertFalse(json.loads(plugin._ds_export({"dir": str(out)}))["ok"])  # not empty: no overwrite
+            (out / "mine.txt").write_text("keep", encoding="utf-8")
+            r = json.loads(plugin._ds_export({"dir": str(out), "overwrite": True, "only": ["tokens.css"]}))
+            self.assertEqual(r["files"], ["tokens.css"])
+            self.assertEqual((out / "mine.txt").read_text(encoding="utf-8"), "keep")
+            self.assertIn("design_system_get", [t[0] for t in plugin.TOOLS])
+        finally:
+            store.settings_set("default_design_system", None)
+
     def test_the_guide_hands_over_the_default_system(self):
         import importlib.util
         plugin = sys.modules.get("hermes_artifacts_plugin")
