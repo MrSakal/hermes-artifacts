@@ -20,6 +20,27 @@
     braces: "M8 4c-2 0-2 1.5-2 3s0 3-2 5c2 2 2 3.5 2 5s0 3 2 3M16 4c2 0 2 1.5 2 3s0 3 2 5c-2 2-2 3.5-2 5s0 3-2 3",
     sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
     comment: "M4 5h16v11H9l-5 4z",
+    plus: "M12 5v14M5 12h14",
+    minus: "M5 12h14",
+    undo: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4",
+    redo: "M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h4",
+    trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
+    copy: "M8 8h12v12H8zM16 8V4H4v12h4",
+    front: "M9 9h11v11H9zM4 15V4h11",
+    back: "M4 4h11v11H4zM20 9v11H9",
+    alignL: "M4 6h16M4 10h10M4 14h16M4 18h10",
+    alignC: "M4 6h16M7 10h10M4 14h16M7 18h10",
+    alignR: "M4 6h16M10 10h10M4 14h16M10 18h10",
+    bold: "M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z",
+    italic: "M10 5h8M6 19h8M14 5l-4 14",
+    underline: "M7 4v7a5 5 0 0 0 10 0V4M5 20h14",
+    text: "M5 7V5h14v2M12 5v14M9 19h6",
+    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01",
+    shape: "M4 4h9v9H4zM14 17.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0",
+    presenter: "M3 4h18v12H3zM8 20h8M12 16v4",
+    pause: "M8 5v14M16 5v14",
+    fontUp: "M3 18l5-12 5 12M5 14h6M18 6v6M15 9h6",
+    fontDown: "M3 18l5-12 5 12M5 14h6M15 9h6",
     file: "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5"
   };
 
@@ -197,6 +218,81 @@
     return best ? best.el : null;
   }
 
-  window.kit = { view: view, inView: inView, hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** The lines of text inside root as drawn: [{text, x, y, w, h, size}] in px from root's top-left. */
+  function textLines(root) {
+    var o = root.getBoundingClientRect(), lines = [], cur = null, rg = document.createRange();
+    var tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+      var p = n.parentElement;
+      if (!p || !n.textContent.trim() || p.closest("aside,script,style,[data-build-hidden]")) return NodeFilter.FILTER_REJECT;
+      var cs = getComputedStyle(p);
+      return cs.visibility === "hidden" || cs.display === "none" ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+    } });
+    var n;
+    while ((n = tw.nextNode())) {
+      var fs = parseFloat(getComputedStyle(n.parentElement).fontSize) || 16, re = /\S+/g, m;
+      while ((m = re.exec(n.textContent))) {
+        rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+        var rs = rg.getClientRects();
+        if (!rs.length || rs[0].width <= 0) continue;
+        var r = rs[0], x = r.left - o.left, y = r.top - o.top, gap = cur ? x - (cur.x + cur.w) : 0;
+        if (cur && Math.abs(y - cur.y) < r.height * 0.5 && gap > -2 && gap < r.height * 2) {
+          cur.text += (gap > r.height * 0.12 ? " " : "") + m[0];
+          cur.w = x + r.width - cur.x; cur.h = Math.max(cur.h, r.height); cur.size = Math.max(cur.size, fs);
+        } else lines.push(cur = { text: m[0], x: x, y: y, w: r.width, h: r.height, size: fs });
+      }
+    }
+    return lines;
+  }
+
+  /** Invisible text over the pictures of a pdf-lib document, so the PDF can be searched and copied.
+   *  Any Unicode: characters outside ASCII get codes of their own (as uniXXXX glyph names) in as many
+   *  fonts as needed. add(page, textLines(...), pt per px) per page, then finish() before saving. */
+  function pdfText(P, doc) {
+    var ctx = doc.context, fonts = [];
+    function font() { var f = { ref: ctx.nextRef(), map: {}, list: [] }; fonts.push(f); return f; }
+    font();
+    function place(ch) {
+      var k = ch.codePointAt(0);
+      if (k >= 32 && k < 127) return [-1, k];
+      for (var i = 0; i < fonts.length; i++) if (fonts[i].map[ch] != null) return [i, fonts[i].map[ch]];
+      var f = fonts[fonts.length - 1];
+      if (f.list.length >= 128) f = font();
+      f.map[ch] = 128 + f.list.length; f.list.push(ch);
+      return [fonts.length - 1, f.map[ch]];
+    }
+    function glyph(ch) { var k = ch.codePointAt(0), x = k.toString(16).toUpperCase(); return k > 0xFFFF ? "u" + x : "uni" + ("000" + x).slice(-4); }
+    return {
+      add: function (page, lines, k) {
+        var ph = page.getHeight(), names = {};
+        var nameOf = function (i) { return names[i] || (names[i] = page.node.newFontDictionary("HT" + i, fonts[i].ref)); };
+        var ops = [P.pushGraphicsState(), P.beginText(), P.setTextRenderingMode(P.TextRenderingMode.Invisible)];
+        lines.forEach(function (ln) {
+          var chars = Array.from(ln.text).filter(function (c) { return c.codePointAt(0) >= 32; });
+          if (!chars.length) return;
+          var size = ln.size * k, tz = Math.max(5, Math.min(1000, 100 * ln.w * k / (chars.length * 0.5 * size)));
+          ops.push(P.setCharacterSqueeze(tz), P.setTextMatrix(1, 0, 0, 1, ln.x * k, ph - (ln.y + ln.h * 0.78) * k));
+          var cf = null, hex = "";
+          var flush = function () { if (hex) ops.push(P.setFontAndSize(nameOf(cf), size), P.showText(P.PDFHexString.of(hex))); hex = ""; };
+          chars.forEach(function (ch) {
+            var pl = place(ch), fi = pl[0] < 0 ? (cf == null ? 0 : cf) : pl[0];
+            if (fi !== cf) { flush(); cf = fi; }
+            hex += ("0" + pl[1].toString(16)).slice(-2);
+          });
+          flush();
+        });
+        ops.push(P.endText(), P.popGraphicsState());
+        page.pushOperators.apply(page, ops);
+      },
+      finish: function () {
+        fonts.forEach(function (f) {
+          var widths = []; for (var i = 32; i <= 255; i++) widths.push(500);
+          ctx.assign(f.ref, ctx.obj({ Type: "Font", Subtype: "Type1", BaseFont: "Helvetica", FirstChar: 32, LastChar: 255, Widths: widths,
+            Encoding: f.list.length ? { Type: "Encoding", BaseEncoding: "WinAnsiEncoding", Differences: [128].concat(f.list.map(glyph)) } : "WinAnsiEncoding" }));
+        });
+      }
+    };
+  }
+
+  window.kit = { textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
 })();

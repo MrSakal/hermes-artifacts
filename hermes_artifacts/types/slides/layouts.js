@@ -5,8 +5,8 @@
  *              "font": "…", "headingFont": "…"}
  *   "slides": [{"id": "cover", "layout": "title", "title": "Q3 review", "subtitle": "…", "kicker": "…"}, …]
  *
- * Layouts: title, section, bullets, kpis, table, two-col, quote, image, chart, closing. Text fields take
- * **bold** and *italic*. Every slide can carry "notes" and "transition" (fade | push); "build": true
+ * Layouts: title, section, bullets, kpis, table, two-col, quote, image, chart, closing, blank. Text fields
+ * take **bold** and *italic*. Every slide can carry "notes" and "transition" (fade | push | magic); "build": true
  * brings bullets / cards in one click at a time while presenting. window.slideLayout(def, theme) -> HTML.
  */
 (function () {
@@ -40,7 +40,7 @@
   }
 
   function section(def, th, inner, extra) {
-    var tr = /^(fade|push)$/.test(def.transition || "") ? ' data-transition="' + def.transition + '"' : "";
+    var tr = /^(fade|push|magic)$/.test(def.transition || "") ? ' data-transition="' + def.transition + '"' : "";
     var bg = extra && extra.bg ? extra.bg : th.bg;
     return '<section id="' + esc(def.id) + '"' + tr + ' style="background:' + bg + ";color:" + th.fg + ";font-family:" + th.font +
       ";padding:120px 128px;display:flex;flex-direction:column;gap:44px" + (extra && extra.style ? ";" + extra.style : "") + '">' +
@@ -65,7 +65,7 @@
 
   L.title = function (d, th) {
     return section(d, th,
-      '<div style="position:absolute;left:0;top:0;width:1920px;height:1080px;background:radial-gradient(circle at 85% 15%, ' + th.accent + '33, transparent 55%), radial-gradient(circle at 10% 90%, ' + th.accent2 + '26, transparent 50%)"></div>' +
+      '<div data-deco style="position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;background:radial-gradient(circle at 85% 15%, ' + th.accent + '33, transparent 55%), radial-gradient(circle at 10% 90%, ' + th.accent2 + '26, transparent 50%)"></div>' +
       bar(th) +
       (d.kicker ? '<p style="font-size:26px;letter-spacing:5px;text-transform:uppercase;color:' + th.accent + ';font-weight:600">' + esc(d.kicker) + "</p>" : "") +
       '<h1 style="font-family:' + th.head + ';font-size:124px;font-weight:800;letter-spacing:-3px;line-height:1.02;width:1500px">' + rich(d.title || "") + "</h1>" +
@@ -181,9 +181,11 @@
       (d.note ? '<p style="font-size:24px;color:' + th.muted + '">' + rich(d.note) + "</p>" : ""), { style: "gap:28px" });
   };
 
+  L.blank = function (d, th) { return section(d, th, ""); };
+
   L.closing = function (d, th) {
     return section(d, th,
-      '<div style="position:absolute;left:0;top:0;width:1920px;height:1080px;background:radial-gradient(circle at 50% 120%, ' + th.accent + '40, transparent 60%)"></div>' +
+      '<div data-deco style="position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;background:radial-gradient(circle at 50% 120%, ' + th.accent + '40, transparent 60%)"></div>' +
       '<h1 style="font-family:' + th.head + ';font-size:130px;font-weight:800;letter-spacing:-3px;text-align:center;width:1664px">' + rich(d.title || "") + "</h1>" +
       (d.subtitle ? '<p style="font-size:40px;color:' + th.muted + ';text-align:center;width:1664px">' + rich(d.subtitle) + "</p>" : ""),
       { style: "justify-content:center;align-items:center;gap:28px" });
@@ -194,4 +196,5 @@
     return f(def, th);
   };
   window.slideLayouts = Object.keys(L);
+  window.slideTheme = themeOf;
 })();

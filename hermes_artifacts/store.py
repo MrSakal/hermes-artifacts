@@ -82,6 +82,27 @@ def safe_rel(rel: str) -> str:
     return rel
 
 
+def _fresh(p: Path) -> None:
+    """Drop a file before writing it: it may be a hard link shared with an older version."""
+    if p.is_file() or p.is_symlink():
+        p.unlink()
+
+
+def _link_or_copy(src: str, dst: str) -> str:
+    """Copy a version's file into the next version: a hard link when the file system allows (versions
+    are never changed in place, and every write drops the file first), else a real copy."""
+    try:
+        os.link(src, dst)
+        return dst
+    except OSError:
+        return shutil.copy2(src, dst)
+
+
+def _copy_fresh(src: str, dst: str) -> str:
+    _fresh(Path(dst))
+    return shutil.copy2(src, dst)
+
+
 def _write_files(vdir: Path, files: dict) -> None:
     import base64
     if not isinstance(files, dict) or not files:
@@ -91,6 +112,7 @@ def _write_files(vdir: Path, files: dict) -> None:
     for rel, content in files.items():
         p = vdir / safe_rel(rel)
         p.parent.mkdir(parents=True, exist_ok=True)
+        _fresh(p)
         if isinstance(content, dict) and "base64" in content:
             p.write_bytes(base64.b64decode(content["base64"], validate=True))
         elif isinstance(content, (dict, list)):
@@ -131,14 +153,14 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             shutil.rmtree(vdir)
         try:
             if base and meta["versions"]:
-                shutil.copytree(d / f"v{meta['versions'][-1]['n']}", vdir)
+                shutil.copytree(d / f"v{meta['versions'][-1]['n']}", vdir, copy_function=_link_or_copy)
             if path is not None:
                 src = Path(path)
                 if src.is_dir():
-                    shutil.copytree(src, vdir, dirs_exist_ok=True)
+                    shutil.copytree(src, vdir, dirs_exist_ok=True, copy_function=_copy_fresh)
                 elif src.is_file():
                     vdir.mkdir(exist_ok=True)
-                    shutil.copy2(src, vdir / TYPE_ENTRY[kind] if kind != "page" else vdir / "index.html")
+                    _copy_fresh(str(src), str(vdir / TYPE_ENTRY[kind] if kind != "page" else vdir / "index.html"))
                 else:
                     raise FileNotFoundError(str(src))
             elif files is not None:
@@ -153,6 +175,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 if len(html.encode("utf-8")) > MAX_HTML_BYTES:
                     raise ValueError("html exceeds 16 MB")
                 vdir.mkdir(exist_ok=True)
+                _fresh(vdir / "index.html")
                 (vdir / "index.html").write_text(html, encoding="utf-8")
             if not (vdir / TYPE_ENTRY[kind]).is_file():
                 raise ValueError(f"a {kind} needs {TYPE_ENTRY[kind]}")

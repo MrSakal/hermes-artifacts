@@ -11,7 +11,7 @@ version, and the open view reloads.
 |---|---|---|
 | **Page** | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML |
 | **Dashboard** | Numbers, charts and tables drawn from datasets (CSV/TSV/JSON or inline rows). "Where numbers come from" shows each figure's source row. | CSV per source, HTML snapshot, JSON |
-| **Slides** | A 16:9 deck: a thumbnail rail, in-place text editing, and presenting with transitions and builds. | PDF, PowerPoint (editable text and tables), PNG, HTML |
+| **Slides** | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
 | **Doc** | A Markdown document with an outline, edited beside a live preview. | Word (.docx), PDF, Markdown, HTML |
 
 Around every artifact you can:

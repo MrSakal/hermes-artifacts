@@ -294,7 +294,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "Publish an artifact: something the user looks at or uses, shown on the Hermes Desktop Artifacts page. "
         "Types: `page` (any web page/tool, default), `dashboard` (one dashboard.json: datasets + a layout of "
         "KPIs, charts, tables, filters that the plugin draws; live MCP queries), `slides` (one deck.json: "
-        "slides as layouts the plugin draws; exports PDF/PPTX), `doc` (doc.md; a live doc the user edits too: change it later with artifact_doc_edit, not by republishing; exports DOCX/PDF). Write data, "
+        "slides as layouts the plugin draws; the user edits it in place and it saves as versions, so artifact_read before changing it; exports PDF/PPTX), `doc` (doc.md; a live doc the user edits too: change it later with artifact_doc_edit, not by republishing; exports DOCX/PDF). Write data, "
         "not HTML or chart code, unless the layout can't express it. Before the first publish of a type, call artifact_guide(type) for its "
         "file format. Content: `files` ({path: text, or {\"base64\": ...} for binary}), or `path` (a file or "
         "folder), or `html` (a single page). Reusing `id` adds a version and the open view reloads; with "

@@ -3,7 +3,8 @@ body { overflow: hidden; }
 #sl-rail { width: 200px; flex-shrink: 0; overflow-y: auto; padding: 12px 10px 24px; border-right: 1px solid var(--color-border-line); }
 #sl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #sl-stage-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
-#sl-stage { position: relative; box-shadow: 0 4px 24px rgba(0,0,0,.18); border-radius: 4px; overflow: hidden; background: #fff; }
+#sl-stage { position: relative; box-shadow: 0 4px 24px rgba(0,0,0,.18); border-radius: 4px; background: #fff; }
+.sl-clip { position: absolute; inset: 0; overflow: hidden; border-radius: 4px; }
 #sl-notes { flex-shrink: 0; max-height: 30%; overflow: auto; padding: 12px 20px; border-top: 1px solid var(--color-border-line);
   font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: var(--color-fg-secondary); }
 
@@ -22,7 +23,7 @@ body { overflow: hidden; }
 .sl-canvas > section img { display: block; }
 .sl-canvas > section table { border-collapse: collapse; }
 .sl-canvas > section td, .sl-canvas > section th { padding: .35em .6em; border-bottom: 1px solid rgba(0,0,0,.15); text-align: left; }
-.sl-canvas [contenteditable="true"] { outline: 3px solid #d97757; outline-offset: 4px; cursor: text; }
+.sl-canvas [contenteditable="true"] { outline: none; cursor: text; }
 
 .sl-thumb { position: relative; display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 2px solid transparent;
   border-radius: 6px; background: none; cursor: pointer; }
@@ -30,7 +31,7 @@ body { overflow: hidden; }
 .sl-thumb .sl-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 4px;
   background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); pointer-events: none; }
 .sl-num { position: absolute; left: -2px; top: 2px; transform: translateX(-100%); font-size: 11px; color: var(--color-fg-muted); }
-#sl-rail { padding-left: 26px; }
+#sl-rail { padding-left: 26px; position: relative; }
 
 /* Grid view */
 #sl-grid { position: fixed; inset: 44px 0 0 0; z-index: 30; overflow: auto; padding: 24px; background: var(--color-bg);
@@ -56,3 +57,47 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
 .sl-busy { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--color-bg) 70%, transparent); font-size: 14px; }
 .sl-canvas { text-align: left; }
+
+/* Editor: selection, handles, snapping guides, the element toolbar */
+#sl-ov { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.sl-selbox { position: absolute; box-sizing: border-box; border: 1.5px solid var(--color-accent); border-radius: 2px; }
+.sl-selbox.is-editing { border-style: dashed; }
+.sl-handle { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; box-sizing: border-box; border-radius: 2px;
+  background: #fff; border: 1.5px solid var(--color-accent); pointer-events: auto; }
+.sl-guide { position: absolute; background: #ff3ea5; }
+.sl-clip .sl-canvas > section > *:not(aside):not([data-deco]) { cursor: default; }
+.sl-tools { position: fixed; z-index: 120; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 9px;
+  background: var(--color-bg-elevated, var(--color-bg)); border: 1px solid var(--color-border-line); box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.sl-tools[hidden] { display: none; }
+.sl-tools .kit-btn { min-width: 28px; }
+.sl-sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--color-border-line); }
+.sl-askin { width: 280px; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--color-border-line);
+  background: transparent; color: var(--color-fg); outline: none; }
+.sl-add { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9; border: 1.5px dashed var(--color-border-strong, var(--color-border-line));
+  border-radius: 6px; background: none; color: var(--color-fg-muted); cursor: pointer; }
+.sl-add:hover { color: var(--color-fg); border-color: var(--color-accent); }
+.sl-add svg { width: 22px; height: 22px; }
+.sl-drop { position: absolute; left: 26px; right: 10px; height: 3px; border-radius: 2px; background: var(--color-accent); pointer-events: none; }
+.sl-drop[hidden] { display: none; }
+.sl-status { font-size: 12px; color: var(--color-fg-muted); white-space: nowrap; margin: 0 6px; }
+#sl-notes { padding: 0; }
+.sl-notes-ta { display: block; width: 100%; box-sizing: border-box; min-height: 96px; height: 100%; padding: 12px 20px; border: 0; resize: none; outline: none;
+  background: transparent; color: var(--color-fg-secondary); font: 14px/1.5 var(--font-sans); }
+
+/* Present: the slide alone, or the presenter view (timer, clock, next slide, notes) */
+#sl-present .sl-pmain { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#sl-present.is-presenter { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 30vw); grid-template-rows: 52px minmax(0, 1fr);
+  align-items: stretch; justify-content: stretch; background: #141414; color: #e9e9e9; cursor: default; }
+#sl-present.is-presenter .sl-pmain { position: relative; grid-column: 1; grid-row: 2; }
+#sl-present.is-presenter .sl-count { display: none; }
+.sl-ptop { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #2a2a2a; }
+.sl-ptop[hidden], .sl-pside[hidden] { display: none; }
+.sl-ptop .kit-btn { color: #e9e9e9; }
+.sl-ptimer { font: 600 22px/1 var(--font-mono); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.sl-ptimer.is-paused { opacity: .5; }
+.sl-pclock { font-size: 15px; color: #a9a9a9; font-variant-numeric: tabular-nums; margin: 0 8px; }
+.sl-pside { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 16px 0; min-height: 0; }
+.sl-plabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8a8a8a; }
+.sl-pnext { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #222; flex-shrink: 0; }
+.sl-pend { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #8a8a8a; font-size: 14px; }
+.sl-pnotes { flex: 1; min-height: 0; overflow: auto; line-height: 1.5; white-space: pre-wrap; color: #dcdcdc; }

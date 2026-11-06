@@ -64,7 +64,11 @@ def _int(v) -> Optional[int]:
 
 _VENDOR = Path(render.TYPES_DIR / "vendor")
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
-_SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html)$", "doc": r"^doc\.md$"}
+_SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
+               "doc": r"^doc\.md$"}
+# An image the slide editor uploads: a data: URI of one of these, stored as the binary file.
+_IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$")
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
 def _op(aid: str, op: str, a: dict) -> dict:
@@ -85,9 +89,17 @@ def _op(aid: str, op: str, a: dict) -> dict:
         files = a.get("files")
         if not pat or not isinstance(files, dict) or not files:
             raise ValueError("this artifact can't save from its page")
+        out = {}
         for rel, val in files.items():
             if not re.match(pat, str(rel)) or not (val is None or isinstance(val, str)):
                 raise ValueError(f"can't save {rel!r} here")
+            if str(rel).startswith("img/") and val is not None:
+                im = _IMG_URI.match(val)
+                if not im or len(im.group(2)) * 3 // 4 > MAX_UPLOAD_BYTES:
+                    raise ValueError(f"{rel}: an image (png, jpeg, gif or webp) of at most 8 MB")
+                val = {"base64": im.group(2)}
+            out[str(rel)] = val
+        files = out
         if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:
             return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files)

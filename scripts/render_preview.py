@@ -18,7 +18,7 @@ src, kind = sys.argv[1], sys.argv[2]
 thumb = "--thumb" in sys.argv
 m = store.publish(path=src, title=Path(src).name, type=kind)
 html = render.render(m, store.version_dir(m["id"]), thumb=thumb)
-out = ROOT / "docs" / "preview" / f"{Path(src).name}{'-thumb' if thumb else ''}{'-live' if '--mock-doc' in sys.argv else ''}.html"
+out = ROOT / "docs" / "preview" / f"{Path(src).name}{'-thumb' if thumb else ''}{'-live' if '--mock-doc' in sys.argv or '--mock-slides' in sys.argv else ''}.html"
 out.parent.mkdir(parents=True, exist_ok=True)
 if "--vendor" in sys.argv:  # inline the on-demand export libraries, for testing exports without the bridge
     vend = render.TYPES_DIR / "vendor"
@@ -29,6 +29,10 @@ if "--vendor" in sys.argv:  # inline the on-demand export libraries, for testing
     html = a + tags + "</body>" + b
 if "--mock-doc" in sys.argv:  # an in-page stand-in for the doc ops, to try the editor without Hermes
     mock = (ROOT / "scripts" / "mock_doc_bridge.js").read_text("utf-8")
+    a, _, b = html.partition("</head>")
+    html = a + "</head>" + b.replace("<body>", "<body><script>" + mock + "</script>", 1)
+if "--mock-slides" in sys.argv:  # save / send / download stand-ins, to try the slide editor without Hermes
+    mock = (ROOT / "scripts" / "mock_slides_bridge.js").read_text("utf-8")
     a, _, b = html.partition("</head>")
     html = a + "</head>" + b.replace("<body>", "<body><script>" + mock + "</script>", 1)
 out.write_text(inject_bridge(html.encode()).decode(), encoding="utf-8")
