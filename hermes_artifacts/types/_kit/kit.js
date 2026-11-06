@@ -41,7 +41,11 @@
     pause: "M8 5v14M16 5v14",
     fontUp: "M3 18l5-12 5 12M5 14h6M18 6v6M15 9h6",
     fontDown: "M3 18l5-12 5 12M5 14h6M15 9h6",
-    file: "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5"
+    file: "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5",
+    pencil: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
+    expand: "M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7",
+    caretDown: "M7 10l5 5 5-5",
+    caretRight: "M10 7l5 5-5 5"
   };
 
   function icon(name) {

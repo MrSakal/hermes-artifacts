@@ -39,7 +39,9 @@
       save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved",
       test: "Test", testing: "Running the test…", testOk: "Test ran: {n} rows in {ms} ms. Nothing is saved until you press Save.",
       testStale: "Edited since the test: test again before saving.", history: "History", historyHint: "Pick one to put it in the editor. Nothing changes until you save.",
-      historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current" },
+      historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current",
+      back: "Back", close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
+      showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
@@ -59,7 +61,9 @@
       save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve",
       test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
       testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
-      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi" }
+      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi",
+      back: "Vissza", close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
+      showMore: "Több", showLess: "Kevesebb", transform: "Átalakítás", row1: "sor", noSources: "Ennek a dashboardnak nincs forrása.", noArgs: "Nincs argumentum." }
   }[L];
 
   // ------------------------------------------------------------------ data
@@ -365,6 +369,9 @@
       }
       if (!st && !m.children.length && /^\s*[—-]?\s*$/.test(m.textContent)) st = "empty";
       if (st) m.setAttribute("data-dash-source-state", st); else m.removeAttribute("data-dash-source-state");
+      // Data mode marks a short value with a dotted underline and a block with a dotted frame.
+      var leaf = !m.children.length && m.textContent.trim().length <= 60 && !(m instanceof SVGElement);
+      m.setAttribute("data-dash-mark", leaf ? "text" : "box");
     }
   }
 
@@ -482,11 +489,11 @@
     return [cols.map(q).join(",")].concat((r.rows || []).map(function (o) { return cols.map(function (c) { return q(o[c]); }).join(","); })).join("\n");
   }
 
-  function table(r, hit) {
+  function table(r, hit, full) {
     var cols = r.columns && r.columns.length ? r.columns : Object.keys((r.rows || [])[0] || {});
     var t = h("table");
     t.appendChild(h("tr", {}, cols.map(function (c) { return h("th", { "class": hit && hit.field === c ? "hit" : null, text: c }); })));
-    (r.rows || []).slice(0, 200).forEach(function (o, i) {
+    (r.rows || []).slice(0, full ? 5000 : 200).forEach(function (o, i) {
       var rowHit = hit && (hit.row === i || (hit.where && hit.where.every(function (kv) { return String(o[kv[0]]) === kv[1]; })));
       t.appendChild(h("tr", {}, cols.map(function (c) {
         var v = o[c];
@@ -498,72 +505,210 @@
 
   function marked(id) { return !!root.querySelector('[data-source~="' + CSS.escape(id) + '"]'); }
 
-  function renderSources() {
-    if (!drawer) return;
-    drawer.replaceChildren();
-    drawer.appendChild(h("div", { "class": "src-head" }, [h("b", { text: T.sources }),
-      kit.button("", "close", function () { toggleSources(false); }, "Close")]));
-    var ids = Object.keys(datasets);
-    if (ids.length) drawer.appendChild(h("div", { "class": "src-sec", text: T.sources + " · " + ids.length }));
-    ids.forEach(function (id) { drawer.appendChild(item(id, datasets[id], false)); });
-    var cids = Object.keys(calcs);
-    if (cids.length) drawer.appendChild(h("div", { "class": "src-sec", text: T.calc }));
-    cids.forEach(function (id) { drawer.appendChild(item(id, calcs[id], true)); });
-    var pk = Object.keys(params);
-    if (pk.length) {
-      drawer.appendChild(h("div", { "class": "src-sec", text: T.params }));
-      drawer.appendChild(h("div", { "class": "src-body" }, [h("pre", { text: JSON.stringify(params, null, 2) })]));
+  // Sources panel, the way Claude's reads: a flat list (name + kind icon); a source opens in place
+  // with a back arrow, how fresh it is, its description, and one open section at a time (Query /
+  // Transform / Formula / Result).
+  var openSec = {}; // source id -> open section
+  var descOpen = {}, codeOpen = {};
+  function kindIcon(id) {
+    if (calcs[id]) return "braces";
+    var d = datasets[id] || {};
+    return isLive(d) ? "data" : d.source && d.source.kind === "file" ? "file" : "braces";
+  }
+  function sourceTitle(id) { var d = datasets[id] || calcs[id] || {}; return d.title || id; }
+  function freshOf(id) {
+    var lv = live[id];
+    if (lv && (lv.running || lv.status === "loading")) return T.refreshing;
+    var at = lv && lv.at ? lv.at * 1000 : datasets[id] && datasets[id].updated && datasets[id].updated.at ? Date.parse(datasets[id].updated.at) : null;
+    if (calcs[id]) {
+      var ins = calcs[id].inputs.map(function (k) { return live[k] && live[k].at ? live[k].at * 1000 : null; }).filter(Boolean);
+      at = ins.length ? Math.min.apply(null, ins) : Date.now();
     }
-    var pickedEl = drawer.querySelector(".src-item.picked");
-    if (pickedEl) pickedEl.scrollIntoView({ block: "nearest" });
+    if (!at || isNaN(at)) return "";
+    return (Date.now() - at) / 1000 < 60 ? T.justNow : T.updatedAgo + " " + ago(at);
+  }
+  function copyText(text) {
+    var done = function () { kit.toast(T.copied); };
+    var fallback = function () {
+      var ta = h("textarea", { style: "position:fixed;opacity:0;top:0;left:0" });
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      ta.remove();
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  }
+  function toTsv(r) {
+    var cols = r.columns && r.columns.length ? r.columns : Object.keys((r.rows || [])[0] || {});
+    var c = function (v) { return v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).replace(/[\t\n\r]+/g, " "); };
+    return [cols.join("\t")].concat((r.rows || []).map(function (o) { return cols.map(function (k) { return c(o[k]); }).join("\t"); })).join("\n");
+  }
+  function iconBtn(icon, title, fn, extra) {
+    return h("button", { "class": "src-ib" + (extra ? " " + extra : ""), type: "button", title: title, "aria-label": title, html: kit.icon(icon),
+      onclick: function (e) { e.stopPropagation(); fn(e); } });
+  }
+  /** Code that shows a few lines, a copy button, and "Show more". */
+  function codeBlock(key, text) {
+    var long = String(text).split("\n").length > 8 || String(text).length > 420;
+    var open = !!codeOpen[key];
+    var pre = h("pre", { "class": "src-code" + (long && !open ? " clamped" : ""), text: String(text) });
+    var kids = [pre, iconBtn("copy", T.copy, function () { copyText(String(text)); }, "src-code-copy")];
+    if (long) kids.push(h("button", { "class": "src-more", type: "button", text: open ? T.showLess : T.showMore,
+      onclick: function () { codeOpen[key] = !open; renderSources(); } }));
+    return h("div", { "class": "src-codebox" }, kids);
+  }
+  function section(id, key, label, body) {
+    var open = openSec[id] === key;
+    return h("div", { "class": "src-sec2" + (open ? " open" : "") }, [
+      h("button", { "class": "src-sec2-head", type: "button", "aria-expanded": String(open),
+        onclick: function () { openSec[id] = open ? null : key; renderSources(); } },
+        [h("span", { text: label }), h("span", { "class": "src-caret", html: kit.icon(open ? "caretDown" : "caretRight") })]),
+      open ? h("div", { "class": "src-sec2-body" }, body()) : null
+    ]);
+  }
+  function resultView(id, r, full) {
+    if (r.status !== "ok") return [h("p", { "class": "src-warn", text: T.failed + ": " + (r.message || r.status) })];
+    var isValue = r.value !== undefined && !(r.rows || []).length;
+    var rows = isValue ? (r.value && typeof r.value === "object" && !Array.isArray(r.value) ? [r.value] : [{ value: r.value }]) : r.rows || [];
+    var tools = h("div", { "class": "src-tools" }, [
+      full ? null : iconBtn("expand", T.expand, function () { expandResult(id); }),
+      iconBtn("copy", T.copy, function () { copyText(isValue ? JSON.stringify(r.value, null, 2) : toTsv(r)); }),
+      iconBtn("download", T.downloadCsv, function () { kit.download(id + ".csv", toCsv(isValue ? asTable(rows) : r), "text/csv"); kit.toast(T.saved); })
+    ]);
+    var body;
+    if (rows.length === 1) {
+      var o = rows[0];
+      body = h("div", { "class": "src-kv" }, Object.keys(o).map(function (k) {
+        var v = o[k];
+        return h("div", { "class": "src-kv-row" + (picked && picked.field === k ? " hit" : "") }, [h("div", { "class": "src-kv-k", text: k }),
+          h("div", { "class": "src-kv-v", text: v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v) })]);
+      }));
+    } else body = table(isValue ? asTable(rows) : r, picked && picked.id === id ? picked : null, full);
+    return [tools, body, h("div", { "class": "src-count", text: rows.length + " " + (rows.length === 1 ? T.row1 : T.rowsN) })];
+  }
+  var modal = null;
+  function expandResult(id) {
+    if (modal) modal.remove();
+    var r = cache[id] ? cache[id].r : get(id);
+    modal = h("div", { "class": "src-modal", onclick: function (e) { if (e.target === modal) { modal.remove(); modal = null; } } }, [
+      h("div", { "class": "src-modal-card" }, [
+        h("div", { "class": "src-modal-head" }, [h("b", { text: sourceTitle(id) }), h("span", { style: "flex:1" }),
+          iconBtn("close", T.close, function () { modal.remove(); modal = null; })]),
+        h("div", { "class": "src-modal-body" }, resultView(id, r, true))
+      ])
+    ]);
+    document.body.appendChild(modal);
+  }
+  function argInputs(id, d) {
+    var args = d.source.args || {};
+    var draft = argDraft[id] || (argDraft[id] = JSON.parse(JSON.stringify(args)));
+    var changed = JSON.stringify(draft) !== JSON.stringify(args);
+    var kids = Object.keys(args).map(function (k) {
+      var v = draft[k], obj = v && typeof v === "object";
+      var inp = h(obj ? "textarea" : "input", { "class": "src-arg", spellcheck: "false", rows: obj ? "3" : null });
+      inp.value = obj ? JSON.stringify(v) : v == null ? "" : String(v);
+      inp.addEventListener("change", function () {
+        var t = inp.value, nv = t;
+        if (obj || typeof args[k] === "number" || typeof args[k] === "boolean") { try { nv = JSON.parse(t); } catch (e) { nv = t; } }
+        draft[k] = nv; renderSources();
+      });
+      return h("label", { "class": "src-arg-row" }, [h("span", { "class": "src-arg-k", text: k }), inp]);
+    });
+    if (!kids.length) kids.push(h("p", { "class": "src-meta", text: T.noArgs }));
+    var lv = live[id] || {};
+    kids.push(h("p", { "class": "src-tool" }, [document.createTextNode((lv.server || d.source.server || d.source.connector || "MCP") + " · "),
+      h("code", { text: d.source.tool || "" })].concat(lv.ms != null ? [document.createTextNode(" · " + lv.ms + " ms")] : [])));
+    if (changed) kids.push(h("div", { "class": "src-actions" }, [
+      kit.labelled(kit.button(T.save, "", function () { saveArgs(id, d, draft); }, T.save), T.save),
+      kit.labelled(kit.button(T.cancel, "", function () { delete argDraft[id]; renderSources(); }, T.cancel), T.cancel)
+    ]));
+    return kids;
+  }
+  var argDraft = {};
+  function saveArgs(id, d, args) {
+    if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.edit) { kit.toast(T.noBridge); return; }
+    window.hermes.dataset.edit(id, args, C.version).then(function (r) {
+      if (r && r.conflict) { kit.toast(T.conflict); return; }
+      C.version = r.version; d.source.args = args; delete argDraft[id]; delete live[id];
+      loadLive(id, true); kit.toast(T.querySaved); renderSources();
+    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+  }
+  function transformOf(id, d) {
+    if (loaders[id]) return { desc: loaders[id].description, code: String(loaders[id].fn) };
+    var shape = {};
+    ["rowsAt", "fields", "types"].forEach(function (k) { if (d[k]) shape[k] = d[k]; });
+    return Object.keys(shape).length ? { desc: d.transform || "", code: JSON.stringify(shape, null, 2) } : null;
   }
 
-  function item(id, d, isCalc) {
+  function renderList() {
+    var head = h("div", { "class": "src-head" }, [h("b", { text: T.sources }), iconBtn("close", T.close, function () { toggleSources(false); })]);
+    var ids = Object.keys(datasets).concat(Object.keys(calcs).filter(function (k) { return !datasets[k]; }));
+    var list = h("div", { "class": "src-list" }, ids.map(function (id) {
+      var r = cache[id] ? cache[id].r : null;
+      var bad = r && r.status !== "ok" && r.status !== "loading";
+      return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(id); } }, [
+        h("span", { "class": "src-li-t", text: sourceTitle(id) }),
+        bad ? h("span", { "class": "src-dot error", title: r.message || r.status }) : null,
+        h("span", { "class": "src-kind", html: kit.icon(kindIcon(id)) })
+      ]);
+    }));
+    return [head, ids.length ? list : h("p", { "class": "src-empty", text: T.noSources })];
+  }
+
+  function renderDetail(id) {
+    var isCalc = !!calcs[id] && !datasets[id];
+    var d = isCalc ? calcs[id] : datasets[id];
+    if (!d) { picked = null; return renderList(); }
     var r = cache[id] ? cache[id].r : get(id);
-    var open = picked && picked.id === id;
-    var stale = !isCalc && isStale(d);
     var lv = !isCalc && isLive(d) ? live[id] || {} : null;
-    var kind = isCalc ? T.calc : lv ? T.live + " · " + (d.source.tool || "") : d.source && d.source.kind === "file" ? T.file + " · " + (d.source.path || "") : T.rows;
-    var isValue = r.status === "ok" && r.value !== undefined && !(r.rows || []).length;
-    var meta = [kind, r.status !== "ok" ? r.status : isValue ? T.value : (r.rows || []).length + " " + T.rowsN];
-    if (lv && lv.at) meta.push(T.ago + " " + ago(lv.at) + (lv.cached ? " · " + T.cached : "") + (lv.running ? " · " + T.refreshing : ""));
-    else if (!isCalc && d.updated && d.updated.at) meta.push(T.updated + " " + ago(d.updated.at));
-    var dot = lv && (lv.running || lv.status === "loading") ? "loading" : lv && lv.status === "approval" ? "loading" : stale ? "stale" : r.status;
-    var body = null;
-    if (open) {
-      var kids = [];
-      if (d.description) kids.push(h("p", { text: d.description }));
-      if (stale) kids.push(h("p", { "class": "src-warn", text: T.stale + (d.schedule ? " · " + d.schedule : "") }));
-      if (r.status !== "ok") kids.push(h("p", { "class": "src-warn", text: T.failed + ": " + (r.message || r.status) }));
-      if (lv) {
-        kids.push(h("p", { "class": "src-meta", text: T.query + " · " + (d.source.tool || "") + (lv.ms != null ? " · " + T.took + " " + lv.ms + " ms" : "") }));
-        kids.push(h("pre", { text: JSON.stringify(lv.args || d.source.args || {}, null, 2) }));
-        if (editing === id) kids.push(queryEditor(id, d));
-        else kids.push(h("div", { "class": "src-actions" }, [
-          kit.labelled(kit.button(T.refresh, "refresh", function () { loadLive(id, true); renderSources(); }, T.refreshSrc), T.refresh),
-          kit.labelled(kit.button(T.editQuery, "notes", function () { editing = id; renderSources(); }, T.editQuery), T.editQuery)
-        ]));
-      }
-      if (isCalc) kids.push(h("p", { text: T.formula + " (" + d.inputs.join(", ") + ")" }), h("pre", { text: String(d.fn) }));
-      if (!isCalc && loaders[id]) kids.push(h("p", { text: loaders[id].description || "loader" }), h("pre", { text: String(loaders[id].fn) }));
-      if (!marked(id) && !isCalc) kids.push(h("p", { "class": "src-meta", text: used[id] ? T.notmarked : T.unused }));
-      if (r.status === "ok" && (r.rows || []).length) kids.push(table(r, picked));
-      else if (r.status === "ok" && r.value !== undefined) kids.push(h("pre", { text: JSON.stringify(r.value, null, 2) }));
-      if (r.status === "ok" && (r.rows || []).length) {
-        kids.push(h("div", { "class": "src-actions" }, [kit.labelled(kit.button("CSV", "download", function () {
-          kit.download(id + ".csv", toCsv(r), "text/csv"); kit.toast(T.saved);
-        }), "CSV")]));
-      }
-      body = h("div", { "class": "src-body" }, kids);
-    }
-    return h("div", { "class": "src-item" + (open ? " picked" : "") }, [
-      h("button", { "class": "src-row", type: "button", onclick: function () { picked = open ? null : { id: id }; renderSources(); } }, [
-        h("span", { "class": "src-dot " + dot }),
-        h("span", { style: "flex:1;min-width:0" }, [h("div", { text: d.title || id }), h("div", { "class": "src-meta", text: meta.join(" · ") })]),
-        h("span", { "class": "src-kind", title: kind, html: kit.icon(isCalc ? "braces" : lv ? "data" : d.source && d.source.kind === "file" ? "file" : "braces") })
-      ]),
-      body
+    if (openSec[id] === undefined) openSec[id] = isCalc ? "formula" : lv ? "query" : "result";
+    var head = h("div", { "class": "src-head" }, [
+      iconBtn("prev", T.back, function () { picked = null; root.querySelectorAll(".dash-picked").forEach(function (n) { n.classList.remove("dash-picked"); }); renderSources(); }),
+      h("span", { style: "flex:1" }),
+      h("span", { "class": "src-fresh", text: freshOf(id) }),
+      lv ? iconBtn("refresh", T.refreshSrc, function () { loadLive(id, true); renderSources(); }) : null,
+      iconBtn("close", T.close, function () { toggleSources(false); })
     ]);
+    var desc = d.description || "";
+    var longDesc = desc.length > 150;
+    var top = h("div", { "class": "src-top" }, [
+      h("div", { "class": "src-title-row" }, [h("b", { "class": "src-title", text: sourceTitle(id) }),
+        lv ? iconBtn("pencil", T.editQuery, function () { editing = editing === id ? null : id; openSec[id] = "query"; renderSources(); }) : null]),
+      desc ? h("p", { "class": "src-desc" + (longDesc && !descOpen[id] ? " clamped" : ""), text: desc }) : null,
+      longDesc ? h("button", { "class": "src-more", type: "button", text: descOpen[id] ? T.showLess : T.showMore,
+        onclick: function () { descOpen[id] = !descOpen[id]; renderSources(); } }) : null
+    ]);
+    var warn = [];
+    if (!isCalc && isStale(d)) warn.push(h("p", { "class": "src-warn", text: T.stale + (d.schedule ? " · " + d.schedule : "") }));
+    if (!isCalc && !marked(id)) warn.push(h("p", { "class": "src-meta", text: used[id] ? T.notmarked : T.unused }));
+    var secs = [];
+    if (lv) secs.push(section(id, "query", T.query, function () { return editing === id ? [queryEditor(id, d)] : argInputs(id, d); }));
+    if (!isCalc && d.source && d.source.kind === "file") secs.push(section(id, "file", T.file, function () {
+      return [h("p", { "class": "src-tool" }, [h("code", { text: d.source.path || "" })])];
+    }));
+    var tf = !isCalc && transformOf(id, d);
+    if (tf) secs.push(section(id, "transform", T.transform, function () {
+      return [tf.desc ? h("p", { "class": "src-desc", text: tf.desc }) : null, codeBlock(id + ":t", tf.code)];
+    }));
+    if (isCalc) secs.push(section(id, "formula", T.formula, function () {
+      return [h("div", { "class": "src-inputs" }, d.inputs.map(function (k) {
+        return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(k); } },
+          [h("span", { "class": "src-li-t", text: sourceTitle(k) }), h("span", { "class": "src-kind", html: kit.icon(kindIcon(k)) })]);
+      })), codeBlock(id + ":f", String(d.fn))];
+    }));
+    secs.push(section(id, "result", T.preview, function () { return resultView(id, r, false); }));
+    return [head, h("div", { "class": "src-detail" }, [top].concat(warn, secs))];
+  }
+
+  function openSource(id, hit) {
+    picked = Object.assign({ id: id }, hit || {});
+    if (hit && (hit.field || hit.where || hit.row != null)) openSec[id] = "result";
+    renderSources();
+    if (drawer) drawer.scrollTop = 0;
+  }
+
+  function renderSources() {
+    if (!drawer) return;
+    drawer.replaceChildren.apply(drawer, (picked ? renderDetail(picked.id) : renderList()).filter(Boolean));
   }
 
   var editing = null;
@@ -670,8 +815,7 @@
     }
     root.querySelectorAll(".dash-picked").forEach(function (n) { n.classList.remove("dash-picked"); });
     m.classList.add("dash-picked");
-    picked = { id: ids[0], field: field, where: where.length ? where : null, row: row != null ? +row : null };
-    renderSources();
+    openSource(ids[0], { field: field, where: where.length ? where : null, row: row != null ? +row : null });
   }, true);
 
   function snapshot() {

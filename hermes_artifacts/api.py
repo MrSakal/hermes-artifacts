@@ -210,7 +210,10 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             aid, rest = parts[1], parts[2:]
             if not rest:
                 if method == "GET":
-                    return _view(_meta(aid))
+                    m = _meta(aid)
+                    vdir = store.version_dir(aid)
+                    return dict(_view(m), size=sum(f.stat().st_size for f in vdir.rglob("*") if f.is_file()),
+                                type_label=m.get("type", "page"))
                 if method == "DELETE":
                     _meta(aid)
                     store.delete(aid)
@@ -231,6 +234,13 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     return {"files": store.list_files(aid, _int(query.get("v")))}
                 except FileNotFoundError:
                     raise ApiError(404, "unknown version")
+            elif rest == ["duplicate"] and method == "POST":
+                m = _meta(aid)
+                suffix = str(body.get("suffix") or " (copy)")[:40]
+                new = store.publish(path=str(store.version_dir(aid)), title=(m["title"] + suffix)[:200],
+                                    description=m.get("description", ""), type=m.get("type", "page"),
+                                    session=m.get("session"))
+                return _view(store.get_meta(new["id"]))
             elif rest == ["meta"] and method == "POST":
                 _meta(aid)
                 return _view(store.update_meta(aid, title=body.get("title"), pinned=body.get("pinned")))
