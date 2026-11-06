@@ -106,6 +106,13 @@ const STRINGS = {
     reload: 'Reload',
     pin: 'Pin',
     unpin: 'Unpin',
+    more: 'More',
+    dsMake: 'Make default design system',
+    dsUnset: 'No longer the default',
+    dsDefault: 'Default',
+    dsDefaultTitle: 'New designs, decks and films build on this system',
+    dsOn: n => `Designs, decks and films now build on ${n}`,
+    dsOff: 'No default design system now',
     download: 'Download',
     del: 'Delete',
     delConfirm: 'Delete it?',
@@ -220,6 +227,13 @@ const STRINGS = {
     reload: 'Újratöltés',
     pin: 'Kitűzés',
     unpin: 'Kitűzés levétele',
+    more: 'Továbbiak',
+    dsMake: 'Legyen az alapértelmezett design system',
+    dsUnset: 'Ne legyen alapértelmezett',
+    dsDefault: 'Alapértelmezett',
+    dsDefaultTitle: 'Erre épülnek az új tervek, diasorok és filmek',
+    dsOn: n => `Az új tervek, diasorok és filmek mostantól erre épülnek: ${n}`,
+    dsOff: 'Most nincs alapértelmezett design system',
     download: 'Letöltés',
     del: 'Törlés',
     delConfirm: 'Biztosan törlöd?',
@@ -278,6 +292,7 @@ const STRINGS = {
 // ---------------------------------------------------------------- state
 
 const $list = atom([])
+const $dsDefault = atom(null) // the design system designs, decks and films build on (store setting)
 const $selected = atom(null) // open artifact id; null = gallery
 const $shown = atom(null) // pinned version, null = latest
 const $page = atom(null) // sub-page of a multi-file artifact
@@ -314,6 +329,7 @@ async function refresh(ctx) {
   try {
     const r = await ctx.rest('/artifacts')
     const list = r.artifacts || []
+    if ((r.default_design_system || null) !== $dsDefault.get()) $dsDefault.set(r.default_design_system || null)
     const prev = current()
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
     if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
@@ -499,6 +515,7 @@ const ICONS = {
   sort: 'M4 7h16M7 12h10M10 17h4',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   back: 'M15 18l-6-6 6-6',
   pin: 'M12 17v5M8 3h8l-1 6 3 3v2H6v-2l3-3z',
   comment: 'M4 5h16v11H9l-5 4z',
@@ -707,17 +724,76 @@ function TypeBadge({ type, size = 32 }) {
   })
 }
 
-function Card({ ctx, art }) {
+/** The default design system, set from the gallery without opening it (the same store setting as the
+ *  toggle on the system's own page: one default at a time). */
+async function setDefaultDs(ctx, art, on) {
+  try {
+    const r = await ctx.rest(`/artifacts/${enc(art.id)}/op`, { method: 'POST', body: { op: 'ds.default', args: { on } } })
+    $dsDefault.set(r?.default || null)
+    toast(r?.default === art.id ? T('dsOn', art.title) : T('dsOff'))
+  } catch (err) {
+    toast(String(err?.message || err))
+  }
+}
+
+function DsBadge({ art }) {
   const t = usePluginI18n(ID)
+  const def = useValue($dsDefault)
+  if (art.type !== 'design-system' || def !== art.id) return null
+  return jsx('span', {
+    title: t('dsDefaultTitle'),
+    style: { flexShrink: 0, fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: C.fg, background: C.hover, border: `1px solid ${C.line}` },
+    children: t('dsDefault')
+  })
+}
+
+/** A design system's ⋯ menu on its card or row (also on right click): make it the default, or not. */
+function DsMenu({ ctx, art, open, setOpen, style }) {
+  const t = usePluginI18n(ID)
+  const def = useValue($dsDefault)
+  if (art.type !== 'design-system') return null
+  const isDef = def === art.id
+  return jsxs('div', {
+    style: { position: 'absolute', zIndex: 5, ...style },
+    onClick: e => e.stopPropagation(),
+    children: [
+      jsx(IconButton, { icon: 'more', title: t('more'), active: open, onClick: () => setOpen(!open) }),
+      open
+        ? jsx(Menu, {
+            onClose: () => setOpen(false),
+            items: [{ label: isDef ? t('dsUnset') : t('dsMake'), onClick: () => (setOpen(false), setDefaultDs(ctx, art, !isDef)) }]
+          })
+        : null
+    ]
+  })
+}
+
+function Card({ ctx, art }) {
+  const [open, setOpen] = useState(false)
   const [h, hp] = useHover()
+  const ds = art.type === 'design-system'
+  return jsxs('div', {
+    style: { position: 'relative', display: 'flex' },
+    ...hp,
+    onContextMenu: ds ? e => (e.preventDefault(), setOpen(true)) : undefined,
+    children: [
+      jsx(CardBody, { ctx, art, h }),
+      ds && (h || open) ? jsx(DsMenu, { ctx, art, open, setOpen, style: { top: 20, right: 20, background: C.bg, borderRadius: 6 } }) : null
+    ]
+  })
+}
+
+function CardBody({ ctx, art, h }) {
+  const t = usePluginI18n(ID)
   return jsxs('button', {
     type: 'button',
-    ...hp,
     onClick: () => openArtifact(ctx, art.id),
     style: {
       ...font,
       display: 'flex',
       flexDirection: 'column',
+      flex: 1,
+      minWidth: 0,
       padding: 0,
       border: `1px solid ${C.line}`,
       borderRadius: 12,
@@ -751,6 +827,7 @@ function Card({ ctx, art }) {
               })
             ]
           }),
+          jsx(DsBadge, { art }),
           art.pinned ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
           art.comments ? jsxs('span', { style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
         ]
@@ -762,14 +839,29 @@ function Card({ ctx, art }) {
 function ListRow({ ctx, art }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
+  const [open, setOpen] = useState(false)
+  const ds = art.type === 'design-system'
+  return jsxs('div', {
+    style: { position: 'relative' },
+    ...hp,
+    onContextMenu: ds ? e => (e.preventDefault(), setOpen(true)) : undefined,
+    children: [
+      jsx(ListRowBody, { ctx, art, h, t, ds }),
+      ds && (h || open) ? jsx(DsMenu, { ctx, art, open, setOpen, style: { top: 4, right: 170 } }) : null
+    ]
+  })
+}
+
+function ListRowBody({ ctx, art, h, t, ds }) {
   return jsxs('button', {
     type: 'button',
-    ...hp,
     onClick: () => openArtifact(ctx, art.id),
     style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 10px', border: 0, borderRadius: 8, cursor: 'pointer', textAlign: 'left', background: h ? C.hover : 'transparent' },
     children: [
       jsx(TypeBadge, { type: art.type, size: 28 }),
       jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
+      jsx(DsBadge, { art }),
+      ds ? jsx('span', { style: { width: 34, flexShrink: 0 } }) : null,
       art.pinned ? jsx('span', { style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
       jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
       jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(art.updated) })

@@ -94,6 +94,20 @@ class BuildTests(unittest.TestCase):
         self.assertTrue(op({"notes.md": None})["ok"])
         self.assertNotIn("notes.md", store.list_files(aid))
 
+    def test_the_gallery_sees_and_sets_the_default(self):
+        from hermes_artifacts import api
+        a = store.publish(title="A", type="design-system", files={"design-system.json": {"v": 3, "title": "A"}, "tokens.json": TOKENS, "README.md": "a"})["id"]
+        b = store.publish(title="B", type="design-system", files={"design-system.json": {"v": 3, "title": "B"}, "tokens.json": TOKENS, "README.md": "b"})["id"]
+        op = lambda aid, on: api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "ds.default", "args": {"on": on}})
+        try:
+            self.assertEqual(op(a, True)["default"], a)
+            self.assertEqual(api.handle("GET", "artifacts", {}, None)["default_design_system"], a)
+            self.assertEqual(op(b, True)["default"], b)  # one default at a time
+            self.assertIsNone(op(b, False)["default"])
+            self.assertIsNone(api.handle("GET", "artifacts", {}, None)["default_design_system"])
+        finally:
+            store.settings_set("default_design_system", None)
+
     def test_a_system_from_claude_comes_up_from_project(self):
         src = Path(tempfile.mkdtemp()) / "sys"
         (src / "project" / "components" / "Tag").mkdir(parents=True)

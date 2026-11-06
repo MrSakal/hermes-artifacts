@@ -241,7 +241,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
     body = body if isinstance(body, dict) else {}
     try:
         if parts == ["artifacts"] and method == "GET":
-            return {"artifacts": [_view(m) for m in store.list_all()]}
+            return {"artifacts": [_view(m) for m in store.list_all()],
+                    "default_design_system": store.settings().get("default_design_system")}
         if len(parts) == 2 and parts[0] == "vendor" and method == "GET":
             p = (_VENDOR / parts[1]).resolve()
             if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
