@@ -62,6 +62,21 @@ class RenderTests(unittest.TestCase):
         for s in ("design-system.json", "tokens.json", "default_design_system", "base=true", "README.md"):
             self.assertIn(s, g)
 
+    def test_content_is_in_the_users_language(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
+                                                      submodule_search_locations=[str(ROOT)])
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        for kind in ("page", "dashboard", "slides", "doc", "design", "motion", "design-system"):
+            out = json.loads(plugin._guide({"type": kind}))
+            self.assertIn("language the user asked in", out["language"], kind)
+        pub = [t for t in plugin.TOOLS if t[0] == "artifact_publish"][0][1]
+        self.assertIn("language the user asked in", json.dumps(pub))
+
 
 class SaveTests(unittest.TestCase):
     def setUp(self):

@@ -136,6 +136,12 @@ def _read(args: dict, **_kw) -> str:
         return _err(str(e))
 
 
+# The plugin's own UI is English; what an artifact says is in the user's language.
+LANG_RULE = ("Language: write what the artifact says (title, text, labels, notes, data names you make up) in the "
+             "language the user asked in, or speaks with you in this conversation. The Artifacts UI and the notes "
+             "its pages put in the chat (Ask Hermes, comments, fix requests) are English: they never change it.")
+
+
 def _guide(args: dict, **_kw) -> str:
     kind = args.get("type", "page")
     if kind not in store.TYPES:
@@ -147,8 +153,8 @@ def _guide(args: dict, **_kw) -> str:
         if not re.fullmatch(r"[a-z-]{1,40}", topic) or not f.is_file():
             have = sorted(x.stem for x in (TYPES_DIR / kind / "guides").glob("*.md")) if (TYPES_DIR / kind / "guides").is_dir() else []
             return _err(f"no {topic!r} guide for {kind}" + (f" (topics: {', '.join(have)})" if have else ""))
-        return _ok(type=kind, topic=topic, guide=f.read_text(encoding="utf-8"))
-    return _ok(type=kind, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
+        return _ok(type=kind, topic=topic, language=LANG_RULE, guide=f.read_text(encoding="utf-8"))
+    return _ok(type=kind, language=LANG_RULE, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
 
 
 def _check(args: dict, **_kw) -> str:
@@ -308,7 +314,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "not HTML or chart code, unless the layout can't express it. Before the first publish of a type, call artifact_guide(type) for its "
         "file format. Content: `files` ({path: text, or {\"base64\": ...} for binary}), or `path` (a file or "
         "folder), or `html` (a single page). Reusing `id` adds a version and the open view reloads; with "
-        "`base=true` only the files you pass change (null removes one). Max 16 MB.",
+        "`base=true` only the files you pass change (null removes one). Max 16 MB. " + LANG_RULE,
         {"type": {"type": "string", "enum": list(store.TYPES)},
          "files": {"type": "object", "description": "Relative path -> file text (JSON values are written as "
                                                      "JSON; {\"base64\": \"...\"} for images)."},
