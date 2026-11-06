@@ -93,6 +93,10 @@ def _publish(args: dict, **kw) -> str:
             # The agent ran these calls in the chat; the dashboard may run them again without a click.
             from .hermes_artifacts import live
             view["live_queries_approved"] = len(live.approve_all(meta["id"], "agent"))
+        if meta.get("type") in DS_TYPES and not args.get("id"):
+            ds = _default_ds(full=False)
+            if ds:  # a reminder on a new one, in case the guide was read before the default was set
+                view["design_system"] = {**ds, "rule": "The default design system: build on it (artifact_guide returns it in full)."}
         if args.get("open", True):
             view["shown_in_desktop"] = _broadcast("open", view)
         return _ok(**view, note="Republish with the same id to add a version; the Artifacts page reloads it.")
@@ -142,6 +146,51 @@ LANG_RULE = ("Language: write what the artifact says (title, text, labels, notes
              "its pages put in the chat (Ask Hermes, comments, fix requests) are English: they never change it.")
 
 
+# The types that wear a design system (Claude hands its decks and designs the default one up front).
+DS_TYPES = ("slides", "design", "motion", "dashboard")
+DS_RULE = ("This is the user's default design system: build on it instead of making up colours, type, spacing "
+           "or components. Take the values from its tokens (and tokens.css), its components and assets, its "
+           "README's voice and rules. Use another system only when the user names one, and your own choices only "
+           "for what the system doesn't cover. Read more of it with artifact_read id=<id> path=<file> "
+           "(api/components/<Comp>.md, api/assets/<Group>.md, manifest.json).")
+
+
+def _default_ds(full: bool = True) -> dict | None:
+    """The default design system as an agent needs it: who it is and, in full, its brand book (the
+    author's part), its token card and its catalogue."""
+    dsid = store.settings().get("default_design_system")
+    meta = store.get_meta(dsid) if dsid else None
+    if not meta or meta.get("type") != "design-system":
+        return None
+    out = {"id": dsid, "title": meta.get("title", dsid), "version": meta["versions"][-1]["n"]}
+    if not full:
+        return out
+    from .hermes_artifacts import dsbuild
+
+    def text(rel: str, cap: int) -> str | None:
+        try:
+            t = store.read_file(dsid, rel).decode("utf-8")
+        except (FileNotFoundError, UnicodeDecodeError, OSError, ValueError):
+            return None
+        return t if len(t) <= cap else t[:cap] + "\n…(cut: artifact_read for the rest)"
+
+    readme = text("README.md", 60_000)
+    readme = (readme or "").replace("\r\n", "\n")
+    if dsbuild.README_MARK in readme:
+        readme = readme.split("\n---\n" + dsbuild.README_MARK)[0].rstrip()
+    out["readme"] = (readme or "")[:8000]
+    out["tokens"] = text("api/tokens.md", 10_000)
+    try:
+        man = json.loads(store.read_file(dsid, "manifest.json").decode("utf-8"))
+        out["namespace"] = man.get("namespace") or ""
+        out["components"] = [{k: c[k] for k in ("name", "group", "summary") if c.get(k)} for c in man.get("components", [])][:80]
+        out["asset_groups"] = [g.get("name") for g in man.get("assetGroups", []) if g.get("name")]
+    except (FileNotFoundError, ValueError, OSError, AttributeError):
+        pass
+    out["rule"] = DS_RULE
+    return out
+
+
 def _guide(args: dict, **_kw) -> str:
     kind = args.get("type", "page")
     if kind not in store.TYPES:
@@ -154,7 +203,12 @@ def _guide(args: dict, **_kw) -> str:
             have = sorted(x.stem for x in (TYPES_DIR / kind / "guides").glob("*.md")) if (TYPES_DIR / kind / "guides").is_dir() else []
             return _err(f"no {topic!r} guide for {kind}" + (f" (topics: {', '.join(have)})" if have else ""))
         return _ok(type=kind, topic=topic, language=LANG_RULE, guide=f.read_text(encoding="utf-8"))
-    return _ok(type=kind, language=LANG_RULE, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
+    extra = {}
+    if kind in DS_TYPES:
+        ds = _default_ds()
+        extra["design_system"] = ds if ds else {"none": True, "rule": "No default design system is set: make your own "
+                                                "choices, or use a system the user names (artifact_list type=design-system)."}
+    return _ok(type=kind, language=LANG_RULE, **extra, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
 
 
 def _check(args: dict, **_kw) -> str:

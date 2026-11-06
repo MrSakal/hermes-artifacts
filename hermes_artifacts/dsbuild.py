@@ -776,6 +776,7 @@ def build(files: dict, index: Optional[dict] = None) -> dict:
     out["manifest.json"] = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
     readme = files.get("README.md")
     if isinstance(readme, str):
+        readme = readme.replace("\r\n", "\n")  # a README written on Windows: the marker's rule is "\n---\n"
         own = readme.split("\n---\n" + README_MARK)[0].rstrip() if README_MARK in readme else readme.rstrip()
         out["README.md"] = own + "\n" + readme_tail(index, m, comps, groups_order)
     out["_stale"] = [p for p in files if p.startswith("api/") and p not in out]

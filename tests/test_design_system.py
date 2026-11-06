@@ -77,6 +77,34 @@ class RenderTests(unittest.TestCase):
         pub = [t for t in plugin.TOOLS if t[0] == "artifact_publish"][0][1]
         self.assertIn("language the user asked in", json.dumps(pub))
 
+    def test_the_guide_hands_over_the_default_system(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
+                                                          submodule_search_locations=[str(ROOT)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        store.settings_set("default_design_system", None)
+        try:
+            self.assertTrue(json.loads(plugin._guide({"type": "slides"}))["design_system"]["none"])
+            kiln = store.publish(path=str(ROOT / "examples" / "design-system"), title="Kiln", type="design-system")["id"]
+            store.settings_set("default_design_system", kiln)
+            ds = json.loads(plugin._guide({"type": "design"}))["design_system"]
+            self.assertEqual(ds["id"], kiln)
+            self.assertIn("Kiln", ds["readme"])
+            self.assertNotIn("@generated", ds["readme"])
+            self.assertIn("--ink", ds["tokens"])
+            self.assertIn("Button", [c["name"] for c in ds["components"]])
+            self.assertIn("instead of making up", ds["rule"])
+            self.assertNotIn("design_system", json.loads(plugin._guide({"type": "doc"})))
+            out = json.loads(plugin._publish({"type": "slides", "title": "d", "open": False,
+                                              "files": {"deck.json": {"title": "d", "slides": []}}}))
+            self.assertEqual(out["design_system"]["id"], kiln)
+        finally:
+            store.settings_set("default_design_system", None)
+
 
 class SaveTests(unittest.TestCase):
     def setUp(self):

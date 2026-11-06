@@ -75,6 +75,14 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(readme.count("## Consuming this system"), 1)
         self.assertEqual(readme.count(dsbuild.README_MARK), 1)
 
+    def test_a_windows_readme_keeps_one_generated_part(self):
+        files = {"design-system.json": '{"v": 3, "title": "W"}', "tokens.json": json.dumps(TOKENS), "README.md": "Brand.\r\n"}
+        once = dsbuild.build(files, {"title": "W"})["README.md"]
+        twice = dsbuild.build({**files, "README.md": once.replace("\n", "\r\n")}, {"title": "W"})["README.md"]
+        self.assertEqual(twice.count(dsbuild.README_MARK), 1)
+        self.assertEqual(twice.count("## Consuming this system"), 1)
+        self.assertTrue(twice.startswith("Brand.\n"))
+
     def test_a_stylesheet_of_their_own_stays(self):
         m = store.publish(title="Own", type="design-system", files={
             "design-system.json": {"v": 3, "title": "Own"}, "tokens.json": TOKENS, "README.md": "Use it.",
