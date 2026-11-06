@@ -108,6 +108,18 @@ finishes. Gallery thumbnails use only that last answer.
   from the last answer.
 - **Answers:** row objects (bare, or under `rows`/`data`/`results`), `{result: "<json>"}` and
   BigQuery's `{schema, rows}` arrive as rows. Anything else needs a `rowsAt`/`fields` dataset.
+- **A loader** (`index.html`): `dash.loader(id, {description, fn})` turns a query's answer into the rows
+  its page reads, as Claude's does. `fn({answer, call, args, read})` may be async: `answer` is the tool's
+  answer as you saw it, `args` the call's arguments with filters filled in, `await call(tool, args)`
+  runs another tool of the same connector (a query left running, a further page; read-only, only once
+  the dataset is allowed), and `read` has ready-made readers: `read.bigquery(answer)` (waits for a
+  running job through `get_query_results`), `read.governed(answer)` (a `<query_result>` XML answer),
+  `read.snowflake(answer)` (a `result_set`) and `read.databricks(answer)` (waits through
+  `poll_sql_result`). Return rows, `{columns, rows, cut}` or `{data, columns, meta}`; `meta` is
+  `[{label, value, type: "text"|"code", lang?: "sql"}]`, shown under Result in Sources; `cut: true`
+  says rows are missing. Throw `new Error(<the connector's words>)` to fail the source. It only
+  reshapes: filtering, aggregating and computing go in the query or a `dash.calc`. No call starts after
+  fifteen minutes; an identical call follows the last one at least a second after it began.
 - **User edits:** the user can edit a query's `args` in Sources (`"edit": {"via": "user"}`). Read
   `dashboard.json` before you change the dashboard, and keep their edit.
 
@@ -117,10 +129,13 @@ Use a `file` source only when the data has no connector, or when the user asked 
 
 Add `index.html`. It is drawn below the layout, or on its own when there is no `layout`. Its scripts run
 with `dash` and `d3` v7:
-- `dash.data(id)` returns `{status, rows, columns, data, message}`;
+- `dash.data(id)` returns `{status, data, columns, meta, cut, message, refreshing}` (`rows` too);
 - `dash.onData(fn)` redraws on every change;
 - `dash.calc(id, {inputs, fn, title})` defines a computed source;
 - also `dash.params()`, `dash.setParams()`, `dash.colorValues()` and `dash.format()`.
+- a dropdown takes the class `dash-select` for the dashboard's look; the type stamps
+  `data-dash-source-state="loading|refreshing|error|empty"` on marks and `data-dash-state="loading|error"`
+  on `#dash-root`.
 
 Mark the values you show with `data-source` / `data-field` / `data-where`. Tables take `data-row-key`
 plus `data-key` on each row. Use the theme variables (`--color-*`, `--chart-1..8`, `--font-sans`,

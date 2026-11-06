@@ -499,7 +499,8 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
         payload = {"status": "ok", **info, "args": args, "ms": int((time.time() - started) * 1000)}
         if table is not None:
             payload.update(table)
-        else:
+        # The answer as the tool gave it too: a page's loader reads that (Claude's fn({answer, ...})).
+        if table is None or len(json.dumps(answer, ensure_ascii=False, default=str)) <= MAX_ANSWER_BYTES // 2:
             payload["answer"] = answer
         at = cache_put(aid, key, payload)
         return {**payload, "cached": False, "at": at}
@@ -512,6 +513,46 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
             ev = _inflight.pop(key, None)
         if ev:
             ev.set()
+
+
+def _resolve_same_server(tool: str, base_tool: str) -> str:
+    """A loader names a tool the way its connector does (``get_query_results``) or by its Hermes name
+    (``mcp_bigquery_get_query_results``): either way it must be a tool of the dataset's own server."""
+    server = server_of(base_tool)
+    if not server:
+        raise LiveError("refused", "the dataset's connector is not known here")
+    norm = lambda n: re.sub(r"[^a-z0-9]+", "_", n.lower())
+    cands = [tool] if norm(tool).startswith("mcp_") else [f"mcp_{norm(server)}_{norm(tool)}", f"mcp__{server}__{tool}", tool]
+    for c in cands:
+        try:
+            exists = _registry_entry(c)[1] is not None
+        except Exception:
+            exists = False
+        if exists and server_of(c) == server:
+            return c
+    raise LiveError("refused", f"{tool!r} is not a tool of {server}, the connector this dataset runs on")
+
+
+def loader_call(aid: str, dsid: str, tool: str, args: Any, version: Optional[int] = None) -> dict:
+    """``call(tool, args)`` inside a dataset's loader (Claude's): another tool of the same connector, for
+    a query left running or a further page. Only for an approved dataset, only that connector's tools,
+    only read-only queries; the answer goes back to the loader as data."""
+    d = dataset(aid, dsid, version)
+    cid = call_id(d["tool"], d["args"], d["rules"])
+    if not store.approved(aid, cid):
+        return {"status": "approval", "message": "this dataset's query isn't allowed yet"}
+    if not isinstance(args, dict):
+        return {"status": "refused", "message": "call() takes the tool's arguments as an object"}
+    try:
+        name = _resolve_same_server(str(tool or ""), d["tool"])
+        guard(args)
+        started = time.time()
+        answer = run_tool(name, args)
+        return {"status": "ok", "answer": answer, "tool": name, "ms": int((time.time() - started) * 1000)}
+    except LiveError as e:
+        return {"status": e.status, "message": e.message, **e.extra}
+    except Exception as e:
+        return {"status": "failed", "message": f"{type(e).__name__}: {str(e)[:1000]}"}
 
 
 def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None, auto_approve: bool = True) -> dict:

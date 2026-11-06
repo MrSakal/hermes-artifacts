@@ -23,11 +23,18 @@
     dataset: {
       run: function (id, params) {
         m.runs.push({ id: id, params: params });
+        var fail = (window.__mockFail || {})[id];
+        if (fail) return later({ status: "failed", message: fail, at: Date.now() / 1000, tool: "query" }, 200);
         var a = (window.__mockAnswers || {})[id];
         return later({ status: "ok", answer: a !== undefined ? a : { reports: rows(103) }, at: Date.now() / 1000, ms: 412,
           server: "nodu ERP", tool: "list_project_reports" }, 300);
       },
       test: function (id, args) { return later({ status: "ok", rows: rows(3), columns: ["id", "date", "author", "description"], total: 3, ms: 120 }); },
+      call: function (id, tool, args) {
+        m.calls = (m.calls || []).concat([{ id: id, tool: tool, args: args }]);
+        var a = (window.__mockCalls || {})[tool];
+        return later(a !== undefined ? { status: "ok", answer: typeof a === "function" ? a(args) : a, ms: 80 } : { status: "refused", message: tool + " is not a tool of this connector" }, 150);
+      },
       edit: function (id, args, base) { m.edits.push({ id: id, args: args }); v++; return later({ ok: true, version: v }); },
       history: function () { return later([]); },
       approve: function () { return later({ ok: true }); },

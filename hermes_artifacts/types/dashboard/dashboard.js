@@ -39,7 +39,13 @@
       save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved",
       test: "Test", testing: "Running the test…", testOk: "Test ran: {n} rows in {ms} ms. Nothing is saved until you press Save.",
       testStale: "Edited since the test: test again before saving.", history: "History", historyHint: "Pick one to put it in the editor. Nothing changes until you save.",
-      historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current",
+      historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current", cut: "Rows missing: the answer stopped short of all its rows.",
+      didntLoad: "Didn’t load", didntRun: "Didn’t run", unusedTag: "Unused", whyNot: "Why didn’t this load?", whyNotRun: "Why didn’t this run?",
+      errorSaid: "What the error said", copyError: "Copy the error", askFix: "Ask Hermes to fix", retryAll: "Retry all",
+      someFailed: "Some sources failed to load.", someStale: "Some saved numbers are stale.", seeSources: "See sources", askWhy: "Ask Hermes why",
+      backTo: "Back to {s}", hint: "Click a number or a chart to see its source.", nothingUses: "Nothing on this dashboard uses this source.",
+      fixMsg: "This dashboard's source “{t}” ({id}) didn’t load. What it said: {m}. Find out why and fix it.",
+      whyMsg: "These sources on this dashboard didn’t load: {list}. Find out why and fix what you can.", loaderSpent: "The loader ran for fifteen minutes, so no further call is made.",
       back: "Back", close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
       showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
     hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
@@ -61,7 +67,13 @@
       save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve",
       test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
       testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
-      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi",
+      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi", cut: "Hiányzó sorok: a válasz nem adta vissza az összes sort.",
+      didntLoad: "Nem töltött be", didntRun: "Nem futott le", unusedTag: "Nem használt", whyNot: "Miért nem töltött be?", whyNotRun: "Miért nem futott le?",
+      errorSaid: "Amit a hiba mondott", copyError: "A hiba másolása", askFix: "Kérd meg a Hermest, hogy javítsa", retryAll: "Mind újra",
+      someFailed: "Néhány forrás nem töltött be.", someStale: "Néhány mentett szám elavult.", seeSources: "Források", askWhy: "Kérdezd meg a Hermest, miért",
+      backTo: "Vissza ide: {s}", hint: "Kattints egy számra vagy diagramra, hogy lásd a forrását.", nothingUses: "Ezen a dashboardon semmi nem használja ezt a forrást.",
+      fixMsg: "A dashboard „{t}” forrása ({id}) nem töltött be. Amit mondott: {m}. Derítsd ki, miért, és javítsd.",
+      whyMsg: "A dashboard ezen forrásai nem töltöttek be: {list}. Derítsd ki, miért, és javítsd, amit lehet.", loaderSpent: "A loader tizenöt perce fut, ezért több hívást nem indít.",
       back: "Vissza", close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
       showMore: "Több", showLess: "Kevesebb", transform: "Átalakítás", row1: "sor", noSources: "Ennek a dashboardnak nincs forrása.", noArgs: "Nincs argumentum." }
   }[L];
@@ -223,15 +235,67 @@
       try { raw = reshape(datasets[id], raw, live[id] && live[id].answer); }
       catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
     }
-    if (raw.status === "ok" && loaders[id]) {
-      try {
-        var ans = live[id] && live[id].answer !== undefined ? live[id].answer : raw.value !== undefined ? raw.value : raw.rows;
-        var res = loaders[id].fn({ answer: ans, rows: raw.rows, columns: raw.columns, params: params });
-        var tt = asTable(res);
-        raw = Object.assign({ status: "ok" }, tt);
-      } catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
-    }
+    if (raw.status === "ok" && loaders[id]) raw = loaded(id, raw);
     return raw;
+  }
+
+  // ------------------------------------------------------------------ loaders (Claude's dash.loader)
+  // fn({answer, call, args, read}) may be async: `call(tool, args)` runs another tool of the dataset's
+  // connector, `read` has the ready-made readers. It returns rows, {columns, rows, cut} or
+  // {data, columns, meta}; throwing fails the source with its words. One identical call follows
+  // another at least a second after it began; no call starts after fifteen minutes.
+  var loads = {};
+  function loadKey(id) {
+    var st = live[id];
+    return st ? "live:" + (st.at || 0) + ":" + (st.cached ? 1 : 0) + ":" + JSON.stringify(st.args || null).length : "file";
+  }
+  function asLoaded(out) {
+    if (out && typeof out === "object" && !Array.isArray(out) && (Array.isArray(out.data) || Array.isArray(out.rows))) {
+      var rows = Array.isArray(out.data) ? out.data : out.rows;
+      var t = asTable(rows);
+      if (Array.isArray(out.columns) && out.columns.length) t.columns = out.columns.map(String);
+      return Object.assign({ status: "ok", meta: Array.isArray(out.meta) ? out.meta : [], cut: !!out.cut }, t);
+    }
+    if (Array.isArray(out)) return Object.assign({ status: "ok", meta: [] }, asTable(out));
+    return Object.assign({ status: "ok", meta: [] }, asTable(out));
+  }
+  function loaded(id, raw) {
+    var L = loaders[id], key = loadKey(id), rec = loads[id];
+    if (rec && rec.key === key && rec.fn === L.fn) return rec.result || { status: "loading" };
+    rec = loads[id] = { key: key, fn: L.fn, result: null, calls: [] };
+    var st = live[id];
+    var answer = st && st.answer !== undefined ? st.answer : raw.value !== undefined ? raw.value : raw.rows;
+    var args = (st && st.args) || (datasets[id] && datasets[id].source && datasets[id].source.args) || {};
+    var started = Date.now(), last = null;
+    var call = async function (tool, a) {
+      if (Date.now() - started > 15 * 60 * 1000) throw new Error(T.loaderSpent);
+      if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.call) throw new Error(T.noBridge);
+      var sig = String(tool) + JSON.stringify(a || {});
+      if (last && last.sig === sig) { var wait = 1000 - (Date.now() - last.at); if (wait > 0) await new Promise(function (r) { setTimeout(r, wait); }); }
+      last = { sig: sig, at: Date.now() };
+      var r = await window.hermes.dataset.call(id, tool, a || {}, C.version);
+      rec.calls.push({ tool: String(tool), ms: r.ms || 0, ok: r.status === "ok" });
+      if (r.status !== "ok") throw new Error(r.message || r.status);
+      return r.answer;
+    };
+    var ctx = { answer: answer, call: call, args: JSON.parse(JSON.stringify(args)), rows: raw.rows, columns: raw.columns,
+      params: JSON.parse(JSON.stringify(params)) };
+    ctx.read = window.dashReads ? window.dashReads({ call: call, args: ctx.args }) : {};
+    var done = function (result) {
+      if (loads[id] !== rec) return;
+      rec.result = result; gen++; redraw();
+    };
+    try {
+      var out = L.fn(ctx);
+      if (!out || typeof out.then !== "function") { rec.result = asLoaded(out); return rec.result; }
+      out.then(function (v) { done(asLoaded(v)); }, function (e) {
+        done({ status: "error", message: String(e && e.message || e), meta: e && Array.isArray(e.meta) ? e.meta : [], loaderFailed: true });
+      });
+    } catch (e) {
+      rec.result = { status: "error", message: String(e && e.message || e), meta: e && Array.isArray(e.meta) ? e.meta : [], loaderFailed: true };
+      return rec.result;
+    }
+    return { status: "loading" };
   }
 
   function parseMaybe(v) {
@@ -291,7 +355,7 @@
     var rows = (r.rows || []).map(function (o) { return Object.assign({}, o); });
     return { status: r.status, data: r.value !== undefined && !rows.length ? r.value : rows, rows: rows,
       columns: (r.columns || []).slice(), message: r.message || null, refreshing: !!(live[id] && live[id].refreshing), meta: r.meta || [],
-      value: r.value };
+      value: r.value, cut: !!r.cut };
   }
 
   var scheduled = false;
@@ -302,6 +366,7 @@
       scheduled = false;
       drawers.forEach(run);
       stamp();
+      if (typeof failNotice === "function") failNotice();
       tickFresh();
       if (srcOpen) renderSources();
       scheduleCheck();
@@ -356,7 +421,14 @@
   }
 
   // ------------------------------------------------------------------ marks
+  function stampRoot() {
+    var ids = Object.keys(used), any = false, loading = false, bad = false;
+    ids.forEach(function (id) { var r = cache[id] && cache[id].r; if (!r) return; any = true; if (r.status === "loading") loading = true; else if (r.status !== "ok") bad = true; });
+    var st = loading ? "loading" : bad ? "error" : "";
+    if (st) root.setAttribute("data-dash-state", st); else root.removeAttribute("data-dash-state");
+  }
   function stamp() {
+    stampRoot();
     var marks = root.querySelectorAll("[data-source]");
     for (var i = 0; i < marks.length; i++) {
       var m = marks[i], ids = (m.getAttribute("data-source") || "").split(/\s+/).filter(Boolean), st = "";
@@ -583,7 +655,18 @@
           h("div", { "class": "src-kv-v", text: v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v) })]);
       }));
     } else body = table(isValue ? asTable(rows) : r, picked && picked.id === id ? picked : null, full);
-    return [tools, body, h("div", { "class": "src-count", text: rows.length + " " + (rows.length === 1 ? T.row1 : T.rowsN) })];
+    var foot = [tools, body, h("div", { "class": "src-count", text: rows.length + " " + (rows.length === 1 ? T.row1 : T.rowsN) })];
+    if (r.cut) foot.push(h("p", { "class": "src-warn", style: "margin:6px 0 0", text: T.cut }));
+    return foot.concat(metaView(id, r.meta));
+  }
+  /** What the loader returned beside the rows (the SQL that ran, the job): under Result, code copyable. */
+  function metaView(id, list) {
+    if (!Array.isArray(list) || !list.length) return [];
+    return [h("div", { "class": "src-meta-list" }, list.slice(0, 12).map(function (m, i) {
+      var v = m && m.value != null ? String(m.value) : "";
+      return h("div", { "class": "src-meta-row" }, [h("div", { "class": "src-kv-k", text: String(m && m.label || "") }),
+        m && m.type === "code" ? codeBlock(id + ":m" + i, v) : h("div", { "class": "src-kv-v", text: v })]);
+    }))];
   }
   var modal = null;
   function expandResult(id) {
@@ -645,13 +728,19 @@
     var list = h("div", { "class": "src-list" }, ids.map(function (id) {
       var r = cache[id] ? cache[id].r : null;
       var bad = r && r.status !== "ok" && r.status !== "loading";
+      var unused = !calcs[id] && !used[id] && !marked(id);
       return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(id); } }, [
         h("span", { "class": "src-li-t", text: sourceTitle(id) }),
-        bad ? h("span", { "class": "src-dot error", title: r.message || r.status }) : null,
+        bad ? h("span", { "class": "src-tag bad", title: r.message || r.status, text: calcs[id] ? T.didntRun : T.didntLoad }) : unused ? h("span", { "class": "src-tag", text: T.unusedTag }) : null,
         h("span", { "class": "src-kind", html: kit.icon(kindIcon(id)) })
       ]);
     }));
-    return [head, ids.length ? list : h("p", { "class": "src-empty", text: T.noSources })];
+    var failedIds = ids.filter(function (id) { var r = cache[id] && cache[id].r; return r && /^(error|failed|refused|missing)$/.test(r.status) && isLive(datasets[id] || {}); });
+    return [head, ids.length ? h("p", { "class": "src-hint", text: T.hint }) : null,
+      failedIds.length ? h("div", { "class": "src-actions", style: "margin:0 16px 6px" }, [kit.labelled(kit.button(T.retryAll, "refresh", function () {
+        failedIds.forEach(function (id) { loadLive(id, true); }); renderSources();
+      }), T.retryAll)]) : null,
+      ids.length ? list : h("p", { "class": "src-empty", text: T.noSources })];
   }
 
   function renderDetail(id) {
@@ -662,7 +751,11 @@
     var lv = !isCalc && isLive(d) ? live[id] || {} : null;
     if (openSec[id] === undefined) openSec[id] = isCalc ? "formula" : lv ? "query" : "result";
     var head = h("div", { "class": "src-head" }, [
-      iconBtn("prev", T.back, function () { picked = null; root.querySelectorAll(".dash-picked").forEach(function (n) { n.classList.remove("dash-picked"); }); renderSources(); }),
+      iconBtn("prev", T.backTo.replace("{s}", trail.length ? sourceTitle(trail[trail.length - 1]) : T.sources), function () {
+        var back = trail.pop();
+        if (back) { picked = { id: back }; renderSources(); return; }
+        picked = null; root.querySelectorAll(".dash-picked").forEach(function (n) { n.classList.remove("dash-picked"); }); renderSources();
+      }),
       h("span", { style: "flex:1" }),
       h("span", { "class": "src-fresh", text: freshOf(id) }),
       lv ? iconBtn("refresh", T.refreshSrc, function () { loadLive(id, true); renderSources(); }) : null,
@@ -678,8 +771,23 @@
         onclick: function () { descOpen[id] = !descOpen[id]; renderSources(); } }) : null
     ]);
     var warn = [];
+    if (r.status !== "ok" && r.status !== "loading") {
+      var said = String(r.message || r.status);
+      warn.push(h("div", { "class": "src-fail" }, [
+        h("b", { text: isCalc ? T.whyNotRun : T.whyNot }),
+        h("div", { "class": "src-kv-k", style: "margin-top:6px", text: T.errorSaid }),
+        codeBlock(id + ":e", said),
+        h("div", { "class": "src-actions" }, [
+          kit.labelled(kit.button(T.askFix, "sparkle", function () {
+            if (window.hermes && window.hermes.send) window.hermes.send(T.fixMsg.replace("{t}", sourceTitle(id)).replace("{id}", id).replace("{m}", said.slice(0, 600)), { dataset: id, failed: true }).catch(function () {});
+          }), T.askFix),
+          kit.labelled(kit.button(T.copyError, "copy", function () { copyText(said); }), T.copyError),
+          lv ? kit.labelled(kit.button(T.retry, "refresh", function () { loadLive(id, true); renderSources(); }), T.retry) : null
+        ].filter(Boolean))
+      ]));
+    }
     if (!isCalc && isStale(d)) warn.push(h("p", { "class": "src-warn", text: T.stale + (d.schedule ? " · " + d.schedule : "") }));
-    if (!isCalc && !marked(id)) warn.push(h("p", { "class": "src-meta", text: used[id] ? T.notmarked : T.unused }));
+    if (!isCalc && !marked(id)) warn.push(h("p", { "class": "src-meta", text: used[id] ? T.notmarked : T.nothingUses }));
     var secs = [];
     if (lv) secs.push(section(id, "query", T.query, function () { return editing === id ? [queryEditor(id, d)] : argInputs(id, d); }));
     if (!isCalc && d.source && d.source.kind === "file") secs.push(section(id, "file", T.file, function () {
@@ -691,7 +799,7 @@
     }));
     if (isCalc) secs.push(section(id, "formula", T.formula, function () {
       return [h("div", { "class": "src-inputs" }, d.inputs.map(function (k) {
-        return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(k); } },
+        return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(k, null, true); } },
           [h("span", { "class": "src-li-t", text: sourceTitle(k) }), h("span", { "class": "src-kind", html: kit.icon(kindIcon(k)) })]);
       })), codeBlock(id + ":f", String(d.fn))];
     }));
@@ -699,7 +807,9 @@
     return [head, h("div", { "class": "src-detail" }, [top].concat(warn, secs))];
   }
 
-  function openSource(id, hit) {
+  var trail = [];
+  function openSource(id, hit, fromDetail) {
+    if (fromDetail && picked && picked.id !== id) trail.push(picked.id); else if (!fromDetail) trail = [];
     picked = Object.assign({ id: id }, hit || {});
     if (hit && (hit.field || hit.where || hit.row != null)) openSec[id] = "result";
     renderSources();
@@ -992,8 +1102,30 @@
     if (connEl) connEl.replaceWith(box); else root.parentNode.insertBefore(box, root);
     connEl = box;
   }
+  var noticeEl = null, noticeDismissed = "";
+  function failNotice() {
+    var failedIds = Object.keys(used).filter(function (id) {
+      var r = cache[id] && cache[id].r;
+      return datasets[id] && r && /^(error|failed|refused|missing)$/.test(r.status);
+    });
+    var staleIds = Object.keys(used).filter(function (id) { return datasets[id] && isStale(datasets[id]); });
+    var key = failedIds.join(",") + "|" + staleIds.join(",");
+    if (C.thumb || (!failedIds.length && !staleIds.length) || key === noticeDismissed) { if (noticeEl) { noticeEl.remove(); noticeEl = null; } return; }
+    var box = h("div", { "class": "dash-notice" + (failedIds.length ? " bad" : "") }, [
+      h("span", { style: "flex:1;min-width:0", text: failedIds.length ? T.someFailed : T.someStale }),
+      kit.labelled(kit.button(T.seeSources, "panel", function () { toggleSources(true); if (failedIds.length === 1) openSource(failedIds[0]); }), T.seeSources),
+      failedIds.length ? kit.labelled(kit.button(T.askWhy, "sparkle", function () {
+        var list = failedIds.map(function (id) { var r = cache[id].r; return "“" + sourceTitle(id) + "” (" + id + "): " + String(r.message || r.status).slice(0, 200); }).join("; ");
+        if (window.hermes && window.hermes.send) window.hermes.send(T.whyMsg.replace("{list}", list), { datasets: failedIds }).catch(function () {});
+      }), T.askWhy) : null,
+      kit.button("", "close", function () { noticeDismissed = key; failNotice(); }, T.close)
+    ].filter(Boolean));
+    if (noticeEl) noticeEl.replaceWith(box); else root.parentNode.insertBefore(box, root);
+    noticeEl = box;
+  }
   function banner() {
     connBanner();
+    failNotice();
     var pending = liveIds().filter(function (id) { return live[id] && live[id].status === "approval"; });
     if (!pending.length || C.thumb) { if (bannerEl) { bannerEl.remove(); bannerEl = null; } return; }
     var tools = {};

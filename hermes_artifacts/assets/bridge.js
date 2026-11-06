@@ -164,6 +164,8 @@
       decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); },
       /** Sources' Test: run edited args without saving (needs a click). */
       test: function (id, args, params) { return call("dataset.test", { id: String(id), args: args, params: params || {} }); },
+      /** A loader's call(tool, args): another tool of the dataset's own connector. */
+      call: function (id, tool, args, version) { return call("dataset.call", { id: String(id), tool: String(tool), args: args || {}, version: version }); },
       /** Sources' history of a live query's args. */
       history: function (id) { return call("dataset.history", { id: String(id) }).then(function (r) { return r.entries; }); },
       /** The user editing a live query in Sources: new args for that dataset, saved as a new version. */

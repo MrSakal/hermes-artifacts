@@ -153,3 +153,39 @@ class GuardTests(unittest.TestCase):
         self.bad("UPDATE t SET a = 1")
         with self.assertRaises(live.LiveError):
             live.guard({"q": "x" * 40_000})
+
+
+class LoaderCallTests(unittest.TestCase):
+    """A loader's call(tool, args): only the dataset's own connector, only once it is allowed, read-only."""
+
+    def setUp(self):
+        self.reg = FakeRegistry()
+        self.reg.tools.update({"mcp_db_poll": "mcp-db", "mcp_other_x": "mcp-other"})
+        self._orig = live._registry_entry
+        live._registry_entry = lambda tool: (self.reg, self.reg.get_entry(tool), None)
+        self.aid = store.publish(title="lc", type="dashboard", files={"dashboard.json": SPEC, "index.html": "<p>x</p>"})["id"]
+
+    def tearDown(self):
+        live._registry_entry = self._orig
+
+    def allow(self):
+        d = live.dataset(self.aid, "sales")
+        store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"]), d["tool"], True)
+
+    def test_needs_the_dataset_allowed(self):
+        self.assertEqual(live.loader_call(self.aid, "sales", "poll", {"id": 1})["status"], "approval")
+        self.assertEqual(self.reg.calls, [])
+
+    def test_same_connector_by_its_short_or_hermes_name(self):
+        self.allow()
+        r = live.loader_call(self.aid, "sales", "poll", {"id": 1})
+        self.assertEqual((r["status"], r["tool"]), ("ok", "mcp_db_poll"))
+        self.assertEqual(r["answer"], {"rows": [{"region": "Pest", "n": 3}]})
+        self.assertEqual(live.loader_call(self.aid, "sales", "mcp_db_poll", {})["status"], "ok")
+
+    def test_refuses_other_connectors_and_writes(self):
+        self.allow()
+        self.assertEqual(live.loader_call(self.aid, "sales", "mcp_other_x", {})["status"], "refused")
+        self.assertEqual(live.loader_call(self.aid, "sales", "terminal", {"command": "rm -rf /"})["status"], "refused")
+        self.assertEqual(live.loader_call(self.aid, "sales", "query", {"sql": "DELETE FROM t"})["status"], "refused")
+        self.assertEqual([c[0] for c in self.reg.calls], [])
