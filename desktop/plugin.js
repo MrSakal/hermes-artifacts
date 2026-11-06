@@ -294,6 +294,7 @@ const $draft = atom(null) // {anchor} while writing a new comment
 const $toast = atom(null)
 const $confirm = atom(null) // {text, resolve}: a page asked to send something; the user confirms it (Claude's vouched send)
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
+const $reopen = atom(null) // {panel, version}: the page asked to come back with that panel open (History)
 const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat with the artifact beside it)
 const $presenting = atom(false) // a deck is presenting: its frame fills the screen
 const viewSessions = new Map() // artifact id -> chat session its view context went to
@@ -320,8 +321,8 @@ async function refresh(ctx) {
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
     const now = current()
     if (prev && now && now.version !== prev.version && $shown.get() === null) {
-      if (keepFrame.get(now.id) === now.version) keepFrame.delete(now.id)
-      else $nonce.set($nonce.get() + 1)
+      const own = keepFrame.get(now.id)
+      if (!(own && own.has(now.version))) $nonce.set($nonce.get() + 1)
     }
     if (now && (now.comments !== prev?.comments || $panel.get())) loadComments(ctx)
   } catch (err) {
@@ -919,6 +920,7 @@ function useBridge(ref, art, ctx, portRef) {
   const t = usePluginI18n(ID)
   useEffect(() => {
     if (!art) return undefined
+    const art0 = art
     const { id: aid, title } = art
     const onMessage = e => {
       const frame = ref.current
@@ -975,14 +977,32 @@ function useBridge(ref, art, ctx, portRef) {
           if (m.op === 'vendor') {
             return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
           }
+          if (m.op === 'showVersion') {
+            // The page's History shows a version in place (null = back to the latest), reopening History there.
+            await refresh(ctx) // a restore or a save may have made a newer version than the list knows
+            const art = current() || art0
+            const n = m.args?.version == null ? null : Number(m.args.version)
+            if (n !== null && !(art.versions || []).includes(n)) return reply({ ok: false, error: 'no such version' })
+            $reopen.set(m.args?.panel ? { panel: String(m.args.panel).slice(0, 20), version: n } : null)
+            const next = n === art.version ? null : n
+            if (next === $shown.get()) {
+              keepFrame.delete(aid)
+              $nonce.set($nonce.get() + 1)
+            } else $shown.set(next)
+            return reply({ ok: true, value: { ok: true } })
+          }
+          if (m.op === 'history.restore' && !gesture) return reply({ ok: false, error: 'restoring needs a click in the page' })
           if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
           if (m.op === 'ds.default' && !gesture) return reply({ ok: false, error: 'choosing the default design system needs a click in the page' })
           if (m.op === 'dataset.test' && !gesture) return reply({ ok: false, error: 'testing a query needs a click in the page' })
           if (m.op === 'dataset.edit' && !gesture) return reply({ ok: false, error: 'saving a query needs a click in the page' })
           if (m.op === 'dataset.approve' && !gesture) return reply({ ok: false, error: 'allowing live data needs a click in the page' })
           const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: m.op, args: m.args || {} } })
+          if (m.op === 'history.restore' && value.ok) await refresh(ctx)
           if ((m.op === 'save' || m.op === 'dataset.edit') && value.ok) {
-            keepFrame.set(aid, value.version) // the page already shows what it saved: don't reload it
+            // The page already shows what it saved: don't reload it (autosave can write several in a row).
+            if (!keepFrame.has(aid)) keepFrame.set(aid, new Set())
+            keepFrame.get(aid).add(value.version)
             refresh(ctx)
           }
           if (m.op === 'send') {
@@ -1009,6 +1029,12 @@ function useBridge(ref, art, ctx, portRef) {
       }
       frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: 2 }, '*', [ch.port2])
       postToPage(portRef, 'theme', { mode: hostMode(), vars: hostTheme() })
+      const ro = $reopen.get()
+      if (ro) {
+        $reopen.set(null)
+        postToPage(portRef, 'open-panel', ro)
+      }
+      postToPage(portRef, 'versions', { latest: art.version, shown: $shown.get() ?? art.version })
       sendPins(portRef)
     }
     window.addEventListener('message', onMessage)
@@ -1031,7 +1057,7 @@ function useBridge(ref, art, ctx, portRef) {
   }, [art?.id, art?.title])
 }
 
-const keepFrame = new Map() // artifact id -> version its own page just saved
+const keepFrame = new Map() // artifact id -> the versions its own page saved (shown already: no reload)
 
 /** The app's own theme, resolved to plain colors (its variables are color-mix() expressions the
  *  frame can't see), so artifact chrome wears Hermes' colors and fonts, a skin's too. */
@@ -1919,20 +1945,27 @@ function Viewer({ ctx, docked = false }) {
   useBridge(ref, art, ctx, portRef)
 
   const v = art ? (shown ?? art.version) : null
+  // The version the frame holds: a newer one its own page saved (autosave, an edit) is shown already,
+  // so the frame stays; any other change loads the frame again.
+  const held = useRef({ id: null, v: null, nonce: null })
+  const h0 = held.current
+  const own = art && keepFrame.get(art.id)
+  const fv = art && h0.id === art.id && h0.nonce === nonce && shown === null && h0.v !== null && own && own.has(v) ? h0.v : v
+  held.current = { id: art?.id ?? null, v: fv, nonce }
   useEffect(() => {
     if (!art) return undefined
     let live = true
     setSrc(null)
     setLoadErr(null)
     $exports.set([])
-    if (nonce) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:${v}:`) && htmlCache.delete(k))
-    fetchHtml(ctx, art.id, v, { page })
+    if (nonce) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:${fv}:`) && htmlCache.delete(k))
+    fetchHtml(ctx, art.id, fv, { page })
       .then(u => live && setSrc(u))
       .catch(err => live && setLoadErr(String(err?.message || err)))
     return () => {
       live = false
     }
-  }, [art?.id, v, nonce, page])
+  }, [art?.id, fv, nonce, page])
 
   if (!art) return null
   return jsxs('div', {
@@ -1948,7 +1981,7 @@ function Viewer({ ctx, docked = false }) {
             children: [
           src
             ? jsx(SandboxedFrame, {
-                key: `${art.id}:${v}:${nonce}:${page || ''}`,
+                key: `${art.id}:${fv}:${nonce}:${page || ''}`,
                 ref,
                 sandbox: SANDBOX,
                 src,

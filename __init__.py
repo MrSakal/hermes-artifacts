@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import logging
 import threading
 import time
@@ -140,6 +141,13 @@ def _guide(args: dict, **_kw) -> str:
     if kind not in store.TYPES:
         return _err(f"unknown type {kind!r}")
     from .hermes_artifacts.render import TYPES_DIR
+    topic = str(args.get("topic") or "").strip().lower()
+    if topic:
+        f = TYPES_DIR / kind / "guides" / f"{topic}.md"
+        if not re.fullmatch(r"[a-z-]{1,40}", topic) or not f.is_file():
+            have = sorted(x.stem for x in (TYPES_DIR / kind / "guides").glob("*.md")) if (TYPES_DIR / kind / "guides").is_dir() else []
+            return _err(f"no {topic!r} guide for {kind}" + (f" (topics: {', '.join(have)})" if have else ""))
+        return _ok(type=kind, topic=topic, guide=f.read_text(encoding="utf-8"))
     return _ok(type=kind, guide=(TYPES_DIR / kind / "GUIDE.md").read_text(encoding="utf-8"))
 
 
@@ -319,7 +327,9 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         {"id": {"type": "string"}, "wait": {"type": "integer"}}, ["id"]), _check, "🩺"),
     ("artifact_guide", _schema("artifact_guide", "How to write an artifact of a type: its files, format, API "
                                "and design rules. Read it before creating one.",
-                               {"type": {"type": "string", "enum": list(store.TYPES)}},
+                               {"type": {"type": "string", "enum": list(store.TYPES)},
+                                "topic": {"type": "string", "description": "A further section the type's guide names "
+                                          "(dashboard: drafts, visual-short, editing, look)."}},
                                ["type"]), _guide, "📘"),
     ("artifact_doc_read", _schema(
         "artifact_doc_read",

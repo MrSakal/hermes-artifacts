@@ -52,7 +52,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.post(f"/artifacts/{self.aid}/comments/{c['id']}/resolve", {"resolved": True}).json()["resolved"], True)
         self.assertTrue(self.post(f"/artifacts/{self.aid}/meta", {"pinned": True}).json()["pinned"])
         self.assertEqual(self.post(f"/artifacts/{self.aid}/op", {"op": "callTool", "args": {}}).status_code, 400)
-        self.assertEqual(self.post(f"/artifacts/{self.aid}/op", {"op": "save", "args": {"files": {"x.html": "y"}}}).status_code, 400)
+        self.assertEqual(self.post(f"/artifacts/{self.aid}/op", {"op": "save", "args": {"files": {"x.py": "y"}}}).status_code, 400)
 
     def test_hot_reload_after_update(self):
         api_file = ROOT / "hermes_artifacts" / "api.py"

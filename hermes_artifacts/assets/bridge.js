@@ -16,7 +16,16 @@
     var msg = { event: event, detail: detail };
     port ? port.postMessage(msg) : queue.push(msg);
   }
-  function on(name, fn) { (listeners[name] = listeners[name] || []).push(fn); }
+  // An event that comes before anyone listens (the port can arrive while the page is still loading)
+  // is kept, and the first listener for it gets the last one.
+  var early = {};
+  function on(name, fn) {
+    (listeners[name] = listeners[name] || []).push(fn);
+    if (Object.prototype.hasOwnProperty.call(early, name)) {
+      var d = early[name]; delete early[name];
+      setTimeout(function () { try { fn(d); } catch (_) {} }, 0);
+    }
+  }
 
   window.addEventListener("message", function (e) {
     // Trust is by source: only our direct parent may hand us the port.
@@ -26,7 +35,12 @@
     port = e.ports[0];
     port.onmessage = function (ev) {
       var r = ev.data;
-      if (r && r.event) { (listeners[r.event] || []).forEach(function (fn) { try { fn(r.detail); } catch (_) {} }); return; }
+      if (r && r.event) {
+        var ls = listeners[r.event];
+        if (!ls || !ls.length) { early[r.event] = r.detail; return; }
+        ls.forEach(function (fn) { try { fn(r.detail); } catch (_) {} });
+        return;
+      }
       var p = pending.get(r && r.id);
       if (!p) return;
       pending.delete(r.id);
@@ -183,6 +197,16 @@
       edit: function (tab, ops, baseRev) { return call("doc.edit", { tab: tab || null, ops: ops, base_rev: baseRev == null ? null : baseRev }); },
       ask: function (a) { return call("doc.ask", a || {}); }
     }),
+    /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
+     *  version in place (null = the latest). */
+    history: Object.freeze({
+      list: function () { return call("history.list", {}).then(function (r) { return r.versions; }); },
+      diff: function (v) { return call("history.diff", { version: v }); },
+      restore: function (v) { return call("history.restore", { version: v }); },
+      show: function (v, panel) { return call("showVersion", { version: v == null ? null : v, panel: panel || null }); }
+    }),
+    /** Full screen for the artifact (the host fills the window; Esc leaves). */
+    fullscreen: function (on) { return call("present", { on: on !== false }); },
     /** Start a comment on a part of the page (the host opens its comment form there). */
     comment: function (anchor) { emit("comment", anchor || {}); },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */

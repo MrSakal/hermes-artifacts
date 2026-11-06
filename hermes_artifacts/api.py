@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from . import docs, live, render, store
+from . import docs, history, live, render, store
 from .server import inject_bridge
 
 
@@ -87,6 +87,9 @@ _VENDOR = Path(render.TYPES_DIR / "vendor")
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
 _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
                "doc": r"^doc\.md$",
+               # Dashboard: the editor (page text, cards), Design (dashboard.json look), a replaced data file, drafts.
+               "dashboard": r"^(dashboard\.json|[A-Za-z0-9_-]{1,64}\.(html|css|js)|data/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\.(csv|tsv|json)"
+                            r"|drafts/[A-Za-z0-9_-]{1,40}/[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(html|css|js|json))$",
                # Design: the index, artboard sources (the canvas edits text, styles, positions, tweaks) and uploads.
                "design": r"^(canvas\.json|[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}){0,3}\.dc\.html"
                          r"|uploads/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
@@ -152,7 +155,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
         files = out
         if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:
             return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
-        nm = store.publish(aid=aid, base=True, files=files)
+        nm = store.publish(aid=aid, base=True, files=files, by="user")
         return {"ok": True, "version": nm["versions"][-1]["n"]}
     if op == "ds.get":
         # Any page may build on a design system (that's what one is for): its tokens, stylesheet, fonts.
@@ -167,6 +170,12 @@ def _op(aid: str, op: str, a: dict) -> dict:
         params = a.get("params") if isinstance(a.get("params"), dict) else {}
         mode = "cached" if a.get("mode") == "cached" else "live"
         return live.run_dataset(aid, str(a.get("id", "")), params, version=_int(a.get("version")), mode=mode)
+    if op == "history.list":
+        return {"versions": history.versions(aid)}
+    if op == "history.diff":
+        return history.diff(aid, _int(a.get("version")) or 0)
+    if op == "history.restore":
+        return history.restore(aid, _int(a.get("version")) or 0)
     if op == "dataset.call":
         return live.loader_call(aid, str(a.get("id", "")), str(a.get("tool", "")), a.get("args"), version=_int(a.get("version")))
     if op in ("dataset.approve", "dataset.decline"):

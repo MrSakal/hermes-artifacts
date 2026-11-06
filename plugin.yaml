@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.9.0
+version: 0.10.0
 description: >
   Claude-style artifacts for Hermes. The agent publishes pages, dashboards (charts and tables from
   datasets, every figure traceable to its source), slide decks (present; export PDF/PPTX) and docs

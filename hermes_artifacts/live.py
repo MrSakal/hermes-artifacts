@@ -576,7 +576,7 @@ def edit_args(aid: str, dsid: str, args: Any, base_version: Optional[int] = None
     store.history_add(aid, dsid, d["source"].get("args") or {}, "before edit")
     d["source"]["args"] = args
     d["edit"] = {"via": "user", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    nm = store.publish(aid=aid, base=True, files={"dashboard.json": spec})
+    nm = store.publish(aid=aid, base=True, files={"dashboard.json": spec}, by="user")
     if auto_approve:
         approve_all(aid, "user")  # the user's own save is the approval
     else:

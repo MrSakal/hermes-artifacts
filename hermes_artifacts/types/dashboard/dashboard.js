@@ -40,6 +40,39 @@
       test: "Test", testing: "Running the test…", testOk: "Test ran: {n} rows in {ms} ms. Nothing is saved until you press Save.",
       testStale: "Edited since the test: test again before saving.", history: "History", historyHint: "Pick one to put it in the editor. Nothing changes until you save.",
       historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current", cut: "Rows missing: the answer stopped short of all its rows.",
+      history: "History", hAuto: "Versions are saved automatically as the dashboard is edited.", hNone: "Earlier versions of this dashboard will appear here.",
+      hCantRead: "History can’t be read right now. Try again.", loading: "Loading…", hCurrent: "current version", hCreated: "Created the page",
+      hRestored: "Restored the {when} version", hNoChange: "No changes", hAdded: "Added {name}", hRemoved: "Removed {name}", hEditedX: "Edited {name}",
+      hEditedPage: "Edited the page", hEditedFilters: "Edited the filters", hEditedTitle: "Edited the title", hEditedLook: "Edited the look",
+      hEditedSources: "Edited {n} sources", hEditedFiles: "Edited {n} files", hThePage: "the page", hNSources: "{n} sources", hTheFilters: "the filters",
+      hTheTitle: "the title", hTheLook: "the look", hNFiles: "{n} files", hEditedMany: "Edited {things}", and: "and",
+      backToHistory: "Back to History", hIsNow: "This is the dashboard as it is now.", hRestore: "Restore", hRestoredToast: "Restored.",
+      hRestoreHint: "Restore makes this the dashboard again, as a new version; the versions after it stay in History.",
+      hKAdded: "added", hKRemoved: "removed", hKEdited: "edited", hTooMuch: "Too much changed to show line by line.", hDraftAsked: "Asked for a draft", hDraftWrote: "Wrote the draft", hDraftDone: "Saved or discarded a draft",
+      hEarlier: "Showing an earlier version with today’s data.", hBackLatest: "Back to latest", fullScreen: "Full screen", exitFull: "Exit full screen",
+      askAbout: "Ask Hermes", aboutSel: "About this on the dashboard", staged: "Added to your message to Hermes. Send it when you’re ready.",
+      testIt: "Test without saving", testResult: "Test result", replaceFile: "Replace with a file…", chooseFile: "Choose a .csv, .tsv or .json file.",
+      fileNoRows: "The file has no rows this dashboard can read.", fileReady: "{name}: {n} rows. Save puts it in place of {old}.", saveFile: "Save",
+      fileSaved: "File replaced.", fileTooBig: "The file is too large to attach. Choose a smaller one.",
+      design: "Design", look: "Look", lookHint: "Colors, type and corners for the whole dashboard, in light and dark.", defaultLook: "Default look",
+      designSystem: "Design system", customLook: "Custom look", lookSaved: "Look saved.", dsUnreadable: "That design system couldn’t be read.",
+      editPage: "Edit the page", editHint: "Change the page’s words by hand, move or delete cards. Every change saves automatically.",
+      newDraft: "New draft", draftHint: "Pick a format for a new draft. Nothing changes until you save.", draftWaiting: "A draft is waiting: save or cancel it first.",
+      fmt_dashboard: "Dashboard", fmtd_dashboard: "Cards, figures and charts to watch at a glance.",
+      "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "A finding told as you scroll, beside one chart that stays in view.",
+      "fmt_visual-analysis": "Visual analysis", "fmtd_visual-analysis": "A finding read top to bottom, a chart under each heading.",
+      "fmt_visual-short": "Visual short", "fmtd_visual-short": "A minute or two that plays: chapters on one stage, with captions.",
+      draftMsg: "[draft request drafts/{id}] Remake this dashboard as a {format} draft. Read the “Drafts” section of the dashboard guide first (artifact_guide type=dashboard). Write the whole new page as drafts/{id}/index.html, with any .css or .js beside it, with artifact_publish id={aid} base=true files={…}; the draft reads the dashboard’s sources by id, a new or changed source goes whole into drafts/{id}/datasets.json and changed filter defaults into drafts/{id}/params.json. Leave the dashboard’s own files as they are: Save on the page copies the draft over them.",
+      draftMaking: "Hermes is making your {format} draft. Nothing changes until you save it.", draftShowing: "Showing the draft. Nothing changes until you save.",
+      draftAsIs: "The dashboard as it is. Press Redo to see the draft again.", draftUndo: "Undo", draftRedo: "Redo", draftCancel: "Cancel", draftSave: "Save",
+      draftSaved: "The draft is now the dashboard.", draftCancelled: "Draft discarded",
+      editorMode: "Editor mode", editEvery: "Every change saves automatically.", editSaving: "Saving…", editSaved: "Saved automatically",
+      editFailed: "Autosave failed — retrying.", editConflict: "This dashboard changed meanwhile: press Done, then edit again.",
+      editDone: "Done editing", editWritten: "The page writes this, so it can’t be edited. You can delete its card, or ask Hermes to change it.",
+      editEarlier: "Move card earlier", editLater: "Move card later", editDelete: "Delete card", editDeleted: "Card deleted. Undo brings it back.",
+      editFirst: "It is first already.", editLast: "It is last already.", editNothingUndo: "Nothing to undo", editNothingRedo: "Nothing to redo",
+      editLatestFirst: "Go back to the latest version to edit.", editNeedsPage: "This dashboard is drawn from its layout. Asked Hermes to make it editable by hand.",
+      editAskMsg: "Rewrite this dashboard’s page so it can be edited by hand: an index.html whose words are in the HTML and whose figures and charts are dash.draw drawings (read the dashboard guide’s “Editing by hand” section). Keep what it shows and how it looks.",
       didntLoad: "Didn’t load", didntRun: "Didn’t run", unusedTag: "Unused", whyNot: "Why didn’t this load?", whyNotRun: "Why didn’t this run?",
       errorSaid: "What the error said", copyError: "Copy the error", askFix: "Ask Hermes to fix", retryAll: "Retry all",
       someFailed: "Some sources failed to load.", someStale: "Some saved numbers are stale.", seeSources: "See sources", askWhy: "Ask Hermes why",
@@ -68,6 +101,39 @@
       test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
       testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
       historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi", cut: "Hiányzó sorok: a válasz nem adta vissza az összes sort.",
+      history: "Előzmények", hAuto: "A verziók maguktól mentődnek, ahogy a dashboard változik.", hNone: "A dashboard korábbi verziói itt jelennek meg.",
+      hCantRead: "Az előzmények most nem olvashatók. Próbáld újra.", loading: "Betöltés…", hCurrent: "jelenlegi verzió", hCreated: "Létrehozta az oldalt",
+      hRestored: "Visszaállította a(z) {when} verziót", hNoChange: "Nincs változás", hAdded: "Hozzáadta: {name}", hRemoved: "Eltávolította: {name}", hEditedX: "Módosította: {name}",
+      hEditedPage: "Módosította az oldalt", hEditedFilters: "Módosította a szűrőket", hEditedTitle: "Módosította a címet", hEditedLook: "Módosította a megjelenést",
+      hEditedSources: "{n} forrást módosított", hEditedFiles: "{n} fájlt módosított", hThePage: "az oldalt", hNSources: "{n} forrást", hTheFilters: "a szűrőket",
+      hTheTitle: "a címet", hTheLook: "a megjelenést", hNFiles: "{n} fájlt", hEditedMany: "Módosította {things}", and: "és",
+      backToHistory: "Vissza az Előzményekhez", hIsNow: "Ez a dashboard jelenlegi állapota.", hRestore: "Visszaállítás", hRestoredToast: "Visszaállítva.",
+      hRestoreHint: "A visszaállítás új verzióként ezt teszi újra a dashboarddá; az utána jövő verziók megmaradnak az Előzményekben.",
+      hKAdded: "hozzáadva", hKRemoved: "eltávolítva", hKEdited: "módosítva", hTooMuch: "Túl sok változott ahhoz, hogy soronként mutassa.", hDraftAsked: "Vázlatot kért", hDraftWrote: "Megírta a vázlatot", hDraftDone: "Mentett vagy elvetett egy vázlatot",
+      hEarlier: "Egy korábbi verziót látsz, a mai adatokkal.", hBackLatest: "Vissza a legújabbra", fullScreen: "Teljes képernyő", exitFull: "Kilépés a teljes képernyőből",
+      askAbout: "Kérdezd a Hermest", aboutSel: "Erről a dashboardon", staged: "Beírva a Hermesnek szóló üzenetedbe. Küldd el, amikor kész vagy.",
+      testIt: "Teszt mentés nélkül", testResult: "A teszt eredménye", replaceFile: "Csere egy fájlra…", chooseFile: "Válassz egy .csv, .tsv vagy .json fájlt.",
+      fileNoRows: "A fájlban nincs olyan sor, amit a dashboard el tud olvasni.", fileReady: "{name}: {n} sor. A Mentés a(z) {old} helyére teszi.", saveFile: "Mentés",
+      fileSaved: "Fájl lecserélve.", fileTooBig: "A fájl túl nagy a csatoláshoz. Válassz kisebbet.",
+      design: "Design", look: "Megjelenés", lookHint: "Színek, betűk és sarkok az egész dashboardra, világos és sötét témában.", defaultLook: "Alap megjelenés",
+      designSystem: "Design system", customLook: "Egyedi megjelenés", lookSaved: "Megjelenés elmentve.", dsUnreadable: "Ezt a design systemet nem sikerült beolvasni.",
+      editPage: "Az oldal szerkesztése", editHint: "Írd át kézzel az oldal szövegeit, mozgasd vagy töröld a kártyákat. Minden változás magától mentődik.",
+      newDraft: "Új vázlat", draftHint: "Válassz formát egy új vázlathoz. Mentésig semmi nem változik.", draftWaiting: "Egy vázlat vár: előbb mentsd vagy vesd el.",
+      fmt_dashboard: "Dashboard", fmtd_dashboard: "Kártyák, számok és diagramok, egy pillantásra.",
+      "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "Görgetés közben elmesélt felismerés, egy végig látható diagram mellett.",
+      "fmt_visual-analysis": "Vizuális elemzés", "fmtd_visual-analysis": "Felülről lefelé olvasható felismerés, minden címsor alatt egy diagram.",
+      "fmt_visual-short": "Visual short", "fmtd_visual-short": "Egy-két perc, ami lejátszódik: fejezetek egy színpadon, feliratokkal.",
+      draftMsg: "[draft request drafts/{id}] Készítsd el ezt a dashboardot {format} vázlatként. Előbb olvasd el a dashboard-útmutató „Drafts” részét (artifact_guide type=dashboard). Az egész új oldalt drafts/{id}/index.html-ként írd meg, mellé az esetleges .css és .js fájlokat, artifact_publish id={aid} base=true files={…} hívással; a vázlat a dashboard forrásait azonosítóval olvassa, egy új vagy módosított forrás egészben a drafts/{id}/datasets.json-ba, a módosított szűrő-alapértékek a drafts/{id}/params.json-ba kerülnek. A dashboard saját fájljait hagyd békén: az oldal Mentés gombja másolja rájuk a vázlatot.",
+      draftMaking: "A Hermes készíti a(z) {format} vázlatot. Mentésig semmi nem változik.", draftShowing: "A vázlatot látod. Mentésig semmi nem változik.",
+      draftAsIs: "A dashboard jelenlegi állapota. Az Újra gombbal visszakapod a vázlatot.", draftUndo: "Visszavonás", draftRedo: "Újra", draftCancel: "Elvetés", draftSave: "Mentés",
+      draftSaved: "A vázlat lett a dashboard.", draftCancelled: "Vázlat elvetve",
+      editorMode: "Szerkesztő mód", editEvery: "Minden változás magától mentődik.", editSaving: "Mentés…", editSaved: "Automatikusan mentve",
+      editFailed: "Az automatikus mentés nem sikerült — újrapróbálja.", editConflict: "A dashboard közben megváltozott: nyomd meg a Kész gombot, és szerkeszd újra.",
+      editDone: "Kész", editWritten: "Ezt az oldal kódja írja, ezért kézzel nem szerkeszthető. A kártyáját törölheted, vagy megkérheted a Hermest, hogy módosítsa.",
+      editEarlier: "Kártya feljebb", editLater: "Kártya lejjebb", editDelete: "Kártya törlése", editDeleted: "Kártya törölve. A Visszavonás visszahozza.",
+      editFirst: "Ez már az első.", editLast: "Ez már az utolsó.", editNothingUndo: "Nincs mit visszavonni", editNothingRedo: "Nincs mit újra megcsinálni",
+      editLatestFirst: "A szerkesztéshez menj vissza a legújabb verzióra.", editNeedsPage: "Ez a dashboard az elrendezéséből rajzolódik. Megkértem a Hermest, hogy tegye kézzel szerkeszthetővé.",
+      editAskMsg: "Írd át ennek a dashboardnak az oldalát úgy, hogy kézzel szerkeszthető legyen: egy index.html, amelyben a szövegek a HTML-ben vannak, a számok és diagramok pedig dash.draw rajzok (olvasd el a dashboard-útmutató „Editing by hand” részét). Maradjon meg, amit mutat, és ahogy kinéz.",
       didntLoad: "Nem töltött be", didntRun: "Nem futott le", unusedTag: "Nem használt", whyNot: "Miért nem töltött be?", whyNotRun: "Miért nem futott le?",
       errorSaid: "Amit a hiba mondott", copyError: "A hiba másolása", askFix: "Kérd meg a Hermest, hogy javítsa", retryAll: "Mind újra",
       someFailed: "Néhány forrás nem töltött be.", someStale: "Néhány mentett szám elavult.", seeSources: "Források", askWhy: "Kérdezd meg a Hermest, miért",
@@ -359,12 +425,35 @@
   }
 
   var scheduled = false;
+  var drawFns = {};
+  /** Each data-draw="name" holds only its current state; one under [hidden] isn't run (or loaded). */
+  function runDraws(only) {
+    Object.keys(drawFns).forEach(function (name) {
+      if (only && only !== name) return;
+      var d = drawFns[name];
+      root.querySelectorAll('[data-draw="' + CSS.escape(name) + '"]').forEach(function (el) {
+        if (el.closest("[hidden]")) return;
+        try {
+          if (typeof d === "function") d(el);
+          else {
+            if (!el.__made) { el.replaceChildren(); el.__made = { v: d.mount ? d.mount(el) : undefined }; }
+            if (d.update) d.update(el, el.__made.v);
+          }
+        } catch (e) {
+          pageError(e, d.__file);
+          if (typeof d !== "function" && d.unmount && el.__made) { try { d.unmount(el, el.__made.v); } catch (x) {} }
+          el.__made = null;
+        }
+      });
+    });
+  }
   function redraw() {
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(function () {
       scheduled = false;
       drawers.forEach(run);
+      runDraws();
       stamp();
       if (typeof failNotice === "function") failNotice();
       tickFresh();
@@ -388,6 +477,12 @@
   var dash = {
     data: view,
     onData: function (fn) { fn.__file = currentFile; drawers.push(fn); run(fn); },
+    draw: function (name, fn) {
+      name = String(name);
+      if (fn === undefined) { runDraws(name); return; }
+      if (typeof fn !== "function" && !(fn && typeof fn === "object")) return;
+      fn.__file = currentFile; drawFns[name] = fn; gen++; redraw();
+    },
     calc: function (id, o) {
       if (datasets[id]) throw new Error("calc id " + id + " is a dataset id");
       calcs[id] = { inputs: (o && o.inputs) || [], fn: o.fn, title: o.title || id, description: o.description || "" };
@@ -467,6 +562,7 @@
   }
 
   function mount() {
+    if (showingDraft()) { mountHtml(kit.fileText(draft.page), draft.page, root); return; } // a draft is the whole page
     var pagePath = (spec && spec.page) || "index.html";
     var html = kit.fileText(pagePath);
     if (spec && Array.isArray(spec.layout) && window.dashLayout) {
@@ -701,12 +797,67 @@
     kids.push(h("p", { "class": "src-tool" }, [document.createTextNode((lv.server || d.source.server || d.source.connector || "MCP") + " · "),
       h("code", { text: d.source.tool || "" })].concat(lv.ms != null ? [document.createTextNode(" · " + lv.ms + " ms")] : [])));
     if (changed) kids.push(h("div", { "class": "src-actions" }, [
+      kit.labelled(kit.button(T.testIt, "play", function () {
+        if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.test) { kit.toast(T.noBridge); return; }
+        argTest[id] = { running: true };
+        renderSources();
+        window.hermes.dataset.test(id, draft, params).then(function (r) { argTest[id] = r; renderSources(); },
+          function (e) { argTest[id] = { status: "error", message: String(e && e.message || e) }; renderSources(); });
+      }, T.testIt), T.testIt),
       kit.labelled(kit.button(T.save, "", function () { saveArgs(id, d, draft); }, T.save), T.save),
       kit.labelled(kit.button(T.cancel, "", function () { delete argDraft[id]; renderSources(); }, T.cancel), T.cancel)
     ]));
+    var tr = argTest[id];
+    if (changed && tr) {
+      kids.push(h("div", { "class": "src-kv-k", style: "margin-top:12px", text: T.testResult }));
+      if (tr.running) kids.push(h("p", { "class": "src-meta", text: T.testing }));
+      else if (tr.status !== "ok") kids.push(h("p", { "class": "src-warn", style: "margin:4px 0", text: T.failed + ": " + (tr.message || tr.status) }));
+      else if (tr.rows) kids.push(table({ columns: tr.columns, rows: tr.rows }, null));
+      else kids.push(codeBlock(id + ":test", JSON.stringify(tr.answer, null, 2).slice(0, 4000)));
+    }
     return kids;
   }
-  var argDraft = {};
+  var argDraft = {}, argTest = {};
+  /** Claude's "Replace with a file…": a CSV, TSV or JSON in place of an attached file, saved as a new version. */
+  var picks = {};
+  function replaceFile(id, d) {
+    var inp = h("input", { type: "file", accept: ".csv,.tsv,.json,text/csv,application/json", hidden: true });
+    inp.addEventListener("change", function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      if (f.size > 8 * 1024 * 1024) { picks[id] = { error: T.fileTooBig }; renderSources(); return; }
+      var ext = (f.name.match(/\.(csv|tsv|json)$/i) || [])[1];
+      if (!ext) { picks[id] = { error: T.chooseFile }; renderSources(); return; }
+      f.text().then(function (text) {
+        var t;
+        try { t = ext.toLowerCase() === "json" ? asTable(JSON.parse(text)) : parseDelimited(text, ext.toLowerCase() === "tsv" ? "\t" : ","); } catch (e) { t = null; }
+        picks[id] = t && (t.rows || []).length ? { name: f.name, ext: ext.toLowerCase(), text: text, n: t.rows.length } : { error: T.fileNoRows };
+        renderSources();
+      });
+    });
+    var kids = [inp, h("div", { "class": "src-actions" }, [kit.labelled(kit.button(T.replaceFile, "file", function () { inp.click(); }), T.replaceFile)])];
+    var p = picks[id];
+    if (p && p.error) kids.push(h("p", { "class": "src-warn", style: "margin:6px 0 0", text: p.error }));
+    if (p && p.text) {
+      kids.push(h("p", { "class": "src-meta", style: "margin:8px 0 0", text: T.fileReady.replace("{name}", p.name).replace("{n}", p.n).replace("{old}", d.source.path) }));
+      kids.push(h("div", { "class": "src-actions" }, [kit.labelled(kit.button(T.saveFile, "", function () {
+        var path = String(d.source.path).replace(/\.(csv|tsv|json)$/i, "") + "." + p.ext;
+        var next = JSON.parse(JSON.stringify(spec));
+        next.datasets[id].source.path = path;
+        if (p.ext !== "csv") next.datasets[id].source.format = p.ext; else delete next.datasets[id].source.format;
+        next.datasets[id].updated = { at: new Date().toISOString(), by: "user" };
+        var files = { "dashboard.json": JSON.stringify(next, null, 2) };
+        files[path] = p.text;
+        if (path !== d.source.path) files[d.source.path] = null;
+        window.hermes.save(files, C.version).then(function (r) {
+          if (r && r.conflict) { kit.toast(T.conflict); return; }
+          delete picks[id]; kit.toast(T.fileSaved);
+          if (window.hermes.history) window.hermes.history.show(null, "sources");
+        }, function (e) { kit.toast(String(e && e.message || e)); });
+      }, T.saveFile), T.saveFile)]));
+    }
+    return kids;
+  }
   function saveArgs(id, d, args) {
     if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.edit) { kit.toast(T.noBridge); return; }
     window.hermes.dataset.edit(id, args, C.version).then(function (r) {
@@ -791,7 +942,7 @@
     var secs = [];
     if (lv) secs.push(section(id, "query", T.query, function () { return editing === id ? [queryEditor(id, d)] : argInputs(id, d); }));
     if (!isCalc && d.source && d.source.kind === "file") secs.push(section(id, "file", T.file, function () {
-      return [h("p", { "class": "src-tool" }, [h("code", { text: d.source.path || "" })])];
+      return [h("p", { "class": "src-tool" }, [h("code", { text: d.source.path || "" })])].concat(replaceFile(id, d));
     }));
     var tf = !isCalc && transformOf(id, d);
     if (tf) secs.push(section(id, "transform", T.transform, function () {
@@ -818,7 +969,142 @@
 
   function renderSources() {
     if (!drawer) return;
+    if (panelMode !== "sources") return renderPanel();
     drawer.replaceChildren.apply(drawer, (picked ? renderDetail(picked.id) : renderList()).filter(Boolean));
+  }
+  // ------------------------------------------------------------------ History (Claude's, inside the dashboard)
+  var panelMode = "sources", histPicked = null, histList = null, histDiff = {}, histOpen = {}, latestVersion = C.version;
+  var shownVersion = C.version;
+  function whenText(at) {
+    if (!at) return "";
+    var d = new Date(at * 1000), s = (Date.now() - d.getTime()) / 1000;
+    if (s < 60) return T.justNow;
+    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(L, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" });
+  }
+  function summaryText(sm, versions) {
+    if (!sm) return "";
+    if (sm.what === "created") return T.hCreated;
+    if (sm.what === "restored") {
+      var v = (versions || []).filter(function (x) { return x.n === sm.restored; })[0];
+      var d = v && v.at ? new Date(v.at * 1000) : null;
+      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(L, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
+    }
+    var th = sm.things || [];
+    if (!th.length) return T.hNoChange;
+    if (th.length === 1) {
+      var t = th[0];
+      if (t.t === "source") return (t.kind === "added" ? T.hAdded : t.kind === "removed" ? T.hRemoved : T.hEditedX).replace("{name}", t.name);
+      if (t.t === "page") return T.hEditedPage;
+      if (t.t === "filters") return T.hEditedFilters;
+      if (t.t === "title") return T.hEditedTitle;
+      if (t.t === "look") return T.hEditedLook;
+      if (t.t === "draft") return t.kind === "added" ? T.hDraftAsked : t.kind === "removed" ? T.hDraftDone : T.hDraftWrote;
+      if (t.t === "sources") return T.hEditedSources.replace("{n}", t.n);
+      if (t.t === "files") return t.name ? T.hEditedX.replace("{name}", t.name) : T.hEditedFiles.replace("{n}", t.n);
+    }
+    var names = th.map(function (t) {
+      return t.t === "page" ? T.hThePage : t.t === "source" ? t.name : t.t === "sources" ? T.hNSources.replace("{n}", t.n)
+        : t.t === "filters" ? T.hTheFilters : t.t === "title" ? T.hTheTitle : t.t === "look" ? T.hTheLook : T.hNFiles.replace("{n}", t.n);
+    });
+    return T.hEditedMany.replace("{things}", names.slice(0, -1).join(", ") + " " + T.and + " " + names[names.length - 1]);
+  }
+  function loadHistory() {
+    if (!window.hermes || !window.hermes.history) { histList = []; renderPanel(); return; }
+    window.hermes.history.list().then(function (v) { histList = v || []; renderPanel(); }, function () { histList = null; renderPanel(T.hCantRead); });
+  }
+  function renderHistory(err) {
+    var head = h("div", { "class": "src-head" }, [h("b", { text: T.history }), iconBtn("close", T.close, function () { toggleHistory(false); })]);
+    if (err) return [head, h("p", { "class": "src-empty", text: err })];
+    if (histList === null) return [head, h("p", { "class": "src-empty", text: T.loading })];
+    if (histPicked !== null) return renderVersion(histPicked);
+    var rows = histList.map(function (v) {
+      return h("button", { "class": "src-li dash-version-row" + (v.n === shownVersion ? " picked" : ""), type: "button", onclick: function () { openVersion(v.n); } }, [
+        h("span", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:2px" }, [
+          h("span", { "class": "src-li-t", text: whenText(v.at) + (v.current ? " · " + T.hCurrent : "") }),
+          h("span", { "class": "src-tool", text: (v.by === "user" ? T.you : "Hermes") + " · " + summaryText(v.summary, histList) })
+        ])
+      ]);
+    });
+    return [head, h("p", { "class": "src-hint", text: T.hAuto }), histList.length ? h("div", { "class": "src-list" }, rows) : h("p", { "class": "src-empty", text: T.hNone })];
+  }
+  function openVersion(n) {
+    histPicked = n;
+    if (n !== shownVersion && window.hermes && window.hermes.history) { window.hermes.history.show(n === latestVersion ? null : n, "history"); return; }
+    renderPanel();
+  }
+  function renderVersion(n) {
+    var v = (histList || []).filter(function (x) { return x.n === n; })[0] || { n: n };
+    var head = h("div", { "class": "src-head" }, [
+      iconBtn("prev", T.backToHistory, function () { histPicked = null; renderPanel(); }),
+      h("span", { style: "flex:1" }),
+      iconBtn("close", T.close, function () { toggleHistory(false); })
+    ]);
+    var top = h("div", { "class": "src-top" }, [
+      h("b", { "class": "src-title", text: whenText(v.at) }),
+      h("p", { "class": "src-desc", text: (v.by === "user" ? T.you : "Hermes") + " · " + summaryText(v.summary, histList) }),
+      v.current ? h("p", { "class": "src-meta", style: "margin:6px 0 0", text: T.hIsNow }) : h("div", { "class": "src-actions" }, [
+        kit.labelled(kit.button(T.hRestore, "undo", function () {
+          window.hermes.history.restore(n).then(function () { kit.toast(T.hRestoredToast); window.hermes.history.show(null, "history"); },
+            function (e) { kit.toast(String(e && e.message || e)); });
+        }), T.hRestore)
+      ]),
+      v.current ? null : h("p", { "class": "src-meta", style: "margin:8px 0 0", text: T.hRestoreHint })
+    ]);
+    var d = histDiff[n];
+    if (d === undefined && window.hermes && window.hermes.history) {
+      histDiff[n] = null;
+      window.hermes.history.diff(n).then(function (r) { histDiff[n] = r; renderPanel(); }, function () { histDiff[n] = { changes: [], failed: true }; renderPanel(); });
+    }
+    var body = !d ? [h("p", { "class": "src-empty", text: T.loading })] : !d.changes.length ? [h("p", { "class": "src-empty", text: d.failed ? T.hCantRead : T.hNoChange })] : d.changes.map(function (c, i) {
+      var key = n + ":" + i, open = !!histOpen[key];
+      var label = c.name + ": " + (c.kind === "added" ? T.hKAdded : c.kind === "removed" ? T.hKRemoved : T.hKEdited) +
+        (c.lines ? " · +" + c.added + " −" + c.removed : "");
+      return h("div", { "class": "src-sec2" + (open ? " open" : "") }, [
+        h("button", { "class": "src-sec2-head", type: "button", onclick: function () { histOpen[key] = !open; renderPanel(); } },
+          [h("span", { style: "font-size:13.5px", text: label }), h("span", { "class": "src-caret", html: kit.icon(open ? "caretDown" : "caretRight") })]),
+        open ? h("div", { "class": "src-sec2-body" }, [c.lines ? h("pre", { "class": "dash-diff" }, c.lines.map(function (ln) {
+          return h("span", { "class": ln[0] === "+" ? "add" : ln[0] === "-" ? "del" : ln.slice(0, 2) === "@@" ? "hunk" : "", text: ln + "\n" });
+        })) : h("p", { "class": "src-meta", text: T.hTooMuch })]) : null
+      ]);
+    });
+    return [head, h("div", { "class": "src-detail" }, [top].concat(body))];
+  }
+  function renderPanel(err) {
+    if (!drawer) return;
+    var kids = panelMode === "history" ? renderHistory(err) : panelMode === "design" && window.dashDesign ? window.dashDesign.render() : picked ? renderDetail(picked.id) : renderList();
+    drawer.replaceChildren.apply(drawer, kids.filter(Boolean));
+  }
+  function toggleHistory(on) {
+    var open = on === undefined ? !(srcOpen && panelMode === "history") : on;
+    if (!open) { panelMode = "sources"; toggleSources(false); return; }
+    panelMode = "history"; histList = null;
+    toggleSources(true, true);
+    loadHistory();
+  }
+  // An earlier version shows with today's data, and says so.
+  var verBar = null;
+  function versionBar() {
+    var old = shownVersion !== latestVersion;
+    if (!old || C.thumb) { if (verBar) { verBar.remove(); verBar = null; } return; }
+    var box = h("div", { "class": "dash-notice dash-version-bar" }, [
+      h("span", { style: "flex:1;min-width:0", text: T.hEarlier }),
+      kit.labelled(kit.button(T.hBackLatest, "refresh", function () { window.hermes.history.show(null, panelMode === "history" && srcOpen ? "history" : null); }), T.hBackLatest)
+    ]);
+    if (verBar) verBar.replaceWith(box); else root.parentNode.insertBefore(box, root);
+    verBar = box;
+  }
+  if (window.hermes && window.hermes.on) {
+    window.hermes.on("versions", function (d) {
+      if (d && typeof d.latest === "number") latestVersion = d.latest;
+      if (d && typeof d.shown === "number") shownVersion = d.shown;
+      versionBar();
+    });
+    window.hermes.on("open-panel", function (d) {
+      if (!d) return;
+      if (d.panel === "history") { histPicked = d.version == null ? null : d.version; toggleHistory(true); }
+      else if (d.panel === "design" && window.dashDesign) window.dashDesign.open();
+    });
   }
 
   var editing = null;
@@ -889,12 +1175,17 @@
     ]), histBox, testOut]);
   }
 
-  function toggleSources(on) {
-    srcOpen = on === undefined ? !srcOpen : on;
+  function toggleSources(on, keepMode) {
+    var want = on === undefined ? !(srcOpen && panelMode === "sources") : on;
+    if (!keepMode && want) panelMode = "sources";
+    srcOpen = want;
+    if (!srcOpen) panelMode = "sources";
     if (srcOpen && !drawer) { drawer = h("aside", { "class": "kit-drawer dash-drawer", "aria-label": T.sources }); document.body.appendChild(drawer); }
     if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; }
-    document.documentElement.setAttribute("data-dash-mode", srcOpen ? "data" : "page");
-    srcBtn.setAttribute("aria-pressed", String(srcOpen));
+    document.documentElement.setAttribute("data-dash-mode", srcOpen && panelMode === "sources" ? "data" : "page");
+    srcBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "sources"));
+    histBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "history"));
+    if (window.dashDesign) window.dashDesign.pressed(srcOpen && panelMode === "design");
     sendView();
     // As Claude's: the panel runs the frame's full height beside the page; the bar stops at its edge.
     var side = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
@@ -906,7 +1197,7 @@
 
   // In data mode a click on a marked element opens its source, the clicked cell lit.
   root.addEventListener("click", function (e) {
-    if (!srcOpen) return;
+    if (!srcOpen || panelMode !== "sources") return;
     var m = e.target.closest && e.target.closest("[data-source]");
     if (!m) return;
     e.preventDefault(); e.stopPropagation();
@@ -968,8 +1259,16 @@
       run: function () { kit.download(id + ".csv", toCsv(get(id)), "text/csv"); } };
   }));
   bar.className = "kit-bar dash-bar";
+  var histBtn = kit.button("", "history", function () { toggleHistory(); }, T.history);
+  var full = false;
+  var fullBtn = kit.button("", "expand", function () {
+    full = !full;
+    if (window.hermes && window.hermes.fullscreen) window.hermes.fullscreen(full).catch(function () {});
+    fullBtn.setAttribute("aria-pressed", String(full)); fullBtn.title = full ? T.exitFull : T.fullScreen;
+  }, T.fullScreen);
+  if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
   bar.append(kit.button("", "refresh", function () { refreshLive(true); gen++; redraw(); }, T.refreshAll), freshEl,
-    h("span", { style: "flex:1" }), srcBtn);
+    h("span", { style: "flex:1" }), histBtn, fullBtn, srcBtn);
   kit.exports(exportList).then(function (hosted) {
     if (hosted) return;
     var own = kit.labelled(kit.button(T.exp, "download", function () {
@@ -1007,6 +1306,36 @@
   }
   window.addEventListener("focus", retryFailed);
   document.addEventListener("visibilitychange", retryFailed);
+
+  // ------------------------------------------------------------------ select text, then Ask Hermes
+  var askBtn = null;
+  function hideAsk() { if (askBtn) { askBtn.remove(); askBtn = null; } }
+  document.addEventListener("mouseup", function (e) {
+    if (askBtn && askBtn.contains(e.target)) return;
+    setTimeout(function () {
+      hideAsk();
+      if (C.thumb || (srcOpen && panelMode === "sources") || document.documentElement.getAttribute("data-dash-editing") === "1") return;
+      var sel = window.getSelection(), text = sel ? String(sel).trim() : "";
+      if (!text || text.length > 800 || !sel.rangeCount) return;
+      var range = sel.getRangeAt(0);
+      if (!root.contains(range.commonAncestorContainer)) return;
+      var r = range.getBoundingClientRect();
+      var near = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+      var place = near && near.closest ? near.closest("[id]") : null;
+      if (place === root || (place && !root.contains(place))) place = null;
+      askBtn = h("button", { "class": "dash-ask-sel", type: "button", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 180)) + "px;top:" + Math.max(8, r.top - 40) + "px",
+        html: kit.icon("sparkle") + "<span>" + kit.esc(T.askAbout) + "</span>" });
+      askBtn.addEventListener("click", function () {
+        var msg = T.aboutSel + (place && place.id ? " (#" + place.id + ")" : "") + ": \u201c" + text.slice(0, 600) + "\u201d\n";
+        if (window.hermes && window.hermes.send) window.hermes.send(msg, { selection: text.slice(0, 600), place: place && place.id || null })
+          .then(function () { kit.toast(T.staged); }, function () {});
+        hideAsk();
+        try { window.getSelection().removeAllRanges(); } catch (err) {}
+      });
+      document.body.appendChild(askBtn);
+    }, 0);
+  });
+  window.addEventListener("scroll", hideAsk, { passive: true });
 
   // ------------------------------------------------------------------ view context (with the next chat message)
   function viewContext() {
@@ -1152,6 +1481,83 @@
     bannerEl = box;
   }
 
+  // ------------------------------------------------------------------ Design: the look, drafts, Edit the page
+  var DK = window.dashDesignKit || null;
+  var draft = DK ? DK.draftOf(kit.content.files) : null;
+  var draftView = "draft"; // "draft" | "dashboard": Undo / Redo between the draft and the dashboard as it is
+  var showingDraft = function () { return !!(draft && draft.page && draftView === "draft"); };
+  if (DK && spec && spec.look) DK.wear(spec.look);
+  var designBtn = kit.button("", "palette", function () { toggleDesign(); }, T.design);
+  function toggleDesign(on) {
+    var open = on === undefined ? !(srcOpen && panelMode === "design") : on;
+    if (!open) { panelMode = "sources"; toggleSources(false); return; }
+    panelMode = "design";
+    toggleSources(true, true);
+  }
+  var design = DK ? DK.init({ T: T, spec: spec, iconBtn: iconBtn, isOpen: function () { return srcOpen && panelMode === "design"; },
+    render: function () { renderPanel(); }, close: function () { toggleDesign(false); }, draft: function () { return draft; },
+    edit: function () { toggleDesign(false); if (window.dashEdit) window.dashEdit.start(); } }) : null;
+  window.dashDesign = { render: function () { return design ? design.render() : []; }, open: function () { toggleDesign(true); },
+    pressed: function (on) { designBtn.setAttribute("aria-pressed", String(!!on)); } };
+
+  var draftBar = null;
+  function saveDraft() {
+    var files = DK.saveDraftFiles(kit.content.files, spec, draft);
+    window.hermes.save(files, C.version).then(function (r) {
+      if (r && r.conflict) { kit.toast(T.conflict); return; }
+      kit.toast(T.draftSaved);
+      window.hermes.history.show(null, null);
+    }, function (e) { kit.toast(String(e && e.message || e)); });
+  }
+  function cancelDraft() {
+    var files = {};
+    DK.draftFiles(kit.content.files, draft).forEach(function (p) { files[p] = null; });
+    window.hermes.save(files, C.version).then(function (r) {
+      if (r && r.conflict) { kit.toast(T.conflict); return; }
+      kit.toast(T.draftCancelled);
+      window.hermes.history.show(null, null);
+    }, function (e) { kit.toast(String(e && e.message || e)); });
+  }
+  function setDraftView(v) {
+    draftView = v;
+    if (window.hermes && window.hermes.storage) window.hermes.storage.set("dash.draftView." + draft.id, v).catch(function () {});
+    window.hermes.history.show(null, null);
+  }
+  function showDraftBar() {
+    if (!draft || C.thumb) return;
+    var kids;
+    if (!draft.page) kids = [h("span", { style: "flex:1;min-width:0", text: T.draftMaking.replace("{format}", T["fmt_" + draft.format]) }),
+      kit.labelled(kit.button(T.draftCancel, "close", cancelDraft), T.draftCancel)];
+    else kids = [h("span", { style: "flex:1;min-width:0", text: showingDraft() ? T.draftShowing : T.draftAsIs }),
+      showingDraft() ? kit.labelled(kit.button(T.draftUndo, "undo", function () { setDraftView("dashboard"); }), T.draftUndo)
+        : kit.labelled(kit.button(T.draftRedo, "redo", function () { setDraftView("draft"); }), T.draftRedo),
+      kit.labelled(kit.button(T.draftCancel, "close", cancelDraft), T.draftCancel),
+      kit.labelled(kit.button(T.draftSave, "", saveDraft), T.draftSave)];
+    var box = h("div", { "class": "dash-notice dash-draft-bar" }, kids);
+    if (draftBar) draftBar.replaceWith(box); else root.parentNode.insertBefore(box, root);
+    draftBar = box;
+  }
+  if (!C.thumb) {
+    var spacer = bar.querySelector("span[style*='flex:1']");
+    if (spacer && spacer.nextSibling) bar.insertBefore(designBtn, spacer.nextSibling);
+  }
+
+  function remount(html) {
+    document.querySelectorAll("style[data-page]").forEach(function (n) { n.remove(); });
+    drawers.length = 0; drawFns = {};
+    root.replaceChildren();
+    mountHtml(html, editPath() || "index.html", root);
+    gen++; redraw();
+  }
+  function editPath() {
+    if (showingDraft()) return draft.page;
+    if (spec && Array.isArray(spec.layout)) return null; // drawn from its layout: Hermes rewrites it to be edited by hand
+    var p = (spec && spec.page) || "index.html";
+    return kit.fileText(p) != null ? p : null;
+  }
+  window.dashEdit = window.dashEditKit ? window.dashEditKit.init({ T: T, root: root, remount: remount, redraw: function () { gen++; redraw(); },
+    pagePath: editPath, isLatest: function () { return shownVersion === latestVersion; } }) : null;
+
   // ------------------------------------------------------------------ boot
   if (!spec) {
     root.appendChild(h("div", { "class": "dash-err", text: T.bad }));
@@ -1160,6 +1566,12 @@
   var booted = false;
   function boot() {
     if (booted) return; booted = true;
+    if (showingDraft()) {
+      // A draft reads the dashboard's sources by id; a new or changed one is in its datasets.json.
+      try { Object.assign(datasets, JSON.parse(kit.fileText("drafts/" + draft.id + "/datasets.json") || "{}")); } catch (e) {}
+      try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = dp; params = Object.assign({}, dp, params); } } catch (e) {}
+    }
+    showDraftBar();
     mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
     redraw();
     kit.ready();
@@ -1167,8 +1579,11 @@
   // Filters a viewer set last time (per artifact), then the page.
   if (window.hermes && !C.thumb) {
     var t = setTimeout(boot, 1200);
-    window.hermes.storage.get("dash.params").then(function (p) {
+    Promise.all([window.hermes.storage.get("dash.params").catch(function () {}),
+      draft ? window.hermes.storage.get("dash.draftView." + draft.id).catch(function () {}) : null]).then(function (r) {
+      var p = r[0];
       if (p && typeof p === "object") params = Object.assign({}, params, p);
+      if (r[1] === "dashboard" || r[1] === "draft") draftView = r[1];
     }).catch(function () {}).then(function () { clearTimeout(t); boot(); });
   } else boot();
 })();

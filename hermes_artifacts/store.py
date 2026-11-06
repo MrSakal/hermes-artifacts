@@ -125,7 +125,7 @@ def _write_files(vdir: Path, files: dict) -> None:
 def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Optional[dict] = None,
             title: str = "", aid: Optional[str] = None, description: str = "",
             type: Optional[str] = None, base: bool = False,
-            session: Optional[str] = None) -> dict:
+            session: Optional[str] = None, by: str = "hermes", restored: Optional[int] = None) -> dict:
     """Write a new version from exactly one of ``html``, ``path`` (an .html file or a folder) or
     ``files`` ({relative path: text | JSON value | {"base64": ...}}).
 
@@ -195,7 +195,10 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             meta["description"] = description
         if session and isinstance(session, str):
             meta["session"] = session[:200]  # the chat that published it (desktop sends comments there)
-        meta["versions"].append({"n": n, "published": time.time(), "bytes": size})
+        entry = {"n": n, "published": time.time(), "bytes": size, "by": by if by in ("hermes", "user") else "hermes"}
+        if restored:
+            entry["restored"] = int(restored)
+        meta["versions"].append(entry)
         meta["updated"] = time.time()
         _write_json(d / "meta.json", meta)
         return meta
