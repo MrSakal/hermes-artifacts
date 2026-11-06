@@ -1,0 +1,13 @@
+<!-- @dsCard group="Status" height=168 subtitle="glaze · clay" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Notice</title></head>
+<body>
+<div id="root" class="kl-stack"></div>
+<script>
+  var K = window.Kiln, root = document.getElementById("root");
+  root.append(K.Notice({ title: "Kiln opens Thursday", body: "Your mugs are in this firing; we'll write when they're cool enough to collect." }),
+    K.Notice({ title: "Class moved to 19:00", body: "Tuesday's evening class starts an hour later this week.", tone: "clay" }));
+</script>
+</body>
+</html>

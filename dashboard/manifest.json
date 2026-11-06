@@ -2,6 +2,6 @@
   "name": "hermes-artifacts",
   "label": "Artifacts",
   "description": "Backend for the Hermes Desktop Artifacts page: artifacts, comments, storage, inbox, export libraries.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "api": "plugin_api.py"
 }

@@ -49,6 +49,10 @@ a title that moves to the corner or a number that grows, and set `"transition": 
 
 Text fields accept `**bold**` and `*italic*`.
 
+With a design system, the deck wears it: `"designSystem": "<id>"` in deck.json, else the user's default
+(`artifact_list type=design-system` → `default_design_system`). Its colors, fonts and tokens replace the
+Hermes look; don't set `theme` then.
+
 Leave `theme` out and the deck wears Hermes' own colors and font, following the user's theme and skin. This is the recommended default. Set it only for a deck that needs its own brand.
 
 `theme` sets the look for the whole deck:

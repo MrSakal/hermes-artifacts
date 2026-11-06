@@ -96,6 +96,9 @@ const STRINGS = {
     type_dashboard: 'Dashboard',
     type_slides: 'Slides',
     type_doc: 'Doc',
+    type_design: 'Design',
+    type_motion: 'Motion',
+    'type_design-system': 'Design system',
     tile_page: 'Page',
     tile_dashboard: 'Dashboard',
     tile_slides: 'Slides',
@@ -174,6 +177,9 @@ const STRINGS = {
     type_dashboard: 'Dashboard',
     type_slides: 'Diák',
     type_doc: 'Dokumentum',
+    type_design: 'Terv',
+    type_motion: 'Animáció',
+    'type_design-system': 'Arculat',
     tile_page: 'Oldal',
     tile_dashboard: 'Dashboard',
     tile_slides: 'Diák',
@@ -877,6 +883,7 @@ function useBridge(ref, art, ctx, portRef) {
             return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
           }
           if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
+          if (m.op === 'ds.default' && !gesture) return reply({ ok: false, error: 'choosing the default design system needs a click in the page' })
           if (m.op === 'dataset.test' && !gesture) return reply({ ok: false, error: 'testing a query needs a click in the page' })
           if (m.op === 'dataset.edit' && !gesture) return reply({ ok: false, error: 'saving a query needs a click in the page' })
           if (m.op === 'dataset.approve' && !gesture) return reply({ ok: false, error: 'allowing live data needs a click in the page' })

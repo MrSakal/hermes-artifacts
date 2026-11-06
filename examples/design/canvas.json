@@ -1,0 +1,21 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-06T09:00:00Z"},
+  "title": "Lumen Coffee: first round",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 1720, "title": "Landing page", "expand": "fill"},
+    "Order.dc.html": {"x": 1360, "y": 0, "w": 390, "h": 844, "title": "App: pick a drink", "is_interactive": true, "radius": 28},
+    "Checkout.dc.html": {"x": 1830, "y": 0, "w": 390, "h": 844, "title": "App: your order", "is_interactive": true, "radius": 28},
+    "Poster.dc.html": {"x": 2300, "y": 0, "w": 816, "h": 1056, "title": "Cupping night poster",
+      "guides": [{"kind": "columns", "count": 6, "gutter": 24, "margin": 72, "hidden": false}]},
+    "Tag.dc.html": {"x": 3196, "y": 0, "w": 200, "h": 48, "title": "Tag (component)"}
+  },
+  "order": ["Main.dc.html", "Order.dc.html", "Checkout.dc.html", "Poster.dc.html", "Tag.dc.html"],
+  "notes": {
+    "round": {"x": 0, "y": -300, "text": "Lumen Coffee: web, app and print", "kind": "title1", "maxW": 3396},
+    "todo": {"x": 1360, "y": 940, "text": "Prices, opening hours and the event date are placeholders: fill them in before this goes out.", "w": 300, "fill": "orange"}
+  },
+  "designSystems": []
+}

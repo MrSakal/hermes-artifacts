@@ -65,9 +65,10 @@ def get_meta(aid: str) -> Optional[dict]:
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 
-TYPES = ("page", "dashboard", "slides", "doc")
+TYPES = ("page", "dashboard", "slides", "doc", "design", "motion", "design-system")
 # The file a type's content starts from (validated at publish).
-TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md"}
+TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md",
+              "design": "canvas.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
 _REL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){0,7}$")
 MAX_FILES = 512
 
@@ -336,6 +337,26 @@ def read_html(aid: str, n: Optional[int] = None) -> str:
 
 def _kv_path(aid: str) -> Path:
     return _dir(aid) / "storage.json"
+
+
+def settings() -> dict:
+    """Plugin-wide choices the user made in a page (the default design system)."""
+    p = root() / "settings.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def settings_set(key: str, value: Any) -> None:
+    with _LOCK:
+        s = settings()
+        if value is None:
+            s.pop(key, None)
+        else:
+            s[key] = value
+        root().mkdir(parents=True, exist_ok=True)
+        _write_json(root() / "settings.json", s)
 
 
 def kv_all(aid: str) -> dict:

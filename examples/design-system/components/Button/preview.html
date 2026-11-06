@@ -1,0 +1,13 @@
+<!-- @dsCard group="Actions" height=72 subtitle="primary · quiet · disabled" -->
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Button</title></head>
+<body>
+<div id="root" class="kl-row"></div>
+<script>
+  var K = window.Kiln, root = document.getElementById("root");
+  root.append(K.Button({ label: "Book a class", variant: "primary" }), K.Button({ label: "See the glazes" }),
+    K.Button({ label: "Sold out", disabled: true }));
+</script>
+</body>
+</html>

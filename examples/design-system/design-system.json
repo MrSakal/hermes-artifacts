@@ -1,0 +1,16 @@
+{
+  "v": 3,
+  "layout": "files",
+  "createdOnFiles": { "v": 1, "at": "2026-11-06T09:00:00Z" },
+  "title": "Kiln",
+  "namespace": "Kiln",
+  "libraries": [],
+  "sections": {},
+  "groups": ["Marks"],
+  "assetGroups": {
+    "Marks": { "name": "Marks", "tile": "m", "order": ["kiln-mark.svg", "kiln-wordmark.svg"], "files": {} }
+  },
+  "blobs": {},
+  "docs": { "readme": "README.md", "sections": [] },
+  "lastChange": { "by": "Hermes", "at": "2026-11-06T09:00:00Z", "via": "hermes-artifacts example", "note": "First version" }
+}

@@ -1,0 +1,8 @@
+{"v":1,"stage":"final","look":"Blue hour: a drawn fishing harbor at dusk in layered paper, lamplight on still water; rich",
+ "palettes":[["#0F2233","#2F6F8F","#F4E9D8","#F2B544"],["#F3EDE2","#24577A","#1B2430","#E07A3F"],["#1D1B2E","#6B5CA5","#EDE6F7","#F0C05A"]],"theirs":0,
+ "width":1920,"height":1080,"fps":30,"background":"#0F2233",
+ "fonts":{"display":"space-grotesk","sans":{"family":"Inter","or":"instrument-sans"}},
+ "scenes":[
+  {"id":"harbor","name":"The harbor","dur":4.5,"desc":"Dusk over the harbor: boats rock at their moorings and the town's windows come on."},
+  {"id":"lamp","name":"The lamp","dur":4,"desc":"Up close, the lighthouse lens turns and its beam sweeps across the bay."},
+  {"id":"walk","name":"Come along","dur":5,"desc":"Lanterns light along the pier as a boat comes in; the end card names the day and place."}]}

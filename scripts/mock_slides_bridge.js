@@ -1,5 +1,5 @@
-/* Dev helper: an in-page stand-in for the Hermes bridge's save / send / download (render_preview.py
-   --mock-slides), to try the slide editor without Hermes. window.__mock holds what the page did. */
+/* Dev helper: an in-page stand-in for the Hermes bridge (render_preview.py --mock-slides; any typed
+   artifact), to try an editor without Hermes. window.__mock holds what the page did. */
 (function () {
   var v = JSON.parse(document.getElementById("hermes-artifact-content").textContent).version, listeners = {};
   var m = window.__mock = { saves: [], sent: [], downloads: [] };
@@ -9,6 +9,12 @@
     send: function (text, data) { m.sent.push({ text: text, data: data }); return later({ ok: true }); },
     download: function (name, data) { m.downloads.push({ name: name, data: data }); return later({ ok: true }); },
     on: function (n, f) { (listeners[n] = listeners[n] || []).push(f); },
-    view: function (ctx) { m.view = ctx; return later({ ok: true }); }
+    view: function (ctx) { m.view = ctx; return later({ ok: true }); },
+    comment: function (anchor) { m.comments = (m.comments || []).concat([anchor]); },
+    present: function (on) { m.present = on; return later({ ok: true }); },
+    chrome: function () { return later({ ok: false }); },
+    // A design system for the page to wear: window.__mockDs (set before load), else none.
+    ds: { get: function () { return later(window.__mockDs || { none: true }); },
+          makeDefault: function (on) { m.dsDefault = on; return later({ ok: true }); } }
   };
 })();

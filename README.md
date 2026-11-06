@@ -12,6 +12,9 @@ version, and the open view reloads.
 | **Page** | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML |
 | **Dashboard** | Numbers, charts and tables drawn from datasets (CSV/TSV/JSON or inline rows). "Where numbers come from" shows each figure's source row. | CSV per source, HTML snapshot, JSON |
 | **Slides** | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
+| **Design** | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) in Claude's `.dc.html` format: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. | PNG, PDF (searchable), HTML |
+| **Motion** | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
+| **Design system** | A brand's browsable reference: tokens across themes, type, spacing, components with live previews, assets, the brand book. Mark one as default and designs, decks and films wear it. | tokens.css, tokens.json, ZIP |
 | **Doc** | A Markdown document with an outline, edited beside a live preview. | Word (.docx), PDF, Markdown, HTML |
 
 Around every artifact you can:

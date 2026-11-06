@@ -1,0 +1,14 @@
+#stage { --ground:#0F2233; --main:#2F6F8F; --second:#F4E9D8; --accent:#F2B544; color:var(--second); font-family:var(--sans, system-ui, sans-serif);
+  --deep:color-mix(in srgb, var(--ground) 82%, #000); --sky:color-mix(in srgb, var(--ground) 70%, var(--main)); --dusk:color-mix(in srgb, var(--sky) 62%, var(--accent));
+  --sea:color-mix(in srgb, var(--main) 48%, var(--ground)); --hill:color-mix(in srgb, var(--ground) 84%, var(--main)); --stone:color-mix(in srgb, var(--second) 26%, var(--ground));
+  --wood:color-mix(in srgb, var(--accent) 22%, var(--ground)); --glow:color-mix(in srgb, var(--accent) 72%, var(--second)); --hull:color-mix(in srgb, var(--main) 40%, var(--deep)) }
+.ground { position:absolute; inset:0; background:var(--ground) }
+.art { position:absolute; inset:0; width:100%; height:100%; overflow:visible }
+.air { position:absolute; inset:0; background:linear-gradient(var(--deep), var(--sky) 52%, var(--dusk) 80%) }
+.edge { position:absolute; inset:0; background:radial-gradient(95% 85% at 50% 45%, transparent 55%, color-mix(in srgb, var(--deep) 60%, transparent)) }
+.calm { position:absolute; left:0; bottom:0; width:72%; height:52%; background:radial-gradient(100% 100% at 0 100%, color-mix(in srgb, var(--deep) 88%, transparent) 52%, transparent) }
+.words { position:absolute; margin:0; display:flex; flex-direction:column; gap:22px } .words > * { margin:0 }
+.line { font-family:var(--display, var(--sans, system-ui, sans-serif)); font-size:128px; line-height:1.02; font-weight:700; letter-spacing:-0.015em }
+.mid { font-family:var(--display, var(--sans, system-ui, sans-serif)); font-size:88px; line-height:1.05; font-weight:700 }
+.sub { font-size:40px; line-height:1.3; font-weight:400 }
+.tag { font-size:30px; letter-spacing:.14em; text-transform:uppercase; color:var(--glow); font-weight:700 }

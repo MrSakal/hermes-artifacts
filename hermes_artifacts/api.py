@@ -65,10 +65,39 @@ def _int(v) -> Optional[int]:
 _VENDOR = Path(render.TYPES_DIR / "vendor")
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
 _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
-               "doc": r"^doc\.md$"}
+               "doc": r"^doc\.md$",
+               # Design: the index, artboard sources (the canvas edits text, styles, positions, tweaks) and uploads.
+               "design": r"^(canvas\.json|[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}){0,3}\.dc\.html"
+                         r"|uploads/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
+               # Motion: the page's own records of what the user retyped, recolored, refaced or recut.
+               "motion": r"^modules/(retyped|recolored|refaced|recut|retouched)\.json$",
+               # Design System: tokens, the brand book, component guidelines, asset uploads.
+               "design-system": r"^(design-system\.json|tokens\.json|README\.md|[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md"
+                                r"|components/[A-Za-z_][A-Za-z0-9_]{0,63}/README\.md"
+                                r"|assets/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp))$"}
+_IMG_PATH = re.compile(r"\.(png|jpe?g|gif|webp)$", re.I)
 # An image the slide editor uploads: a data: URI of one of these, stored as the binary file.
 _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+def design_system(dsid: Optional[str]) -> dict:
+    """A design system for another artifact to wear: tokens.json, components/bundle.css, its fonts as
+    data: URIs, README. None: the default one (or {"none": true})."""
+    dsid = dsid or store.settings().get("default_design_system")
+    m = store.get_meta(dsid) if dsid else None
+    if not m or m.get("type") != "design-system":
+        return {"none": True}
+    vdir = store.version_dir(dsid)
+    files = render.content_json(vdir)
+    try:
+        import json as _j
+        tokens = _j.loads(files.get("tokens.json") or "{}")
+    except ValueError:
+        tokens = {}
+    fonts = {k: v for k, v in files.items() if k.startswith("fonts/")}
+    return {"id": dsid, "title": m.get("title", dsid), "version": m["versions"][-1]["n"], "tokens": tokens,
+            "css": files.get("components/bundle.css", ""), "fonts": fonts, "readme": files.get("README.md", "")}
 
 
 def _op(aid: str, op: str, a: dict) -> dict:
@@ -93,7 +122,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
         for rel, val in files.items():
             if not re.match(pat, str(rel)) or not (val is None or isinstance(val, str)):
                 raise ValueError(f"can't save {rel!r} here")
-            if str(rel).startswith("img/") and val is not None:
+            if _IMG_PATH.search(str(rel)) and val is not None:
                 im = _IMG_URI.match(val)
                 if not im or len(im.group(2)) * 3 // 4 > MAX_UPLOAD_BYTES:
                     raise ValueError(f"{rel}: an image (png, jpeg, gif or webp) of at most 8 MB")
@@ -104,6 +133,15 @@ def _op(aid: str, op: str, a: dict) -> dict:
             return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files)
         return {"ok": True, "version": nm["versions"][-1]["n"]}
+    if op == "ds.get":
+        # Any page may build on a design system (that's what one is for): its tokens, stylesheet, fonts.
+        return design_system(str(a.get("id") or "") or None)
+    if op == "ds.default":
+        m = _meta(aid)
+        if m.get("type") != "design-system":
+            raise ValueError("only a design system can be made the default")
+        store.settings_set("default_design_system", aid if a.get("on", True) else None)
+        return {"ok": True, "default": store.settings().get("default_design_system")}
     if op == "dataset.run":
         params = a.get("params") if isinstance(a.get("params"), dict) else {}
         mode = "cached" if a.get("mode") == "cached" else "live"

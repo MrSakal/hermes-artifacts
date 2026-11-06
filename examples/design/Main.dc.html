@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumen Coffee: landing page</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:#7a3e12}a:hover{color:#4f270b}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #f7f3ec; color: #1f1b16; font-family: Inter, 'Segoe UI', system-ui, sans-serif">
+<header style="max-width: 1160px; margin: 0 auto; padding: 24px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<a href="#top" style="font-family: Fraunces, Georgia, serif; font-size: 24px; font-weight: 600; color: #1f1b16; text-decoration: none">Lumen</a>
+<nav style="display: flex; flex-wrap: wrap; gap: 24px; font-size: 15px">
+<a href="#beans">Beans</a>
+<a href="#visit">Visit</a>
+<a href="Order.dc.html">Order ahead</a>
+</nav>
+</header>
+<section id="top" style="max-width: 1160px; margin: 0 auto; padding: 72px 32px 96px; min-height: 480px; box-sizing: border-box; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 48px; align-items: center">
+<div style="display: flex; flex-direction: column; gap: 24px">
+<p style="margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #7a3e12">Small-batch roastery and café</p>
+<h1 style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 64px; line-height: 1.04; font-weight: 600; text-wrap: balance">Coffee roasted on Tuesday, in your cup by Friday.</h1>
+<p style="margin: 0; font-size: 19px; line-height: 1.6; color: #4a4339; max-width: 520px; text-wrap: pretty">We roast twice a week in the back of the café, so nothing on our shelf is older than ten days. Order ahead and skip the line.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<a href="Order.dc.html" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #1f1b16; color: #f7f3ec; font-weight: 600; text-decoration: none">Order ahead</a>
+<a href="#visit" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #1f1b16; color: #1f1b16; font-weight: 600; text-decoration: none">Find the café</a>
+</div>
+</div>
+<img src="uploads/hero.png" alt="Placeholder picture: replace with a photo of the roaster at work" style="width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 24px; display: block">
+</section>
+<section id="beans" style="background: #efe7da; padding: 80px 32px">
+<div style="max-width: 1160px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
+<h2 style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 40px; font-weight: 600">On the shelf this week</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 24px">
+<sc-for list="{{beans}}" as="bean" hint-placeholder-count="3">
+<article style="background: #fbf8f3; border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: #7a3e12">{{bean.origin}}</p>
+<h3 style="margin: 0; font-size: 22px; font-weight: 600">{{bean.name}}</h3>
+<p style="margin: 0; font-size: 16px; line-height: 1.55; color: #4a4339">{{bean.notes}}</p>
+<p style="margin: 0; font-size: 15px; font-weight: 600">[YOUR PRICE] / 250 g</p>
+</article>
+</sc-for>
+</div>
+</div>
+</section>
+<section id="visit" style="max-width: 1160px; margin: 0 auto; padding: 80px 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 48px">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 40px; font-weight: 600">Come by</h2>
+<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #4a4339">[YOUR ADDRESS]<br>Open [YOUR HOURS]</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 16px; align-items: flex-start">
+<p style="margin: 0; font-size: 18px; line-height: 1.6">Skip the line: order from the app and pick it up at the bar.</p>
+<a href="Order.dc.html" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #1f1b16; color: #f7f3ec; font-weight: 600; text-decoration: none">Order ahead</a>
+</div>
+</section>
+<footer style="border-top: 1px solid #ddd2c2; padding: 24px 32px; text-align: center; font-size: 14px; color: #6b6255">Lumen Coffee Roasters</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      beans: [
+        { origin: 'Ethiopia · Guji', name: 'Hambela washed', notes: 'Bergamot, peach and a long black-tea finish.' },
+        { origin: 'Colombia · Huila', name: 'La Esperanza', notes: 'Red apple, panela and milk chocolate.' },
+        { origin: 'Brazil · Mogiana', name: 'House espresso', notes: 'Hazelnut, cocoa and a heavy, round body.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

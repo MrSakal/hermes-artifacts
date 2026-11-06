@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumen app: your order</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+a{color:#7a3e12}a:hover{color:#4f270b}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 56px 20px 24px; display: flex; flex-direction: column; gap: 24px; background: #f7f3ec; color: #1f1b16; font-family: Inter, 'Segoe UI', system-ui, sans-serif">
+<a href="Order.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; font-weight: 500; text-decoration: none">← Back</a>
+<h1 style="margin: 0; font-family: Fraunces, Georgia, serif; font-size: 32px; font-weight: 600">Your order</h1>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-radius: 14px; background: #fbf8f3">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 17px; font-weight: 600">Flat white</span>
+<span style="font-size: 14px; color: #6b6255">Pick up at the bar</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" aria-label="One less" onClick="{{less}}" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid #1f1b16; background: transparent; font-size: 20px; color: inherit; cursor: pointer">−</button>
+<span style="min-width: 24px; text-align: center; font-size: 17px; font-weight: 600">{{count}}</span>
+<button type="button" aria-label="One more" onClick="{{more}}" style="width: 44px; height: 44px; border-radius: 50%; border: 1px solid #1f1b16; background: transparent; font-size: 20px; color: inherit; cursor: pointer">+</button>
+</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #4a4339">Name for the cup
+<input type="text" value="{{name}}" onChange="{{rename}}" placeholder="Your name" style="min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid #cbbfae; background: #fff; font: inherit; font-size: 16px; color: #1f1b16">
+</label>
+<div style="flex-grow: 1"></div>
+<button type="button" onClick="{{place}}" style="min-height: 52px; border-radius: 14px; border: 0; background: #1f1b16; color: #f7f3ec; font: inherit; font-size: 17px; font-weight: 600; cursor: pointer">{{cta}}</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = { count: 1, name: '', placed: false };
+  renderVals() {
+    const s = this.state;
+    return {
+      count: s.count,
+      name: s.name,
+      less: () => this.setState({ count: Math.max(1, s.count - 1), placed: false }),
+      more: () => this.setState({ count: Math.min(9, s.count + 1), placed: false }),
+      rename: (e) => this.setState({ name: e.target.value }),
+      place: () => this.setState({ placed: true }),
+      cta: s.placed ? 'Ordered: ' + s.count + ' for ' + (s.name || 'you') : 'Place order'
+    };
+  }
+}
+</script>
+</body>
+</html>

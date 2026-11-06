@@ -165,6 +165,12 @@
       /** The user editing a live query in Sources: new args for that dataset, saved as a new version. */
       edit: function (id, args, baseVersion) { return call("dataset.edit", { id: String(id), args: args, base_version: baseVersion || null }); }
     }),
+    /** Design systems: get(id) one to build on (none: the default one; {none: true} when there is none);
+     *  makeDefault(on) from a design system's own page. */
+    ds: Object.freeze({
+      get: function (id) { return call("ds.get", { id: id || null }); },
+      makeDefault: function (on) { return call("ds.default", { on: on !== false }); }
+    }),
     /** Docs: the live doc on the server (read a tab, edit blocks, ask Hermes in the doc). */
     doc: Object.freeze({
       read: function (tab, sinceRev) { return call("doc.read", { tab: tab || null, since_rev: sinceRev == null ? null : sinceRev }); },

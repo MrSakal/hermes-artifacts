@@ -101,7 +101,9 @@ def _publish(args: dict, **kw) -> str:
 
 def _list(args: dict, **_kw) -> str:
     try:
-        return _ok(artifacts=[_view(m) for m in store.list_all()[: int(args.get("limit", 25))]])
+        items = [m for m in store.list_all() if not args.get("type") or m.get("type", "page") == args["type"]]
+        return _ok(artifacts=[_view(m) for m in items[: int(args.get("limit", 25))]],
+                   default_design_system=store.settings().get("default_design_system"))
     except Exception as e:
         return _err(str(e))
 
@@ -294,12 +296,12 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "Publish an artifact: something the user looks at or uses, shown on the Hermes Desktop Artifacts page. "
         "Types: `page` (any web page/tool, default), `dashboard` (one dashboard.json: datasets + a layout of "
         "KPIs, charts, tables, filters that the plugin draws; live MCP queries), `slides` (one deck.json: "
-        "slides as layouts the plugin draws; the user edits it in place and it saves as versions, so artifact_read before changing it; exports PDF/PPTX), `doc` (doc.md; a live doc the user edits too: change it later with artifact_doc_edit, not by republishing; exports DOCX/PDF). Write data, "
+        "slides as layouts the plugin draws; the user edits it in place and it saves as versions, so artifact_read before changing it; exports PDF/PPTX), `doc` (doc.md; a live doc the user edits too: change it later with artifact_doc_edit, not by republishing; exports DOCX/PDF), `design` (canvas.json + one .dc.html per artboard: websites, screens, mockups, posters, social posts on a pan/zoom canvas; exports PNG/PDF/HTML), `motion` (an animation as code: modules/scenes.json + one modules/scene-<id>.js per scene; scrub, comment on moments, export MP4), `design-system` (design-system.json, tokens.json, README.md, components/: a brand's reference that designs, decks and films build on; use the default one, see artifact_list). Write data, "
         "not HTML or chart code, unless the layout can't express it. Before the first publish of a type, call artifact_guide(type) for its "
         "file format. Content: `files` ({path: text, or {\"base64\": ...} for binary}), or `path` (a file or "
         "folder), or `html` (a single page). Reusing `id` adds a version and the open view reloads; with "
         "`base=true` only the files you pass change (null removes one). Max 16 MB.",
-        {"type": {"type": "string", "enum": ["page", "dashboard", "slides", "doc"]},
+        {"type": {"type": "string", "enum": list(store.TYPES)},
          "files": {"type": "object", "description": "Relative path -> file text (JSON values are written as "
                                                      "JSON; {\"base64\": \"...\"} for images)."},
          "path": {"type": "string"}, "html": {"type": "string"}, "title": {"type": "string"},
@@ -317,7 +319,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         {"id": {"type": "string"}, "wait": {"type": "integer"}}, ["id"]), _check, "🩺"),
     ("artifact_guide", _schema("artifact_guide", "How to write an artifact of a type: its files, format, API "
                                "and design rules. Read it before creating one.",
-                               {"type": {"type": "string", "enum": ["page", "dashboard", "slides", "doc"]}},
+                               {"type": {"type": "string", "enum": list(store.TYPES)}},
                                ["type"]), _guide, "📘"),
     ("artifact_doc_read", _schema(
         "artifact_doc_read",
@@ -337,8 +339,10 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         {"id": {"type": "string"}, "tab": {"type": "string"}, "base_rev": {"type": "integer"},
          "request": {"type": "string"},
          "ops": {"type": "array", "items": {"type": "object"}}}, ["id", "ops"]), _doc_edit, "✍️"),
-    ("artifact_list", _schema("artifact_list", "List published artifacts, newest first.",
-                              {"limit": {"type": "integer"}}), _list, "🧩"),
+    ("artifact_list", _schema("artifact_list", "List published artifacts, newest first; `type` lists one type "
+                              "only (type=design-system: the design systems). `default_design_system` is the one the "
+                              "user made default: build designs, decks and films on it unless they say otherwise.",
+                              {"limit": {"type": "integer"}, "type": {"type": "string", "enum": list(store.TYPES)}}), _list, "🧩"),
     ("artifact_read", _schema("artifact_read", "Read an artifact: its file list and one file (default: its "
                               "entry file, e.g. index.html or dashboard.json), any version, plus its stored data.",
                               {"id": {"type": "string"}, "version": {"type": "integer"},

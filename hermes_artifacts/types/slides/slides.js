@@ -99,8 +99,10 @@
   // An edit of a layout slide saves it as its HTML file, which then takes precedence.
   var defs = {};
   /** The deck's theme; without one, Hermes' own colors and font (once the host sends them). */
+  var dsTheme = null; // the deck's design system (deck.designSystem, else the user's default), as a theme
   function deckTheme() {
     if (deck.theme) return deck.theme;
+    if (dsTheme) return dsTheme;
     var t = kit.hostTheme && kit.hostTheme();
     if (!t) return null;
     return { mode: t.mode, bg: t.bg, surface: t.panel, fg: t.fg, muted: t.muted, line: t.line, accent: t.accent,
@@ -1349,8 +1351,8 @@
   if (!slides.length) { stage.replaceWith(h("div", { "class": "kit-empty", text: T.empty })); return; }
   buildRail();
   show(cur);
-  if (!deck.theme && kit.hostTheme) kit.hostTheme(function () {
-    // Layout slides nobody changed follow Hermes' theme.
+  function relayout() {
+    // Layout slides nobody changed follow the theme (the design system's, else Hermes' own).
     slides.forEach(function (s) {
       if (!s.layout || fileIds[s.id] || serialize(s) !== saved.html[s.id]) return;
       s.sec = clean(window.slideLayout(defs[s.id], deckTheme()), s.id);
@@ -1358,7 +1360,50 @@
     });
     buildRail();
     if (!pres) show(cur);
-  });
+  }
+  if (!deck.theme && kit.hostTheme) kit.hostTheme(function () { if (!dsTheme) relayout(); });
+  /** A design system's tokens as a slide theme: its colors by role (found by name), its fonts. */
+  function themeFromDs(ds) {
+    var st = h("style", { text: window.dsKit.css(ds) });
+    document.head.appendChild(st);
+    var themes = window.dsKit.themes(ds), host = kit.hostTheme && kit.hostTheme();
+    var mode = host && themes.some(function (t) { return t.id === host.mode; }) ? host.mode : themes[0] ? themes[0].id : null;
+    if (mode) document.documentElement.setAttribute("data-ds-theme", mode);
+    var probe = h("div", mode ? { "data-theme": mode } : {});
+    document.body.appendChild(probe);
+    var cs = getComputedStyle(probe), toks = ((ds.tokens.color || {}).tokens || []).map(function (t) {
+      var v = cs.getPropertyValue("--" + t.name).trim(), c = /^rgba?\(([^)]+)\)/.exec((probe.style.color = "", probe.style.color = v, getComputedStyle(probe).color));
+      var p = c ? c[1].split(/[\s,\/]+/).map(Number) : null, mx = p ? Math.max(p[0], p[1], p[2]) : 0, mn = p ? Math.min(p[0], p[1], p[2]) : 0;
+      return { name: t.name, usage: String(t.usage || ""), v: v, ok: !!p && (p.length < 4 || p[3] > 0.9), L: p ? (0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / 255 : 0, C: (mx - mn) / 255 };
+    }).filter(function (t) { return t.ok; });
+    function pick(nameRe, usageRe) {
+      var t = toks.find(function (x) { return nameRe.test(x.name); }) || (usageRe && toks.find(function (x) { return usageRe.test(x.usage); }));
+      return t ? t.v : undefined;
+    }
+    var dark = mode ? /dark|night/i.test(mode) : false;
+    var byL = toks.slice().sort(function (a, b) { return a.L - b.L; }), byC = toks.slice().sort(function (a, b) { return b.C - a.C; });
+    var bgT = pick(/^(bg|background|surface|canvas|paper|page)/i, /(page|app|slide)?\s*background|the ground/i) || (byL.length ? (dark ? byL[0] : byL[byL.length - 1]).v : undefined);
+    var fam = (ds.tokens.type || {}).families || {};
+    function font(re) { var k = Object.keys(fam).find(function (x) { return re.test(x); }); return k ? fam[k] : undefined; }
+    var th = { mode: mode === "light" ? "light" : mode === "dark" ? "dark" : undefined,
+      bg: bgT, surface: pick(/^(surface|card|panel|raised)|-raised$/i, /cards?|raised|panel/i),
+      fg: pick(/^(ink|fg|text|foreground|on-?surface)$/i, /^(body )?text|text on/i) || (byL.length ? (dark ? byL[byL.length - 1] : byL[0]).v : undefined),
+      muted: pick(/(muted|secondary|subtle|ink-?2|text-?2)/i, /secondary text|muted|captions?/i),
+      line: pick(/(line|border|divider|rule)/i, /borders?|dividers?|hairline/i),
+      accent: pick(/(accent|brand|primary)$/i, /accent|brand colou?r|primary (action|button)|call to action/i) || (byC[0] && byC[0].C > 0.15 ? byC[0].v : undefined),
+      accent2: pick(/(accent-?2|secondary-?accent|highlight)/i, /second(ary)? accent|highlight/i) || (byC[1] && byC[1].C > 0.15 ? byC[1].v : undefined),
+      font: font(/^(sans|body|text)/i) || font(/./), headingFont: font(/^(display|heading|serif|head)/i) || font(/^(sans|body)/i) };
+    probe.remove();
+    if (th.mode === undefined) th.mode = dark ? "dark" : "light"; // themeOf only needs light/dark for its own defaults
+    return th;
+  }
+  if (!deck.theme && window.dsKit && window.hermes && window.hermes.ds) {
+    window.dsKit.load(deck.designSystem || null).then(function (ds) {
+      if (!ds || !ds.tokens) return;
+      dsTheme = themeFromDs(ds);
+      relayout();
+    }).catch(function () {});
+  }
   new ResizeObserver(fit).observe(stageWrap);
   window.addEventListener("beforeunload", function () { if (pending) save(); });
   kit.ready();

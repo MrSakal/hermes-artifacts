@@ -1,0 +1,53 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kiln</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bone); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; }
+  .clay { fill: var(--clay); }
+  .glaze { fill: var(--glaze); }
+  .deep { fill: var(--ink); }
+  .tint { fill: var(--clay-soft); }
+  .blk { rx: var(--radius-md); }
+  .ring { fill: none; stroke: var(--bone); stroke-width: 2; }
+  .ring.cut { stroke: var(--clay-soft); }
+  .words { position: absolute; left: var(--space-8); bottom: var(--space-8); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-serif); font-size: 112px; line-height: .92; font-weight: 500; letter-spacing: -.02em; color: var(--ink); }
+  .tag { margin: var(--space-2) 0 0 4px; font-size: 14px; line-height: 22px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      clay 176x268 slab bled off the top (the brand, largest) · ink 160x224 bleeding off the right edge · glaze 120x144 · clay-soft 120x48 tint · ~38% of 960x288
+  arrangement one tall clay slab with satellites, bottoms on one line space-8 above the edge, space-4 gutters
+  pattern     literal motif, from "thrown, trimmed": throwing rings as quarter circles at a space-6 pitch, cut into the ink block in bone and into the slab in clay-soft
+  scales      sides in space-4 multiples; gutters space-4; ring pitch space-6; corners radius-md
+-->
+<rect class="clay blk" x="16" y="-12" width="176" height="268" rx="6"/>
+<rect class="tint blk" x="208" y="32" width="120" height="48" rx="6"/>
+<rect class="glaze blk" x="208" y="96" width="120" height="160" rx="6"/>
+<rect class="deep blk" x="344" y="32" width="160" height="224" rx="6"/>
+<path class="ring" d="M344 232 A24 24 0 0 1 368 256"/>
+<path class="ring" d="M344 208 A48 48 0 0 1 392 256"/>
+<path class="ring" d="M344 184 A72 72 0 0 1 416 256"/>
+<path class="ring" d="M344 160 A96 96 0 0 1 440 256"/>
+<path class="ring cut" d="M192 40 A48 48 0 0 0 144 88"/>
+<path class="ring cut" d="M192 64 A24 24 0 0 0 168 88"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">Kiln</h1>
+<p class="tag">Calm, tactile and exact.</p>
+</div>
+</div>
+</body>
+</html>
