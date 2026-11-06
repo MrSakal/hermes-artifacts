@@ -141,7 +141,11 @@
       list: function () { return call("storage.list").then(function (r) { return r.keys; }); }
     }),
     /** Send a message to the Hermes agent (lands in its artifact inbox / the chat). */
-    send: function (text, data) { return call("send", { text: String(text), data: data === undefined ? null : data }); },
+    /** Into the artifact's chat. By default it is put in the chat's message box for the user to send (Claude's
+     *  stage_in_chat); {deliver: "send"} asks the user to confirm, then sends it. */
+    send: function (text, data, opts) {
+      return call("send", { text: String(text), data: data === undefined ? null : data, deliver: opts && opts.deliver === "send" ? "send" : "stage" });
+    },
     /** Ask Hermes and wait for its answer: resolves with {text, data} once it replies. */
     ask: function (text, data) { return call("ask", { text: String(text), data: data === undefined ? null : data }); },
     /** Call an allowlisted Hermes tool (browser viewer only). */

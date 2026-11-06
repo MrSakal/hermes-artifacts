@@ -25,7 +25,7 @@ Around every artifact you can:
 
 ```js
 await hermes.storage.set('count', 3)              // per-artifact, persistent
-await hermes.send('Step 2 is done', { row: 7 })   // a message into the chat + the artifact inbox
+await hermes.send('Step 2 is done', { row: 7 })   // into the artifact's chat message box (+ the artifact inbox)
 const { text } = await hermes.ask('Which region?') // waits for Hermes' answer (artifact_reply)
 ```
 

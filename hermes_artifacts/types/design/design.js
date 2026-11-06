@@ -1140,7 +1140,7 @@
       if (e.key !== "Enter" || !inp.value.trim()) return;
       var text = T.about(titleOf(a.p), a.p, a.label) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
-      window.hermes.send(text, { artboard: a.p, element: a.id, selector: a.n ? cssPath(a.n) : null })
+      window.hermes.send(text, { artboard: a.p, element: a.id, selector: a.n ? cssPath(a.n) : null }, { deliver: "send" })
         .then(function () { kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
       drawTools();
     });

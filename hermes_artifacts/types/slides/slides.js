@@ -694,7 +694,7 @@
       if (e.key !== "Enter" || !inp.value.trim()) return;
       var text = T.about(cur + 1, s.id, titleOf(s), target ? labelOf(target) : "") + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
-      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }).then(function () { kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function () { kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
       drawTools();
     });
   }

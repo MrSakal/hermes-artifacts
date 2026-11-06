@@ -72,6 +72,8 @@ const STRINGS = {
     noChat: 'This artifact was not made in a chat. Write here and a new chat starts with it.',
     startChat: 'Start a chat',
     send: 'Send',
+    confirmTitle: 'Send this to Hermes?',
+    confirmBody: 'The artifact wants to send this message into its chat.',
     chatRef: (title, aid, old) =>
       `[artifact: ${title}] Let's keep working on this artifact (artifact ${aid}${old ? `; its earlier chat ${old} is archived or gone` : ''}). ` +
       `Read it with artifact_read id=${aid} before changing it; publish changes with artifact_publish id=${aid}.`,
@@ -184,6 +186,8 @@ const STRINGS = {
     noChat: 'Ez az artifact nem chatben készült. Írj ide, és új chat indul vele.',
     startChat: 'Chat indítása',
     send: 'Küldés',
+    confirmTitle: 'Elküldöd ezt a Hermesnek?',
+    confirmBody: 'Az artifact ezt az üzenetet küldené a chatjébe.',
     chatRef: (title, aid, old) =>
       `[artifact: ${title}] Folytassuk ezt az artifactot (artifact ${aid}${old ? `; a korábbi chatje (${old}) archivált vagy törölt` : ''}). ` +
       `Módosítás előtt olvasd be: artifact_read id=${aid}; a változást artifact_publish id=${aid} hívással publikáld.`,
@@ -288,6 +292,7 @@ const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
 const $toast = atom(null)
+const $confirm = atom(null) // {text, resolve}: a page asked to send something; the user confirms it (Claude's vouched send)
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
 const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat with the artifact beside it)
 const $presenting = atom(false) // a deck is presenting: its frame fills the screen
@@ -981,7 +986,9 @@ function useBridge(ref, art, ctx, portRef) {
             refresh(ctx)
           }
           if (m.op === 'send') {
-            value.mode = await toChat(t('sendMsg', title, String(m.args?.text ?? '')), gesture, art)
+            const text = t('sendMsg', title, String(m.args?.text ?? ''))
+            if (m.args?.deliver === 'send') value.mode = (await confirmSend(String(m.args?.text ?? ''))) ? await toChat(text, true, art) : 'declined'
+            else value.mode = await stageInChat(ctx, art, text).catch(() => 'none')
             return reply({ ok: true, value })
           }
           if (m.op === 'doc.ask') {
@@ -990,7 +997,8 @@ function useBridge(ref, art, ctx, portRef) {
             return reply({ ok: true, value })
           }
           if (m.op === 'ask') {
-            const mode = await toChat(t('askMsg', title, aid, value.id, String(m.args?.text ?? '')), gesture, art)
+            if (!(await confirmSend(String(m.args?.text ?? '')))) return reply({ ok: false, error: 'the user did not send it' })
+            const mode = await toChat(t('askMsg', title, aid, value.id, String(m.args?.text ?? '')), true, art)
             const answer = await waitReply(ctx, aid, value.id)
             return reply({ ok: true, value: { ...answer, request: value.id, mode } })
           }
@@ -1168,6 +1176,58 @@ async function ensureChat(art) {
     if (runtime) return { stored: art.session, runtime, created: false }
   }
   return newChatFor(art)
+}
+
+/** A page's message, as Claude stages it (stage_in_chat): the artifact's chat opens beside it with the
+ *  text in its message box, not sent. */
+async function stageInChat(ctx, art, text) {
+  const c = await ensureChat(art)
+  if ($chat.get() !== 'split') await openSplit(ctx, current() || art)
+  for (let i = 0; i < 15; i++) {
+    if (await host.composer.insertText(c.stored, text, { mode: 'block' }).catch(() => false)) return 'staged'
+    await new Promise(r => setTimeout(r, 200))
+  }
+  return (await host.composer.setDraft(c.stored, text).catch(() => false)) ? 'staged' : 'none'
+}
+
+/** A page that wants its message sent (or asks and waits) gets the user's yes first. */
+function confirmSend(text) {
+  return new Promise(resolve => {
+    const prev = $confirm.get()
+    if (prev) prev.resolve(false)
+    $confirm.set({ text: String(text).slice(0, 2000), resolve })
+  })
+}
+
+function ConfirmSend() {
+  const t = usePluginI18n(ID)
+  const c = useValue($confirm)
+  if (!c) return null
+  const done = ok => {
+    $confirm.set(null)
+    c.resolve(ok)
+  }
+  return jsx('div', {
+    onKeyDown: e => e.key === 'Escape' && done(false),
+    style: { position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.35)' },
+    children: jsxs('div', {
+      role: 'dialog',
+      'aria-label': t('confirmTitle'),
+      style: { width: 'min(440px, calc(100% - 32px))', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 16px 48px rgba(0,0,0,.4)' },
+      children: [
+        jsx('div', { style: { fontSize: 15, fontWeight: 600, color: C.fg, marginBottom: 6 }, children: t('confirmTitle') }),
+        jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 10 }, children: t('confirmBody') }),
+        jsx('div', { style: { maxHeight: 180, overflowY: 'auto', padding: 10, borderRadius: 8, background: C.hover, color: C.fg, fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }, children: c.text }),
+        jsxs('div', {
+          style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
+          children: [
+            jsx('button', { type: 'button', onClick: () => done(false), style: { ...font, height: 30, padding: '0 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 13, cursor: 'pointer' }, children: t('cancel') }),
+            jsx('button', { type: 'button', autoFocus: true, onClick: () => done(true), style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: 0, background: C.fg, color: C.bg, fontSize: 13, cursor: 'pointer' }, children: t('sendToHermes') })
+          ]
+        })
+      ]
+    })
+  })
 }
 
 /** Chat: the chat the artifact was made in, with the artifact docked to its right (a main-area
@@ -1899,6 +1959,7 @@ function Viewer({ ctx, docked = false }) {
               })
             : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
               docked ? null : jsx(CommentPopover, { ctx, art }),
+              jsx(ConfirmSend, {}),
               chat === 'float' && !docked ? jsx(FloatingChat, { ctx, art }, art.id) : null
             ]
           }),
