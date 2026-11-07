@@ -14,7 +14,7 @@ os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-ar
 
 from hermes_artifacts import live, store  # noqa: E402
 
-SPEC = {"datasets": {"w": {"title": "Work logs", "source": {"kind": "call", "tool": "mcp__nodu_platform__list_work_logs", "args": {}}}}}
+SPEC = {"datasets": {"w": {"title": "Work logs", "source": {"kind": "call", "tool": "mcp__erp_platform__list_work_logs", "args": {}}}}}
 
 
 class Reg:
@@ -22,10 +22,10 @@ class Reg:
         self.present, self.answer = present, answer
 
     def get_entry(self, name, scope=None):
-        return types.SimpleNamespace(toolset="mcp-nodu_platform") if self.present else None
+        return types.SimpleNamespace(toolset="mcp-erp_platform") if self.present else None
 
     def get_toolset_for_tool(self, name):
-        return "mcp-nodu_platform" if self.present else None
+        return "mcp-erp_platform" if self.present else None
 
     def dispatch(self, name, args, scope=None):
         return self.answer
@@ -48,10 +48,10 @@ class StateTests(unittest.TestCase):
             live.server_state = lambda server: state
 
     def test_structured_reauth_from_hermes(self):
-        self.use(Reg(answer=json.dumps({"error": "MCP server 'nodu_platform' requires re-authentication.",
-                                        "needs_reauth": True, "server": "nodu_platform"})))
+        self.use(Reg(answer=json.dumps({"error": "MCP server 'erp_platform' requires re-authentication.",
+                                        "needs_reauth": True, "server": "erp_platform"})))
         r = live.run_dataset(self.aid, "w", {})
-        self.assertEqual((r["status"], r["server"]), ("reauth", "nodu_platform"))
+        self.assertEqual((r["status"], r["server"]), ("reauth", "erp_platform"))
 
     def test_auth_words_in_a_plain_error(self):
         self.use(Reg(answer=json.dumps({"error": "HTTP 401 Unauthorized: token expired"})))

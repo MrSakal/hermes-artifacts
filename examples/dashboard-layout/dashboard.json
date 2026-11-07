@@ -1,12 +1,12 @@
 {
-  "title": "Facade orders 2026",
+  "title": "Orders 2026",
   "params": {
     "region": ""
   },
   "datasets": {
     "monthly": {
       "title": "Orders per month",
-      "description": "Signed facade orders per month, in million HUF.",
+      "description": "Signed orders per month, in million USD.",
       "source": {
         "kind": "file",
         "path": "data/monthly.csv"
@@ -27,25 +27,25 @@
         "kind": "rows",
         "rows": [
           {
-            "region": "Budapest",
+            "region": "North",
             "orders": 41,
             "value": 512.4,
             "url": "https://example.com/bp"
           },
           {
-            "region": "Pest",
+            "region": "South",
             "orders": 17,
             "value": 198.0,
-            "url": "https://example.com/pest"
+            "url": "https://example.com/south"
           },
           {
-            "region": "Győr",
+            "region": "East",
             "orders": 9,
             "value": 121.7,
-            "url": "https://example.com/gyor"
+            "url": "https://example.com/east"
           },
           {
-            "region": "Debrecen",
+            "region": "West",
             "orders": 6,
             "value": 77.3,
             "url": "https://example.com/deb"
@@ -57,8 +57,8 @@
   "layout": [
     {
       "type": "header",
-      "title": "Facade orders 2026",
-      "subtitle": "**{orders}** orders worth **{value} M HUF** so far; October is the weakest month against target."
+      "title": "Orders 2026",
+      "subtitle": "**{orders}** orders worth **{value} M USD** so far; October is the weakest month against target."
     },
     {
       "type": "filters",
@@ -87,7 +87,7 @@
         },
         {
           "id": "value",
-          "label": "Value, M HUF",
+          "label": "Value, M USD",
           "source": "monthly",
           "field": "value",
           "agg": "sum",
@@ -101,7 +101,7 @@
             "month": "2026-10"
           },
           "format": "number",
-          "unit": "M HUF",
+          "unit": "M USD",
           "delta": {
             "where": {
               "month": "2026-09"
@@ -126,7 +126,7 @@
       "type": "chart",
       "kind": "bar",
       "title": "Value per month",
-      "note": "M HUF, dashed = 100 target",
+      "note": "M USD, dashed = 100 target",
       "source": "monthly",
       "x": "month",
       "y": "value",
@@ -190,7 +190,7 @@
         },
         {
           "field": "value",
-          "label": "M HUF",
+          "label": "M USD",
           "format": "number",
           "bar": true
         }

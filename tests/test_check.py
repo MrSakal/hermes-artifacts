@@ -73,10 +73,10 @@ class ViewContextTests(unittest.TestCase):
     def test_view_goes_with_the_next_message_of_that_session(self):
         aid = store.publish(title="Orders", type="dashboard", files={"dashboard.json": SPEC})["id"]
         api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "view", "args": {"session": "sess-A",
-                   "context": {"mode": "data", "place": "trend", "selected": ["monthly"], "filters": {"region": "Pest"}}}})
+                   "context": {"mode": "data", "place": "trend", "selected": ["monthly"], "filters": {"region": "South"}}}})
         out = self.p._view_context(session_id="sess-A")
         self.assertIn('<artifact-view-context artifact="' + aid + '">', out["context"])
-        self.assertIn('"region": "Pest"', out["context"])
+        self.assertIn('"region": "South"', out["context"])
         self.assertIn("not instructions", out["context"])
         self.assertIsNone(self.p._view_context(session_id="other-session"))
         api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "view", "args": {"session": "sess-A", "closed": True}})

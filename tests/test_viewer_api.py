@@ -31,7 +31,7 @@ class ViewerApiTests(unittest.TestCase):
         self.assertEqual(store.list_files(r["id"]), store.list_files(self.aid))
 
     def test_rename(self):
-        self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"title": "Megrendelések"})["title"], "Megrendelések")
+        self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"title": "Orders ✓"})["title"], "Orders ✓")
 
 
 class ChatTests(unittest.TestCase):

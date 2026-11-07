@@ -1,10 +1,10 @@
 {
-  "title": "Facade orders 2026",
+  "title": "Orders 2026",
   "params": {"region": ""},
   "datasets": {
     "monthly": {
       "title": "Orders per month",
-      "description": "Signed facade orders per month, in million HUF.",
+      "description": "Signed orders per month, in million USD.",
       "source": {"kind": "file", "path": "data/monthly.csv"},
       "updated": {"at": "2026-11-04T08:00:00Z", "by": "hermes"},
       "staleAfterHours": 48
@@ -13,10 +13,10 @@
       "title": "Orders by region",
       "description": "Year-to-date orders by region.",
       "source": {"kind": "rows", "rows": [
-        {"region": "Budapest", "orders": 41, "value": 512.4},
-        {"region": "Pest", "orders": 17, "value": 198.0},
-        {"region": "Győr", "orders": 9, "value": 121.7},
-        {"region": "Debrecen", "orders": 6, "value": 77.3}
+        {"region": "North", "orders": 41, "value": 512.4},
+        {"region": "South", "orders": 17, "value": 198.0},
+        {"region": "East", "orders": 9, "value": 121.7},
+        {"region": "West", "orders": 6, "value": 77.3}
       ]},
       "updated": {"at": "2026-11-04T08:00:00Z", "by": "hermes"},
       "fixed": true

@@ -1,5 +1,5 @@
 {
-  "title": "Q4 facade pipeline",
+  "title": "Q4 sales pipeline",
   "cover": "cover",
   "order": [
     "cover",
@@ -17,7 +17,7 @@
       "id": "cover",
       "layout": "title",
       "kicker": "Quarterly review",
-      "title": "Q4 facade pipeline",
+      "title": "Q4 sales pipeline",
       "subtitle": "Where orders stand, and what we do next",
       "footer": "Sample data · November 2026",
       "notes": "Welcome. Ten minutes."
@@ -43,7 +43,7 @@
         {
           "label": "Value",
           "value": "909 M",
-          "note": "HUF, net"
+          "note": "USD, net"
         },
         {
           "label": "October",
@@ -57,7 +57,7 @@
       "id": "trend",
       "layout": "chart",
       "kind": "bar",
-      "title": "Value per month (M HUF)",
+      "title": "Value per month (M USD)",
       "labels": [
         "J",
         "F",
@@ -82,7 +82,7 @@
         118.8,
         60.3
       ],
-      "note": "Target: 100 M HUF per month"
+      "note": "Target: 100 M USD per month"
     },
     {
       "id": "regions",
@@ -91,30 +91,30 @@
       "columns": [
         "Region",
         "Orders",
-        "M HUF",
+        "M USD",
         "Share"
       ],
       "rows": [
         [
-          "Budapest",
+          "North",
           "41",
           "512.4",
           "56%"
         ],
         [
-          "Pest",
+          "South",
           "17",
           "198.0",
           "22%"
         ],
         [
-          "Győr",
+          "East",
           "9",
           "121.7",
           "13%"
         ],
         [
-          "Debrecen",
+          "West",
           "6",
           "77.3",
           "9%"
@@ -129,19 +129,19 @@
         "heading": "Sales",
         "accent": true,
         "bullets": [
-          "Two more estimators in **Pest**",
+          "Two more estimators in **South**",
           "Weekly pipeline review"
         ]
       },
       "right": {
         "heading": "Estimating",
         "bullets": [
-          "Close the Győr tender by Dec 10",
+          "Close the East tender by Dec 10",
           {
             "text": "Template library",
             "sub": [
               "curtain wall",
-              "ventilated facade"
+              "ventilated "
             ]
           }
         ]
@@ -159,7 +159,7 @@
       "title": "Next steps",
       "bullets": [
         "Approve the two hires",
-        "Review the Győr bid on **Dec 3**",
+        "Review the East bid on **Dec 3**",
         "Re-forecast Q1"
       ]
     },
@@ -167,7 +167,7 @@
       "id": "close",
       "layout": "closing",
       "title": "Questions?",
-      "subtitle": "facade-pipeline · sample data"
+      "subtitle": "-pipeline · sample data"
     }
   ]
 }

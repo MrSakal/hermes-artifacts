@@ -1,4 +1,4 @@
-# Facade quote – process
+# Quote – process
 
 This document describes the steps from the **request for a quote** to the *contract*. Details: <https://example.com/process>.
 
@@ -29,4 +29,3 @@ This document describes the steps from the **request for a quote** to the *contr
 const due = addDays(today, 5)
 ```
 
-Accented text (an encoding check): árvíztűrő tükörfúrógép, ŐŰ őű.

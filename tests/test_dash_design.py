@@ -32,7 +32,7 @@ class HistoryTests(unittest.TestCase):
     def test_who_and_what_changed(self):
         s2 = json.loads(json.dumps(SPEC))
         s2["datasets"]["regions"] = {"title": "By region", "source": {"kind": "rows", "rows": []}}
-        s2["params"] = {"region": "Pest"}
+        s2["params"] = {"region": "South"}
         store.publish(aid=self.aid, base=True, files={"dashboard.json": s2}, by="hermes")
         store.publish(aid=self.aid, base=True, files={"index.html": "<h1>A</h1>\n<p>two</p>"}, by="user")
         vs = history.versions(self.aid)

@@ -25,7 +25,7 @@
     var s = String(v).replace(/\s/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "");
     return +s;
   }
-  function lang() { return undefined; } // numbers and dates in the viewer's own locale; the words are English
+  function lang() { return window.dashLocale || "en-US"; } // the dashboard's own language (dashboard.json `lang`)
 
   function format(v, f) {
     if (v == null || v === "" || (typeof v === "number" && isNaN(v))) return "—";
@@ -39,7 +39,7 @@
     if (f === "compact") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { notation: "compact", maximumFractionDigits: 1 }).format(n);
     if (f === "percent") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { style: "percent", maximumFractionDigits: 1 }).format(n);
     if (f === "percent100") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { maximumFractionDigits: 1 }).format(n) + "%";
-    if ((m = /^currency:([A-Z]{3})$/.exec(f))) return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { style: "currency", currency: m[1], maximumFractionDigits: m[1] === "HUF" ? 0 : 2 }).format(n);
+    if ((m = /^currency:([A-Z]{3})$/.exec(f))) return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { style: "currency", currency: m[1] }).format(n);
     if (f === "date" || f === "month" || f === "datetime") {
       var d = new Date(typeof v === "number" ? v * (v < 1e12 ? 1000 : 1) : String(v).length === 7 ? v + "-01" : v);
       if (isNaN(d)) return String(v);

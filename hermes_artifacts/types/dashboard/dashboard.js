@@ -16,6 +16,8 @@
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content;
   var spec = kit.json("dashboard.json", null);
+  // The dashboard's own language (what Hermes wrote it in): its numbers and dates. The page's words are English.
+  window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : "en-US";
   var root = document.getElementById("dash-root");
   var bar = document.getElementById("dash-bar");
   var L = "en"; // English only
@@ -445,7 +447,7 @@
     colorValues: colorValues,
     format: function (n, o) {
       if (n == null || n === "" || isNaN(+n)) return "—";
-      return new Intl.NumberFormat(undefined, o || { maximumFractionDigits: 1 }).format(+n);
+      return new Intl.NumberFormat(window.dashLocale, o || { maximumFractionDigits: 1 }).format(+n);
     }
   };
   window.dash = dash;
@@ -578,7 +580,7 @@
     var s = (Date.now() - t) / 1000;
     if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
     if (s < 86400) return Math.round(s / 3600) + " h";
-    return new Date(t).toLocaleDateString();
+    return new Date(t).toLocaleDateString("en-US");
   }
   function isStale(d) {
     if (!d.staleAfterHours || !d.updated || !d.updated.at) return false;
@@ -1083,7 +1085,7 @@
           var same = JSON.stringify(e.args) === JSON.stringify(d.source.args || {});
           histBox.appendChild(h("button", { "class": "src-hist-row", type: "button", onclick: function () {
             ta.value = JSON.stringify(e.args, null, 2); msg.textContent = T.restored; ta.dispatchEvent(new Event("input"));
-          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString() }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
+          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString("en-US") }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
         });
         histBox.hidden = false;
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
@@ -1170,7 +1172,7 @@
     var main = doc.querySelector("#dash-main");
     if (main) main.style.marginRight = "";
     var foot = h("p", { style: "margin:24px var(--dash-gutter,24px);font-size:12px;color:var(--color-fg-muted)",
-      text: (C.title || "") + " · " + new Date().toLocaleString() + " · numbers do not update" });
+      text: (C.title || "") + " · " + new Date().toLocaleString("en-US") + " · numbers do not update" });
     (doc.querySelector("#dash-main") || doc.querySelector("body")).appendChild(foot);
     return "<!doctype html>\n" + doc.outerHTML;
   }

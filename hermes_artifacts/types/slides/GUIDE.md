@@ -17,8 +17,8 @@ Publish it with `artifact_publish type=slides files={"deck.json": {...}}`, plus 
   "slides": [
     {"id": "cover", "layout": "title", "kicker": "Quarterly review", "title": "Q3 review", "subtitle": "Where we stand", "footer": "November 2026"},
     {"id": "agenda", "layout": "section", "number": "01", "title": "Numbers first", "subtitle": "Then the plan"},
-    {"id": "numbers", "layout": "kpis", "title": "Year to date", "items": [{"label": "Orders", "value": "73", "delta": "+12% YoY"}, {"label": "Value", "value": "909 M", "note": "HUF, net"}], "takeaway": "October is the **weak month**."},
-    {"id": "trend", "layout": "chart", "kind": "bar", "title": "Value per month", "labels": ["J", "F", "M"], "values": [71, 88, 104], "note": "M HUF"},
+    {"id": "numbers", "layout": "kpis", "title": "Year to date", "items": [{"label": "Orders", "value": "73", "delta": "+12% YoY"}, {"label": "Value", "value": "909 M", "note": "USD, net"}], "takeaway": "October is the **weak month**."},
+    {"id": "trend", "layout": "chart", "kind": "bar", "title": "Value per month", "labels": ["J", "F", "M"], "values": [71, 88, 104], "note": "M USD"},
     {"id": "plan", "layout": "two-col", "title": "The plan", "left": {"heading": "Sales", "accent": true, "bullets": ["Two more estimators"]}, "right": {"heading": "Estimating", "text": "Close the tender by Dec 10."}},
     {"id": "close", "layout": "closing", "title": "Questions?"}
   ]

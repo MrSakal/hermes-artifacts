@@ -96,7 +96,7 @@ Nothing is added to every turn.
   (`#/hermes-artifacts`).
 - The built-in view (images and files from sessions) stays one click away, behind *Session files and
   images →*.
-- The plugin uses only the Desktop plugin SDK. UI strings ship in English and Hungarian.
+- The plugin uses only the Desktop plugin SDK. UI strings ship in English; what an artifact says is in the language the user works in.
 
 **Messages into the chat** (`send`, `ask`, comments) are only submitted when they come from a user
 gesture, such as a click in the page or a press on Save. Otherwise they only fill the composer

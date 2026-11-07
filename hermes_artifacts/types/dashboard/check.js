@@ -20,7 +20,7 @@
     var n = parseFloat(core);
     if (isNaN(n)) return NaN;
     var tail = s.slice(s.indexOf(m[0]) + m[0].length).trim();
-    var scale = /^(k|e|ezer)\b/i.test(tail) ? 1e3 : /^(m|mn|millió|million)\b/i.test(tail) ? 1e6 : /^(b|bn|mrd|milliárd|billion)\b/i.test(tail) ? 1e9 : 1;
+    var scale = /^(k|thousand)\b/i.test(tail) ? 1e3 : /^(m|mn|million)\b/i.test(tail) ? 1e6 : /^(b|bn|billion)\b/i.test(tail) ? 1e9 : 1;
     n *= scale;
     if (neg) n = -n;
     return pct ? n / 100 : n;

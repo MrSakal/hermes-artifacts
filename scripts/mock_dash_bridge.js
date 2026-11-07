@@ -7,8 +7,8 @@
   function later(x, ms) { return new Promise(function (r) { setTimeout(function () { r(x); }, ms || 30); }); }
   function rows(n) {
     var out = [];
-    for (var i = 0; i < n; i++) out.push({ id: 155 - i, date: "2026-10-" + String(1 + (i % 28)).padStart(2, "0"), author: "Tóth Gábor",
-      description: "Titan Build: " + (3 + (i % 3)) + " fő, 8 óra; Metalstructur: " + (2 + (i % 4)) + " fő" });
+    for (var i = 0; i < n; i++) out.push({ id: 155 - i, date: "2026-10-" + String(1 + (i % 28)).padStart(2, "0"), author: "Alex Kim",
+      description: "Team A: " + (3 + (i % 3)) + " people, 8 h; Team B: " + (2 + (i % 4)) + " people" });
     return out;
   }
   window.hermes = {
@@ -27,7 +27,7 @@
         if (fail) return later({ status: "failed", message: fail, at: Date.now() / 1000, tool: "query" }, 200);
         var a = (window.__mockAnswers || {})[id];
         return later({ status: "ok", answer: a !== undefined ? a : { reports: rows(103) }, at: Date.now() / 1000, ms: 412,
-          server: "nodu ERP", tool: "list_project_reports" }, 300);
+          server: "demo ERP", tool: "list_project_reports" }, 300);
       },
       test: function (id, args) { return later({ status: "ok", rows: rows(3), columns: ["id", "date", "author", "description"], total: 3, ms: 120 }); },
       call: function (id, tool, args) {

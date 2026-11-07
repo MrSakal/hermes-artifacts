@@ -18,28 +18,28 @@ Publish it with `artifact_publish type=dashboard files={"dashboard.json": {...}}
   "title": "Orders 2026",
   "params": {"region": "", "year": "2026"},
   "datasets": {
-    "monthly": {"title": "Orders per month", "description": "Signed orders, net M HUF.",
+    "monthly": {"title": "Orders per month", "description": "Signed orders, net M USD.",
                 "source": {"kind": "call", "tool": "mcp_mydb_query", "args": {"sql": "SELECT month, orders, value FROM monthly WHERE year = {{year}}"},
                            "rules": {"year": {"type": "number", "minimum": 2000, "maximum": 2100}}},
                 "types": {"orders": "number", "value": "number"}},
-    "regions": {"title": "Regions", "source": {"kind": "rows", "rows": [{"region": "Pest", "orders": 17, "value": 198}]}}
+    "regions": {"title": "Regions", "source": {"kind": "rows", "rows": [{"region": "South", "orders": 17, "value": 198}]}}
   },
   "layout": [
-    {"type": "header", "title": "Orders 2026", "subtitle": "**{orders}** orders worth **{value} M HUF** so far."},
+    {"type": "header", "title": "Orders 2026", "subtitle": "**{orders}** orders worth **{value} M USD** so far."},
     {"type": "filters", "items": [
       {"param": "region", "label": "Region", "input": "select", "options": {"source": "regions", "field": "region"}},
       {"param": "year", "label": "Year", "input": "select", "options": ["2025", "2026"], "all": false}]},
     {"type": "kpis", "items": [
       {"id": "orders", "label": "Orders", "source": "monthly", "field": "orders", "agg": "sum", "format": "int"},
-      {"id": "value", "label": "Value", "source": "monthly", "field": "value", "agg": "sum", "format": "number", "unit": "M HUF"},
+      {"id": "value", "label": "Value", "source": "monthly", "field": "value", "agg": "sum", "format": "number", "unit": "M USD"},
       {"label": "October", "source": "monthly", "field": "value", "where": {"month": "2026-10"}, "format": "number",
        "delta": {"where": {"month": "2026-09"}, "label": "vs September"}},
       {"label": "Selected region", "source": "regions", "field": "orders", "agg": "sum", "where": {"region": "{region}"}}]},
-    {"type": "chart", "kind": "bar", "title": "Value per month", "note": "M HUF", "source": "monthly", "x": "month", "y": "value",
+    {"type": "chart", "kind": "bar", "title": "Value per month", "note": "M USD", "source": "monthly", "x": "month", "y": "value",
      "xFormat": "month", "reference": {"value": 100, "label": "target"}},
     {"type": "chart", "kind": "line", "title": "Orders vs value", "source": "monthly", "x": "month", "y": ["orders", "value"]},
     {"type": "table", "title": "By region", "source": "regions", "key": "region", "search": true, "sort": "-value",
-     "columns": [{"field": "region", "label": "Region"}, {"field": "value", "label": "M HUF", "format": "number", "bar": true}]},
+     "columns": [{"field": "region", "label": "Region"}, {"field": "value", "label": "M USD", "format": "number", "bar": true}]},
     {"type": "text", "text": "Sample data. **Bold**, *italic* and [links](https://example.com) work."}
   ]
 }
@@ -78,7 +78,9 @@ side by side.
 Common fields:
 - **`agg`:** `sum`, `avg`, `min`, `max`, `count`, `countDistinct`, `first` (the default) or `last`.
 - **`where`:** `{"column": "value"}`. A value of `"{param}"` follows that filter, and an empty filter means all rows.
-- **`format`:** `int`, `number`, `number:2`, `compact`, `percent` (0–1), `percent100`, `currency:HUF`, `date`, `month`, `datetime` or `text`.
+- **`lang`** (top level, optional): the language you wrote the dashboard in, as a BCP 47 tag; its numbers
+  and dates format in it (default `en-US`). Set it to the language of the conversation.
+- **`format`:** `int`, `number`, `number:2`, `compact`, `percent` (0–1), `percent100`, `currency:USD`, `date`, `month`, `datetime` or `text`.
 
 A filter whose `param` appears in a live query's `args` (`{{year}}`) re-runs that query. A filter used
 in a `where` filters the rows already loaded.

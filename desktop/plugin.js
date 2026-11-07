@@ -358,7 +358,7 @@ function ago(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m`
   if (s < 86400) return `${Math.floor(s / 3600)}h`
   const d = new Date(ts * 1000)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 // ---------------------------------------------------------------- look
@@ -2028,8 +2028,8 @@ export default {
   description: 'Replaces the built-in Artifacts page with agent-published, versioned artifacts (pages, dashboards, slides, docs).',
   register(ctx) {
     CTX = ctx
-    // English everywhere, whatever the app's language (the hu table stays for a later switch).
-    ctx.i18n.register({ en: STRINGS.en, hu: STRINGS.en })
+    // English only: for any other app language the SDK falls back to a plugin's own `en` bundle.
+    ctx.i18n.register(STRINGS)
     ctx.register({ id: 'page', area: ROUTES_AREA, title: 'Artifacts', data: { path: PAGE }, render: () => jsx(Page, { ctx }) })
 
     // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.

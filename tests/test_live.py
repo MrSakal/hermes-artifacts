@@ -32,7 +32,7 @@ class FakeRegistry:
 
     def dispatch(self, name, args, scope=None):
         self.calls.append((name, args))
-        return json.dumps({"content": [{"type": "text", "text": json.dumps({"rows": [{"region": "Pest", "n": 3}]})}]})
+        return json.dumps({"content": [{"type": "text", "text": json.dumps({"rows": [{"region": "South", "n": 3}]})}]})
 
 
 class LiveTests(unittest.TestCase):
@@ -48,9 +48,9 @@ class LiveTests(unittest.TestCase):
         live._registry_entry = self._orig
 
     def test_fill_and_rules(self):
-        a = live.fill(SPEC["datasets"]["sales"]["source"]["args"], {"region": "Pest", "n": 7},
+        a = live.fill(SPEC["datasets"]["sales"]["source"]["args"], {"region": "South", "n": 7},
                       SPEC["datasets"]["sales"]["source"]["rules"])
-        self.assertIn("region = 'Pest') LIMIT 7", a["sql"])
+        self.assertIn("region = 'South') LIMIT 7", a["sql"])
         self.assertEqual(a["limit"], 7)  # whole-argument filter keeps its type
         with self.assertRaises(live.LiveError):
             live.fill({"q": "x = '{{region}}'"}, {"region": "x' OR 1=1 --"}, {"region": {"pattern": "^[A-Za-z ]{0,20}$"}})
@@ -76,24 +76,24 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(self.reg.calls, [])  # nothing runs before the user allows it
         d = live.dataset(self.aid, "sales")
         store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"]), d["tool"], True)
-        r = live.run_dataset(self.aid, "sales", {"region": "Pest"})
+        r = live.run_dataset(self.aid, "sales", {"region": "South"})
         self.assertEqual(r["status"], "ok")
-        self.assertEqual(r["rows"], [{"region": "Pest", "n": 3}])
+        self.assertEqual(r["rows"], [{"region": "South", "n": 3}])
         self.assertIn("LIMIT 5", self.reg.calls[0][1]["sql"])  # default from dashboard.json params
         # live (open, refresh, filter change) always runs the call, like Claude's dashboards
-        self.assertFalse(live.run_dataset(self.aid, "sales", {"region": "Pest"})["cached"])
+        self.assertFalse(live.run_dataset(self.aid, "sales", {"region": "South"})["cached"])
         self.assertEqual(len(self.reg.calls), 2)
         # cached (thumbnails, the instant first paint) answers from the last run
-        hit = live.run_dataset(self.aid, "sales", {"region": "Pest"}, mode="cached")
+        hit = live.run_dataset(self.aid, "sales", {"region": "South"}, mode="cached")
         self.assertTrue(hit["cached"])
-        self.assertEqual(hit["rows"], [{"region": "Pest", "n": 3}])
+        self.assertEqual(hit["rows"], [{"region": "South", "n": 3}])
         self.assertEqual(len(self.reg.calls), 2)
         # the last answer is on disk: a restart (empty memory) still paints it
         live._cache.clear()
-        self.assertTrue(live.run_dataset(self.aid, "sales", {"region": "Pest"}, mode="cached")["cached"])
+        self.assertTrue(live.run_dataset(self.aid, "sales", {"region": "South"}, mode="cached")["cached"])
         self.assertEqual(len(self.reg.calls), 2)
         # cached with no answer yet runs once
-        live.run_dataset(self.aid, "sales", {"region": "Debrecen"}, mode="cached")
+        live.run_dataset(self.aid, "sales", {"region": "West"}, mode="cached")
         self.assertEqual(len(self.reg.calls), 3)
         self.assertEqual(live.run_dataset(self.aid, "sales", {"region": "Pe'st"})["status"], "error")
 
@@ -180,7 +180,7 @@ class LoaderCallTests(unittest.TestCase):
         self.allow()
         r = live.loader_call(self.aid, "sales", "poll", {"id": 1})
         self.assertEqual((r["status"], r["tool"]), ("ok", "mcp_db_poll"))
-        self.assertEqual(r["answer"], {"rows": [{"region": "Pest", "n": 3}]})
+        self.assertEqual(r["answer"], {"rows": [{"region": "South", "n": 3}]})
         self.assertEqual(live.loader_call(self.aid, "sales", "mcp_db_poll", {})["status"], "ok")
 
     def test_refuses_other_connectors_and_writes(self):
