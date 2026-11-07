@@ -24,6 +24,8 @@ runs 10–30 s unless they ask for more; over 300 s won't load, so cap there and
   change or export anything.
 - **Their real things come first:** their uploads, logo, icons, product screens, brand colors and type
   beat anything you would invent. A drawn stand-in for a real thing of theirs is a fault.
+  A design system's logo is shown as its own file (copy it into `assets/` and place it as an `<img>`,
+  or its SVG as `logo.txt`), never redrawn or retyped as text.
 - A voiceover or their own audio file: there is none. Say "I can't add a voiceover." as a sentence of its
   own. Otherwise you write a wordless score and effects.
 
