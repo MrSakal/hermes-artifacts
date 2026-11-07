@@ -38,7 +38,7 @@ def _view(m: dict) -> dict:
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
-            "session": m.get("session"),
+            "session": m.get("session"), "folder": m.get("folder") or None, "opened": m.get("opened"),
             "comments": sum(1 for c in store.comments_list(m["id"], include_resolved=False)
                             if c["author"] == "user")}
 
@@ -245,8 +245,25 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
     body = body if isinstance(body, dict) else {}
     try:
         if parts == ["artifacts"] and method == "GET":
-            return {"artifacts": [_view(m) for m in store.list_all()],
+            arts = [_view(m) for m in store.list_all()]
+            folders = list(store.settings().get("folders") or [])
+            folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
+            return {"artifacts": arts, "folders": folders,
                     "default_design_system": store.settings().get("default_design_system")}
+        if parts == ["folders"] and method == "POST":
+            # A gallery folder (Claude's New › Folder, Move to › create).
+            name = " ".join(str(body.get("name") or "").split())[:60]
+            if not name:
+                raise ApiError(400, "a folder needs a name")
+            have = list(store.settings().get("folders") or [])
+            if body.get("delete"):
+                store.settings_set("folders", [f for f in have if f != name])
+                for m in store.list_all():
+                    if m.get("folder") == name:
+                        store.update_meta(m["id"], folder="")
+            elif name not in have:
+                store.settings_set("folders", have + [name])
+            return {"folders": store.settings().get("folders") or []}
         if len(parts) == 2 and parts[0] == "vendor" and method == "GET":
             p = (_VENDOR / parts[1]).resolve()
             if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
@@ -290,7 +307,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             elif rest == ["meta"] and method == "POST":
                 _meta(aid)
                 return _view(store.update_meta(aid, title=body.get("title"), pinned=body.get("pinned"),
-                                               session=body.get("session")))
+                                               session=body.get("session"), folder=body.get("folder"),
+                                               opened=body.get("opened")))
             elif rest == ["chat"] and method == "GET":
                 # Host only (a page reaches nothing but /op): is the artifact's chat still there?
                 return chat_status(_meta(aid).get("session"))

@@ -246,15 +246,27 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
 
 
 def update_meta(aid: str, **fields) -> dict:
-    """Change list-level fields (title, description, pinned, session) without a new version."""
+    """Change list-level fields (title, description, pinned, session, folder, opened) without a new version.
+    `folder`: the gallery folder it sits in ("" takes it out); `opened`: true stamps now (Last opened)."""
     with _LOCK:
         meta = get_meta(aid)
         if meta is None:
             raise FileNotFoundError(aid)
         for k, v in fields.items():
-            if k not in ("title", "description", "pinned", "session"):
+            if k not in ("title", "description", "pinned", "session", "folder", "opened"):
                 raise ValueError(f"can't set {k}")
             if v is None:
+                continue
+            if k == "folder":
+                name = " ".join(str(v).split())[:60]
+                if name:
+                    meta["folder"] = name
+                else:
+                    meta.pop("folder", None)
+                continue
+            if k == "opened":
+                if v:
+                    meta["opened"] = time.time()
                 continue
             if k == "session":
                 # The chat the artifact belongs to now (its old chat was archived or deleted).

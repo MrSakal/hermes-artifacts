@@ -84,6 +84,22 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(twice.count("## Consuming this system"), 1)
         self.assertTrue(twice.startswith("Brand.\n"))
 
+    def test_gallery_folders_and_last_opened(self):
+        from hermes_artifacts import api
+        a = store.publish(title="F1", html="<p>x</p>")["id"]
+        self.assertIsNone(api.handle("GET", "artifacts", {}, None)["artifacts"][0].get("opened") if False else None)
+        v = api.handle("POST", f"artifacts/{a}/meta", {}, {"opened": True, "folder": "  Q4   reports "})
+        self.assertEqual(v["folder"], "Q4 reports")
+        self.assertIsInstance(v["opened"], float)
+        self.assertIn("Q4 reports", api.handle("GET", "artifacts", {}, None)["folders"])
+        api.handle("POST", "folders", {}, {"name": "Empty one"})
+        self.assertIn("Empty one", api.handle("GET", "artifacts", {}, None)["folders"])
+        self.assertIsNone(api.handle("POST", f"artifacts/{a}/meta", {}, {"folder": ""})["folder"])
+        api.handle("POST", "folders", {}, {"name": "Empty one", "delete": True})
+        self.assertNotIn("Empty one", api.handle("GET", "artifacts", {}, None)["folders"])
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", "folders", {}, {"name": "  "})
+
     def test_a_stylesheet_of_their_own_stays(self):
         m = store.publish(title="Own", type="design-system", files={
             "design-system.json": {"v": 3, "title": "Own"}, "tokens.json": TOKENS, "README.md": "Use it.",

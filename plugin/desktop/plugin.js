@@ -107,6 +107,40 @@ const STRINGS = {
     pin: 'Pin',
     unpin: 'Unpin',
     more: 'More',
+    moreFor: n => `More options for ${n}`,
+    filterSort: 'Filter and sort',
+    sortBy: 'Sort by',
+    lastOpened: 'Last opened',
+    lastEdited: 'Last edited',
+    typeF: 'Type',
+    any: 'Any',
+    other: 'Other',
+    dateOpened: 'Date opened',
+    anyTime: 'Any time',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    past7: 'Past 7 days',
+    past30: 'Past 30 days',
+    pinnedF: 'Pinned',
+    newMenu: 'New',
+    chatNew: 'Chat',
+    folder: 'Folder',
+    newFolder: 'Folder name, then Enter',
+    moveTo: 'Move to',
+    folderSearch: 'Search or create a folder',
+    createFolder: n => `Create “${n}”`,
+    noFolder: 'No folder',
+    inNoFolder: 'It may already be in No folder.',
+    movedTo: n => `Moved to ${n}`,
+    movedOut: 'Moved out of its folder',
+    copyLink: 'Copy link',
+    linkCopied: 'Link copied',
+    searchArtifacts: 'Search artifacts…',
+    dsChoice: 'Design system',
+    dsNone: 'None',
+    dsYourDefault: 'Your default',
+    dsManage: 'Manage design systems',
+    dsNewFirst: 'Make a new design system first',
     dsMake: 'Make default design system',
     dsUnset: 'No longer the default',
     dsDefault: 'Default',
@@ -140,7 +174,7 @@ const STRINGS = {
     type_design: 'Design',
     type_motion: 'Motion',
     'type_design-system': 'Design system',
-    tile_page: 'Page',
+    tile_page: 'Make your own',
     tile_dashboard: 'Dashboard',
     tile_slides: 'Slides',
     tile_doc: 'Docs',
@@ -231,6 +265,40 @@ const STRINGS = {
     pin: 'Kitűzés',
     unpin: 'Kitűzés levétele',
     more: 'Továbbiak',
+    moreFor: n => `${n}: további lehetőségek`,
+    filterSort: 'Szűrés és rendezés',
+    sortBy: 'Rendezés',
+    lastOpened: 'Utoljára megnyitva',
+    lastEdited: 'Utoljára szerkesztve',
+    typeF: 'Típus',
+    any: 'Bármi',
+    other: 'Egyéb',
+    dateOpened: 'Megnyitás ideje',
+    anyTime: 'Bármikor',
+    today: 'Ma',
+    yesterday: 'Tegnap',
+    past7: 'Az elmúlt 7 nap',
+    past30: 'Az elmúlt 30 nap',
+    pinnedF: 'Kitűzött',
+    newMenu: 'Új',
+    chatNew: 'Chat',
+    folder: 'Mappa',
+    newFolder: 'Mappa neve, aztán Enter',
+    moveTo: 'Áthelyezés',
+    folderSearch: 'Mappa keresése vagy létrehozása',
+    createFolder: n => `„${n}” létrehozása`,
+    noFolder: 'Nincs mappa',
+    inNoFolder: 'Lehet, hogy már nincs mappában.',
+    movedTo: n => `Áthelyezve ide: ${n}`,
+    movedOut: 'Kivéve a mappából',
+    copyLink: 'Link másolása',
+    linkCopied: 'Link kimásolva',
+    searchArtifacts: 'Artifactok keresése…',
+    dsChoice: 'Design system',
+    dsNone: 'Nincs',
+    dsYourDefault: 'Alapértelmezett',
+    dsManage: 'Design systemek kezelése',
+    dsNewFirst: 'Előbb új design system',
     dsMake: 'Legyen az alapértelmezett design system',
     dsUnset: 'Ne legyen alapértelmezett',
     dsDefault: 'Alapértelmezett',
@@ -264,7 +332,7 @@ const STRINGS = {
     type_design: 'Terv',
     type_motion: 'Animáció',
     'type_design-system': 'Arculat',
-    tile_page: 'Oldal',
+    tile_page: 'Saját készítése',
     tile_dashboard: 'Dashboard',
     tile_slides: 'Diák',
     tile_doc: 'Docs',
@@ -284,8 +352,12 @@ const $page = atom(null) // sub-page of a multi-file artifact
 const $nonce = atom(0)
 const $error = atom(null)
 const $query = atom('')
-const $filter = atom('all') // all | pinned
-const $sort = atom('recent') // recent | created | name
+const $sort = atom('opened') // opened | edited (Claude's Last opened / Last edited)
+const $types = atom([]) // Type filter: [] = any
+const $date = atom('any') // any | today | yesterday | 7d | 30d (Date opened)
+const $pinnedOnly = atom(false)
+const $folder = atom(null) // the folder shown, null = All
+const $folders = atom([])
 const $layout = atom('grid') // grid | list
 const $panel = atom(false) // comments panel open
 const $comments = atom([])
@@ -315,6 +387,7 @@ async function refresh(ctx) {
     const r = await ctx.rest('/artifacts')
     const list = r.artifacts || []
     if ((r.default_design_system || null) !== $dsDefault.get()) $dsDefault.set(r.default_design_system || null)
+    if (JSON.stringify(r.folders || []) !== JSON.stringify($folders.get())) $folders.set(r.folders || [])
     const prev = current()
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
     if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
@@ -349,6 +422,7 @@ function openArtifact(ctx, id) {
   $draft.set(null)
   $picking.set(false)
   ctx.storage.set('last', id)
+  ctx.rest(`/artifacts/${enc(id)}/meta`, { method: 'POST', body: { opened: true } }).catch(() => {})
   $nonce.set($nonce.get() + 1)
   loadComments(ctx)
 }
@@ -502,6 +576,11 @@ const ICONS = {
   doc: 'M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6',
   palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01',
   motion: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.6v6.8l5.6-3.4z',
+  code: 'M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14',
+  folder: 'M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
+  plus: 'M12 5v14M5 12h14',
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4',
   sort: 'M4 7h16M7 12h10M10 17h4',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
@@ -630,44 +709,6 @@ function FloatingFooter({ label, onClick, spot }) {
 
 // ---------------------------------------------------------------- gallery
 
-function NewTile({ ctx, kind }) {
-  const t = usePluginI18n(ID)
-  const [h, hp] = useHover()
-  const look = TYPE_LOOK[kind]
-  return jsxs('button', {
-    type: 'button',
-    ...hp,
-    onClick: async () => {
-      const text = t(`prompt_${kind}`)
-      host.newChat()
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 150))
-        if (await host.composer.setDraft('new', text).catch(() => false)) return
-      }
-    },
-    style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, border: 0, padding: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
-    children: [
-      jsx('div', {
-        style: {
-          width: 136,
-          height: 96,
-          borderRadius: 12,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'rgba(255,255,255,.92)',
-          background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,.22), transparent 55%), linear-gradient(135deg, ${look.bg}, ${look.bg2})`,
-          transform: h ? 'translateY(-2px)' : 'none',
-          boxShadow: h ? '0 6px 18px rgba(0,0,0,.25)' : 'none',
-          transition: 'transform 140ms ease, box-shadow 140ms ease'
-        },
-        children: jsx(Icon, { name: look.icon, size: 40, stroke: 1.4 })
-      }),
-      jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
-    ]
-  })
-}
-
 function Thumb({ ctx, art, height }) {
   const box = useRef(null)
   const [src, setSrc] = useState(null)
@@ -738,91 +779,288 @@ function DsBadge({ art }) {
   })
 }
 
-/** A design system's ⋯ menu on its card or row (also on right click): make it the default, or not. */
-function DsMenu({ ctx, art, open, setOpen, style }) {
+/** The types a design system applies to (the New tiles offer a system for these). */
+const DS_KINDS = ['slides', 'design', 'dashboard', 'motion']
+/** The design system a New tile starts with: the one picked on its ••• menu, else the default. */
+const $tileDs = atom({}) // {kind: dsId | 'none'}
+
+/** A new chat whose message box holds what to make (the type, and the design system when not the default). */
+async function startNew(ctx, kind) {
+  let text = T(`prompt_${kind}`)
+  const pick = $tileDs.get()[kind]
+  if (DS_KINDS.includes(kind) && pick) {
+    const ds = pick === 'none' ? null : $list.get().find(a => a.id === pick)
+    // Words to Hermes stay English (only the person's own words follow their language).
+    text = pick === 'none' ? `${text}(no design system) ` : ds ? `${text}(design system "${ds.title}", id ${ds.id}) ` : text
+  }
+  host.newChat()
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 150))
+    if (await host.composer.setDraft('new', text).catch(() => false)) return
+  }
+}
+
+/** The design system choice of a tile: the default first, the others, none; manage, make one. */
+function TileDsMenu({ ctx, kind, onClose }) {
   const t = usePluginI18n(ID)
+  const list = useValue($list)
   const def = useValue($dsDefault)
-  if (art.type !== 'design-system') return null
-  const isDef = def === art.id
+  const pick = useValue($tileDs)[kind] || def || 'none'
+  const systems = list.filter(a => a.type === 'design-system').sort((a, b) => (b.id === def) - (a.id === def))
+  const choose = id => () => {
+    const next = { ...$tileDs.get(), [kind]: id }
+    $tileDs.set(next)
+    ctx.storage.set('tileDs', next)
+    onClose()
+  }
+  return jsx(PopMenu, {
+    onClose,
+    width: 280,
+    items: [
+      { header: t('dsChoice') },
+      ...systems.map(s => ({ key: s.id, icon: 'palette', label: s.title, checked: pick === s.id, right: s.id === def ? t('dsYourDefault') : '', onClick: choose(s.id) })),
+      { key: 'none', label: t('dsNone'), checked: pick === 'none', onClick: choose('none') },
+      { sep: true },
+      { icon: 'filter', label: t('dsManage'), onClick: () => (onClose(), $types.set(['design-system']), $folder.set(null)) },
+      { icon: 'plus', label: t('dsNewFirst'), onClick: () => (onClose(), startNew(ctx, 'design-system')) }
+    ]
+  })
+}
+
+function NewTile({ ctx, kind }) {
+  const t = usePluginI18n(ID)
+  const [h, hp] = useHover()
+  const [menu, setMenu] = useState(false)
+  const look = TYPE_LOOK[kind]
+  const ds = DS_KINDS.includes(kind)
   return jsxs('div', {
-    style: { position: 'absolute', zIndex: 5, ...style },
-    onClick: e => e.stopPropagation(),
+    ...hp,
+    style: { position: 'relative' },
     children: [
-      jsx(IconButton, { icon: 'more', title: t('more'), active: open, onClick: () => setOpen(!open) }),
-      open
-        ? jsx(Menu, {
-            onClose: () => setOpen(false),
-            items: [{ label: isDef ? t('dsUnset') : t('dsMake'), onClick: () => (setOpen(false), setDefaultDs(ctx, art, !isDef)) }]
+      jsxs('button', {
+        type: 'button',
+        onClick: () => startNew(ctx, kind),
+        style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, border: 0, padding: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+        children: [
+          jsx('div', {
+            style: {
+              width: 136,
+              height: 96,
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'rgba(255,255,255,.92)',
+              background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,.22), transparent 55%), linear-gradient(135deg, ${look.bg}, ${look.bg2})`,
+              transform: h ? 'translateY(-2px)' : 'none',
+              boxShadow: h ? '0 6px 18px rgba(0,0,0,.25)' : 'none',
+              transition: 'transform 140ms ease, box-shadow 140ms ease'
+            },
+            children: jsx(Icon, { name: kind === 'page' ? 'code' : look.icon, size: 40, stroke: 1.4 })
+          }),
+          jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
+        ]
+      }),
+      ds && (h || menu)
+        ? jsx('div', {
+            style: { position: 'absolute', top: 6, right: 6 },
+            children: [
+              jsx(OverlayBtn, { icon: 'more', title: t('dsChoice'), active: menu, onClick: () => setMenu(!menu) }, 'b'),
+              menu ? jsx(TileDsMenu, { ctx, kind, onClose: () => setMenu(false) }, 'm') : null
+            ]
           })
         : null
     ]
   })
 }
 
-function Card({ ctx, art }) {
-  const [open, setOpen] = useState(false)
+/** A small round button laid over a card or tile (••• and the pin). */
+function OverlayBtn({ icon, title, active, onClick }) {
   const [h, hp] = useHover()
-  const ds = art.type === 'design-system'
-  return jsxs('div', {
-    style: { position: 'relative', display: 'flex' },
+  return jsx('button', {
+    type: 'button',
+    title,
+    'aria-label': title,
     ...hp,
-    onContextMenu: ds ? e => (e.preventDefault(), setOpen(true)) : undefined,
-    children: [
-      jsx(CardBody, { ctx, art, h }),
-      ds && (h || open) ? jsx(DsMenu, { ctx, art, open, setOpen, style: { top: 20, right: 20, background: C.bg, borderRadius: 6 } }) : null
+    onClick: e => (e.stopPropagation(), onClick(e)),
+    style: { width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: 8, cursor: 'pointer',
+      border: `1px solid ${C.line}`, color: C.fg, background: active || h ? C.hover : 'rgba(20,20,22,.72)', backdropFilter: 'blur(6px)' },
+    children: jsx(Icon, { name: icon, size: 15 })
+  })
+}
+
+async function patchMeta(ctx, art, body) {
+  await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(String(e?.message || e)))
+  await refresh(ctx)
+}
+
+function copyText(text) {
+  const done = () => toast(T('linkCopied'))
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(done, () => toast(text))
+  toast(text)
+}
+/** Opens the artifact in Hermes Desktop (the page reads ?artifact= on arrival). */
+const artifactLink = id => `hermes://open${PAGE}?artifact=${enc(id)}`
+
+/** A card's ••• menu (also on right click): Pin, Rename, Duplicate, Copy link, Move to, Delete. P, R, C act at once. */
+function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
+  const t = usePluginI18n(ID)
+  const folders = useValue($folders)
+  const def = useValue($dsDefault)
+  const [view, setView] = useState('main')
+  const [confirm, setConfirm] = useState(false)
+  const [q, setQ] = useState('')
+  const act = fn => () => (onClose(), fn())
+  const pin = act(() => patchMeta(ctx, art, { pinned: !art.pinned }))
+  const rename = act(onRename)
+  const link = act(() => copyText(artifactLink(art.id)))
+  useEffect(() => {
+    if (view !== 'main') return undefined
+    const key = e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA)$/.test(e.target?.tagName || '')) return
+      const k = e.key.toLowerCase()
+      if (k === 'p') (e.preventDefault(), pin())
+      if (k === 'r') (e.preventDefault(), rename())
+      if (k === 'c') (e.preventDefault(), link())
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [view, art.pinned])
+  if (view === 'move') {
+    const name = q.trim()
+    const hits = folders.filter(f => !name || f.toLowerCase().includes(name.toLowerCase()))
+    const moveTo = f => act(async () => {
+      if (f && !folders.includes(f)) await ctx.rest('/folders', { method: 'POST', body: { name: f } }).catch(() => {})
+      await patchMeta(ctx, art, { folder: f || '' })
+      toast(f ? t('movedTo', f) : t('movedOut'))
+    })
+    return jsx(PopMenu, {
+      onClose,
+      align,
+      width: 280,
+      items: [
+        { icon: 'back', label: t('moveTo'), onClick: () => setView('main') },
+        { sep: true },
+        { input: true, key: 'q', value: q, placeholder: t('folderSearch'), onChange: setQ, onEnter: () => name && moveTo(name)() },
+        ...(name && !folders.some(f => f.toLowerCase() === name.toLowerCase()) ? [{ key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }] : []),
+        ...hits.map(f => ({ key: `f:${f}`, icon: 'folder', label: f, checked: art.folder === f, onClick: moveTo(f) })),
+        { key: 'none', icon: 'folder', label: t('noFolder'), checked: !art.folder, sub2: !art.folder ? t('inNoFolder') : '', onClick: moveTo('') }
+      ]
+    })
+  }
+  return jsx(PopMenu, {
+    onClose,
+    align,
+    width: 240,
+    items: [
+      { icon: 'pin', label: art.pinned ? t('unpin') : t('pin'), right: 'P', onClick: pin },
+      { icon: 'pencil', label: t('rename'), right: 'R', onClick: rename },
+      {
+        icon: 'copy',
+        label: t('duplicate'),
+        onClick: act(async () => {
+          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e)), null))
+          if (r) (await refresh(ctx), toast(t('duplicated')))
+        })
+      },
+      { icon: 'link', label: t('copyLink'), right: 'C', onClick: link },
+      { icon: 'folder', label: t('moveTo'), sub: true, onClick: () => setView('move') },
+      ...(art.type === 'design-system'
+        ? [{ sep: true }, { icon: 'palette', label: def === art.id ? t('dsUnset') : t('dsMake'), onClick: act(() => setDefaultDs(ctx, art, def !== art.id)) }]
+        : []),
+      { sep: true },
+      {
+        icon: 'trash',
+        label: confirm ? t('delConfirm') : t('delete'),
+        danger: true,
+        onClick: async () => {
+          if (!confirm) return setConfirm(true)
+          onClose()
+          await ctx.rest(`/artifacts/${enc(art.id)}`, { method: 'DELETE' }).catch(() => {})
+          refresh(ctx)
+        }
+      }
     ]
   })
 }
 
-function CardBody({ ctx, art, h }) {
-  const t = usePluginI18n(ID)
-  return jsxs('button', {
-    type: 'button',
-    onClick: () => openArtifact(ctx, art.id),
-    style: {
-      ...font,
-      display: 'flex',
-      flexDirection: 'column',
-      flex: 1,
-      minWidth: 0,
-      padding: 0,
-      border: `1px solid ${C.line}`,
-      borderRadius: 12,
-      overflow: 'hidden',
-      cursor: 'pointer',
-      textAlign: 'left',
-      background: C.card,
-      transform: h ? 'translateY(-2px)' : 'none',
-      boxShadow: h ? '0 8px 24px rgba(0,0,0,.22)' : 'none',
-      transition: 'transform 140ms ease, box-shadow 140ms ease'
+/** The title shown on a card or row, retyped in place while renaming. */
+function TitleText({ ctx, art, renaming, setRenaming, style }) {
+  const [name, setName] = useState(art.title)
+  useEffect(() => { if (renaming) setName(art.title) }, [renaming])
+  if (!renaming) return jsx('div', { style, children: art.title })
+  return jsx('input', {
+    autoFocus: true,
+    value: name,
+    onClick: e => e.stopPropagation(),
+    onChange: e => setName(e.target.value),
+    onBlur: () => setRenaming(false),
+    onKeyDown: async e => {
+      e.stopPropagation()
+      if (e.key === 'Escape') setRenaming(false)
+      if (e.key === 'Enter' && name.trim()) (setRenaming(false), patchMeta(ctx, art, { title: name.trim() }))
     },
+    style: { ...font, width: '100%', height: 26, padding: '0 6px', borderRadius: 6, border: `1px solid ${C.accent}`, background: C.bg, color: C.fg, fontSize: 14, outline: 'none' }
+  })
+}
+
+function Card({ ctx, art }) {
+  const t = usePluginI18n(ID)
+  const [menu, setMenu] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [h, hp] = useHover()
+  const look = TYPE_LOOK[art.type] || TYPE_LOOK.page
+  return jsxs('div', {
+    ...hp,
+    onContextMenu: e => (e.preventDefault(), setMenu(true)),
+    style: { position: 'relative', display: 'flex' },
     children: [
-      jsx('div', {
-        style: { padding: '14px 14px 0', background: `radial-gradient(90% 120% at 0% 0%, ${(TYPE_LOOK[art.type] || TYPE_LOOK.page).bg}40, transparent 70%)` },
-        children: jsx('div', {
-          style: { borderRadius: '8px 8px 0 0', overflow: 'hidden', boxShadow: '0 1px 0 rgba(0,0,0,.08)' },
-          children: jsx(Thumb, { ctx, art, height: 150 })
-        })
-      }),
       jsxs('div', {
-        style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: `1px solid ${C.line}` },
+        role: 'button',
+        tabIndex: 0,
+        onClick: () => !renaming && openArtifact(ctx, art.id),
+        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openArtifact(ctx, art.id),
+        style: {
+          ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden',
+          cursor: 'pointer', textAlign: 'left', background: C.card, transform: h ? 'translateY(-2px)' : 'none',
+          boxShadow: h ? '0 8px 24px rgba(0,0,0,.22)' : 'none', transition: 'transform 140ms ease, box-shadow 140ms ease', outline: 'none'
+        },
         children: [
-          jsx(TypeBadge, { type: art.type }),
-          jsxs('div', {
-            style: { minWidth: 0, flex: 1 },
-            children: [
-              jsx('div', { style: { fontSize: 14, fontWeight: 600, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
-              jsx('div', {
-                style: { fontSize: 12, color: C.text3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-                children: [t(`type_${art.type}`) || art.type, ago(art.updated), `v${art.version}`].filter(Boolean).join(' · ')
-              })
-            ]
+          jsx('div', {
+            style: { padding: '14px 14px 0', background: `radial-gradient(90% 120% at 0% 0%, ${look.bg}40, transparent 70%)` },
+            children: jsx('div', { style: { borderRadius: '8px 8px 0 0', overflow: 'hidden', boxShadow: '0 1px 0 rgba(0,0,0,.08)' }, children: jsx(Thumb, { ctx, art, height: 150 }) })
           }),
-          jsx(DsBadge, { art }),
-          art.pinned ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
-          art.comments ? jsxs('span', { style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
+          jsxs('div', {
+            style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: `1px solid ${C.line}` },
+            children: [
+              jsx(TypeBadge, { type: art.type }),
+              jsxs('div', {
+                style: { minWidth: 0, flex: 1 },
+                children: [
+                  jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, fontWeight: 600, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
+                  jsx('div', {
+                    style: { fontSize: 12, color: C.text3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    children: [t(`type_${art.type}`) || art.type, art.folder, ago(sortTime(art, $sort.get()))].filter(Boolean).join(' · ')
+                  })
+                ]
+              }),
+              jsx(DsBadge, { art }),
+              art.pinned && !(h || menu) ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
+              art.comments ? jsxs('span', { style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
+            ]
+          })
         ]
-      })
+      }),
+      h || menu
+        ? jsxs('div', {
+            style: { position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6 },
+            children: [
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: menu, onClick: () => setMenu(!menu) }),
+              jsx(OverlayBtn, { icon: 'pin', title: art.pinned ? t('unpin') : t('pin'), active: art.pinned, onClick: () => patchMeta(ctx, art, { pinned: !art.pinned }) }),
+              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
+            ]
+          })
+        : null
     ]
   })
 }
@@ -830,78 +1068,156 @@ function CardBody({ ctx, art, h }) {
 function ListRow({ ctx, art }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
-  const [open, setOpen] = useState(false)
-  const ds = art.type === 'design-system'
+  const [menu, setMenu] = useState(false)
+  const [renaming, setRenaming] = useState(false)
   return jsxs('div', {
-    style: { position: 'relative' },
     ...hp,
-    onContextMenu: ds ? e => (e.preventDefault(), setOpen(true)) : undefined,
+    onContextMenu: e => (e.preventDefault(), setMenu(true)),
+    style: { position: 'relative' },
     children: [
-      jsx(ListRowBody, { ctx, art, h, t, ds }),
-      ds && (h || open) ? jsx(DsMenu, { ctx, art, open, setOpen, style: { top: 4, right: 170 } }) : null
+      jsxs('div', {
+        role: 'button',
+        tabIndex: 0,
+        onClick: () => !renaming && openArtifact(ctx, art.id),
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: h ? C.hover : 'transparent', boxSizing: 'border-box' },
+        children: [
+          jsx(TypeBadge, { type: art.type, size: 28 }),
+          jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
+          jsx(DsBadge, { art }),
+          art.pinned ? jsx('span', { style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
+          jsx('span', { style: { width: 110, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.folder || '' }),
+          jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
+          jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(sortTime(art, $sort.get())) }),
+          jsx('span', { style: { width: 30, flexShrink: 0 } })
+        ]
+      }),
+      h || menu
+        ? jsxs('div', {
+            style: { position: 'absolute', top: 6, right: 6 },
+            children: [
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: menu, onClick: () => setMenu(!menu) }),
+              menu ? jsx(CardMenu, { ctx, art, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
+            ]
+          })
+        : null
     ]
   })
 }
 
-function ListRowBody({ ctx, art, h, t, ds }) {
-  return jsxs('button', {
-    type: 'button',
-    onClick: () => openArtifact(ctx, art.id),
-    style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 10px', border: 0, borderRadius: 8, cursor: 'pointer', textAlign: 'left', background: h ? C.hover : 'transparent' },
-    children: [
-      jsx(TypeBadge, { type: art.type, size: 28 }),
-      jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
-      jsx(DsBadge, { art }),
-      ds ? jsx('span', { style: { width: 34, flexShrink: 0 } }) : null,
-      art.pinned ? jsx('span', { style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
-      jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
-      jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(art.updated) })
+/** When an artifact was last opened or edited (the sort key). */
+function sortTime(a, sort) {
+  return sort === 'edited' ? a.updated || a.created || 0 : a.opened || a.updated || a.created || 0
+}
+const DAY = 86400
+function inDate(a, when) {
+  if (when === 'any') return true
+  const at = a.opened || a.updated || 0
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const today = start.getTime() / 1000
+  if (when === 'today') return at >= today
+  if (when === 'yesterday') return at >= today - DAY && at < today
+  return at >= Date.now() / 1000 - (when === '7d' ? 7 : 30) * DAY
+}
+const TYPE_KEYS = ['doc', 'slides', 'design', 'design-system', 'dashboard', 'motion']
+
+/** Filter and sort: Sort by, Type (with counts), Date opened, Pinned. */
+function FilterMenu({ ctx, onClose }) {
+  const t = usePluginI18n(ID)
+  const sort = useValue($sort)
+  const types = useValue($types)
+  const date = useValue($date)
+  const pinned = useValue($pinnedOnly)
+  const list = useValue($list)
+  const [view, setView] = useState('main')
+  const back = { icon: 'back', label: t('filterSort'), onClick: () => setView('main') }
+  const DATES = [['any', t('anyTime')], ['today', t('today')], ['yesterday', t('yesterday')], ['7d', t('past7')], ['30d', t('past30')]]
+  if (view === 'sort')
+    return jsx(PopMenu, { onClose, align: 'right', items: [back, { sep: true }, ...[['opened', t('lastOpened')], ['edited', t('lastEdited')]].map(([k, l]) => ({ key: k, label: l, checked: sort === k, onClick: () => ($sort.set(k), ctx.storage.set('sort', k), setView('main')) }))] })
+  if (view === 'type') {
+    const count = k => list.filter(a => (k === 'other' ? !TYPE_KEYS.includes(a.type) : a.type === k)).length
+    const toggle = k => () => $types.set(types.includes(k) ? types.filter(x => x !== k) : [...types, k])
+    return jsx(PopMenu, {
+      onClose,
+      align: 'right',
+      items: [back, { sep: true }, ...[...TYPE_KEYS, 'other'].map(k => ({ key: k, label: k === 'other' ? t('other') : t(`type_${k}`), box: true, checked: types.includes(k), right: String(count(k)), onClick: toggle(k) }))]
+    })
+  }
+  if (view === 'date')
+    return jsx(PopMenu, { onClose, align: 'right', items: [back, { sep: true }, ...DATES.map(([k, l]) => ({ key: k, label: l, checked: date === k, onClick: () => ($date.set(k), setView('main')) }))] })
+  return jsx(PopMenu, {
+    onClose,
+    align: 'right',
+    width: 270,
+    items: [
+      { icon: 'sort', label: t('sortBy'), right: sort === 'edited' ? t('lastEdited') : t('lastOpened'), sub: true, onClick: () => setView('sort') },
+      { sep: true },
+      { icon: 'filter', label: t('typeF'), right: types.length ? String(types.length) : t('any'), sub: true, onClick: () => setView('type') },
+      { icon: 'history', label: t('dateOpened'), right: DATES.find(d => d[0] === date)[1], sub: true, onClick: () => setView('date') },
+      { sep: true },
+      { icon: 'pin', label: t('pinnedF'), box: true, checked: pinned, onClick: () => $pinnedOnly.set(!pinned) }
     ]
   })
 }
 
-function Menu({ items, onClose }) {
-  useEffect(() => {
-    const off = () => onClose()
-    setTimeout(() => window.addEventListener('click', off), 0)
-    return () => window.removeEventListener('click', off)
-  }, [])
-  return jsx('div', {
-    style: { position: 'absolute', right: 0, top: 32, zIndex: 20, minWidth: 180, padding: 4, borderRadius: 8, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 8px 24px rgba(0,0,0,.3)' },
-    children: items.map(it =>
-      jsx(
-        'button',
-        {
-          type: 'button',
-          onClick: it.onClick,
-          style: { ...font, display: 'block', width: '100%', padding: '6px 10px', border: 0, borderRadius: 6, textAlign: 'left', fontSize: 13, cursor: 'pointer', color: it.active ? C.fg : C.text2, background: it.active ? C.hover : 'transparent' },
-          children: it.label
-        },
-        it.label
-      )
-    )
+/** New: a chat, a folder, or one of each type. */
+function NewMenu({ ctx, onClose }) {
+  const t = usePluginI18n(ID)
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  if (naming)
+    return jsx(PopMenu, {
+      onClose,
+      align: 'right',
+      items: [
+        { input: true, key: 'n', value: name, placeholder: t('newFolder'), onChange: setName, onEnter: async () => {
+          const n = name.trim()
+          if (!n) return
+          onClose()
+          await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(String(e?.message || e)))
+          await refresh(ctx)
+          $folder.set(n)
+        } }
+      ]
+    })
+  return jsx(PopMenu, {
+    onClose,
+    align: 'right',
+    width: 220,
+    items: [
+      { icon: 'comment', label: t('chatNew'), onClick: () => (onClose(), host.newChat()) },
+      { icon: 'folder', label: t('folder'), onClick: () => setNaming(true) },
+      { sep: true },
+      ...NEW_KINDS.map(k => ({ key: k, icon: k === 'page' ? 'code' : TYPE_LOOK[k].icon, label: t(`tile_${k}`), onClick: () => (onClose(), startNew(ctx, k)) }))
+    ]
   })
 }
+const NEW_KINDS = ['doc', 'slides', 'design', 'dashboard', 'motion', 'page']
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
   const list = useValue($list)
   const err = useValue($error)
   const query = useValue($query)
-  const filter = useValue($filter)
   const sort = useValue($sort)
+  const types = useValue($types)
+  const date = useValue($date)
+  const pinnedOnly = useValue($pinnedOnly)
+  const folder = useValue($folder)
+  const folders = useValue($folders)
   const layout = useValue($layout)
   const [searching, setSearching] = useState(Boolean(query))
-  const [sortOpen, setSortOpen] = useState(false)
+  const [open, setOpen] = useState(null) // 'filter' | 'new'
 
   const q = query.trim().toLowerCase()
   const shown = list
-    .filter(a => filter !== 'pinned' || a.pinned)
-    .filter(a => !q || `${a.title} ${a.description || ''} ${a.type}`.toLowerCase().includes(q))
-    .sort((a, b) =>
-      sort === 'name' ? a.title.localeCompare(b.title) : sort === 'created' ? (b.created || 0) - (a.created || 0) : (b.updated || 0) - (a.updated || 0)
-    )
+    .filter(a => !folder || a.folder === folder)
+    .filter(a => !pinnedOnly || a.pinned)
+    .filter(a => !types.length || types.includes(TYPE_KEYS.includes(a.type) ? a.type : 'other'))
+    .filter(a => inDate(a, date))
+    .filter(a => !q || `${a.title} ${a.description || ''} ${a.type} ${a.folder || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => sortTime(b, sort) - sortTime(a, sort))
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+  const filtered = Boolean(types.length || date !== 'any' || pinnedOnly)
 
   const body = err
     ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('backendDown', err) })
@@ -910,10 +1226,7 @@ function Gallery({ ctx, pageRef }) {
       : shown.length === 0
         ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('noMatch') })
         : layout === 'grid'
-          ? jsx('div', {
-              style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 },
-              children: shown.map(a => jsx(Card, { ctx, art: a }, a.id))
-            })
+          ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a }, a.id)) })
           : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a }, a.id)) })
 
   return jsxs('div', {
@@ -926,36 +1239,27 @@ function Gallery({ ctx, pageRef }) {
           children: [
             jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
             jsxs('div', {
-              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26 },
+              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26, flexWrap: 'wrap' },
               children: [
-                jsx(Chip, { label: t('all'), active: filter === 'all', onClick: () => $filter.set('all') }),
-                jsx(Chip, { label: t('pinned'), active: filter === 'pinned', onClick: () => $filter.set('pinned') }),
+                jsx(Chip, { label: t('all'), active: !folder, onClick: () => $folder.set(null) }),
+                ...folders.map(f => jsx(Chip, { label: f, active: folder === f, onClick: () => $folder.set(f) }, f)),
                 jsx('div', { style: { flex: 1 } }),
                 searching
                   ? jsx('input', {
                       autoFocus: true,
                       value: query,
-                      placeholder: t('search'),
+                      placeholder: t('searchArtifacts'),
                       onChange: e => $query.set(e.target.value),
                       onBlur: () => !query && setSearching(false),
                       onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      style: { ...font, height: 28, width: 220, padding: '0 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+                      style: { ...font, height: 28, width: 240, padding: '0 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
                     })
-                  : jsx(IconButton, { icon: 'search', title: t('search'), onClick: () => setSearching(true) }),
+                  : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
                   style: { position: 'relative' },
                   children: [
-                    jsx(IconButton, { icon: 'sort', title: t('sortRecent'), active: sortOpen, onClick: () => setSortOpen(!sortOpen) }),
-                    sortOpen
-                      ? jsx(Menu, {
-                          onClose: () => setSortOpen(false),
-                          items: [
-                            ['recent', t('sortRecent')],
-                            ['created', t('sortCreated')],
-                            ['name', t('sortName')]
-                          ].map(([k, label]) => ({ label, active: sort === k, onClick: () => ($sort.set(k), ctx.storage.set('sort', k), setSortOpen(false)) }))
-                        })
-                      : null
+                    jsx(IconButton, { icon: 'sort', title: t('filterSort'), active: open === 'filter' || filtered, onClick: () => setOpen(open === 'filter' ? null : 'filter') }),
+                    open === 'filter' ? jsx(FilterMenu, { ctx, onClose: () => setOpen(null) }) : null
                   ]
                 }),
                 jsx(IconButton, {
@@ -966,13 +1270,20 @@ function Gallery({ ctx, pageRef }) {
                     $layout.set(next)
                     ctx.storage.set('layout', next)
                   }
+                }),
+                jsxs('div', {
+                  style: { position: 'relative' },
+                  children: [
+                    jsx(IconButton, { icon: 'plus', title: t('newMenu'), active: open === 'new', onClick: () => setOpen(open === 'new' ? null : 'new') }),
+                    open === 'new' ? jsx(NewMenu, { ctx, onClose: () => setOpen(null) }) : null
+                  ]
                 })
               ]
             }),
             jsx('div', { style: { fontSize: 13, fontWeight: 600, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
             jsx('div', {
               style: { display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 34 },
-              children: ['doc', 'slides', 'design', 'dashboard', 'motion', 'page', 'design-system'].map(k => jsx(NewTile, { ctx, kind: k }, k))
+              children: NEW_KINDS.map(k => jsx(NewTile, { ctx, kind: k }, k))
             }),
             body
           ]
@@ -1577,7 +1888,17 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
         ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.line } }, `s${i}`)
         : it.header
           ? jsxs('div', { style: { padding: '6px 10px 8px', fontSize: 13, lineHeight: 1.4 }, children: [jsx('div', { style: { color: C.text2 }, children: it.header }), it.sub ? jsx('div', { style: { color: C.text3 }, children: it.sub }) : null] }, `h${i}`)
-          : jsx(MenuRow, { it }, it.key || it.label)
+          : it.input
+            ? jsx('input', {
+                key: it.key || 'input',
+                autoFocus: true,
+                value: it.value,
+                placeholder: it.placeholder,
+                onChange: e => it.onChange(e.target.value),
+                onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
+                style: { ...font, width: '100%', boxSizing: 'border-box', height: 32, margin: '2px 0 4px', padding: '0 10px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+              })
+            : jsx(MenuRow, { it }, it.key || it.label)
     )
   })
 }
@@ -1595,7 +1916,7 @@ function MenuRow({ it }) {
       alignItems: 'center',
       gap: 10,
       width: '100%',
-      height: 34,
+      minHeight: 34,
       padding: '0 10px',
       border: 0,
       borderRadius: 8,
@@ -1606,11 +1927,16 @@ function MenuRow({ it }) {
       background: h && !it.disabled ? C.hover : 'transparent'
     },
     children: [
-      it.icon ? jsx(Icon, { name: it.icon }) : null,
-      jsx('span', { style: { flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.label }),
+      it.box
+        ? jsx('span', { style: { width: 14, height: 14, flexShrink: 0, borderRadius: 4, border: `1px solid ${it.checked ? C.accent : C.line}`, background: it.checked ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }, children: it.checked ? jsx(Icon, { name: 'check', size: 11, stroke: 2.4 }) : null })
+        : it.icon ? jsx(Icon, { name: it.icon }) : null,
+      jsxs('span', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }, children: [
+        jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.label }),
+        it.sub2 ? jsx('span', { style: { fontSize: 11.5, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.sub2 }) : null
+      ] }),
       it.right ? jsx('span', { style: { fontSize: 12, color: C.text3 }, children: it.right }) : null,
       it.sub ? jsx(Icon, { name: 'next', size: 14 }) : null,
-      it.checked ? jsx(Icon, { name: 'check', size: 14 }) : null
+      it.checked && !it.box ? jsx(Icon, { name: 'check', size: 14 }) : null
     ]
   })
 }
@@ -2114,6 +2440,8 @@ function Page({ ctx }) {
   const sel = useValue($selected)
   useEffect(() => {
     refresh(ctx)
+    const m = /[?&]artifact=([^&]+)/.exec(window.location.hash)
+    if (m) openArtifact(ctx, decodeURIComponent(m[1]))
     if (dockClose) {
       closeDock()
       $chat.set('off')
@@ -2159,12 +2487,14 @@ export default {
     })
 
     for (const [key, atomRef, ok] of [
-      ['sort', $sort, ['recent', 'created', 'name']],
+      ['sort', $sort, ['opened', 'edited']],
       ['layout', $layout, ['grid', 'list']]
     ]) {
       const v = ctx.storage.get(key)
       if (ok.includes(v)) atomRef.set(v)
     }
+    const td = ctx.storage.get('tileDs')
+    if (td && typeof td === 'object') $tileDs.set(td)
 
     // Floating back button on the built-in view opened from our link, registered only while it shows.
     const saved = ctx.storage.get('backSpot')
