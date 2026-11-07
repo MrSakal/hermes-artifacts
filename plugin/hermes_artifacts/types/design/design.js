@@ -208,12 +208,29 @@
   function broadcast(m, path) { frames.forEach(function (f) { if (!path || f.path === path) f.send(Object.assign({}, m)); }); }
 
   // ------------------------------------------------------------------ design system
-  var ds = { rec: (Array.isArray(canvas.designSystems) ? canvas.designSystems : [])[0] || null, css: "", themes: [], theme: null, model: null };
-  if (ds.rec && ds.rec.artifact && window.dsKit && editable !== null) {
-    window.dsKit.load({ id: String(ds.rec.artifact), version: ds.rec.version }).then(function (d) {
-      if (!d) return;
-      ds.css = window.dsKit.css(d) || ""; ds.themes = window.dsKit.themes(d) || [];
-      try { ds.model = window.dsKit.model(d.tokens || {}); } catch (e) {}
+  // Up to four systems (Claude's): the first is the canvas's own (its themes); the others add their colors,
+  // type styles and CSS. Each is loaded at the version recorded, so a later edit of a system changes nothing here.
+  var dsRecs = (Array.isArray(canvas.designSystems) ? canvas.designSystems : []).filter(function (r) { return r && r.artifact; }).slice(0, 4);
+  var ds = { rec: dsRecs[0] || null, css: "", themes: [], theme: null, model: null };
+  if (dsRecs.length && window.dsKit && editable !== null) {
+    Promise.all(dsRecs.map(function (r) {
+      return window.dsKit.load({ id: String(r.artifact), version: r.version }).catch(function () { return null; });
+    })).then(function (all) {
+      var got = all.filter(Boolean);
+      if (!got.length) return;
+      var models = [];
+      got.forEach(function (d) { try { models.push(window.dsKit.model(d.tokens || {})); } catch (e) {} });
+      // The others' CSS first, the canvas's own system last: on a clash, its own wins.
+      ds.css = got.slice(1).concat(got.slice(0, 1)).map(function (d) { return window.dsKit.css(d) || ""; }).join("\n");
+      ds.themes = all[0] ? window.dsKit.themes(all[0]) || [] : [];
+      if (models.length) {
+        var seen = {};
+        ds.model = {
+          colors: [].concat.apply([], models.map(function (m) { return m.colors; })).filter(function (c) { if (seen[c.name]) return false; seen[c.name] = 1; return true; }),
+          resolve: function (name, theme) { for (var i = 0; i < models.length; i++) { var v = models[i].resolve(name, theme); if (v) return v; } return null; },
+          type: { groups: [].concat.apply([], models.map(function (m) { return m.type.groups; })) }
+        };
+      }
       broadcast({ t: "ds", css: ds.css });
       themeBtn.hidden = ds.themes.length < 2;
       if (sel.path) renderPanel();

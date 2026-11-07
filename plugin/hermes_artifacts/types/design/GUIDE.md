@@ -16,6 +16,8 @@ Tell the user what happens on the canvas, never the mechanism.
    set it lists the systems: name them and ask, when someone can answer. Read its `tokens.json` and `README.md` with `artifact_read`, and match its exact
    colors, type, spacing, radii and fonts. Record it in `canvas.json`:
    `"designSystems": [{"title": "Ember", "namespace": "ember", "artifact": "<its id>", "version": <its latest version>}]`.
+   Up to four systems when the user asks to combine them; the first is the canvas's own (its themes win a
+   clash), the others add their colors, type styles and CSS.
    The canvas then puts the system's CSS (its tokens as `var(--name)` custom properties per
    `[data-theme]`, its fonts, its type style classes and its `components/bundle.css`) into every
    artboard, and offers its themes in a Theme menu. No system: decide one nameable look and say it in
