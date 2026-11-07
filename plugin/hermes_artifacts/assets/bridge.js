@@ -88,8 +88,9 @@
   function box(color) {
     var b = document.createElement("div");
     b.setAttribute("data-hermes-ui", "");
+    // Warm Paper's sienna, with a peach halo so it reads on light and dark pages alike.
     b.style.cssText = "position:fixed;pointer-events:none;z-index:2147483646;border:2px solid " + color +
-      ";border-radius:4px;background:" + color + "14;transition:all .06s";
+      ";border-radius:6px;background:rgba(251,225,209,.18);box-shadow:0 0 0 3px rgba(251,225,209,.55);transition:all .06s";
     document.documentElement.appendChild(b);
     return b;
   }
@@ -102,7 +103,7 @@
     if (!picking) return;
     var el = e.target;
     if (!el || el.hasAttribute("data-hermes-ui")) return;
-    hoverBox = hoverBox || box("#d97757");
+    hoverBox = hoverBox || box("#5d2a1a");
     place(hoverBox, el);
   }
   function onPick(e) {
@@ -131,7 +132,7 @@
       b.setAttribute("data-hermes-ui", "");
       b.textContent = String(it.n);
       b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
-        "border-radius:9px;background:#d97757;color:#fff;font:600 11px/18px system-ui,sans-serif;" +
+        "border-radius:9px;background:#fbe1d1;color:#5d2a1a;font:500 11px/18px system-ui,sans-serif;border:1px solid #5d2a1a;" +
         "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
       b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
       b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
@@ -143,7 +144,7 @@
     var el; try { el = document.querySelector(d && d.selector); } catch (_) {}
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
-    var b = box("#d97757"); place(b, el);
+    var b = box("#5d2a1a"); place(b, el);
     setTimeout(function () { place(b, el); }, 350);
     setTimeout(function () { b.remove(); }, 1600);
   });

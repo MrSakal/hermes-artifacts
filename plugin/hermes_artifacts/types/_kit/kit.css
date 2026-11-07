@@ -1,4 +1,5 @@
-/* The Hermes look: cool slate surfaces, a teal accent, sans-serif throughout with tabular figures. */
+/* Page defaults (cool slate, a teal accent, sans-serif with tabular figures) under a design system or
+   Hermes' own colours; the kit chrome takes Warm Paper's shapes: pill buttons, 16px menus, a pill toast. */
 :root {
   color-scheme: light dark;
   --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -72,25 +73,25 @@ body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size
    page's own CSS never collides with them. */
 .kit-bar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 6px; height: 44px;
   padding: 0 12px; background: var(--color-bg); border-bottom: 1px solid var(--color-border-line); }
-.kit-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kit-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0;
-  border-radius: 6px; background: transparent; color: var(--color-fg-secondary); font: inherit;
+.kit-title { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 0;
+  border-radius: 999px; background: transparent; color: var(--color-fg-secondary); font: inherit;
   font-size: 13px; cursor: pointer; }
 .kit-btn:hover, .kit-btn[aria-pressed="true"] { background: var(--color-hover); color: var(--color-fg); }
 .kit-btn svg { width: 16px; height: 16px; }
-.kit-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--color-hover); }
-.kit-seg .kit-btn { height: 24px; }
-.kit-seg .kit-btn[aria-pressed="true"] { background: var(--color-panel); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
-.kit-menu { position: absolute; z-index: 60; min-width: 200px; padding: 4px; border-radius: 8px;
-  border: 1px solid var(--color-border-line); background: var(--color-panel); box-shadow: var(--shadow-popover); }
-.kit-menu button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none;
+.kit-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--color-hover); }
+.kit-seg .kit-btn { height: 26px; }
+.kit-seg .kit-btn[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); }
+.kit-menu { position: absolute; z-index: 60; min-width: 200px; padding: 6px; border-radius: 16px;
+  border: 0; background: var(--color-panel); box-shadow: 0 0 0 1px var(--color-border-line), var(--shadow-popover); }
+.kit-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: none;
   color: var(--color-fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .kit-menu button:hover { background: var(--color-hover); }
 .kit-menu .kit-hint { padding: 4px 10px 6px; font-size: 11px; color: var(--color-fg-muted); }
 .kit-drawer { position: fixed; top: 44px; right: 0; bottom: 0; z-index: 40; width: min(420px, 100%); overflow: auto;
   background: var(--color-panel); border-left: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
-.kit-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 70; padding: 8px 14px;
-  border-radius: 8px; background: var(--color-fg); color: var(--color-bg); font-size: 12px; }
+.kit-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 70; padding: 9px 18px;
+  border-radius: 999px; background: var(--color-fg); color: var(--color-bg); font-size: 13px; }
 .kit-empty { display: flex; align-items: center; justify-content: center; min-height: 60vh; color: var(--color-fg-muted); }
 html[data-thumb] .kit-bar, html[data-thumb] .kit-drawer { display: none !important; }
 .kit-btn[hidden] { display: none; }

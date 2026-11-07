@@ -621,8 +621,38 @@ const C = {
   text4: 'var(--ui-text-quaternary)',
   line: 'var(--ui-stroke-secondary)',
   hover: 'var(--chrome-action-hover)',
-  card: 'var(--ui-bg-elevated, var(--background))',
-  accent: '#14b8a6'
+  card: 'var(--ha-mist)', // Warm Paper's mist-gray: the flat card surface
+  fog: 'var(--ha-fog)', // one step off the page: hover
+  hair: 'var(--ha-hair)', // the 1px hairline
+  accent: 'var(--ha-mark)', // sienna: the one colour, for marks (comments, the default system)
+  accentBg: 'var(--ha-peach)', // blush peach, under sienna
+  serif: '"Signifier", "Source Serif 4", Georgia, ui-serif, serif',
+  shadowPop: '0 0 0 1px var(--ha-hair), 0 4px 24px rgba(0,0,0,.14)', // popovers (shadow-subtle)
+  shadowModal: '0 0 0 1px var(--ha-hair), 0 8px 40px rgba(0,0,0,.22)' // dialogs (shadow-subtle-2)
+}
+/** Warm Paper on Hermes: surfaces mixed from the app's own ink and paper (so light and dark both work),
+ *  and the peach/sienna pair, with a dark variant of it when Hermes is dark. */
+function installLook() {
+  if (typeof document === 'undefined' || document.getElementById('ha-look')) return
+  const st = document.createElement('style')
+  st.id = 'ha-look'
+  st.textContent = ':root{--ha-mist:color-mix(in srgb,var(--foreground) 5%,var(--background));' +
+    '--ha-fog:color-mix(in srgb,var(--foreground) 3%,var(--background));' +
+    '--ha-hair:color-mix(in srgb,var(--foreground) 10%,var(--background));--ha-peach:#fbe1d1;--ha-mark:#5d2a1a}' +
+    ':root[data-ha-dark]{--ha-peach:#3d2a21;--ha-mark:#f6cfb8}'
+  document.head.appendChild(st)
+  const probe = document.createElement('div')
+  probe.style.cssText = 'display:none;color:var(--background)'
+  document.body.appendChild(probe)
+  const sync = () => {
+    const m = /(\d+)\D+(\d+)\D+(\d+)/.exec(getComputedStyle(probe).color || '')
+    const dark = m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 < 0.45 : false
+    if (dark !== document.documentElement.hasAttribute('data-ha-dark')) document.documentElement.toggleAttribute('data-ha-dark', dark)
+  }
+  sync()
+  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+  new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', sync)
 }
 const font = { fontFamily: 'inherit' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
@@ -712,9 +742,9 @@ function IconButton({ icon, title, onClick, active, label, danger }) {
       display: 'inline-flex',
       alignItems: 'center',
       gap: 6,
-      height: 28,
-      padding: label ? '0 10px' : '0 6px',
-      borderRadius: 6,
+      height: 30,
+      padding: label ? '0 12px' : '0 7px',
+      borderRadius: 999,
       border: 0,
       cursor: 'pointer',
       fontSize: 12,
@@ -733,14 +763,15 @@ function Chip({ label, active, onClick }) {
     ...hp,
     style: {
       ...font,
-      height: 28,
-      padding: '0 12px',
-      borderRadius: 8,
+      height: 30,
+      padding: '0 14px',
+      borderRadius: 999,
       border: 0,
       cursor: 'pointer',
       fontSize: 13,
-      color: active ? C.fg : h ? C.fg : C.text2,
-      background: active ? C.hover : 'transparent'
+      // Warm Paper: the chosen one is a filled ink pill, the others ghost.
+      color: active ? C.bg : h ? C.fg : C.text2,
+      background: active ? C.fg : h ? C.card : 'transparent'
     },
     children: label
   })
@@ -821,8 +852,8 @@ function Thumb({ ctx, art, height }) {
 function TypeBadge({ type, size = 32 }) {
   const look = TYPE_LOOK[type] || TYPE_LOOK.page
   return jsx('div', {
-    style: { width: size, height: size, borderRadius: Math.round(size * 0.3), flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${look.bg}, ${look.bg2 || look.bg})` },
-    children: jsx(Icon, { name: look.icon, size: size * 0.55 })
+    style: { width: size, height: size, borderRadius: 999, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.fg, background: C.bg },
+    children: jsx(Icon, { name: look.icon, size: size * 0.5, stroke: 1.5 })
   })
 }
 
@@ -844,7 +875,7 @@ function DsBadge({ art }) {
   if (art.type !== 'design-system' || def !== art.id) return null
   return jsx('span', {
     title: t('dsDefaultTitle'),
-    style: { flexShrink: 0, fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: C.fg, background: C.hover, border: `1px solid ${C.line}` },
+    style: { flexShrink: 0, fontSize: 12, fontWeight: 500, padding: '2px 9px', borderRadius: 999, color: C.accent, background: C.accentBg },
     children: t('dsDefault')
   })
 }
@@ -918,17 +949,15 @@ function NewTile({ ctx, kind }) {
             style: {
               width: 136,
               height: 96,
-              borderRadius: 12,
+              borderRadius: 20,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'rgba(255,255,255,.92)',
-              background: `radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,.22), transparent 55%), linear-gradient(135deg, ${look.bg}, ${look.bg2})`,
-              transform: h ? 'translateY(-2px)' : 'none',
-              boxShadow: h ? '0 6px 18px rgba(0,0,0,.25)' : 'none',
-              transition: 'transform 140ms ease, box-shadow 140ms ease'
+              color: C.fg,
+              background: h ? C.hair : C.card,
+              transition: 'background 140ms ease'
             },
-            children: jsx(Icon, { name: kind === 'page' ? 'code' : look.icon, size: 40, stroke: 1.4 })
+            children: jsx(Icon, { name: kind === 'page' ? 'code' : look.icon, size: 30, stroke: 1.5 })
           }),
           jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
         ]
@@ -936,10 +965,10 @@ function NewTile({ ctx, kind }) {
       h && !menu
         ? jsxs('div', {
             role: 'tooltip',
-            style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '8px 10px', borderRadius: 10,
-              border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 10px 28px rgba(0,0,0,.35)', pointerEvents: 'none', ...font },
+            style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '10px 12px', borderRadius: 16,
+              background: C.bg, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
             children: [
-              jsx('div', { style: { fontSize: 13, fontWeight: 600, color: C.fg }, children: t(`tile_${kind}`) }),
+              jsx('div', { style: { fontSize: 13, fontWeight: 500, color: C.fg }, children: t(`tile_${kind}`) }),
               jsx('div', { style: { fontSize: 11.5, color: C.text3, margin: '1px 0 4px' }, children: t('tileBy') }),
               jsx('div', { style: { fontSize: 12.5, color: C.text2, lineHeight: 1.4 }, children: t(`tileAbout_${kind}`) })
             ]
@@ -967,8 +996,8 @@ function OverlayBtn({ icon, title, active, onClick }) {
     'aria-label': title,
     ...hp,
     onClick: e => (e.stopPropagation(), onClick(e)),
-    style: { width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: 8, cursor: 'pointer',
-      border: `1px solid ${C.line}`, color: C.fg, background: active || h ? C.hover : 'rgba(20,20,22,.72)', backdropFilter: 'blur(6px)' },
+    style: { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: 999, cursor: 'pointer',
+      border: 0, color: active ? C.bg : C.fg, background: active ? C.fg : h ? C.card : C.bg, boxShadow: C.shadowPop },
     children: jsx(Icon, { name: icon, size: 15 })
   })
 }
@@ -1089,20 +1118,20 @@ function RenameDialog({ ctx, art, onClose }) {
     onMouseDown: e => e.stopPropagation(),
     style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)' },
     children: jsxs('div', {
-      style: { ...font, width: 380, maxWidth: 'calc(100vw - 32px)', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 18px 48px rgba(0,0,0,.4)' },
+      style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 24, borderRadius: 24, background: C.bg, boxShadow: C.shadowModal },
       children: [
-        jsx('div', { style: { fontSize: 15, fontWeight: 600, color: C.fg, marginBottom: 12 }, children: t('renameTitle') }),
+        jsx('div', { style: { fontFamily: C.serif, fontSize: 24, fontWeight: 400, letterSpacing: '-0.3px', color: C.fg, marginBottom: 16 }, children: t('renameTitle') }),
         jsx('input', {
           autoFocus: true,
           value: name,
           onFocus: e => e.target.select(),
           onChange: e => setName(e.target.value),
           onKeyDown: e => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') save() },
-          style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', borderRadius: 8, border: `1px solid ${C.accent}`, background: 'transparent', color: C.fg, fontSize: 14, outline: 'none' }
+          style: { ...font, width: '100%', boxSizing: 'border-box', height: 40, padding: '0 16px', borderRadius: 16, border: `1px solid ${C.hair}`, background: C.card, color: C.fg, fontSize: 15, outline: 'none' }
         }),
         jsxs('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }, children: [
-          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: 0, background: changed ? C.fg : C.hover, color: changed ? C.bg : C.text3, fontSize: 13, fontWeight: 600, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
+          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 36, padding: '0 18px', borderRadius: 999, border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 36, padding: '0 18px', borderRadius: 999, border: 0, background: changed ? C.fg : C.card, color: changed ? C.bg : C.text3, fontSize: 14, fontWeight: 500, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
         ] })
       ]
     })
@@ -1126,23 +1155,22 @@ function Card({ ctx, art }) {
         onClick: () => !renaming && openArtifact(ctx, art.id),
         onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openArtifact(ctx, art.id),
         style: {
-          ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, border: `1px solid ${C.line}`, borderRadius: 12, overflow: 'hidden',
-          cursor: 'pointer', textAlign: 'left', background: C.card, transform: h ? 'translateY(-2px)' : 'none',
-          boxShadow: h ? '0 8px 24px rgba(0,0,0,.22)' : 'none', transition: 'transform 140ms ease, box-shadow 140ms ease', outline: 'none'
+          ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: 24, overflow: 'hidden', padding: 8,
+          cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease', outline: 'none'
         },
         children: [
           jsx('div', {
-            style: { padding: '14px 14px 0', background: `radial-gradient(90% 120% at 0% 0%, ${look.bg}40, transparent 70%)` },
-            children: jsx('div', { style: { borderRadius: '8px 8px 0 0', overflow: 'hidden', boxShadow: '0 1px 0 rgba(0,0,0,.08)' }, children: jsx(Thumb, { ctx, art, height: 150 }) })
+            style: { borderRadius: 16, overflow: 'hidden', background: C.bg },
+            children: jsx(Thumb, { ctx, art, height: 158 })
           }),
           jsxs('div', {
-            style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: `1px solid ${C.line}` },
+            style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px 6px' },
             children: [
               jsx(TypeBadge, { type: art.type }),
               jsxs('div', {
                 style: { minWidth: 0, flex: 1 },
                 children: [
-                  jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, fontWeight: 600, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
+                  jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 15, fontWeight: 500, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
                   jsx('div', {
                     style: { fontSize: 12, color: C.text3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
                     children: [t(`type_${art.type}`) || art.type, art.folder, ago(sortTime(art, $sort.get()))].filter(Boolean).join(' · ')
@@ -1158,7 +1186,7 @@ function Card({ ctx, art }) {
       }),
       h || menu
         ? jsxs('div', {
-            style: { position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6 },
+            style: { position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 },
             children: [
               jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: menu, onClick: () => setMenu(!menu) }),
               jsx(OverlayBtn, { icon: 'pin', title: art.pinned ? t('unpin') : t('pin'), active: art.pinned, onClick: () => patchMeta(ctx, art, { pinned: !art.pinned }) }),
@@ -1184,7 +1212,7 @@ function ListRow({ ctx, art }) {
         role: 'button',
         tabIndex: 0,
         onClick: () => !renaming && openArtifact(ctx, art.id),
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', background: h ? C.hover : 'transparent', boxSizing: 'border-box' },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: 16, cursor: 'pointer', background: h ? C.card : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
           jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
@@ -1341,7 +1369,7 @@ function Gallery({ ctx, pageRef }) {
         children: jsxs('div', {
           style: { maxWidth: 1180, margin: '0 auto', padding: '28px 28px 40px' },
           children: [
-            jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
+            jsx('h1', { style: { margin: '0 0 24px', fontFamily: C.serif, fontSize: 40, lineHeight: 1.2, fontWeight: 400, letterSpacing: '-0.6px', color: C.fg }, children: t('title') }),
             jsxs('div', {
               style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26, flexWrap: 'wrap' },
               children: [
@@ -1356,7 +1384,7 @@ function Gallery({ ctx, pageRef }) {
                       onChange: e => $query.set(e.target.value),
                       onBlur: () => !query && setSearching(false),
                       onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      style: { ...font, height: 28, width: 240, padding: '0 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+                      style: { ...font, height: 30, width: 240, padding: '0 14px', borderRadius: 999, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
                     })
                   : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
@@ -1384,7 +1412,7 @@ function Gallery({ ctx, pageRef }) {
                 })
               ]
             }),
-            jsx('div', { style: { fontSize: 13, fontWeight: 600, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
+            jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
             jsx('div', {
               style: { display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 34 },
               children: NEW_KINDS.map(k => jsx(NewTile, { ctx, kind: k }, k))
@@ -1995,10 +2023,10 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   }, [])
   return jsx('div', {
     ref,
-    style: { position: 'absolute', [align]: 0, top: 36, zIndex: 40, width, padding: 6, borderRadius: 12, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 12px 36px rgba(0,0,0,.35)' },
+    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: 16, background: C.bg, boxShadow: C.shadowPop },
     children: items.filter(Boolean).map((it, i) =>
       it.sep
-        ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.line } }, `s${i}`)
+        ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.hair } }, `s${i}`)
         : it.header
           ? jsxs('div', { style: { padding: '6px 10px 8px', fontSize: 13, lineHeight: 1.4 }, children: [jsx('div', { style: { color: C.text2 }, children: it.header }), it.sub ? jsx('div', { style: { color: C.text3 }, children: it.sub }) : null] }, `h${i}`)
           : it.input
@@ -2009,7 +2037,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
                 placeholder: it.placeholder,
                 onChange: e => it.onChange(e.target.value),
                 onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
-                style: { ...font, width: '100%', boxSizing: 'border-box', height: 32, margin: '2px 0 4px', padding: '0 10px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 14px', borderRadius: 999, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
               })
             : jsx(MenuRow, { it }, it.key || it.label)
     )
@@ -2032,16 +2060,16 @@ function MenuRow({ it }) {
       minHeight: 34,
       padding: '0 10px',
       border: 0,
-      borderRadius: 8,
+      borderRadius: 10,
       textAlign: 'left',
       fontSize: 14,
       cursor: it.disabled ? 'default' : 'pointer',
       color: it.danger ? '#e5484d' : it.disabled ? C.text4 : C.fg,
-      background: h && !it.disabled ? C.hover : 'transparent'
+      background: h && !it.disabled ? C.card : 'transparent'
     },
     children: [
       it.box
-        ? jsx('span', { style: { width: 14, height: 14, flexShrink: 0, borderRadius: 4, border: `1px solid ${it.checked ? C.accent : C.line}`, background: it.checked ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }, children: it.checked ? jsx(Icon, { name: 'check', size: 11, stroke: 2.4 }) : null })
+        ? jsx('span', { style: { width: 14, height: 14, flexShrink: 0, borderRadius: 4, border: `1px solid ${it.checked ? C.fg : C.line}`, background: it.checked ? C.fg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.bg }, children: it.checked ? jsx(Icon, { name: 'check', size: 11, stroke: 2.4 }) : null })
         : it.icon ? jsx(Icon, { name: it.icon }) : null,
       jsxs('span', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }, children: [
         jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.label }),
@@ -2306,12 +2334,12 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
   return jsxs('div', {
     ref: boxRef,
     onClick: () => c.anchor?.selector && postToPage(portRef, 'flash', { selector: c.anchor.selector }),
-    style: { padding: 12, borderRadius: 10, border: `1px solid ${focused ? C.accent : C.line}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
+    style: { padding: 14, borderRadius: 16, border: `1px solid ${focused ? C.accent : 'transparent'}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
     children: [
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
         children: [
-          n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 9, background: C.accent, color: '#fff', fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
+          n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 9, background: C.accentBg, color: C.accent, fontSize: 11, fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
           who(c),
           jsx('span', { style: { fontSize: 11, color: C.text4 }, children: ago(c.ts) }),
           jsx('div', { style: { flex: 1 } }),
@@ -2546,7 +2574,7 @@ function Toast() {
   const msg = useValue($toast)
   if (!msg) return null
   return jsx('div', {
-    style: { position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 30, padding: '8px 14px', borderRadius: 8, background: C.fg, color: C.bg, fontSize: 12, boxShadow: '0 6px 20px rgba(0,0,0,.3)' },
+    style: { position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 30, padding: '9px 18px', borderRadius: 999, background: C.fg, color: C.bg, fontSize: 13, boxShadow: C.shadowPop },
     children: msg
   })
 }
@@ -2604,6 +2632,7 @@ export default {
   description: 'Replaces the built-in Artifacts page with agent-published, versioned artifacts (pages, dashboards, slides, docs).',
   register(ctx) {
     CTX = ctx
+    installLook()
     // The UI in the app's language (display.language); a language without a bundle, and every message to
     // Hermes (left out of the other bundles), fall back to `en`.
     ctx.i18n.register(STRINGS)
