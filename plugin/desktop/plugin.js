@@ -547,7 +547,8 @@ function watchChatArtifactTool(ctx) {
         id: `${ID}:chat-artifact`,
         label: open ? tr('closeBeside') : tr('openBeside', art.title),
         title: open ? tr('closeBeside') : tr('openBeside', art.title),
-        icon: jsx(Icon, { name: (TYPE_LOOK[art.type] || TYPE_LOOK.page).icon, size: 16 }),
+        // The same icon as the sidebar's Artifacts row, so it reads as "artifacts" at a glance.
+        icon: SDK.Codicon ? jsx(SDK.Codicon, { name: 'files', size: 16 }) : jsx(Icon, { name: 'page', size: 16 }),
         active: open,
         badge: arts.length > 1 ? arts.length : undefined,
         onSelect: () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
