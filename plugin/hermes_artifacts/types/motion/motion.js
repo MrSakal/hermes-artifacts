@@ -687,7 +687,7 @@
     return T.contMsg + (left.length ? " " + T.left + left.join(", ") + "." : "");
   }
   function sendToChat(text) {
-    if (window.hermes && window.hermes.send) window.hermes.send(text, null, { deliver: "send" }).then(function () { kit.toast(text); }, function () {});
+    if (window.hermes && window.hermes.send) window.hermes.send(text, null, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(text); }, function () {});
   }
 
   function refreshSegs() {

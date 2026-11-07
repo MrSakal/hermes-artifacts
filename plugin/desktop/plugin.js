@@ -1616,7 +1616,15 @@ async function waitReply(ctx, aid, rid) {
   throw new Error('no answer from Hermes yet; it is still in the inbox')
 }
 
+const $focusPin = atom(0) // the thread whose pin was clicked on the page (its number)
+
 function onPageEvent(event, detail) {
+  if (event === 'pinOpen') {
+    $picking.set(false)
+    $panel.set(true)
+    $focusPin.set(Number(detail?.n) || 0)
+    return
+  }
   if (event === 'comment') {
     // A doc's "Comment" on selected text: open the comment form anchored there.
     $picking.set(false)
@@ -2286,9 +2294,19 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
   const [text, setText] = useState('')
   const who = cc => jsx('span', { style: { fontSize: 12, fontWeight: 600, color: cc.author === 'hermes' ? C.accent : C.fg }, children: cc.author === 'hermes' ? t('hermes') : t('you') })
   const where = c.anchor ? c.anchor.text || c.anchor.label : ''
+  const focusPin = useValue($focusPin)
+  const focused = !!n && focusPin === n
+  const boxRef = useRef(null)
+  useEffect(() => {
+    if (!focused) return
+    boxRef.current?.scrollIntoView?.({ block: 'nearest' })
+    const timer = setTimeout(() => $focusPin.set(0), 1600)
+    return () => clearTimeout(timer)
+  }, [focused])
   return jsxs('div', {
+    ref: boxRef,
     onClick: () => c.anchor?.selector && postToPage(portRef, 'flash', { selector: c.anchor.selector }),
-    style: { padding: 12, borderRadius: 10, border: `1px solid ${C.line}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default' },
+    style: { padding: 12, borderRadius: 10, border: `1px solid ${focused ? C.accent : C.line}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
     children: [
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },

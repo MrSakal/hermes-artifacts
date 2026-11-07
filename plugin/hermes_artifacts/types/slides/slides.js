@@ -692,7 +692,7 @@
         tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign));
       var colB = tbtn("palette", T.color, function () { colorMenu(colB); });
       kids.push(colB);
-      if (dsStyles.length) { var tsB = tbtn("fontUp", T.textStyle, function () { styleMenu(tsB); }); kids.push(tsB); }
+      if (dsStyles.length) { var tsB = tbtn("text", T.textStyle, function () { styleMenu(tsB); }); kids.push(tsB); }
       kids.push(sep());
     }
     kids.push(tbtn("front", T.front, function () { restack(true); }), tbtn("back", T.back, function () { restack(false); }),
@@ -732,16 +732,18 @@
       } };
     }));
   }
+  var SLIDE_SCALE = 2;
   function px(v) { var m = /^(-?[\d.]+)(px|rem|em|%)?$/.exec(String(v)); if (!m) return null; var n = +m[1]; return m[2] === "rem" || m[2] === "em" ? n * 16 : m[2] === "%" ? n * 0.16 : n; }
   /** Text style: one of the design system's styles (size, weight, line height, tracking, face). */
   function styleMenu(anchor) {
     kit.menu(anchor, dsStyles.slice(0, 40).map(function (x) {
       var st = x.st;
-      return { label: st.name + " · " + st.fontSize, onClick: function () {
+      // A system's sizes are for screens; a slide is a 1920px canvas seen from across a room: twice the size.
+      var f = px(st.fontSize), onSlide = f ? Math.max(24, R(f * SLIDE_SCALE)) : null;
+      return { label: st.name + (onSlide ? " · " + onSlide + "px" : ""), onClick: function () {
         checkpoint();
         sel.forEach(function (el) {
-          var f = px(st.fontSize);
-          if (f) el.style.fontSize = Math.max(24, R(f)) + "px"; // nothing on a slide under 24px
+          if (onSlide) el.style.fontSize = onSlide + "px"; // nothing on a slide under 24px
           if (st.fontWeight) el.style.fontWeight = st.fontWeight;
           if (st.lineHeight) el.style.lineHeight = st.lineHeight;
           if (st.letterSpacing) el.style.letterSpacing = st.letterSpacing;
@@ -812,7 +814,7 @@
       if (e.key !== "Enter" || !inp.value.trim()) return;
       var text = T.about(cur + 1, s.id, titleOf(s), target ? labelOf(target) : "") + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
-      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function () { kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
       drawTools();
     });
   }

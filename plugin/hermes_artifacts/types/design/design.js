@@ -51,6 +51,7 @@
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
       comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
+      fixIt: "Kérd meg a Hermest, hogy javítsa",
       dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
       text: "Szöveg", color: "Szín", size: "Méret", weight: "Vastagság", align: "Igazítás", fill: "Kitöltés", background: "Háttér",
       layout: "Elrendezés", width: "Szélesség", height: "Magasság", padding: "Belső margó", gap: "Térköz", radius: "Lekerekítés", display: "Megjelenés",
@@ -439,7 +440,7 @@
           fx.addEventListener("click", function (e) {
             e.stopPropagation();
             window.hermes.send(T.fixMsg(b.path, String(b.errors[0]).slice(0, 300)), { artboard: b.path }, { deliver: "send" })
-              .then(function () { kit.toast(T.sent); }).catch(function (er) { kit.toast(String(er && er.message || er)); });
+              .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }).catch(function (er) { kit.toast(String(er && er.message || er)); });
           });
           b.err.append(fx);
         }
@@ -1244,7 +1245,7 @@
       var text = T.about(titleOf(a.p), a.p, a.label) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
       window.hermes.send(text, { artboard: a.p, element: a.id, selector: a.n ? cssPath(a.n) : null }, { deliver: "send" })
-        .then(function () { kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
       drawTools();
     });
   }

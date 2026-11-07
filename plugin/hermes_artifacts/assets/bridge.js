@@ -132,7 +132,9 @@
       b.textContent = String(it.n);
       b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
         "border-radius:9px;background:#d97757;color:#fff;font:600 11px/18px system-ui,sans-serif;" +
-        "text-align:center;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.3)";
+        "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
+      b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
+      b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
       b.style.left = r.right + window.scrollX - 9 + "px"; b.style.top = r.top + window.scrollY - 9 + "px";
       document.body.appendChild(b); pins.push(b);
     });
