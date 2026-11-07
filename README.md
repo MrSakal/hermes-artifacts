@@ -86,8 +86,9 @@ Requires Hermes 0.22.5 or newer. No Python dependencies.
 | `design_system_get` | The default (or a named) design system for any UI work, code included: README rules, tokens and `tokens.css`, components, files. |
 | `design_system_export` | Write a design system's files into a project folder (e.g. `src/design-system`); refuses a non-empty folder unless `overwrite=true`. |
 
-While a default design system is set, every turn carries one line naming it, so Hermes builds frontends,
-pages and decks on it instead of making up colours, type and components.
+As in Claude, the default design system comes with `artifact_guide` for the types that wear it (slides,
+design, motion, dashboard); in a codebase it lives as files in the project (`design_system_export`).
+Nothing is added to every turn.
 
 **Hermes Desktop:**
 

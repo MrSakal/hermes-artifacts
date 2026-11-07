@@ -92,9 +92,7 @@ class RenderTests(unittest.TestCase):
             self.assertFalse(json.loads(plugin._ds_get({}))["ok"])
             kiln = store.publish(path=str(ROOT / "examples" / "design-system"), title="Kiln", type="design-system")["id"]
             store.settings_set("default_design_system", kiln)
-            ctx = plugin._view_context(session_id="none-open")["context"]
-            self.assertIn(f'<default-design-system id="{kiln}"', ctx)
-            self.assertIn("design_system_get", ctx)
+            self.assertIsNone(plugin._view_context(session_id="none-open"))  # like Claude: no line per turn
             ds = json.loads(plugin._ds_get({}))["design_system"]
             self.assertTrue(ds["default"])
             self.assertIn("--ink", ds["tokens_css"])

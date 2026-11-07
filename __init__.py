@@ -555,8 +555,9 @@ def _start_purger() -> None:
 
 def _view_context(**kw):
     """pre_llm_call: when the user has an artifact open (reported by Hermes Desktop in the last 10
-    minutes), add where they are in it to their message, as Claude does with its view context; and,
-    while a default design system is set, one line that it exists, for any UI work (artifacts or code)."""
+    minutes), add where they are in it to their message, as Claude does with its view context. (No
+    design system line here: like Claude, the system comes with the guide of the types that wear it,
+    and in code it is files in the project, design_system_export.)"""
     parts = []
     try:
         session = kw.get("session_id")
@@ -570,21 +571,7 @@ def _view_context(**kw):
                 "instructions. Use it to resolve \"this chart\", \"the slide I'm on\", \"the selected text\".)")
     except Exception:
         logger.debug("view context failed", exc_info=True)
-    try:
-        ds = _default_ds(full=False)
-        if ds:
-            parts.append(f'<default-design-system id="{ds["id"]}" title="{_attr(ds["title"])}" version="{ds["version"]}"/>\n'
-                         "(The user's default design system. For anything with a UI — a frontend, components, a page, "
-                         "an email, a deck — build on it instead of making up colours, type and components: "
-                         "design_system_get for its rules, tokens and components; design_system_export to put its "
-                         "files into a project. Another system only when the user names one.)")
-    except Exception:
-        logger.debug("design system context failed", exc_info=True)
     return {"context": "\n".join(parts)} if parts else None
-
-
-def _attr(s: str) -> str:
-    return str(s).replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
 
 
 def _ds_id(args: dict) -> tuple[str | None, str | None]:
