@@ -523,23 +523,75 @@ function ChatArtifacts({ ctx }) {
 
 /** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
  *  newest one when the chat made several). Re-registered when the chat, the list or the dock changes. */
+/** The chat's own route: `#/` (new chat) or `#/<session id>`. */
+function onChatRoute(sid) {
+  const path = (window.location.hash.replace(/^#/, '') || '/').split('?')[0]
+  return path === '/' || (Boolean(sid) && path === `/${encodeURIComponent(sid)}`)
+}
+
+/** Hermes' titlebar icon size, so it matches the buttons beside it. */
+function titlebarIcon() {
+  return SDK.Codicon
+    ? jsx(SDK.Codicon, { name: 'files', size: 'var(--titlebar-icon-size, 14px)' })
+    : jsx(Icon, { name: 'page', size: 14 })
+}
+
+/** A button styled like Hermes' own titlebar buttons (24px, transparent, hover tint). */
+function TitlebarArtifactButton({ label, active, count, onSelect }) {
+  const [hover, setHover] = useState(false)
+  return jsxs('button', {
+    type: 'button',
+    title: label,
+    'aria-label': label,
+    'aria-pressed': active,
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+    onClick: e => { e.preventDefault(); onSelect() },
+    style: { position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 'var(--titlebar-control-size, 24px)', height: 'var(--titlebar-control-height, 24px)', padding: 0, border: 0,
+      borderRadius: 4, cursor: 'pointer', WebkitAppRegion: 'no-drag',
+      background: hover ? 'var(--ui-control-hover-background, var(--chrome-action-hover))' : 'transparent',
+      color: active || hover ? 'var(--foreground)' : 'color-mix(in srgb, var(--muted-foreground) 85%, transparent)' },
+    children: [
+      titlebarIcon(),
+      count > 1 ? jsx('span', { style: { position: 'absolute', top: 1, right: 0, fontSize: 9, lineHeight: 1, fontWeight: 600 }, children: count }) : null
+    ]
+  })
+}
+
 function watchChatArtifactTool(ctx) {
   const sidAtom = host.state?.focusedStoredSessionId
   if (!sidAtom?.listen) return () => {}
   // ctx.i18n.t translates from the start (T follows the page, which may not be open yet).
   const tr = (k, ...a) => (ctx.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
   let dispose = null, last = ''
+  const offs0 = []
   const sync = () => {
     const sid = sidAtom.get()
     const arts = sid ? $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0)) : []
     const art = arts[0]
     const open = Boolean(art) && $chat.get() === 'split' && arts.some(a => a.id === $selected.get())
-    const key = art ? `${art.id}|${art.type}|${arts.length}|${open}|${tr('openBeside', art.title)}` : ''
+    const key = art ? `${art.id}|${art.type}|${arts.length}|${open}|${onChatRoute(sid)}|${tr('openBeside', art.title)}` : ''
     if (key === last) return
     last = key
     dispose?.()
     dispose = null
     if (!art) return
+    const label = open ? tr('closeBeside') : tr('openBeside', art.title)
+    const onSelect = () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
+    // On the chat's own route the button sits in Hermes' right cluster (the titleBar.right slot): the pane
+    // header measures that cluster and keeps its 48px window-drag handle clear of it. In the pane-tool row
+    // the handle lands on the button and the OS swallows every click and hover. Off the chat route the slot
+    // would make the page own the titlebar, so the pane-tool row is the fallback there.
+    if (onChatRoute(sid)) {
+      dispose = ctx.register({
+        id: 'chat-artifact-slot',
+        area: 'titleBar.right',
+        order: 9999,
+        render: () => jsx(TitlebarArtifactButton, { label, active: open, count: arts.length, onSelect })
+      })
+      return
+    }
     dispose = ctx.register({
       id: 'chat-artifact-tool',
       area: 'titleBar.tools.right',
@@ -548,7 +600,7 @@ function watchChatArtifactTool(ctx) {
         label: open ? tr('closeBeside') : tr('openBeside', art.title),
         title: open ? tr('closeBeside') : tr('openBeside', art.title),
         // The same icon as the sidebar's Artifacts row, so it reads as "artifacts" at a glance.
-        icon: SDK.Codicon ? jsx(SDK.Codicon, { name: 'files', size: 16 }) : jsx(Icon, { name: 'page', size: 16 }),
+        icon: titlebarIcon(),
         active: open,
         badge: arts.length > 1 ? arts.length : undefined,
         onSelect: () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
@@ -582,7 +634,9 @@ function watchChatArtifactTool(ctx) {
     if (open) { wasOpenFor = sid; if (closedIn.delete(sid)) remember() }
     else if (wasOpenFor && wasOpenFor === sid) { closedIn.add(sid); remember(); wasOpenFor = null }
   }
-  const offs = [sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
+  window.addEventListener('hashchange', sync)
+  offs0.push(() => window.removeEventListener('hashchange', sync))
+  const offs = [...offs0, sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
   sync()
   return () => { offs.forEach(f => f?.()); dispose?.() }
 }
