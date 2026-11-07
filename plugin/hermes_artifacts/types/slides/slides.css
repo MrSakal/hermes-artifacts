@@ -101,3 +101,12 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
 .sl-pnext { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #222; flex-shrink: 0; }
 .sl-pend { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #8a8a8a; font-size: 14px; }
 .sl-pnotes { flex: 1; min-height: 0; overflow: auto; line-height: 1.5; white-space: pre-wrap; color: #dcdcdc; }
+
+/* Hidden slides (skipped when presenting) and section headers in the rail */
+.sl-thumb.is-hidden .sl-box { opacity: .38; }
+.sl-thumb.is-hidden .sl-num { text-decoration: line-through; }
+.sl-sec { display: block; width: 100%; box-sizing: border-box; margin: 6px 0 8px; padding: 2px 4px; border: 1px solid transparent;
+  border-radius: 4px; background: transparent; color: var(--color-fg-muted); font: 600 11px/1.4 inherit; letter-spacing: .04em;
+  text-transform: uppercase; }
+input.sl-sec:hover { border-color: var(--color-line, rgba(127,127,127,.3)); }
+input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: var(--color-fg); text-transform: none; }

@@ -15,7 +15,7 @@
       cont: "Continue", fin: "Finalize", contMsg: "Continue the animation.", left: "Scenes left: ", finMsg: "Finalize the animation.",
       scene: "Scene", of: "of", soon: "Still to come", failed: "This scene didn't run", bad: "modules/scenes.json is missing or not valid.",
       badScenes: "scenes.json: ", noFilm: "This film has no scenes yet.", saving: "Saving…", saved: "Saved", notSaved: "Not saved", retry: "Save",
-      conflict: "Changed meanwhile: reopen the film to see the new version", noSave: "Can't save here", rangeHint: "Shift-drag the timeline to mark a stretch · I / O set its ends",
+      conflict: "Changed meanwhile: the new version loads", noSave: "Can't save here", rangeHint: "Shift-drag the timeline to mark a stretch · I / O set its ends",
       editHint: "Double-click words to retype them", name: "Name", length: "Length", reset: "Reset", colors: "Colors", original: "Original",
       font: "Font", headlines: "Headlines", text: "Text", look: "Selected", ink: "Color", size: "Size", weight: "Weight", hidden: "Hidden",
       pickHint: "Pause, then click a thing on the picture to change its look.", resetAll: "Reset all changes", byHand: "Changes made by hand are saved as part of the film.",
@@ -28,7 +28,7 @@
       cont: "Folytatás", fin: "Véglegesítés", left: "Scenes left: ",
       scene: "Jelenet", of: "/", soon: "Még készül", failed: "Ez a jelenet nem futott le", bad: "A modules/scenes.json hiányzik vagy nem érvényes.",
       badScenes: "scenes.json: ", noFilm: "Ebben a filmben még nincs jelenet.", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", retry: "Mentés",
-      conflict: "Közben megváltozott: nyisd meg újra a filmet", noSave: "Itt nem lehet menteni", rangeHint: "Shift + húzás az idővonalon: szakasz kijelölése · I / O: a két vége",
+      conflict: "Közben megváltozott: betöltöm az új verziót", noSave: "Itt nem lehet menteni", rangeHint: "Shift + húzás az idővonalon: szakasz kijelölése · I / O: a két vége",
       editHint: "Dupla katt a szövegre: átírás", name: "Név", length: "Hossz", reset: "Vissza", colors: "Színek", original: "Eredeti",
       font: "Betűtípus", headlines: "Címek", text: "Szöveg", look: "Kijelölt", ink: "Szín", size: "Méret", weight: "Vastagság", hidden: "Elrejtve",
       pickHint: "Állítsd meg, és kattints a képen egy elemre, hogy megváltoztasd.", resetAll: "Minden kézi módosítás visszaállítása", byHand: "A kézi módosítások a film részeként mentődnek.",
@@ -885,7 +885,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); kit.toast(T.noSave); return; }
     status("saving");
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { status("failed"); kit.toast(T.conflict); return; }
+      if (r && r.conflict) { status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || r.ok === false) { status("failed"); return; }
       if (r.version) C.version = r.version;
       pendingSave = null; status("saved");

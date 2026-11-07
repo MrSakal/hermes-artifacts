@@ -75,10 +75,14 @@ style inline:
 - text elements are `<h1>`–`<h3>`, `<p>`, `<ul>`/`<ol>`, `<b>`/`<i>`/`<u>`, `<a href>` and `<span style>`;
   nothing under 24px;
 - other elements are `<div>` containers, `<img>`, `<table>` and `<svg aria-label>`;
-- `position:absolute` pins a child to the slide. Pinned children can take `data-build-in="fade|rise|pop"`;
-- `data-key="..."` pairs an element with the one of the same key on the next slide, for magic move.
+- `position:absolute` pins a child to the slide. Pinned children can build, one click each:
+  `data-build-in` and `data-build-out` take `fade|rise|drop|pop|zoom|left|right|wipe`;
+  `data-build-order="n"` orders the builds (lower first; otherwise in page order, ins before outs);
+- `data-key="..."` (or the same element `id`) pairs an element with its match on the next slide, for magic move.
 
 Speaker notes go in one `<aside>`, the last child. No scripts, iframes or forms.
+`data-hidden` on a `<section>` hides that slide: it stays in the deck but presenting skips it.
+`data-section="<name>"` on a slide starts a section there (a header in the slide rail). On a layout slide in deck.json: `"hidden": true`, `"section": "<name>"`.
 
 A slide's HTML file wins over its layout entry. When the user edits a layout slide, the edit becomes
 that slide's HTML file. Its elements are then pinned: each is `position:absolute` with `left`, `top` and

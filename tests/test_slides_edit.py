@@ -54,6 +54,25 @@ class SaveTests(unittest.TestCase):
         self.assertTrue(r["conflict"])
 
 
+class UnreadEditTests(unittest.TestCase):
+    """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused (Claude's rule)."""
+
+    def test_publish_needs_a_read_after_the_persons_save(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        from test_types import load_plugin
+        p = load_plugin()
+        deck = {"title": "D", "order": ["a"], "slides": [{"id": "a", "layout": "title", "title": "A"}]}
+        kw = {"session_id": "chat-1"}
+        aid = json.loads(p._publish({"title": "D", "type": "slides", "files": {"deck.json": deck}, "open": False}, **kw))["id"]
+        self.assertTrue(json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))["ok"])
+        op(aid, "save", base_version=2, files={"slides/a.html": '<section id="a"><p>mine</p></section>'})
+        r = json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))
+        self.assertFalse(r["ok"])
+        self.assertEqual((r["code"], r["version"]), ("unread_edit", 3))
+        json.loads(p._read({"id": aid}, **kw))
+        self.assertTrue(json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))["ok"])
+
+
 class SharedFileTests(unittest.TestCase):
     """A new version links the files it doesn't change; writing one must never touch an older version."""
 

@@ -70,8 +70,8 @@ def _ok(**kw) -> str:
     return json.dumps({"ok": True, **kw}, ensure_ascii=False)
 
 
-def _err(msg: str) -> str:
-    return json.dumps({"ok": False, "error": msg}, ensure_ascii=False)
+def _err(msg: str, **extra) -> str:
+    return json.dumps({"ok": False, "error": msg, **extra}, ensure_ascii=False)
 
 
 def _view(meta: dict) -> dict:
@@ -82,6 +82,15 @@ def _view(meta: dict) -> dict:
 
 # ----------------------------------------------------------------------------- tools
 
+# The newest version of each artifact this chat has read or published: a publish over a version the
+# person saved since (in the page) is refused until Hermes reads it, so their edit is never lost.
+_SEEN: dict = {}
+
+
+def _seen(kw: dict, aid: str, n: int) -> None:
+    _SEEN[(kw.get("session_id"), aid)] = max(n, _SEEN.get((kw.get("session_id"), aid), 0))
+
+
 def _publish(args: dict, **kw) -> str:
     try:
         if args.get("id"):
@@ -90,10 +99,16 @@ def _publish(args: dict, **kw) -> str:
                 # A live doc: the person may have typed into it since; a publish would replace their words.
                 return _err("this is a live doc: change it with artifact_doc_edit (artifact_doc_read first), "
                             "never by publishing it again")
+            last = old["versions"][-1] if old and old.get("versions") else None
+            if last and last.get("by") == "user" and _SEEN.get((kw.get("session_id"), old["id"]), 0) < last["n"]:
+                return _err(f"the person changed it since you last read it (version {last['n']} is theirs): "
+                            "artifact_read it, make your change on that version, then publish again",
+                            code="unread_edit", version=last["n"])
         meta = store.publish(html=args.get("html"), path=args.get("path"), files=args.get("files"),
                              title=args.get("title", ""), aid=args.get("id"),
                              description=args.get("description", ""), type=args.get("type"),
                              base=bool(args.get("base", False)), session=kw.get("session_id"))
+        _seen(kw, meta["id"], meta["versions"][-1]["n"])
         view = _view(meta)
         if meta.get("type") == "dashboard" and not bool(_setting("require_approval", False)):
             # The agent ran these calls in the chat; the dashboard may run them again without a click.
@@ -125,6 +140,8 @@ def _read(args: dict, **_kw) -> str:
         meta = store.get_meta(aid)
         if not meta:
             return _err(f"unknown artifact {aid!r}")
+        if not v or int(v) == meta["versions"][-1]["n"]:
+            _seen(_kw, aid, meta["versions"][-1]["n"])
         live_doc = meta.get("type") == "doc" and not v and not args.get("path")
         v = v or meta["versions"][-1]["n"]
         files = store.list_files(aid, v)
@@ -433,7 +450,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
          "files": {"type": "object", "description": "Relative path -> file text (JSON values are written as "
                                                      "JSON; {\"base64\": \"...\"} for images)."},
          "path": {"type": "string"}, "html": {"type": "string"}, "title": {"type": "string"},
-         "id": {"type": "string", "description": "Existing artifact id to add a version to."},
+         "id": {"type": "string", "description": "Existing artifact id to add a version to. If the person saved a version since you last read it, the publish is refused: artifact_read it and build on that."},
          "base": {"type": "boolean", "description": "Start from the latest version's files."},
          "description": {"type": "string"},
          "open": {"type": "boolean", "description": "Show it in Hermes Desktop (default true)."}}),

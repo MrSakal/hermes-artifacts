@@ -1196,7 +1196,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); return; }
     inFlight = true; status("saving");
     window.hermes.save(d.files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); return; }
+      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || !r.ok) throw new Error(r && r.error || "save failed");
       C.version = r.version;
       Object.keys(d.files).forEach(function (p) { if (d.cur[p] != null) saved.files[p] = d.cur[p]; });
