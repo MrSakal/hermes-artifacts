@@ -554,7 +554,34 @@ function watchChatArtifactTool(ctx) {
       }
     })
   }
-  const offs = [sidAtom.listen(sync), $list.listen(sync), $chat.listen(sync), $selected.listen(sync)]
+  // Entering a chat that made an artifact opens it beside the chat, as Claude does; closing it there keeps
+  // it closed in that chat (until the person opens it again).
+  let lastSid = sidAtom.get()
+  const closedIn = new Set(Array.isArray(ctx.storage?.get('closedIn')) ? ctx.storage.get('closedIn') : [])
+  const remember = () => ctx.storage?.set('closedIn', [...closedIn].slice(-200))
+  const enter = () => {
+    const sid = sidAtom.get()
+    if (sid === lastSid) return
+    lastSid = sid
+    // The artifact belongs to its chat: another chat in front closes it.
+    const shown = current()
+    if ($chat.get() === 'split' && dockClose && shown?.session && shown.session !== sid) {
+      closeDock()
+      $chat.set('off')
+    }
+    if (!sid || closedIn.has(sid) || !listedOnce) return
+    if ($chat.get() === 'split' && current()?.session === sid) return
+    const art = $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0))[0]
+    if (art && !window.location.hash.startsWith(`#${PAGE}`)) openBeside(ctx, art)
+  }
+  let wasOpenFor = null
+  const track = () => {
+    const sid = sidAtom.get()
+    const open = $chat.get() === 'split' && current()?.session === sid
+    if (open) { wasOpenFor = sid; if (closedIn.delete(sid)) remember() }
+    else if (wasOpenFor && wasOpenFor === sid) { closedIn.add(sid); remember(); wasOpenFor = null }
+  }
+  const offs = [sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
   sync()
   return () => { offs.forEach(f => f?.()); dispose?.() }
 }
@@ -1994,13 +2021,18 @@ async function openSplit(ctx, art) {
     return
   }
   closeDock()
-  try {
-    const c = await ensureChat(art)
-    await host.openSession(c.stored)
-    if (c.created) toast(T('newChatMade'))
-  } catch {
-    $chat.set('float')
-    return
+  // Its chat is already the one in front (the titlebar button, a pinned row's icon): dock at once; the
+  // check and reopen below take seconds and would only bring back the same chat.
+  const here = art.session && host.state?.focusedStoredSessionId?.get?.() === art.session
+  if (!here) {
+    try {
+      const c = await ensureChat(art)
+      await host.openSession(c.stored)
+      if (c.created) toast(T('newChatMade'))
+    } catch {
+      $chat.set('float')
+      return
+    }
   }
   $chat.set('split')
   dockClose = host.openWorkspace(`${ID}:view`, {
@@ -2313,11 +2345,19 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         ...[...art.versions].reverse().map(n => ({ key: `v${n}`, label: `v${n}${n === art.version ? ` · ${t('latest')}` : ''}`, checked: n === v, onClick: close(() => $shown.set(n === art.version ? null : n)) }))
       ]
     })
+  // Claude's outputs of a chat: the other artifacts this chat made, one click away.
+  const siblings = art.session ? $list.get().filter(a => a.session === art.session && a.id !== art.id) : []
   return jsx(PopMenu, {
     onClose,
     items: [
       { header: t('menuBy', t(`type_${art.type}`) || art.type), sub: date ? t('updatedOn', date) : '' },
       { sep: true },
+      ...(siblings.length
+        ? [{ header: t('chatArtifacts') },
+            ...siblings.map(a => ({ key: `sib-${a.id}`, icon: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, label: a.title,
+              onClick: close(() => openArtifact(ctx, a.id)) })),
+            { sep: true }]
+        : []),
       { icon: 'download', label: t('exportMenu'), sub: true, disabled: !exportItems.length, onClick: () => setView('export') },
       {
         icon: 'copy',
@@ -2867,9 +2907,6 @@ export default {
     ctx.register({ id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PAGE, label: 'Artifacts', codicon: 'files', tier: 'advanced' } })
     registerNavPrefs(ctx)
     const stopTool = watchChatArtifactTool(ctx)
-    if (SDK.COMPOSER_AREAS?.actions) {
-      ctx.register({ id: 'chat-artifacts', area: SDK.COMPOSER_AREAS.actions, render: () => jsx(ChatArtifacts, { ctx }) })
-    }
     if (SDK.SESSION_ROW_AREAS?.leading) {
       ctx.register({ id: 'pin-mark', area: SDK.SESSION_ROW_AREAS.leading, data: { render: ({ sessionId }) => jsx(PinMark, { ctx, sessionId }) } })
     }
