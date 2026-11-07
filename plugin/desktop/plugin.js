@@ -83,6 +83,11 @@ const STRINGS = {
     title: 'Artifacts',
     all: 'All',
     pinned: 'Pinned',
+    openPinned: title => `Open the artifact “${title}”`,
+    openBeside: title => `Open “${title}” beside this chat`,
+    chatArtifacts: 'Artifacts made in this chat',
+    closeBeside: 'Close the artifact',
+    pinNoChat: 'Pinned in the gallery: it was not made in a chat, so there is no chat to pin in the sidebar',
     makeNew: 'Make something new',
     newBadge: 'New',
     search: 'Search artifacts',
@@ -257,6 +262,11 @@ const STRINGS = {
     title: 'Artifacts',
     all: 'Összes',
     pinned: 'Kitűzött',
+    openPinned: title => `A(z) „${title}” artifact megnyitása`,
+    openBeside: title => `A(z) „${title}” megnyitása a chat mellett`,
+    chatArtifacts: 'Ebben a chatben készült artifactok',
+    closeBeside: 'Artifact bezárása',
+    pinNoChat: 'Kitűzve a galériában: nem chatben készült, így nincs beszélgetés, amit az oldalsávba tűzhetnék',
     makeNew: 'Készíts valami újat',
     newBadge: 'Új',
     search: 'Keresés az artifactok közt',
@@ -437,13 +447,143 @@ function syncPinnedNav(ctx, list) {
     }
   for (const [id, a] of want) {
     if (pinnedRegs.has(id)) continue
+    // Its own route stays (a link to it opens it); the sidebar shows it in Hermes' Pinned section instead.
     const disposers = [
-      ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) }),
-      ctx.register({ id: `pinned:${id}`, area: SIDEBAR_NAV_AREA, data: { path: pinnedPath(id), label: a.title, codicon: NAV_CODICON[a.type] || 'pinned', tier: 'advanced' } })
+      ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) })
     ]
     pinnedRegs.set(id, { key: `${a.title}|${a.type}`, dispose: () => disposers.forEach(d => typeof d === 'function' && d()) })
   }
   if ([...pinnedRegs.keys()].join('|') !== before) registerNavPrefs(ctx)
+  syncPinnedChats(ctx, list)
+}
+
+/** A pinned artifact's chat is pinned in Hermes' own Pinned section (the section holds chats only), and
+ *  its row wears the artifact's icon (PinMark). The plugin unpins only the chats it pinned itself. */
+function syncPinnedChats(ctx, list) {
+  const pin = host.sessions?.pin
+  if (!pin || !ctx.storage) return
+  const want = new Set(list.filter(a => a.pinned && a.session).map(a => a.session))
+  const ours = new Set(Array.isArray(ctx.storage.get('pinnedChats')) ? ctx.storage.get('pinnedChats') : [])
+  let changed = false
+  for (const sid of want) if (!ours.has(sid)) { try { pin(sid, true) } catch {} ours.add(sid); changed = true }
+  for (const sid of [...ours]) if (!want.has(sid)) { try { pin(sid, false) } catch {} ours.delete(sid); changed = true }
+  if (changed) ctx.storage.set('pinnedChats', [...ours])
+}
+
+const $noSession = atom(null) // an older host without focusedStoredSessionId
+/** The artifact beside its chat (the Chat split); again on the same one closes it. */
+function openBeside(ctx, art) {
+  if ($chat.get() === 'split' && $selected.get() === art.id && dockClose) {
+    closeDock()
+    $chat.set('off')
+    return
+  }
+  openArtifact(ctx, art.id)
+  openSplit(ctx, art)
+}
+
+/** In a chat's composer row: the artifacts this chat made (Claude's artifacts beside the session). */
+function ChatArtifacts({ ctx }) {
+  const t = usePluginI18n(ID)
+  const sid = useValue(host.state?.focusedStoredSessionId || $noSession)
+  const list = useValue($list)
+  const chat = useValue($chat)
+  const sel = useValue($selected)
+  const [menu, setMenu] = useState(false)
+  const arts = sid ? list.filter(a => a.session === sid) : []
+  if (arts.length < 2) return null // one artifact: the titlebar button opens it
+  const one = null
+  const open = chat === 'split' && arts.some(a => a.id === sel)
+  return jsxs('span', {
+    style: { position: 'relative', display: 'inline-flex' },
+    children: [
+      jsx(IconButton, {
+        icon: (TYPE_LOOK[(one || arts[0]).type] || TYPE_LOOK.page).icon,
+        label: one ? null : String(arts.length),
+        title: one ? t('openBeside', one.title) : t('chatArtifacts'),
+        active: open || menu,
+        onClick: () => (one ? openBeside(ctx, one) : setMenu(!menu))
+      }),
+      menu
+        ? jsx(PopMenu, {
+            up: true,
+            align: 'right',
+            width: 280,
+            onClose: () => setMenu(false),
+            items: [
+              { header: t('chatArtifacts') },
+              ...arts.map(a => ({ key: a.id, icon: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, label: a.title,
+                checked: open && a.id === sel, onClick: () => (setMenu(false), openBeside(ctx, a)) }))
+            ]
+          })
+        : null
+    ]
+  })
+}
+
+/** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
+ *  newest one when the chat made several). Re-registered when the chat, the list or the dock changes. */
+function watchChatArtifactTool(ctx) {
+  const sidAtom = host.state?.focusedStoredSessionId
+  if (!sidAtom?.listen) return () => {}
+  // ctx.i18n.t translates from the start (T follows the page, which may not be open yet).
+  const tr = (k, ...a) => (ctx.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
+  let dispose = null, last = ''
+  const sync = () => {
+    const sid = sidAtom.get()
+    const arts = sid ? $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0)) : []
+    const art = arts[0]
+    const open = Boolean(art) && $chat.get() === 'split' && arts.some(a => a.id === $selected.get())
+    const key = art ? `${art.id}|${art.type}|${arts.length}|${open}|${tr('openBeside', art.title)}` : ''
+    if (key === last) return
+    last = key
+    dispose?.()
+    dispose = null
+    if (!art) return
+    dispose = ctx.register({
+      id: 'chat-artifact-tool',
+      area: 'titleBar.tools.right',
+      data: {
+        id: `${ID}:chat-artifact`,
+        label: open ? tr('closeBeside') : tr('openBeside', art.title),
+        title: open ? tr('closeBeside') : tr('openBeside', art.title),
+        icon: jsx(Icon, { name: (TYPE_LOOK[art.type] || TYPE_LOOK.page).icon, size: 16 }),
+        active: open,
+        badge: arts.length > 1 ? arts.length : undefined,
+        onSelect: () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
+      }
+    })
+  }
+  const offs = [sidAtom.listen(sync), $list.listen(sync), $chat.listen(sync), $selected.listen(sync)]
+  sync()
+  return () => { offs.forEach(f => f?.()); dispose?.() }
+}
+
+/** On a chat row in the sidebar: the icons of the pinned artifacts that chat made; a click opens one. */
+function PinMark({ ctx, sessionId }) {
+  const list = useValue($list)
+  const t = usePluginI18n(ID)
+  const arts = list.filter(a => a.pinned && a.session && a.session === sessionId)
+  if (!arts.length) return null
+  return jsx('span', {
+    style: { display: 'inline-flex', gap: 2, marginRight: 4, flexShrink: 0 },
+    children: arts.slice(0, 3).map(a => jsx('button', {
+      key: a.id,
+      type: 'button',
+      title: t('openPinned', a.title),
+      'aria-label': t('openPinned', a.title),
+      onPointerDown: e => e.stopPropagation(),
+      onMouseDown: e => e.stopPropagation(),
+      onClick: e => {
+        e.preventDefault()
+        e.stopPropagation()
+        openBeside(ctx, a)
+      },
+      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
+        borderRadius: C.rSm, background: 'transparent', color: C.accent, cursor: 'pointer' },
+      children: jsx(Icon, { name: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, size: 14, stroke: 1.8 })
+    }))
+  })
 }
 /** A pinned artifact's own route: the Artifacts page, opened on it. */
 function PinnedPage({ ctx, id }) {
@@ -2064,7 +2204,7 @@ function FloatingChat({ ctx, art }) {
 
 // ---------------------------------------------------------------- header (Claude's: title menu, Chat, Comment, close)
 
-function PopMenu({ items, onClose, align = 'left', width = 260 }) {
+function PopMenu({ items, onClose, align = 'left', width = 260, up = false }) {
   const ref = useRef(null)
   useEffect(() => {
     const off = e => !ref.current?.contains(e.target) && onClose()
@@ -2078,7 +2218,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   }, [])
   return jsx('div', {
     ref,
-    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowPop },
+    style: { position: 'absolute', [align]: 0, [up ? 'bottom' : 'top']: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowPop },
     children: items.filter(Boolean).map((it, i) =>
       it.sep
         ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.hair } }, `s${i}`)
@@ -2726,6 +2866,13 @@ export default {
     // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.
     ctx.register({ id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PAGE, label: 'Artifacts', codicon: 'files', tier: 'advanced' } })
     registerNavPrefs(ctx)
+    const stopTool = watchChatArtifactTool(ctx)
+    if (SDK.COMPOSER_AREAS?.actions) {
+      ctx.register({ id: 'chat-artifacts', area: SDK.COMPOSER_AREAS.actions, render: () => jsx(ChatArtifacts, { ctx }) })
+    }
+    if (SDK.SESSION_ROW_AREAS?.leading) {
+      ctx.register({ id: 'pin-mark', area: SDK.SESSION_ROW_AREAS.leading, data: { render: ({ sessionId }) => jsx(PinMark, { ctx, sessionId }) } })
+    }
 
     for (const [key, atomRef, ok] of [
       ['sort', $sort, ['opened', 'edited']],
@@ -2796,6 +2943,7 @@ export default {
     }, 5000)
 
     return () => {
+      stopTool()
       document.removeEventListener('fullscreenchange', onFs)
       window.removeEventListener('hashchange', redirectCore)
       nav?.removeEventListener?.('currententrychange', redirectCore)
