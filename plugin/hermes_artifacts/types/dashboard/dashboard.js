@@ -61,6 +61,7 @@
       design: "Design", look: "Look", lookHint: "Colors, type and corners for the whole dashboard, in light and dark.", defaultLook: "Default look",
       designSystem: "Design system", customLook: "Custom look", lookSaved: "Look saved.", dsUnreadable: "That design system couldn’t be read.",
       editPage: "Edit the page", editHint: "Change the page’s words by hand, move or delete cards. Every change saves automatically.",
+      format: "Format", editAsk: "Edit", finishEditing: "Finish editing to see Design", commentsOn: "Turn off comments to see Design",
       newDraft: "New draft", draftHint: "Pick a format for a new draft. Nothing changes until you save.", draftWaiting: "A draft is waiting: save or cancel it first.",
       fmt_dashboard: "Dashboard", fmtd_dashboard: "Cards, figures and charts to watch at a glance.",
       "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "A finding told as you scroll, beside one chart that stays in view.",
@@ -122,6 +123,8 @@
       design: "Design", look: "Megjelenés", lookHint: "Színek, betűk és sarkok az egész dashboardra, világos és sötét témában.", defaultLook: "Alap megjelenés",
       designSystem: "Design system", customLook: "Egyedi megjelenés", lookSaved: "Megjelenés elmentve.", dsUnreadable: "Ezt a design systemet nem sikerült beolvasni.",
       editPage: "Az oldal szerkesztése", editHint: "Írd át kézzel az oldal szövegeit, mozgasd vagy töröld a kártyákat. Minden változás magától mentődik.",
+      format: "Formátum", editAsk: "Szerkesztés", finishEditing: "Fejezd be a szerkesztést a Design megnyitásához",
+      commentsOn: "Kapcsold ki a kommentelést a Design megnyitásához",
       newDraft: "Új vázlat", draftHint: "Válassz formát egy új vázlathoz. Mentésig semmi nem változik.", draftWaiting: "Egy vázlat vár: előbb mentsd vagy vesd el.",
       fmt_dashboard: "Dashboard", fmtd_dashboard: "Kártyák, számok és diagramok, egy pillantásra.",
       "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "Görgetés közben elmesélt felismerés, egy végig látható diagram mellett.",
@@ -1323,9 +1326,19 @@
       var near = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
       var place = near && near.closest ? near.closest("[id]") : null;
       if (place === root || (place && !root.contains(place))) place = null;
-      askBtn = h("button", { "class": "dash-ask-sel", type: "button", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 180)) + "px;top:" + Math.max(8, r.top - 40) + "px",
-        html: kit.icon("sparkle") + "<span>" + kit.esc(T.askAbout) + "</span>" });
-      askBtn.addEventListener("click", function () {
+      var ask = h("button", { "class": "dash-ask-sel-b", type: "button", html: kit.icon("sparkle") + "<span>" + kit.esc(T.askAbout) + "</span>" });
+      var canEdit = !!(window.dashEdit && window.hermes && window.hermes.save) && !showingDraft();
+      var edit = canEdit ? h("button", { "class": "dash-ask-sel-b", type: "button", title: T.editPage, "aria-label": T.editPage,
+        html: kit.icon("pencil") + "<span>" + kit.esc(T.editAsk) + "</span>" }) : null;
+      askBtn = h("div", { "class": "dash-ask-sel", role: "toolbar", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 260)) + "px;top:" + Math.max(8, r.top - 40) + "px" },
+        [ask, edit]);
+      if (edit) edit.addEventListener("click", function () {
+        hideAsk();
+        try { window.getSelection().removeAllRanges(); } catch (err) {}
+        if (srcOpen) toggleSources(false);
+        window.dashEdit.start();
+      });
+      ask.addEventListener("click", function () {
         var msg = T.aboutSel + (place && place.id ? " (#" + place.id + ")" : "") + ": \u201c" + text.slice(0, 600) + "\u201d\n";
         if (window.hermes && window.hermes.send) window.hermes.send(msg, { selection: text.slice(0, 600), place: place && place.id || null })
           .then(function () { kit.toast(T.staged); }, function () {});
@@ -1491,6 +1504,9 @@
   function toggleDesign(on) {
     var open = on === undefined ? !(srcOpen && panelMode === "design") : on;
     if (!open) { panelMode = "sources"; toggleSources(false); return; }
+    var de = document.documentElement;
+    if (de.getAttribute("data-dash-editing") === "1") { kit.toast(T.finishEditing); return; }
+    if (de.getAttribute("data-commenting") === "1") { kit.toast(T.commentsOn); return; }
     panelMode = "design";
     toggleSources(true, true);
   }

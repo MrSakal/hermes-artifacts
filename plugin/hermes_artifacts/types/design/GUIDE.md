@@ -11,9 +11,9 @@ Tell the user what happens on the canvas, never the mechanism.
 
 ## Creating a canvas
 
-1. **Design system first.** Call `artifact_list type=design-system`. If it reports a
-   `default_design_system`, build on it however small the request, unless the user names another
-   one or declines. Read its `tokens.json` and `README.md` with `artifact_read`, and match its exact
+1. **Design system first.** `artifact_guide` returns `design_system`: the user's default, build on it
+   without asking, however small the request, unless the user names another one or declines; with none
+   set it lists the systems: name them and ask, when someone can answer. Read its `tokens.json` and `README.md` with `artifact_read`, and match its exact
    colors, type, spacing, radii and fonts. Record it in `canvas.json`:
    `"designSystems": [{"title": "Ember", "namespace": "ember", "artifact": "<its id>", "version": <its latest version>}]`.
    The canvas then puts the system's CSS (its tokens as `var(--name)` custom properties per

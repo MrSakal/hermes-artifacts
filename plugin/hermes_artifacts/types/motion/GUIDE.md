@@ -121,8 +121,11 @@ Write `base=true` publishes with only the files that change: everything else car
   name and line plus whatever they typed, and "rich" or "plain".
 - `palettes`: every palette offered, picked or not, in the order shown, each four `#rrggbb` in role
   order; `theirs`: how many, from the first, are the user's. The page offers them again: keep both keys.
-- `designSystem` (optional): a design system's id, or `true` for the default one; the page injects its
-  stylesheet (tokens as CSS variables) under `base.css`.
+- `designSystem` (optional): `{"id": "<id>", "version": <its version>}` of the system the film wears
+  (`artifact_guide`'s `design_system`: the default, taken without asking, or one the user names); the page
+  injects that version's stylesheet (tokens as CSS variables) under `base.css`. The film keeps that version
+  until you move it on (when asked, or when you change the film anyway and `artifact_read` reports
+  `design_system_changed`).
 
 ### Fonts
 

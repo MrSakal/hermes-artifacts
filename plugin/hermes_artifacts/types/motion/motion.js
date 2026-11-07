@@ -273,10 +273,11 @@
     stage.style.background = stageBackground();
     frame.style.width = W + "px"; frame.style.height = H + "px";
     fxCanvas.width = W; fxCanvas.height = H; fxCanvas.style.width = W + "px"; fxCanvas.style.height = H + "px";
-    // A design system the film names (scenes.json designSystem: its id, or true for the default one).
+    // A design system the film names (scenes.json designSystem: {id, version} it was built on; an id, or true
+    // for the default one, from older films).
     if (SJ && SJ.designSystem && window.dsKit && !styles.ds) {
       try {
-        var ds = await Promise.race([window.dsKit.load(SJ.designSystem === true ? null : String(SJ.designSystem)), new Promise(function (r) { setTimeout(function () { r(null); }, 3000); })]);
+        var ds = await Promise.race([window.dsKit.load(SJ.designSystem === true ? null : SJ.designSystem), new Promise(function (r) { setTimeout(function () { r(null); }, 3000); })]);
         styleEl("ds", ds ? window.dsKit.css(ds) : "");
       } catch (e) { styleEl("ds", ""); }
     }

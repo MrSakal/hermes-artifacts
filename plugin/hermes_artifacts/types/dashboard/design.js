@@ -259,26 +259,27 @@
         title: label || name }, [h("i", { "class": "dash-look-sw" }, colors.map(function (c) { return h("b", { style: "background:" + c }); })),
         h("span", { text: label || name })]);
     }
+    // Claude's Design page: the look the dashboard wears, as it is (it comes from the design system, recorded
+    // once when the dashboard was built: changing it is asked of Hermes in the chat), then the formats.
+    function firstFace(st) {
+      return String(st || "").split(",").map(function (s) { return s.trim().replace(/^['"]|['"]$/g, ""); })
+        .filter(function (s) { return s && !/^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|-apple-system|BlinkMacSystemFont)$/i.test(s); })[0] || "";
+    }
     function render() {
-      var name = current ? current.name : "";
-      var preset = !current ? "Default" : LOOKS[name] ? name : null;
       var head = h("div", { "class": "src-head" }, [h("b", { text: T.design }), api.iconBtn("close", T.close, function () { api.close(); })]);
-      var looks = [lookCard("Default", SWATCH.Default, preset === "Default", function () { saveLook(null); }, T.defaultLook)];
-      Object.keys(LOOKS).forEach(function (k) { looks.push(lookCard(k, SWATCH[k], preset === k, function () { saveLook(LOOKS[k]); })); });
-      if (dsInfo) {
-        var dsName = String(dsInfo.name || dsInfo.title || T.designSystem);
-        looks.push(lookCard(dsName, [], current && current.name === dsName, function () {
-          try { saveLook(lookFromDs(dsInfo)); } catch (e) { kit.toast(T.dsUnreadable); }
-        }, T.designSystem + ": " + dsName));
-      }
-      if (current && !preset && (!dsInfo || current.name !== String(dsInfo.name || dsInfo.title))) looks.push(lookCard(name || T.customLook, [], true, function () {}, T.customLook + (name ? ": " + name : "")));
+      var name = !current ? T.defaultLook : current.name || T.customLook;
+      var cs = getComputedStyle(document.documentElement);
+      var face = firstFace(current && (current.fonts.display || current.fonts.text)) || firstFace(cs.getPropertyValue("--font-display")) || firstFace(cs.getPropertyValue("--font-sans"));
+      var card = h("div", { "class": "dash-ds-row" }, [
+        h("span", { "class": "dash-ds-stamp", "aria-hidden": "true" }, [h("span", { "class": "dash-ds-ink", text: "Aa" }), h("span", { "class": "dash-ds-dot" })]),
+        h("span", { "class": "dash-ds-names" }, [h("span", { "class": "dash-ds-name", text: name, title: name }), face ? h("span", { "class": "dash-ds-face", text: face, title: face }) : null]),
+        h("span", { "class": "dash-ds-chips", "aria-hidden": "true" }, [1, 2, 3, 4].map(function (i) { return h("span", { "class": "dash-ds-chip", style: "background:var(--chart-" + i + ")" }); }))
+      ]);
       var d = api.draft();
       var kids = [head, h("div", { "class": "src-detail" }, [
-        h("div", { "class": "src-top" }, [h("b", { "class": "src-title", text: T.look }), h("p", { "class": "src-desc", text: T.lookHint })]),
-        h("div", { "class": "dash-looks" }, looks),
-        h("div", { "class": "src-top", style: "margin-top:16px" }, [h("b", { "class": "src-title", text: T.editPage }), h("p", { "class": "src-desc", text: T.editHint })]),
-        h("div", { "class": "src-actions", style: "margin:0 16px" }, [kit.labelled(kit.button(T.editPage, "pencil", function () { api.edit(); }), T.editPage)]),
-        h("div", { "class": "src-top", style: "margin-top:16px" }, [h("b", { "class": "src-title", text: T.newDraft }), h("p", { "class": "src-desc", text: d ? T.draftWaiting : T.draftHint })]),
+        h("div", { "class": "src-top" }, [h("b", { "class": "src-title", text: T.designSystem })]),
+        h("div", { "class": "dash-ds" }, [card]),
+        h("div", { "class": "src-top", style: "margin-top:16px" }, [h("b", { "class": "src-title", text: T.format }), h("p", { "class": "src-desc", text: d ? T.draftWaiting : T.draftHint })]),
         h("div", { "class": "dash-formats" }, FORMATS.map(function (f) {
           return h("button", { "class": "dash-format", type: "button", disabled: !!d, onclick: function () { requestDraft(f); } },
             [h("b", { text: T["fmt_" + f] }), h("span", { text: T["fmtd_" + f] })]);

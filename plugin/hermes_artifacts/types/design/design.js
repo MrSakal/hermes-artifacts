@@ -206,7 +206,7 @@
   // ------------------------------------------------------------------ design system
   var ds = { rec: (Array.isArray(canvas.designSystems) ? canvas.designSystems : [])[0] || null, css: "", themes: [], theme: null, model: null };
   if (ds.rec && ds.rec.artifact && window.dsKit && editable !== null) {
-    window.dsKit.load(String(ds.rec.artifact)).then(function (d) {
+    window.dsKit.load({ id: String(ds.rec.artifact), version: ds.rec.version }).then(function (d) {
       if (!d) return;
       ds.css = window.dsKit.css(d) || ""; ds.themes = window.dsKit.themes(d) || [];
       try { ds.model = window.dsKit.model(d.tokens || {}); } catch (e) {}

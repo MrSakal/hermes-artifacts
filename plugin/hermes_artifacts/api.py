@@ -109,14 +109,17 @@ _FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
-def design_system(dsid: Optional[str]) -> dict:
+def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
     """A design system for another artifact to wear: tokens.json, components/bundle.css, its fonts as
-    data: URIs, README. None: the default one (or {"none": true})."""
+    data: URIs, README. None: the default one (or {"none": true}). `version`: the one the artifact was
+    built on (an artifact keeps wearing it until it is moved on); a version no longer kept: the latest."""
     dsid = dsid or store.settings().get("default_design_system")
     m = store.get_meta(dsid) if dsid else None
     if not m or m.get("type") != "design-system":
         return {"none": True}
-    vdir = store.version_dir(dsid)
+    kept = [v["n"] for v in m["versions"]]
+    n = int(version) if isinstance(version, int) and not isinstance(version, bool) and version in kept else kept[-1]
+    vdir = store.version_dir(dsid, n)
     files = render.content_json(vdir)
     try:
         import json as _j
@@ -124,7 +127,7 @@ def design_system(dsid: Optional[str]) -> dict:
     except ValueError:
         tokens = {}
     fonts = {k: v for k, v in files.items() if k.startswith("fonts/")}
-    return {"id": dsid, "title": m.get("title", dsid), "version": m["versions"][-1]["n"], "tokens": tokens,
+    return {"id": dsid, "title": m.get("title", dsid), "version": n, "latest": kept[-1], "tokens": tokens,
             "css": files.get("components/bundle.css", ""), "fonts": fonts, "readme": files.get("README.md", "")}
 
 
@@ -168,7 +171,8 @@ def _op(aid: str, op: str, a: dict) -> dict:
         return {"ok": True, "version": nm["versions"][-1]["n"]}
     if op == "ds.get":
         # Any page may build on a design system (that's what one is for): its tokens, stylesheet, fonts.
-        return design_system(str(a.get("id") or "") or None)
+        v = a.get("version")
+        return design_system(str(a.get("id") or "") or None, v if isinstance(v, int) else None)
     if op == "ds.default":
         m = _meta(aid)
         if m.get("type") != "design-system":

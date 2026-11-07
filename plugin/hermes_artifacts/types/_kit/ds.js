@@ -351,9 +351,12 @@
     return c.css + fontFaces(m, ds.fonts || {}, null) + (ds.css ? "\n" + ds.css : "");
   }
 
-  function load(id) {
+  /** A design system as an artifact wears it: `ref` is its id, or {id, version} (the version it was built
+   *  on); none: the default one. */
+  function load(ref, version) {
     if (!window.hermes || !window.hermes.ds) return Promise.resolve(null);
-    return window.hermes.ds.get(id || null).then(function (d) {
+    var id = ref && typeof ref === "object" ? ref.id || ref.artifact : ref, v = ref && typeof ref === "object" ? ref.version : version;
+    return window.hermes.ds.get(id ? String(id) : null, typeof v === "number" ? v : null).then(function (d) {
       return d && !d.none && d.id ? d : null;
     }, function () { return null; });
   }

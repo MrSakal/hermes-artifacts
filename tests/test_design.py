@@ -66,7 +66,7 @@ class RenderTests(unittest.TestCase):
     def test_guide_documents_the_format(self):
         g = (render.TYPES_DIR / "design" / "GUIDE.md").read_text("utf-8")
         for word in ("canvas.json", "<x-dc>", "<sc-for", "<sc-if", "<dc-import", "data-props", "DCLogic",
-                     "is_interactive", "expand", "designSystems", "artifact_list type=design-system", "base=true",
+                     "is_interactive", "expand", "designSystems", "artifact_guide` returns `design_system", "base=true",
                      "visibleArtboards", "print"):
             self.assertIn(word, g, word)
 

@@ -111,6 +111,40 @@ class RenderTests(unittest.TestCase):
         finally:
             store.settings_set("default_design_system", None)
 
+    def test_an_artifact_keeps_the_version_it_was_built_on(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        store.settings_set("default_design_system", None)
+        try:
+            ds = store.publish(path=str(ROOT / "examples" / "design-system"), title="Kiln", type="design-system")["id"]
+            t1 = json.loads(store.read_file(ds, "tokens.json").decode("utf-8"))
+            t2 = json.loads(json.dumps(t1)); t2["color"]["tokens"][0]["value"] = {"light": "#000000", "dark": "#111111"}
+            store.publish(aid=ds, base=True, files={"tokens.json": t2})
+            v1 = api.design_system(ds, 1)
+            self.assertEqual((v1["version"], v1["latest"]), (1, 2))
+            self.assertEqual(v1["tokens"]["color"]["tokens"][0]["value"], t1["color"]["tokens"][0]["value"])
+            self.assertEqual(api.design_system(ds)["version"], 2)
+            self.assertEqual(api.design_system(ds, 99)["version"], 2)  # a version no longer kept: the latest
+            deck = store.publish(title="D", type="slides", files={"deck.json": {"title": "D", "slides": [], "designSystem": {"id": ds, "version": 1}}})["id"]
+            moved = json.loads(plugin._read({"id": deck}))["design_system_changed"]
+            self.assertEqual((moved["built_on"], moved["latest"]), (1, 2))
+            store.publish(aid=deck, base=True, files={"deck.json": {"title": "D", "slides": [], "designSystem": {"id": ds, "version": 2}}})
+            self.assertNotIn("design_system_changed", json.loads(plugin._read({"id": deck})))
+            dash = store.publish(title="B", type="dashboard", files={"dashboard.json": {"title": "B", "look": {"system": {"name": "Kiln", "id": ds, "version": 1}}}})["id"]
+            self.assertIn("design_system_changed", json.loads(plugin._read({"id": dash})))
+            g = json.loads(plugin._guide({"type": "slides"}))["design_system"]  # none default: name them
+            self.assertTrue(g["none"])
+            self.assertIn(ds, [s["id"] for s in g["systems"]])
+            self.assertIn("ask", g["rule"])
+        finally:
+            store.settings_set("default_design_system", None)
+
     def test_the_guide_hands_over_the_default_system(self):
         import importlib.util
         plugin = sys.modules.get("hermes_artifacts_plugin")
@@ -131,7 +165,7 @@ class RenderTests(unittest.TestCase):
             self.assertNotIn("@generated", ds["readme"])
             self.assertIn("--ink", ds["tokens"])
             self.assertIn("Button", [c["name"] for c in ds["components"]])
-            self.assertIn("instead of making up", ds["rule"])
+            self.assertIn("never made-up", ds["rule"])
             self.assertNotIn("design_system", json.loads(plugin._guide({"type": "doc"})))
             out = json.loads(plugin._publish({"type": "slides", "title": "d", "open": False,
                                               "files": {"deck.json": {"title": "d", "slides": []}}}))

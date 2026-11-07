@@ -1398,8 +1398,8 @@
     if (th.mode === undefined) th.mode = dark ? "dark" : "light"; // themeOf only needs light/dark for its own defaults
     return th;
   }
-  if (!deck.theme && window.dsKit && window.hermes && window.hermes.ds) {
-    window.dsKit.load(deck.designSystem || null).then(function (ds) {
+  if (!deck.theme && deck.designSystem && window.dsKit && window.hermes && window.hermes.ds) {
+    window.dsKit.load(deck.designSystem).then(function (ds) {
       if (!ds || !ds.tokens) return;
       dsTheme = themeFromDs(ds);
       relayout();

@@ -49,9 +49,13 @@ a title that moves to the corner or a number that grows, and set `"transition": 
 
 Text fields accept `**bold**` and `*italic*`.
 
-With a design system, the deck wears it: `"designSystem": "<id>"` in deck.json, else the user's default
-(`artifact_list type=design-system` → `default_design_system`). Its colors, fonts and tokens replace the
-Hermes look; don't set `theme` then.
+Design system first: `artifact_guide` returns `design_system`, the user's default (build on it without
+asking) or, with none set, the systems to name and ask about. The deck wears the one used:
+`"designSystem": {"id": "<id>", "version": <its version>}` in deck.json, the version from that answer.
+Its colors, fonts and tokens replace the Hermes look; don't set `theme` then. The deck keeps that version:
+a later edit of the system, or another default, changes nothing until you move it on (`artifact_read`
+reports `design_system_changed`; move it only when asked, or when you change the deck anyway). A deck
+with no `designSystem` wears none.
 
 Leave `theme` out and the deck wears Hermes' own colors and font, following the user's theme and skin. This is the recommended default. Set it only for a deck that needs its own brand.
 
