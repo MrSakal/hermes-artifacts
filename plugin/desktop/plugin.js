@@ -1426,8 +1426,37 @@ function Gallery({ ctx, pageRef }) {
 // ---------------------------------------------------------------- viewer
 
 /** One bridge per mounted frame: hello -> MessagePort; ops -> plugin API; events both ways. */
+/** Open artifact pages follow a theme or skin change at once: Hermes repaints by changing the root's
+ *  attributes and its style tags; when the resolved theme differs, every open page gets it again. */
+const themePorts = new Set()
+let themeWatch = null
+function watchTheme() {
+  if (themeWatch || typeof MutationObserver === 'undefined') return
+  let last = '', timer = null
+  const check = () => {
+    timer = null
+    const theme = { mode: hostMode(), vars: hostTheme() }
+    const key = JSON.stringify(theme)
+    if (key === last) return
+    last = key
+    themePorts.forEach(ref => postToPage(ref, 'theme', theme))
+  }
+  const soon = () => { if (!timer) timer = setTimeout(check, 120) }
+  themeWatch = new MutationObserver(soon)
+  themeWatch.observe(document.documentElement, { attributes: true })
+  themeWatch.observe(document.head, { childList: true, subtree: true, characterData: true })
+  themeWatch.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', soon)
+  last = JSON.stringify({ mode: hostMode(), vars: hostTheme() })
+}
+
 function useBridge(ref, art, ctx, portRef) {
   const t = usePluginI18n(ID)
+  useEffect(() => {
+    watchTheme()
+    themePorts.add(portRef)
+    return () => { themePorts.delete(portRef) }
+  }, [])
   useEffect(() => {
     if (!art) return undefined
     const art0 = art
