@@ -128,19 +128,22 @@
     clearTimeout(statusTimer);
     if (s === T.saved) statusTimer = setTimeout(function () { status.textContent = ""; }, 1500);
   }
-  var chain = Promise.resolve();
+  var chain = Promise.resolve(), edits = 0, inflight = 0;
   function edit(ops) {
     if (!live) { setStatus(T.offline); return Promise.reject(new Error(T.offline)); }
     var t = tab();
     setStatus(T.saving);
+    inflight++;
     chain = chain.then(function () {
       return hm.doc.edit(t.id, ops, t.rev).then(function (r) {
         if (r && r.conflict) { kit.toast(T.conflict); return pull(true).then(function () { return r; }); }
         if (r && r.rev) { if (r.rev === t.rev + 1) t.rev = r.rev; else pull(true); } // someone else edited in between
+        edits++;
         setStatus(T.saved);
         return r;
       });
-    }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); })
+      .then(function (r) { inflight--; sendView(); return r; });
     return chain;
   }
 
@@ -325,6 +328,7 @@
     tabs = full.tabs.map(function (o) { var t = byId[o.id] || { id: o.id, blocks: [], rev: 0 }; t.title = o.title; return t; });
     cur = Math.max(0, tabs.findIndex(function (t) { return t.id === curId; }));
     var t = tabs[cur];
+    if (typeof full.edits === "number") edits = full.edits;
     if (t.id !== full.tab) return;
     var mine = editing && t.blocks[indexOf(editing.id)];
     t.blocks = full.blocks.map(function (b) {
@@ -356,7 +360,8 @@
       else { var s = selectedBlocks(); if (s) { sel = s.text; blocks = s.ids; } }
       return { mode: editing ? "edit" : "read", tab: { id: tab().id, title: tab().title, rev: tab().rev }, section: head ? head.textContent.trim().slice(0, 80) : null,
         selected: sel ? [sel.trim().slice(0, 300)] : [], blocks: blocks.slice(0, 20),
-        asking: Object.keys(pendingAsks), version: C.version };
+        asking: Object.keys(pendingAsks), version: C.version,
+      edits: edits, dirty: !!(inflight || (editing && (tab().blocks[indexOf(editing.id)] || {}).md !== editing.saved)) };
     });
   }
   window.addEventListener("scroll", sendView, { passive: true });
