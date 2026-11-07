@@ -791,7 +791,9 @@ async function startNew(ctx, kind) {
   if (DS_KINDS.includes(kind) && pick) {
     const ds = pick === 'none' ? null : $list.get().find(a => a.id === pick)
     // Words to Hermes stay English (only the person's own words follow their language).
-    text = pick === 'none' ? `${text}(no design system) ` : ds ? `${text}(design system "${ds.title}", id ${ds.id}) ` : text
+    // "Make a design artifact (type design, design system "Kiln", id kiln-1) of: " — the person writes on.
+    const note = pick === 'none' ? 'no design system' : ds ? `design system "${ds.title}", id ${ds.id}` : ''
+    if (note) text = text.replace(/\(type ([\w-]+)\)/, `(type $1, ${note})`)
   }
   host.newChat()
   for (let i = 0; i < 20; i++) {
@@ -2440,12 +2442,18 @@ function Page({ ctx }) {
   const sel = useValue($selected)
   useEffect(() => {
     refresh(ctx)
-    const m = /[?&]artifact=([^&]+)/.exec(window.location.hash)
-    if (m) openArtifact(ctx, decodeURIComponent(m[1]))
+    // A link (Copy link) opens its artifact, also while the page is already open.
+    const fromLink = () => {
+      const m = /[?&]artifact=([^&]+)/.exec(window.location.hash)
+      if (m && decodeURIComponent(m[1]) !== $selected.get()) openArtifact(ctx, decodeURIComponent(m[1]))
+    }
+    fromLink()
+    window.addEventListener('hashchange', fromLink)
     if (dockClose) {
       closeDock()
       $chat.set('off')
     }
+    return () => window.removeEventListener('hashchange', fromLink)
   }, [])
   return jsxs('div', {
     ref: pageRef,
