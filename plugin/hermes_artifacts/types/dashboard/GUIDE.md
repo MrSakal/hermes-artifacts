@@ -68,7 +68,7 @@ side by side.
 
 | Block | Fields |
 |---|---|
-| `header` | `title`, `subtitle`. `{kpiId}` inserts a KPI's formatted value; `{param:name}` inserts a filter value. |
+| `header` | `title`, `subtitle`. `{kpiId}` inserts a KPI's formatted value **with its unit** (write `{area}`, not `{area} m²`); `{param:name}` inserts a filter value. |
 | `filters` | `items: [{param, label, input: select\|text\|number\|date, options: [..] or {source, field}, all, placeholder, pattern}]`. A Reset button is added (`"reset": false` hides it). |
 | `kpis` | `items: [{id, label, source, field, agg, where, format, unit, note, delta: {where, agg, field, label, good: up\|down}}]` |
 | `chart` | `kind: bar\|line\|area\|hbar\|donut`, `title`, `note`, `source`, `x`, `y` (a field or a list of fields), `agg` (group by x), `where`, `sort` (`"-value"`), `limit`, `format`, `xFormat`, `labels: {field: name}`, `reference: {value, label}`, `height` |

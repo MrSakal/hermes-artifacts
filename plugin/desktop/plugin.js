@@ -519,8 +519,19 @@ function toDataUrl(html) {
 // Rendered HTML per (id, version, page, thumb): a version never changes, so this is a plain LRU.
 const htmlCache = new Map()
 let hostLang = 'en' // set from the plugin's i18n (the app's active language)
+/** A card preview has no bridge, so it gets Hermes' theme written into its page (read by the kit at start). */
+function withTheme(html, theme) {
+  const json = JSON.stringify(theme).replace(/</g, '\\u003c')
+  const tag = `<script>window.__hermesTheme=${json}</script>`
+  const at = html.search(/<head[^>]*>/i)
+  if (at < 0) return tag + html
+  const end = html.indexOf('>', at) + 1
+  return html.slice(0, end) + tag + html.slice(end)
+}
+
 function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
-  const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}:${hostLang}`
+  const theme = thumb ? { mode: hostMode(), vars: hostTheme() } : null
+  const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}:${hostLang}` + (theme ? `:${JSON.stringify(theme)}` : '')
   if (htmlCache.has(key)) {
     const hit = htmlCache.get(key)
     htmlCache.delete(key)
@@ -528,7 +539,7 @@ function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
     return hit
   }
   const q = `v=${v}` + (page ? `&page=${enc(page)}` : '') + (thumb ? '&thumb=true' : '') + `&lang=${enc(hostLang)}`
-  const p = ctx.rest(`/artifacts/${enc(id)}/html?${q}`).then(r => toDataUrl(r.html))
+  const p = ctx.rest(`/artifacts/${enc(id)}/html?${q}`).then(r => toDataUrl(theme ? withTheme(r.html, theme) : r.html))
   p.catch(() => htmlCache.delete(key))
   htmlCache.set(key, p)
   while (htmlCache.size > 40) htmlCache.delete(htmlCache.keys().next().value)
@@ -624,7 +635,7 @@ const C = {
   // Everything from Hermes' theme (a skin changes it all): surfaces, accent, font, radius scale.
   card: 'var(--ui-bg-card, color-mix(in srgb, var(--foreground) 5%, var(--background)))',
   pop: 'var(--ui-bg-elevated, var(--background))', // menus, tooltips, dialogs
-  input: 'var(--ui-bg-input, transparent)',
+  input: 'transparent', // not --ui-bg-input: it stays near-white in dark skins
   rowHover: 'var(--ui-row-hover-background, var(--chrome-action-hover))',
   rowActive: 'var(--ui-row-active-background, var(--chrome-action-hover))',
   hair: 'var(--ui-stroke-tertiary, var(--ui-stroke-secondary))',
@@ -822,12 +833,14 @@ function Thumb({ ctx, art, height }) {
   const scale = w ? w / VW : 0.2
   return jsx('div', {
     ref: box,
-    style: { position: 'relative', height, overflow: 'hidden', background: '#fff', pointerEvents: 'none' },
+    style: { position: 'relative', height, overflow: 'hidden', background: C.bg, pointerEvents: 'none' },
     children: src
       ? jsx(SandboxedFrame, {
           src,
           title: art.title,
-          style: { position: 'absolute', left: 0, top: 0, width: VW, height: height / scale, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0 }
+          // Hidden until it has drawn: a frame paints white before its page's own background arrives.
+          onLoad: e => { const f = e.currentTarget; setTimeout(() => { f.style.opacity = '1' }, 120) },
+          style: { position: 'absolute', left: 0, top: 0, width: VW, height: height / scale, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, opacity: 0, transition: 'opacity 160ms ease' }
         })
       : jsx('div', { style: { position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${C.hover}, transparent)` } })
   })
@@ -2585,7 +2598,7 @@ function Viewer({ ctx, docked = false }) {
                 title: art.title,
                 style: presenting
                   ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0, background: '#000' }
-                  : { flex: 1, minWidth: 0, height: '100%', border: 0, background: '#fff' }
+                  : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
               })
             : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
               docked ? null : jsx(CommentPopover, { ctx, art }),
@@ -2635,7 +2648,21 @@ function Page({ ctx }) {
       closeDock()
       $chat.set('off')
     }
-    return () => window.removeEventListener('hashchange', fromLink)
+    // The sidebar's Artifacts row, clicked while an artifact is open, opens the same route again: Hermes
+    // adds a history entry (a new key) but the address stays, so nothing else tells the page. Seeing a new
+    // entry on this route goes back to the gallery, as in Claude. (Read only: the history is the app's.)
+    let key = window.history.state?.key
+    const sameRoute = setInterval(() => {
+      const k = window.history.state?.key
+      if (k === key) return
+      key = k
+      const h = window.location.hash
+      if ((h === `#${PAGE}` || h === `#${PAGE}/`) && $selected.get()) closeArtifact()
+    }, 300)
+    return () => {
+      window.removeEventListener('hashchange', fromLink)
+      clearInterval(sameRoute)
+    }
   }, [])
   return jsxs('div', {
     ref: pageRef,

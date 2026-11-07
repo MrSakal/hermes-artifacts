@@ -47,7 +47,7 @@ body { overflow: hidden; }
 [data-build-hidden] { opacity: 0 !important; }
 
 /* Thumbnail mode: just the cover, filling the frame. */
-html[data-thumb] body { background: #fff; }
+html[data-thumb] body { background: var(--color-bg); }
 html[data-thumb] #sl-app { height: 100vh; }
 html[data-thumb] #sl-rail, html[data-thumb] #sl-notes { display: none; }
 html[data-thumb] #sl-stage-wrap { padding: 0; }

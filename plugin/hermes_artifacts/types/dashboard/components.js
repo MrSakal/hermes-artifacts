@@ -115,11 +115,14 @@
   }
 
   // ---------------------------------------------------------------- templates ("{kpi}" / "{param:x}")
-  var values = {}; // kpi id -> formatted value
+  var values = {}, bare = {}, units = {}; // kpi id -> formatted value (with its unit), without it, the unit
   function fill(text) {
-    return String(text || "").replace(/\{(param:)?([A-Za-z_]\w*)\}/g, function (m, isParam, name) {
+    return String(text || "").replace(/\{(param:)?([A-Za-z_]\w*)\}/g, function (m, isParam, name, at, all) {
       if (isParam) { var p = window.dash.params()[name]; return p == null ? "" : String(p); }
-      return values[name] != null ? values[name] : "—";
+      if (values[name] == null) return "—";
+      // "{area} m²" when the KPI's own unit is m²: the unit is written once.
+      var u = units[name], after = all.slice(at + m.length).replace(/^\*+/, "").replace(/^\s+/, "");
+      return u && after.slice(0, u.length) === u ? bare[name] : values[name];
     });
   }
   /** Minimal inline markdown: **bold**, *italic*, [text](https://…). Text only, never HTML. */
@@ -230,7 +233,7 @@
         var text = format(v, k.format) + (k.unit ? " " + k.unit : "");
         c.val.textContent = format(v, k.format);
         if (k.unit) c.val.appendChild(h("span", { "class": "c-unit", text: " " + k.unit }));
-        if (k.id) values[k.id] = text;
+        if (k.id) { values[k.id] = text; bare[k.id] = format(v, k.format); units[k.id] = k.unit || ""; }
         if (k.where) c.val.setAttribute("data-where", whereAttr(k.where) || ""); // follows the filters
         if (k.delta) {
           var dr = rowsOf(Object.assign({ source: k.source, field: k.field, agg: k.agg }, k.delta));

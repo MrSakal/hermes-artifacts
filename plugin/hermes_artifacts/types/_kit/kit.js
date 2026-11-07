@@ -173,6 +173,13 @@
       }
     });
   }
+  // A card preview has no bridge: the host wrote its theme into the page instead.
+  var pre = window.__hermesTheme;
+  if (pre && typeof pre === "object" && pre.vars && typeof pre.vars === "object") {
+    if (pre.mode === "dark" || pre.mode === "light") document.documentElement.setAttribute("data-theme", pre.mode);
+    host = Object.assign({ mode: pre.mode }, pre.vars);
+    applyTheme(pre.vars);
+  }
   /** The host's theme (null until it arrives); fn runs when it does. */
   function hostTheme(fn) { if (fn) themeListeners.push(fn); return host; }
 

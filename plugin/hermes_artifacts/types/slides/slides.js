@@ -194,6 +194,11 @@
     if (notesTa) notesTa.value = notesOf(slides[cur]); else notesEl.textContent = notesOf(slides[cur]) || T.nonotes;
     drawTools();
     sendView();
+    if (C.thumb) {
+      // A card's preview: the bands around the 16:9 slide take the slide's own colour, not white.
+      var placed = clip.querySelector("section"), bg = placed && getComputedStyle(placed).backgroundColor;
+      if (bg && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(bg)) document.body.style.background = bg;
+    }
     try { history.replaceState(null, "", "#slide-" + (cur + 1)); } catch (e) {}
   }
 
