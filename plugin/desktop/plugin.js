@@ -732,6 +732,8 @@ function IconButton({ icon, title, onClick, active, label, danger }) {
     type: 'button',
     title,
     'aria-label': title,
+    // While its menu is open, its own press must not count as a click outside that menu.
+    onMouseDown: active ? e => e.stopPropagation() : undefined,
     onClick,
     ...hp,
     style: {
@@ -994,10 +996,16 @@ function OverlayBtn({ icon, title, active, onClick }) {
     title,
     'aria-label': title,
     ...hp,
+    // Its own press must not reach the open menu's "click outside": that would close the menu and this
+    // click would open it again at once.
+    onMouseDown: e => e.stopPropagation(),
     onClick: e => (e.stopPropagation(), onClick(e)),
-    style: { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: C.rSm, cursor: 'pointer',
-      border: 0, color: active ? C.bg : C.fg, background: active ? C.fg : h ? C.card : C.bg, boxShadow: C.shadowPop },
-    children: jsx(Icon, { name: icon, size: 15 })
+    // Over a preview of any colour: an opaque surface of Hermes' own, a stroke, a clear icon.
+    style: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: C.rMd, cursor: 'pointer',
+      border: `1px solid ${active ? C.accent : C.line}`, color: active ? C.accent : C.fg,
+      background: active ? `color-mix(in srgb, ${C.accent} 18%, ${C.pop})` : h ? `color-mix(in srgb, ${C.fg} 10%, ${C.pop})` : C.pop,
+      boxShadow: C.shadowPop },
+    children: jsx(Icon, { name: icon, size: 16, stroke: 2 })
   })
 }
 
