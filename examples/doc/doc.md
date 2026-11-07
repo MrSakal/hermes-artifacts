@@ -1,32 +1,32 @@
-# Homlokzati ajánlat – folyamatleírás
+# Facade quote – process
 
-Ez a dokumentum az **ajánlatkéréstől** a *szerződésig* tartó lépéseket írja le. Részletek: <https://example.com/process>.
+This document describes the steps from the **request for a quote** to the *contract*. Details: <https://example.com/process>.
 
-## Lépések
+## Steps
 
-1. Ajánlatkérés beérkezik
-2. Felmérés a helyszínen
-   - fotók, méretek
-   - [x] statikai adatok bekérése
-   - [ ] árazás
-3. Ajánlat kiküldése
+1. A request for a quote arrives
+2. Site survey
+   - photos, measurements
+   - [x] request the structural data
+   - [ ] pricing
+3. Send the quote
 
-> Az ajánlat 30 napig érvényes, kivéve ha az árfolyam 5%-nál többet mozog.
+> The quote is valid for 30 days, unless the exchange rate moves more than 5%.
 
-## Határidők
+## Deadlines
 
-| Lépés | Felelős | Határidő |
+| Step | Owner | Deadline |
 |:------|:--------|---------:|
-| Felmérés | Értékesítés | 3 nap |
-| Árazás | Költségvetés | 5 nap |
-| Kiküldés | Értékesítés | 1 nap |
+| Survey | Sales | 3 days |
+| Pricing | Estimating | 5 days |
+| Sending | Sales | 1 day |
 
 ---
 
-### Kód minta
+### Code sample
 
 ```js
 const due = addDays(today, 5)
 ```
 
-Ékezetek: árvíztűrő tükörfúrógép, ŐŰ őű.
+Accented text (an encoding check): árvíztűrő tükörfúrógép, ŐŰ őű.

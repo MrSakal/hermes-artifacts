@@ -386,11 +386,13 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "the page writes it once it has drawn in Hermes Desktop. Fix what your own code confirms.",
         {"id": {"type": "string"}, "wait": {"type": "integer"}}, ["id"]), _check, "🩺"),
     ("design_system_get", _schema("design_system_get",
-                                  "The user's design system for building any UI — a frontend in code, components, a "
-                                  "page, an email — not only artifacts: its README (rules, voice), tokens (and "
-                                  "tokens.css), components with summaries, asset groups, file list. Default: the "
-                                  "default design system; `id` for another. Build on it instead of making up colours, "
-                                  "type, spacing and components.",
+                                  "Design systems are set per user, so only a call shows whether one exists. Before you "
+                                  "build any UI — a frontend in code, components, a page, an email, not only artifacts — "
+                                  "call this first: it returns the user's default design system (or the one `id` names): "
+                                  "its README (rules, voice), tokens and tokens.css, components with summaries, asset "
+                                  "groups and files, or that none is set. When one comes back, build on it instead of "
+                                  "making up colours, type, spacing and components; in a codebase, offer in one line to "
+                                  "set it up as files there (design_system_export).",
                                   {"id": {"type": "string"}, "css": {"type": "boolean", "description": "Include tokens.css (default true)."}}),
      lambda a, **kw: _ds_get(a, **kw), "🎨"),  # defined below, with the hook
     ("design_system_export", _schema("design_system_export",
@@ -587,6 +589,9 @@ def _ds_id(args: dict) -> tuple[str | None, str | None]:
 def _ds_get(args: dict, **_kw) -> str:
     """The design system for building a UI anywhere (code included): its rules, tokens, components."""
     try:
+        if not args.get("id") and not store.settings().get("default_design_system"):
+            return _ok(design_system={"none": True, "rule": "No default design system is set: make your own choices, "
+                                      "or use a system the user names (artifact_list type=design-system lists them)."})
         dsid, err = _ds_id(args)
         if err:
             return _err(err)

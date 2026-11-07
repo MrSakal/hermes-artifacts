@@ -89,7 +89,7 @@ class RenderTests(unittest.TestCase):
         store.settings_set("default_design_system", None)
         try:
             self.assertIsNone(plugin._view_context(session_id="none-open"))
-            self.assertFalse(json.loads(plugin._ds_get({}))["ok"])
+            self.assertTrue(json.loads(plugin._ds_get({}))["design_system"]["none"])  # only a call shows it
             kiln = store.publish(path=str(ROOT / "examples" / "design-system"), title="Kiln", type="design-system")["id"]
             store.settings_set("default_design_system", kiln)
             self.assertIsNone(plugin._view_context(session_id="none-open"))  # like Claude: no line per turn
