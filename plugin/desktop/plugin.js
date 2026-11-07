@@ -33,7 +33,7 @@ import {
 } from '@hermes/plugin-sdk'
 import * as SDK from '@hermes/plugin-sdk'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { jsx, jsxs } from 'react/jsx-runtime'
+import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 
 const ID = 'hermes-artifacts'
 const PAGE = '/hermes-artifacts'
@@ -108,6 +108,14 @@ const STRINGS = {
     unpin: 'Unpin',
     more: 'More',
     moreFor: n => `More options for ${n}`,
+    renameTitle: 'Rename artifact',
+    tileBy: 'By Hermes Artifacts',
+    tileAbout_doc: 'A doc you and Hermes write and edit together; export to Word, PDF or Markdown.',
+    tileAbout_slides: 'A slide deck to present, page through and download as PDF or PowerPoint.',
+    tileAbout_design: 'Artboards on a canvas: pages, screens, mockups, posters and social posts.',
+    tileAbout_dashboard: 'Charts, figures and tables of data; every number shows where it came from.',
+    tileAbout_motion: 'A short animation that plays in place and exports as video.',
+    tileAbout_page: 'Any web page or small tool, written as code.',
     filterSort: 'Filter and sort',
     sortBy: 'Sort by',
     lastOpened: 'Last opened',
@@ -266,6 +274,14 @@ const STRINGS = {
     unpin: 'Kitűzés levétele',
     more: 'Továbbiak',
     moreFor: n => `${n}: további lehetőségek`,
+    renameTitle: 'Artifact átnevezése',
+    tileBy: 'Hermes Artifacts',
+    tileAbout_doc: 'Dokumentum, amit Hermesszel együtt írtok és szerkesztetek; Word, PDF vagy Markdown export.',
+    tileAbout_slides: 'Diasor vetítéshez, lapozáshoz, PDF vagy PowerPoint letöltéssel.',
+    tileAbout_design: 'Artboardok egy vásznon: oldalak, képernyők, látványtervek, plakátok, posztok.',
+    tileAbout_dashboard: 'Diagramok, számok és táblázatok; minden szám mutatja, honnan jön.',
+    tileAbout_motion: 'Rövid animáció, ami helyben lejátszódik, és videóként exportálható.',
+    tileAbout_page: 'Bármilyen weboldal vagy kis eszköz, kódként megírva.',
     filterSort: 'Szűrés és rendezés',
     sortBy: 'Rendezés',
     lastOpened: 'Utoljára megnyitva',
@@ -382,6 +398,51 @@ const enc = encodeURIComponent
 let CTX = null // the plugin context (set in register)
 let T = k => k // the plugin's translate, kept current by Page
 
+// ---------------------------------------------------------------- pinned artifacts in the sidebar
+// Claude lists pinned artifacts in its sidebar and leaves the gallery's order alone. Hermes' own Pinned
+// section holds chats only, so each pinned artifact gets a sidebar nav row of its own (and a route, so
+// the row is lit while that artifact is open).
+const NAV_CODICON = { page: 'browser', dashboard: 'graph', slides: 'preview', doc: 'note', design: 'symbol-color',
+  'design-system': 'symbol-color', motion: 'play-circle' }
+const pinnedRegs = new Map() // id -> {key, dispose}
+let navPrefsDispose = null
+/** Our row in the built-in Artifacts row's slot, the pinned artifacts right under it. */
+function registerNavPrefs(ctx) {
+  if (navPrefsDispose) navPrefsDispose()
+  const pinned = [...pinnedRegs.keys()].map(id => `${ID}:pinned:${id}`)
+  navPrefsDispose = ctx.register({
+    id: 'nav-prefs',
+    area: SIDEBAR_NAV_PREFS_AREA,
+    order: 1000,
+    data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, ...pinned, 'cron'] }
+  })
+}
+const pinnedPath = id => `${PAGE}/pinned/${encodeURIComponent(id)}`
+function syncPinnedNav(ctx, list) {
+  if (!ctx?.register) return
+  const want = new Map(list.filter(a => a.pinned).map(a => [a.id, a]))
+  const before = [...pinnedRegs.keys()].join('|')
+  for (const [id, reg] of pinnedRegs)
+    if (!want.has(id) || reg.key !== `${want.get(id).title}|${want.get(id).type}`) {
+      reg.dispose()
+      pinnedRegs.delete(id)
+    }
+  for (const [id, a] of want) {
+    if (pinnedRegs.has(id)) continue
+    const disposers = [
+      ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) }),
+      ctx.register({ id: `pinned:${id}`, area: SIDEBAR_NAV_AREA, data: { path: pinnedPath(id), label: a.title, codicon: NAV_CODICON[a.type] || 'pinned', tier: 'advanced' } })
+    ]
+    pinnedRegs.set(id, { key: `${a.title}|${a.type}`, dispose: () => disposers.forEach(d => typeof d === 'function' && d()) })
+  }
+  if ([...pinnedRegs.keys()].join('|') !== before) registerNavPrefs(ctx)
+}
+/** A pinned artifact's own route: the Artifacts page, opened on it. */
+function PinnedPage({ ctx, id }) {
+  useEffect(() => { if ($selected.get() !== id) openArtifact(ctx, id) }, [id])
+  return jsx(Page, { ctx })
+}
+
 async function refresh(ctx) {
   try {
     const r = await ctx.rest('/artifacts')
@@ -391,6 +452,7 @@ async function refresh(ctx) {
     const prev = current()
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
     if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
+    syncPinnedNav(ctx, list)
     $error.set(null)
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
     const now = current()
@@ -863,6 +925,18 @@ function NewTile({ ctx, kind }) {
           jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
         ]
       }),
+      h && !menu
+        ? jsxs('div', {
+            role: 'tooltip',
+            style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '8px 10px', borderRadius: 10,
+              border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 10px 28px rgba(0,0,0,.35)', pointerEvents: 'none', ...font },
+            children: [
+              jsx('div', { style: { fontSize: 13, fontWeight: 600, color: C.fg }, children: t(`tile_${kind}`) }),
+              jsx('div', { style: { fontSize: 11.5, color: C.text3, margin: '1px 0 4px' }, children: t('tileBy') }),
+              jsx('div', { style: { fontSize: 12.5, color: C.text2, lineHeight: 1.4 }, children: t(`tileAbout_${kind}`) })
+            ]
+          })
+        : null,
       ds && (h || menu)
         ? jsx('div', {
             style: { position: 'absolute', top: 6, right: 6 },
@@ -986,23 +1060,44 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
   })
 }
 
-/** The title shown on a card or row, retyped in place while renaming. */
+/** The title on a card or row; Rename opens Claude's dialog over the gallery. */
 function TitleText({ ctx, art, renaming, setRenaming, style }) {
+  return jsxs(Fragment, { children: [
+    jsx('div', { style, children: art.title }),
+    renaming ? jsx(RenameDialog, { ctx, art, onClose: () => setRenaming(false) }) : null
+  ] })
+}
+
+function RenameDialog({ ctx, art, onClose }) {
+  const t = usePluginI18n(ID)
   const [name, setName] = useState(art.title)
-  useEffect(() => { if (renaming) setName(art.title) }, [renaming])
-  if (!renaming) return jsx('div', { style, children: art.title })
-  return jsx('input', {
-    autoFocus: true,
-    value: name,
-    onClick: e => e.stopPropagation(),
-    onChange: e => setName(e.target.value),
-    onBlur: () => setRenaming(false),
-    onKeyDown: async e => {
-      e.stopPropagation()
-      if (e.key === 'Escape') setRenaming(false)
-      if (e.key === 'Enter' && name.trim()) (setRenaming(false), patchMeta(ctx, art, { title: name.trim() }))
-    },
-    style: { ...font, width: '100%', height: 26, padding: '0 6px', borderRadius: 6, border: `1px solid ${C.accent}`, background: C.bg, color: C.fg, fontSize: 14, outline: 'none' }
+  const changed = name.trim() && name.trim() !== art.title
+  const save = () => changed && (onClose(), patchMeta(ctx, art, { title: name.trim() }))
+  return jsx('div', {
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-label': t('renameTitle'),
+    onClick: e => (e.stopPropagation(), e.target === e.currentTarget && onClose()),
+    onMouseDown: e => e.stopPropagation(),
+    style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)' },
+    children: jsxs('div', {
+      style: { ...font, width: 380, maxWidth: 'calc(100vw - 32px)', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 18px 48px rgba(0,0,0,.4)' },
+      children: [
+        jsx('div', { style: { fontSize: 15, fontWeight: 600, color: C.fg, marginBottom: 12 }, children: t('renameTitle') }),
+        jsx('input', {
+          autoFocus: true,
+          value: name,
+          onFocus: e => e.target.select(),
+          onChange: e => setName(e.target.value),
+          onKeyDown: e => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') save() },
+          style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', borderRadius: 8, border: `1px solid ${C.accent}`, background: 'transparent', color: C.fg, fontSize: 14, outline: 'none' }
+        }),
+        jsxs('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }, children: [
+          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: 0, background: changed ? C.fg : C.hover, color: changed ? C.bg : C.text3, fontSize: 13, fontWeight: 600, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
+        ] })
+      ]
+    })
   })
 }
 
@@ -1218,7 +1313,6 @@ function Gallery({ ctx, pageRef }) {
     .filter(a => inDate(a, date))
     .filter(a => !q || `${a.title} ${a.description || ''} ${a.type} ${a.folder || ''}`.toLowerCase().includes(q))
     .sort((a, b) => sortTime(b, sort) - sortTime(a, sort))
-    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
   const filtered = Boolean(types.length || date !== 'any' || pinnedOnly)
 
   const body = err
@@ -2487,12 +2581,7 @@ export default {
 
     // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.
     ctx.register({ id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PAGE, label: 'Artifacts', codicon: 'files', tier: 'advanced' } })
-    ctx.register({
-      id: 'nav-prefs',
-      area: SIDEBAR_NAV_PREFS_AREA,
-      order: 1000,
-      data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
-    })
+    registerNavPrefs(ctx)
 
     for (const [key, atomRef, ok] of [
       ['sort', $sort, ['opened', 'edited']],

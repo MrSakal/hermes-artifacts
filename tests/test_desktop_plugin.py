@@ -27,7 +27,7 @@ export const useValue = a => a.get()
 export default {}
 """
 REACT_STUB = "export const useEffect = () => {}, useLayoutEffect = () => {}, useRef = () => ({}), useState = v => [v, () => {}]\nexport default {}\n"
-JSX_STUB = "export const jsx = () => null, jsxs = () => null\n"
+JSX_STUB = "export const jsx = () => null, jsxs = () => null, Fragment = Symbol('Fragment')\n"
 
 
 @unittest.skipIf(NODE is None, "node not installed")
