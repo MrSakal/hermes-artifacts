@@ -6,7 +6,6 @@
  *  - Drafts: a new format (Dashboard, Scrollyteller, Visual analysis, Visual short) is written by
  *    Hermes beside the dashboard under drafts/<id>/; the page shows it with Save / Cancel and Undo /
  *    Redo between the dashboard as it is and the draft.
- *  - The Design panel: the look, a new draft, Edit the page.
  */
 (function () {
   "use strict";
@@ -234,74 +233,7 @@
     return out;
   }
 
-  // ------------------------------------------------------------------ the Design panel
-  function init(api) {
-    var T = api.T, h = kit.h, C = kit.content, spec = api.spec, current = spec && spec.look ? check(spec.look) : null;
-    var dsInfo = null, busy = false;
-    if (window.hermes && window.hermes.ds && window.hermes.ds.get) {
-      window.hermes.ds.get(null).then(function (ds) { dsInfo = ds && ds.tokens ? ds : null; if (api.isOpen()) api.render(); }, function () {});
-    }
-    function saveLook(look) {
-      if (busy) return;
-      if (!window.hermes || !window.hermes.save) { kit.toast(T.noBridge); return; }
-      busy = true;
-      var next = JSON.parse(JSON.stringify(spec));
-      if (look) next.look = look; else delete next.look;
-      window.hermes.save({ "dashboard.json": JSON.stringify(next, null, 2) }, C.version).then(function (r) {
-        busy = false;
-        if (r && r.conflict) { kit.toast(T.conflict); return; }
-        kit.toast(T.lookSaved);
-        if (window.hermes.history) window.hermes.history.show(null, "design");
-      }, function (e) { busy = false; kit.toast(String(e && e.message || e)); });
-    }
-    function lookCard(name, colors, active, onClick, label) {
-      return h("button", { "class": "dash-look" + (active ? " active" : ""), type: "button", "aria-pressed": String(!!active), onclick: onClick,
-        title: label || name }, [h("i", { "class": "dash-look-sw" }, colors.map(function (c) { return h("b", { style: "background:" + c }); })),
-        h("span", { text: label || name })]);
-    }
-    // Claude's Design page: the look the dashboard wears, as it is (it comes from the design system, recorded
-    // once when the dashboard was built: changing it is asked of Hermes in the chat), then the formats.
-    function firstFace(st) {
-      return String(st || "").split(",").map(function (s) { return s.trim().replace(/^['"]|['"]$/g, ""); })
-        .filter(function (s) { return s && !/^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|-apple-system|BlinkMacSystemFont)$/i.test(s); })[0] || "";
-    }
-    function render() {
-      var head = h("div", { "class": "src-head" }, [h("b", { text: T.design }), api.iconBtn("close", T.close, function () { api.close(); })]);
-      var name = !current ? T.defaultLook : current.name || T.customLook;
-      var cs = getComputedStyle(document.documentElement);
-      var face = firstFace(current && (current.fonts.display || current.fonts.text)) || firstFace(cs.getPropertyValue("--font-display")) || firstFace(cs.getPropertyValue("--font-sans"));
-      var card = h("div", { "class": "dash-ds-row" }, [
-        h("span", { "class": "dash-ds-stamp", "aria-hidden": "true" }, [h("span", { "class": "dash-ds-ink", text: "Aa" }), h("span", { "class": "dash-ds-dot" })]),
-        h("span", { "class": "dash-ds-names" }, [h("span", { "class": "dash-ds-name", text: name, title: name }), face ? h("span", { "class": "dash-ds-face", text: face, title: face }) : null]),
-        h("span", { "class": "dash-ds-chips", "aria-hidden": "true" }, [1, 2, 3, 4].map(function (i) { return h("span", { "class": "dash-ds-chip", style: "background:var(--chart-" + i + ")" }); }))
-      ]);
-      var d = api.draft();
-      var kids = [head, h("div", { "class": "src-detail" }, [
-        h("div", { "class": "src-top" }, [h("b", { "class": "src-title", text: T.designSystem })]),
-        h("div", { "class": "dash-ds" }, [card]),
-        h("div", { "class": "src-top", style: "margin-top:16px" }, [h("b", { "class": "src-title", text: T.format }), h("p", { "class": "src-desc", text: d ? T.draftWaiting : T.draftHint })]),
-        h("div", { "class": "dash-formats" }, FORMATS.map(function (f) {
-          return h("button", { "class": "dash-format", type: "button", disabled: !!d, onclick: function () { requestDraft(f); } },
-            [h("b", { text: T["fmt_" + f] }), h("span", { text: T["fmtd_" + f] })]);
-        }))
-      ])];
-      return kids;
-    }
-    function requestDraft(format) {
-      if (!window.hermes || !window.hermes.save) { kit.toast(T.noBridge); return; }
-      var id = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), files = {};
-      files["drafts/" + id + "/request.json"] = JSON.stringify({ format: format, at: new Date().toISOString(), by: "user" });
-      window.hermes.save(files, C.version).then(function (r) {
-        if (r && r.conflict) { kit.toast(T.conflict); return; }
-        var msg = T.draftMsg.replace("{format}", T["fmt_" + format]).replace(/\{id\}/g, id).replace(/\{aid\}/g, C.id || "");
-        return window.hermes.send(msg, { draft: id, format: format }, { deliver: "send" }).then(function () {
-          if (window.hermes.history) window.hermes.history.show(null, null);
-        });
-      }, function (e) { kit.toast(String(e && e.message || e)); });
-    }
-    return { render: render, saveLook: saveLook };
-  }
 
   window.dashDesignKit = { LOOKS: LOOKS, check: check, wear: wear, lookFromDs: lookFromDs, draftOf: draftOf, saveDraftFiles: saveDraftFiles,
-    draftFiles: draftFiles, FORMATS: FORMATS, init: init };
+    draftFiles: draftFiles, FORMATS: FORMATS };
 })();

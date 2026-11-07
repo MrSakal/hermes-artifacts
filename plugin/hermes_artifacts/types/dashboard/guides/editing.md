@@ -1,6 +1,6 @@
 # Editing by hand: a page with one writer for each part
 
-The dashboard's Design panel has **Edit the page**: the person changes the page's words in place,
+Selecting text on the dashboard offers **Edit**: the person changes the page's words in place,
 moves cards earlier or later and deletes them, with Undo and Redo, and every change saves as a new
 version. For that to work, the page has one writer for each part:
 

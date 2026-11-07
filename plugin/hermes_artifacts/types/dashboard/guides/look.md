@@ -24,8 +24,7 @@ reports `design_system_changed` (then say so in a line).
 }
 ```
 
-- `system`: the system's name, id and the version you read (from `design_system`). The Design panel shows
-  the name to the people who edit the dashboard.
+- `system`: the system's name, id and the version you read (from `design_system`).
 - Read the system by name and usage: the page background is `ground`, cards and surfaces `card`, body text
   `text`, secondary text `muted`, hairlines `border`. Fill both sets (its light and dark themes; one theme:
   derive the other). `charts` leads with the brand color, then the accents most unlike those chosen, in the

@@ -1075,7 +1075,7 @@
   }
   function renderPanel(err) {
     if (!drawer) return;
-    var kids = panelMode === "history" ? renderHistory(err) : panelMode === "design" && window.dashDesign ? window.dashDesign.render() : picked ? renderDetail(picked.id) : renderList();
+    var kids = panelMode === "history" ? renderHistory(err) : picked ? renderDetail(picked.id) : renderList();
     drawer.replaceChildren.apply(drawer, kids.filter(Boolean));
   }
   function toggleHistory(on) {
@@ -1106,7 +1106,6 @@
     window.hermes.on("open-panel", function (d) {
       if (!d) return;
       if (d.panel === "history") { histPicked = d.version == null ? null : d.version; toggleHistory(true); }
-      else if (d.panel === "design" && window.dashDesign) window.dashDesign.open();
     });
   }
 
@@ -1188,7 +1187,6 @@
     document.documentElement.setAttribute("data-dash-mode", srcOpen && panelMode === "sources" ? "data" : "page");
     srcBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "sources"));
     histBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "history"));
-    if (window.dashDesign) window.dashDesign.pressed(srcOpen && panelMode === "design");
     sendView();
     // As Claude's: the panel runs the frame's full height beside the page; the bar stops at its edge.
     var side = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
@@ -1500,21 +1498,6 @@
   var draftView = "draft"; // "draft" | "dashboard": Undo / Redo between the draft and the dashboard as it is
   var showingDraft = function () { return !!(draft && draft.page && draftView === "draft"); };
   if (DK && spec && spec.look) DK.wear(spec.look);
-  var designBtn = kit.button("", "palette", function () { toggleDesign(); }, T.design);
-  function toggleDesign(on) {
-    var open = on === undefined ? !(srcOpen && panelMode === "design") : on;
-    if (!open) { panelMode = "sources"; toggleSources(false); return; }
-    var de = document.documentElement;
-    if (de.getAttribute("data-dash-editing") === "1") { kit.toast(T.finishEditing); return; }
-    if (de.getAttribute("data-commenting") === "1") { kit.toast(T.commentsOn); return; }
-    panelMode = "design";
-    toggleSources(true, true);
-  }
-  var design = DK ? DK.init({ T: T, spec: spec, iconBtn: iconBtn, isOpen: function () { return srcOpen && panelMode === "design"; },
-    render: function () { renderPanel(); }, close: function () { toggleDesign(false); }, draft: function () { return draft; },
-    edit: function () { toggleDesign(false); if (window.dashEdit) window.dashEdit.start(); } }) : null;
-  window.dashDesign = { render: function () { return design ? design.render() : []; }, open: function () { toggleDesign(true); },
-    pressed: function (on) { designBtn.setAttribute("aria-pressed", String(!!on)); } };
 
   var draftBar = null;
   function saveDraft() {
@@ -1552,10 +1535,6 @@
     var box = h("div", { "class": "dash-notice dash-draft-bar" }, kids);
     if (draftBar) draftBar.replaceWith(box); else root.parentNode.insertBefore(box, root);
     draftBar = box;
-  }
-  if (!C.thumb) {
-    var spacer = bar.querySelector("span[style*='flex:1']");
-    if (spacer && spacer.nextSibling) bar.insertBefore(designBtn, spacer.nextSibling);
   }
 
   function remount(html) {
