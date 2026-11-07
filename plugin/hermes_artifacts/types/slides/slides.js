@@ -22,7 +22,7 @@
   var W = 1920, H = 1080;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { hide: "Hide slide", unhide: "Show slide", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
+    en: { color: "Text color", textStyle: "Text style", comment: "Comment", hide: "Hide slide", unhide: "Show slide", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
       delSection: "Remove section", sectionPh: "Section name", newSection: "Section",
       present: "Present", presenter: "Presenter view", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "This slide (PNG)", html: "Web page (HTML)", save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved",
@@ -41,7 +41,7 @@
       lTitle: "Title", lSection: "Section", lBullets: "Bullets", lKpis: "Big numbers", lTwo: "Two columns", lQuote: "Quote",
       lClosing: "Closing", lBlank: "Blank",
       about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { hide: "Dia elrejtése", unhide: "Dia megjelenítése", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
+    hu: { color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hide: "Dia elrejtése", unhide: "Dia megjelenítése", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
       delSection: "Szakasz törlése", sectionPh: "Szakasz neve", newSection: "Szakasz",
       present: "Vetítés", presenter: "Előadói nézet", grid: "Összes dia", notes: "Jegyzetek", exp: "Exportálás", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "Ez a dia (PNG)", html: "Weboldal (HTML)", save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve",
@@ -104,6 +104,7 @@
   // An edit of a layout slide saves it as its HTML file, which then takes precedence.
   var defs = {};
   /** The deck's theme; without one, Hermes' own colors and font (once the host sends them). */
+  var dsColors = [], dsStyles = []; // the deck's design system: its colors and text styles, for the menus
   var dsTheme = null; // the deck's design system (deck.designSystem, else the user's default), as a theme
   function deckTheme() {
     if (deck.theme) return deck.theme;
@@ -196,11 +197,32 @@
     try { history.replaceState(null, "", "#slide-" + (cur + 1)); } catch (e) {}
   }
 
+  // Slides picked in the rail (the current one, and more with Shift or Ctrl/Cmd): the menu acts on them all.
+  var picked = [];
+  function pickedIdx(i) {
+    var ids = picked.indexOf(slides[i].id) >= 0 && picked.length > 1 ? picked : [slides[i].id];
+    return slides.map(function (s, j) { return ids.indexOf(s.id) >= 0 ? j : -1; }).filter(function (j) { return j >= 0; });
+  }
+  function pick(i, how) {
+    var id = slides[i].id;
+    if (!picked.length) picked = [slides[cur].id];
+    if (how === "toggle") {
+      var k = picked.indexOf(id);
+      if (k >= 0 && picked.length > 1) picked.splice(k, 1); else if (k < 0) picked.push(id);
+    } else {
+      var a = Math.min(cur, i), z = Math.max(cur, i);
+      picked = slides.slice(a, z + 1).map(function (s) { return s.id; });
+    }
+    rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("picked", picked.indexOf(slides[j].id) >= 0); });
+  }
   var dragFrom = null, dropLine = h("div", { "class": "sl-drop", hidden: true });
   function thumb(s, i, caption) {
     var box = h("div", { "class": "sl-box" });
-    var b = h("button", { "class": "sl-thumb" + (isHidden(s) ? " is-hidden" : ""), type: "button",
-      title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function () { closeGrid(); show(i); } },
+    var b = h("button", { "class": "sl-thumb" + (isHidden(s) ? " is-hidden" : "") + (!caption && picked.indexOf(s.id) >= 0 ? " picked" : ""),
+      type: "button", title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function (e) {
+        if (!caption && editable && (e.shiftKey || e.ctrlKey || e.metaKey)) return pick(i, e.shiftKey ? "range" : "toggle");
+        closeGrid(); picked = [s.id]; show(i);
+      } },
       [caption ? null : h("span", { "class": "sl-num", text: String(i + 1) }), box,
        caption ? h("span", { "class": "sl-cap", text: (i + 1) + ". " + titleOf(s) }) : null]);
     if (editable && !caption) {
@@ -252,6 +274,10 @@
     for (var k = 0; k < th.length; k++) { var r = th[k].getBoundingClientRect(); if (y < r.top + r.height / 2) return k; }
     return th.length;
   }
+  rail.addEventListener("keydown", function (e) {
+    if (!editable || e.target.closest("input")) return;
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); delSlide(cur); }
+  });
   rail.addEventListener("dragover", function (e) {
     if (dragFrom == null) return;
     e.preventDefault();
@@ -399,15 +425,19 @@
     buildRail(); show(after + 1); changed();
   }
   function dupSlide(i) {
+    var idx = pickedIdx(i), last = idx[idx.length - 1], copies = [];
     checkpoint();
-    var id = newId();
-    slides.splice(i + 1, 0, { id: id, sec: clean(serialize(slides[i]), id), layout: null });
-    buildRail(); show(i + 1); changed();
+    idx.forEach(function (j) { var id = newId(); copies.push({ id: id, sec: clean(serialize(slides[j]), id), layout: null }); });
+    slides.splice.apply(slides, [last + 1, 0].concat(copies));
+    picked = copies.map(function (c) { return c.id; });
+    buildRail(); show(last + 1); changed();
   }
   function delSlide(i) {
-    if (slides.length <= 1) return kit.toast(T.lastSlide);
+    var idx = pickedIdx(i);
+    if (slides.length - idx.length < 1) return kit.toast(T.lastSlide);
     checkpoint();
-    slides.splice(i, 1);
+    idx.slice().reverse().forEach(function (j) { slides.splice(j, 1); });
+    i = idx[0]; picked = [];
     buildRail(); show(Math.min(i, slides.length - 1)); changed();
   }
   function moveSlide(from, to) {
@@ -431,8 +461,8 @@
   }
   function toggleHidden(i) {
     checkpoint();
-    var sec = slides[i].sec;
-    if (sec.hasAttribute("data-hidden")) sec.removeAttribute("data-hidden"); else sec.setAttribute("data-hidden", "");
+    var hide = !isHidden(slides[i]);
+    pickedIdx(i).forEach(function (j) { var sec = slides[j].sec; if (hide) sec.setAttribute("data-hidden", ""); else sec.removeAttribute("data-hidden"); });
     buildRail(); show(i); changed();
   }
   function setSection(i, name) {
@@ -659,13 +689,25 @@
     if (texty) {
       var al = (sel[0].style.textAlign || getComputedStyle(sel[0]).textAlign);
       kids.push(tbtn("fontDown", T.smaller, function () { fontScale(1 / 1.12); }), tbtn("fontUp", T.bigger, function () { fontScale(1.12); }),
-        tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
+        tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign));
+      var colB = tbtn("palette", T.color, function () { colorMenu(colB); });
+      kids.push(colB);
+      if (dsStyles.length) { var tsB = tbtn("fontUp", T.textStyle, function () { styleMenu(tsB); }); kids.push(tsB); }
+      kids.push(sep());
     }
     kids.push(tbtn("front", T.front, function () { restack(true); }), tbtn("back", T.back, function () { restack(false); }),
       tbtn("copy", T.dup, duplicate), tbtn("trash", T.del, removeSel), sep());
     var askB = tbtn("sparkle", T.ask, askAbout);
     askB.appendChild(h("span", { text: T.ask }));
     kids.push(askB);
+    if (window.hermes && window.hermes.comment && sel.length === 1) {
+      // A comment on this element (Claude's): the host opens its comment form there; the thread names the slide.
+      kids.push(tbtn("comment", T.comment, function () {
+        var el = sel[0], s = slides[cur];
+        window.hermes.comment({ selector: selectorOf(el), text: el.textContent.trim().slice(0, 200),
+          label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) });
+      }));
+    }
     tools.replaceChildren.apply(tools, kids);
     tools.hidden = false;
     placeTools();
@@ -677,6 +719,38 @@
     if (top < 50) top = sr.top + (u.y + u.h) * SC + 10;
     tools.style.top = Math.max(50, Math.min(innerHeight - tools.offsetHeight - 8, top)) + "px";
     tools.style.left = Math.max(8, Math.min(innerWidth - tools.offsetWidth - 8, sr.left + u.x * SC)) + "px";
+  }
+  /** Text color: the design system's colors (else the deck theme's), as their values in the slide. */
+  function colorMenu(anchor) {
+    var th = deckTheme() || {}, list = dsColors.length ? dsColors
+      : ["fg", "accent", "muted", "bg"].filter(function (k) { return th[k]; }).map(function (k) { return { name: k, v: th[k] }; });
+    kit.menu(anchor, list.slice(0, 40).map(function (c) {
+      return { label: "● " + c.name, onClick: function () {
+        checkpoint();
+        sel.forEach(function (el) { el.style.color = c.v; });
+        drawSel(); changed();
+      } };
+    }));
+  }
+  function px(v) { var m = /^(-?[\d.]+)(px|rem|em|%)?$/.exec(String(v)); if (!m) return null; var n = +m[1]; return m[2] === "rem" || m[2] === "em" ? n * 16 : m[2] === "%" ? n * 0.16 : n; }
+  /** Text style: one of the design system's styles (size, weight, line height, tracking, face). */
+  function styleMenu(anchor) {
+    kit.menu(anchor, dsStyles.slice(0, 40).map(function (x) {
+      var st = x.st;
+      return { label: st.name + " · " + st.fontSize, onClick: function () {
+        checkpoint();
+        sel.forEach(function (el) {
+          var f = px(st.fontSize);
+          if (f) el.style.fontSize = Math.max(24, R(f)) + "px"; // nothing on a slide under 24px
+          if (st.fontWeight) el.style.fontWeight = st.fontWeight;
+          if (st.lineHeight) el.style.lineHeight = st.lineHeight;
+          if (st.letterSpacing) el.style.letterSpacing = st.letterSpacing;
+          if (st.fontStyle) el.style.fontStyle = st.fontStyle;
+          if (x.stack) el.style.fontFamily = x.stack;
+        });
+        drawSel(); changed();
+      } };
+    }));
   }
   function fontScale(f) {
     checkpoint();
@@ -1452,6 +1526,12 @@
       var p = c ? c[1].split(/[\s,\/]+/).map(Number) : null, mx = p ? Math.max(p[0], p[1], p[2]) : 0, mn = p ? Math.min(p[0], p[1], p[2]) : 0;
       return { name: t.name, usage: String(t.usage || ""), v: v, ok: !!p && (p.length < 4 || p[3] > 0.9), L: p ? (0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / 255 : 0, C: (mx - mn) / 255 };
     }).filter(function (t) { return t.ok; });
+    dsColors = toks.map(function (t) { return { name: t.name, v: t.v }; });
+    try {
+      var mdl = window.dsKit.model(ds.tokens);
+      dsStyles = [];
+      (mdl.type.groups || []).forEach(function (g) { g.styles.forEach(function (st) { dsStyles.push({ st: st, stack: st.family ? mdl.type.families[st.family] : null }); }); });
+    } catch (e) { dsStyles = []; }
     function pick(nameRe, usageRe) {
       var t = toks.find(function (x) { return nameRe.test(x.name); }) || (usageRe && toks.find(function (x) { return usageRe.test(x.usage); }));
       return t ? t.v : undefined;

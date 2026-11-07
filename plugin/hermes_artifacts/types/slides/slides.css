@@ -110,3 +110,4 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
   text-transform: uppercase; }
 input.sl-sec:hover { border-color: var(--color-line, rgba(127,127,127,.3)); }
 input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: var(--color-fg); text-transform: none; }
+.sl-thumb.picked:not(.on) { border-color: color-mix(in srgb, var(--color-accent) 55%, transparent); }
