@@ -894,8 +894,9 @@
   }
   var reloading = null;
   function reload() {
-    var keep = cur, was = playing;
-    pause();
+    var was = playing;
+    pause(); // first: it brings cur to where the film is now
+    var keep = cur;
     selected = null; selBox.hidden = true;
     reloading = boot().then(function () {
       refreshSegs(); renderAt(Math.min(keep, total)); ui();
@@ -1000,9 +1001,11 @@
       drawer.appendChild(h("h3", { text: T.scene + " " + (sc.index + 1) + " · " + sc.codeName }));
       var nameIn = h("input", { type: "text", value: sc.name, maxlength: "48" });
       nameIn.addEventListener("change", function () { setRecut(sc.id, { name: nameIn.value }); });
+      nameIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); nameIn.blur(); } });
       drawer.appendChild(row(T.name, [nameIn].concat(sc.recut.name ? [resetLink(function () { setRecut(sc.id, { name: null }); })] : [])));
       var lenIn = h("input", { type: "number", step: "0.1", min: String(sc.dur / 2), max: String(sc.dur * 3), value: String(sc.pdur) });
       lenIn.addEventListener("change", function () { var v = parseFloat(lenIn.value); if (v > 0) setRecut(sc.id, { dur: Math.max(sc.dur / 2, Math.min(sc.dur * 3, v)) }); });
+      lenIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); lenIn.blur(); } });
       drawer.appendChild(row(T.length + " (" + T.s + ")", [lenIn].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : [])));
     }
     // Colors: the film's palettes on base.css's four variables.
@@ -1062,7 +1065,10 @@
     if (layers.length) {
       drawer.appendChild(h("h3", { text: T.layersH }));
       layers.forEach(function (e) {
-        var what = Object.keys(RT_KEYS).filter(function (k) { return e[k]; }).map(function (k) { return T[k] || k; }).join(", ");
+        // The names the Selected rows use (px is the Size row, svgfill and svgstroke the Color one).
+        var LBL = { ink: T.ink, px: T.size, weight: T.weight, hidden: T.hidden, svgfill: T.ink, svgstroke: T.ink };
+        var what = Object.keys(RT_KEYS).filter(function (k) { return e[k]; }).map(function (k) { return LBL[k] || k; })
+          .filter(function (x, i, a) { return a.indexOf(x) === i; }).join(", ");
         drawer.appendChild(h("div", { "class": "mo-chg" }, [
           h("span", { "class": "mo-chg-t", title: what, text: (e.label || e.id.split("/")[1]).slice(0, 40) + (what ? " · " + what : "") }),
           resetLink(function () {

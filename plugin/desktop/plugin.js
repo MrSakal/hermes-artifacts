@@ -1547,7 +1547,9 @@ function useBridge(ref, art, ctx, portRef) {
           }
           if (m.op === 'history.restore' && !gesture) return reply({ ok: false, error: 'restoring needs a click in the page' })
           if (m.op === 'doc.restore' && !gesture) return reply({ ok: false, error: 'restoring needs a click in the page' })
-          if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
+          // A save follows what the person did in the page; a native picker (a colour, a file) ends outside
+          // the page's own events, so any interaction with the app so far is enough here.
+          if (m.op === 'save' && !gesture && !navigator.userActivation?.hasBeenActive) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
           if (m.op === 'ds.default' && !gesture) return reply({ ok: false, error: 'choosing the default design system needs a click in the page' })
           if (m.op === 'dataset.test' && !gesture) return reply({ ok: false, error: 'testing a query needs a click in the page' })
           if (m.op === 'dataset.edit' && !gesture) return reply({ ok: false, error: 'saving a query needs a click in the page' })
