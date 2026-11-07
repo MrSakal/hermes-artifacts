@@ -19,7 +19,7 @@
 (function () {
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content, DC = window.DC;
-  var L = /^hu\b/i.test(C.lang || navigator.language || "") ? "hu" : "en";
+  var L = "en"; // English only
   var T = {
     en: { canvas: "Canvas", fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
       tweaks: "Tweaks", design: "Design", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
@@ -36,23 +36,7 @@
       artboard: "Artboard", title: "Title", fillPage: "Page (fills the window)", interactive: "Interactive (Play)", reset: "Reset",
       bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
       noBoard: "No artboard to export", pick: "Pick an artboard first", fonts: "Fonts", imgOnly: "png, jpeg, gif or webp",
-      about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { canvas: "Vászon", fit: "Mindent mutat", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", sel: "Kijelölésre nagyít", play: "Lejátszás", stop: "Leállítás",
-      tweaks: "Hangolás", design: "Tervezés", expand: "Teljes ablak", back: "Vászon", prev: "Előző rajztábla", next: "Következő rajztábla",
-      save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", conflict: "Közben megváltozott: betöltöm az új verziót",
-      noSave: "Itt nem lehet menteni", editHint: "Kattints a kijelöléshez · dupla katt a szövegre", building: "Készül…",
-      bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
-      error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
-      undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
-      comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok",
-      exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
-      text: "Szöveg", color: "Szín", size: "Méret", weight: "Vastagság", align: "Igazítás", fill: "Kitöltés", background: "Háttér",
-      layout: "Elrendezés", width: "Szélesség", height: "Magasság", padding: "Belső margó", gap: "Térköz", radius: "Lekerekítés", display: "Megjelenés",
-      direction: "Irány", columns: "Oszlopok", rows: "Sorok", justify: "Igazítás (fő)", items: "Igazítás (kereszt)", wrap: "Tördelés", style: "Szövegstílus",
-      artboard: "Rajztábla", title: "Cím", fillPage: "Oldal (kitölti az ablakot)", interactive: "Interaktív (lejátszható)", reset: "Alaphelyzet",
-      bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", none: "Jelölj ki egy elemet vagy rajztáblát.",
-      noBoard: "Nincs exportálható rajztábla", pick: "Előbb válassz rajztáblát", fonts: "Betűk", imgOnly: "png, jpeg, gif vagy webp",
-      about: function (board, file, label) { return "(rajztábla: „" + board + "”, " + file + (label ? ", elem: „" + label + "”" : "") + ")"; } }
+      about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } }
   }[L];
 
   var bar = document.getElementById("dc-bar"), app = document.getElementById("dc-app");

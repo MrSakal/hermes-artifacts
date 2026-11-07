@@ -18,7 +18,7 @@
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content;
   var W = 1920, H = 1080;
-  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
+  var L = "en"; // English only
   var T = {
     en: { present: "Present", presenter: "Presenter view", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "This slide (PNG)", html: "Web page (HTML)", save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved",
@@ -36,24 +36,7 @@
       phHeading: "Heading", phKicker: "Kicker",
       lTitle: "Title", lSection: "Section", lBullets: "Bullets", lKpis: "Big numbers", lTwo: "Two columns", lQuote: "Quote",
       lClosing: "Closing", lBlank: "Blank",
-      about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { present: "Vetítés", presenter: "Előadói nézet", grid: "Összes dia", notes: "Jegyzetek", exp: "Exportálás", pdf: "PDF", pptx: "PowerPoint (.pptx)",
-      png: "Ez a dia (PNG)", html: "Weboldal (HTML)", save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve",
-      conflict: "Közben megváltozott: betöltöm az új verziót", noSave: "Itt nem lehet menteni", editHint: "Kattints a kijelöléshez · dupla katt a szövegre",
-      building: "Készül…", bad: "A deck.json hiányzik, vagy nem érvényes JSON.", empty: "Ebben a diasorban még nincs dia.",
-      noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", of: "/", nonotes: "Ehhez a diához nincs jegyzet.",
-      insert: "Beszúrás", text: "Szövegdoboz", image: "Kép…", rect: "Téglalap", ellipse: "Ellipszis", newSlide: "Új dia",
-      dup: "Másolat", del: "Törlés", up: "Feljebb", down: "Lejjebb", front: "Előre hozás", back: "Hátra küldés",
-      bigger: "Nagyobb betű", smaller: "Kisebb betű", align: "Igazítás", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
-      ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe", undo: "Visszavonás", redo: "Mégis",
-      next: "Következő", end: "A diasor vége", pause: "Szünet", reset: "Időmérő nullázása", exitP: "Kilépés", notesPh: "Előadói jegyzet…",
-      tooBig: "Legfeljebb 8 MB-os kép", lastSlide: "Legalább egy dia marad", textSize: "Jegyzet betűmérete",
-      phTitle: "Cím", phSub: "Alcím", phText: "Szöveg", phPoints: ["Első pont", "Második pont", "Harmadik pont"],
-      phSection: "Fejezet", phQuote: "Egy mondat, amit érdemes megismételni.", phBy: "Valaki", phMetric: "Mutató", phClosing: "Köszönöm",
-      phHeading: "Alcím", phKicker: "Felcím",
-      lTitle: "Címdia", lSection: "Fejezet", lBullets: "Felsorolás", lKpis: "Nagy számok", lTwo: "Két hasáb", lQuote: "Idézet",
-      lClosing: "Zárás", lBlank: "Üres",
-      about: function (n, id, title, label) { return "(" + n + ". dia „" + title + "”, id " + id + (label ? ", elem: „" + label + "”" : "") + ")"; } }
+      about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } }
   }[L];
 
   var deck = kit.json("deck.json", null);
@@ -889,7 +872,7 @@
     var p2 = function (n) { return ("0" + n).slice(-2); };
     pres.timer.textContent = (s >= 3600 ? Math.floor(s / 3600) + ":" : "") + p2(Math.floor(s / 60) % 60) + ":" + p2(s % 60);
     pres.timer.classList.toggle("is-paused", !!pres.pauseAt);
-    pres.clock.textContent = new Date().toLocaleTimeString(L === "hu" ? "hu-HU" : [], { hour: "2-digit", minute: "2-digit" });
+    pres.clock.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
   function paint(dir) {
     var s = slides[pres.i], r = pres.main.getBoundingClientRect(), pad = pres.presenter ? 32 : 0;

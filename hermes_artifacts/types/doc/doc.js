@@ -8,20 +8,14 @@
 (function () {
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes;
-  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
+  var L = "en"; // English only
   var T = {
     en: { exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Click to start writing, or type @Hermes and a request.",
       saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", conflict: "Hermes changed this block meanwhile: it now shows Hermes' text",
       asking: "Hermes is writing…", askHint: "@Hermes + Enter asks Hermes here", editWith: "Edit with Hermes", comment: "Comment",
       editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename",
-      byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled" },
-    hu: { exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)",
-      building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Kattints ide és írj, vagy írd be: @Hermes és a kérésed.",
-      saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", conflict: "Ezt a blokkot közben a Hermes módosította: most az ő szövege látszik",
-      asking: "A Hermes ír…", askHint: "@Hermes + Enter: kérés a Hermestől ide", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
-      editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Átnevezés",
-      byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen" }
+      byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled" }
   }[L];
 
   var bar = document.getElementById("doc-bar"), page = document.getElementById("doc-page"), toc = document.getElementById("doc-toc");
@@ -509,7 +503,7 @@
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
         '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' + rels.join("") + "</Relationships>",
       "word/styles.xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ' + NS + '>' +
-        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:lang w:val="' + (L === "hu" ? "hu-HU" : "en-US") + '"/></w:rPr></w:rPrDefault>' +
+        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>' +
         '<w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
         '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
         hstyle(1, 44) + hstyle(2, 32) + hstyle(3, 26) + hstyle(4, 23) +

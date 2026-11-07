@@ -25,7 +25,7 @@
     var s = String(v).replace(/\s/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "");
     return +s;
   }
-  function lang() { return /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu-HU" : "en-US"; }
+  function lang() { return undefined; } // numbers and dates in the viewer's own locale; the words are English
 
   function format(v, f) {
     if (v == null || v === "" || (typeof v === "number" && isNaN(v))) return "—";
@@ -184,7 +184,7 @@
       controls.push({ f: f, ctl: ctl });
     });
     if (b.reset !== false) {
-      bar.appendChild(h("button", { type: "button", "class": "c-btn", text: lang() === "hu-HU" ? "Alaphelyzet" : "Reset",
+      bar.appendChild(h("button", { type: "button", "class": "c-btn", text: "Reset",
         onclick: function () { window.dash.resetParams(); } }));
     }
     return { el: bar, draw: function () {
@@ -197,7 +197,7 @@
             return Array.from(new Set(r.rows.map(function (x) { return x[opts.field]; }))).filter(function (x) { return x != null && x !== ""; });
           })() : [];
           var cur = p[c.f.param] == null ? "" : String(p[c.f.param]);
-          var items = (c.f.all !== false ? [{ value: "", label: c.f.all || (lang() === "hu-HU" ? "Mind" : "All") }] : [])
+          var items = (c.f.all !== false ? [{ value: "", label: c.f.all || "All" }] : [])
             .concat(list.map(function (o) { return typeof o === "object" ? { value: String(o.value), label: String(o.label != null ? o.label : o.value) } : { value: String(o), label: format(o, c.f.format || "text") }; }));
           c.ctl.replaceChildren.apply(c.ctl, items.map(function (o) { return new Option(o.label, o.value, false, o.value === cur); }));
           c.ctl.value = cur;
@@ -267,7 +267,7 @@
       var ys = Array.isArray(b.y) ? b.y : [b.y];
       var rows = sortRows(grouped(r.rows, b.x, ys, b.agg), b.sort);
       if (b.limit) rows = rows.slice(0, b.limit);
-      if (!rows.length) { box.replaceChildren(h("div", { "class": "dash-failed", text: lang() === "hu-HU" ? "Nincs adat" : "No data" })); return; }
+      if (!rows.length) { box.replaceChildren(h("div", { "class": "dash-failed", text: "No data" })); return; }
       var colors = window.dash.colorValues ? window.dash.colorValues() : window.dash.colors;
       var W = Math.max(280, box.clientWidth || 480), kind = b.kind || "bar";
       var H = b.height || (kind === "hbar" ? Math.max(160, rows.length * 30 + 40) : kind === "donut" ? 240 : 260);
@@ -381,7 +381,7 @@
 
   builders.table = function (b) {
     var cols = b.columns || [];
-    var search = b.search ? h("input", { type: "search", "class": "c-search", placeholder: lang() === "hu-HU" ? "Keresés…" : "Search…" }) : null;
+    var search = b.search ? h("input", { type: "search", "class": "c-search", placeholder: "Search…" }) : null;
     var thead = h("thead"), tbody = h("tbody");
     var table = h("table", { "class": "c-table", "data-source": b.source, "data-row-key": b.key || (cols[0] && cols[0].field) || null }, [thead, tbody]);
     var scroller = h("div", { "class": "c-table-wrap", style: b.maxHeight ? "max-height:" + b.maxHeight + "px" : null }, [table]);

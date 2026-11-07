@@ -15,7 +15,7 @@
 (function () {
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content, dsKit = window.dsKit, md = window.md;
-  var L = /^hu\b/i.test(C.lang || navigator.language || "") ? "hu" : "en";
+  var L = "en"; // English only
   var T = {
     en: { overview: "Overview", colors: "Colors", type: "Typography", components: "Components", assets: "Assets", files: "Files",
       sections: "Sections", foundations: "Foundations", theme: "Theme", makeDefault: "Make default", isDefault: "Default",
@@ -36,27 +36,7 @@
       ci: "A pipeline republishes this system: edits here may be overwritten.", readOnly: "Editing is off for this system.",
       updated: function (by, at) { return "Updated" + (by ? " by " + by : "") + (at ? " · " + at : ""); },
       noTokens: "tokens.json is missing or not valid JSON.", addColor: "Add color", tokens: "tokens", delSure: "Delete this token?",
-      uploaded: "Uploaded", fam: { spacing: "Spacing", radius: "Radius", shadow: "Shadows" } },
-    hu: { overview: "Áttekintés", colors: "Színek", type: "Tipográfia", components: "Komponensek", assets: "Eszközök", files: "Fájlok",
-      sections: "Fejezetek", foundations: "Alapok", theme: "Téma", makeDefault: "Legyen alapértelmezett", isDefault: "Alapértelmezett",
-      defaultOn: "Az új tervek, diasorok és filmek mostantól erre épülnek", defaultOff: "Már nem ez az alapértelmezett",
-      defaultTitle: "Erre a design systemre épülnek az új tervek, diasorok és filmek", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
-      zip: "Minden fájl (.zip)", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)",
-      edit: "Szerkesztés", save: "Mentés", cancel: "Mégse", del: "Törlés", add: "Új token", saving: "Mentés…", saved: "Elmentve",
-      notSaved: "Nincs mentve", conflict: "Közben megváltozott: nyisd meg újra az új verzióért", noSave: "Itt nem lehet menteni",
-      problems: function (n) { return n + " érték kimaradt"; }, problemsWhy: "Mi maradt ki és miért",
-      noReadme: "Még nincs README.md: minden olvasó ott kezdi.", writeReadme: "README írása", usage: "Használat", value: "Érték",
-      name: "Név", sample: "Árvíztűrő tükörfúrógép, gyors barna róka", fonts: "Betűfájlok", families: "Családok",
-      notListed: "nincs a tokens.json type.fonts listájában: nincs @font-face", missingFont: "listázva, de a fájl hiányzik",
-      noPreview: "Nincs preview.html", guidelines: "Irányelvek", previewFailed: "Az előnézet hibát dobott: ",
-      reactMissing: "Az index Reactot listáz, de a components/lib/ nem tartalmazza: az ezt igénylő előnézetek itt statikusak (nincs hálózat).",
-      upload: "Kép feltöltése", newGroup: "Új csoport", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp)",
-      badName: "Név: betű, szám, _ . - (szóköz és / nélkül), legfeljebb 64", taken: "Ez a név már foglalt",
-      wouldDrop: "Ez az érték kimaradna: ", download: "Letöltés", empty: "Itt még nincs semmi.", other: "Egyéb",
-      ci: "Egy pipeline újraközli ezt a rendszert: az itteni szerkesztések felülíródhatnak.", readOnly: "Ennél a rendszernél a szerkesztés ki van kapcsolva.",
-      updated: function (by, at) { return "Frissítve" + (by ? " · " + by : "") + (at ? " · " + at : ""); },
-      noTokens: "A tokens.json hiányzik, vagy nem érvényes JSON.", addColor: "Új szín", tokens: "token", delSure: "Törlöd ezt a tokent?",
-      uploaded: "Feltöltve", fam: { spacing: "Térközök", radius: "Lekerekítés", shadow: "Árnyékok" } }
+      uploaded: "Uploaded", fam: { spacing: "Spacing", radius: "Radius", shadow: "Shadows" } }
   }[L];
 
   var bar = document.getElementById("ds-bar"), nav = document.getElementById("ds-nav"), main = document.getElementById("ds-main");
@@ -500,31 +480,7 @@
         components: "Build this design system's components: each under components/<Name>/ with a README (guidelines), a preview.html, its props in components/index.d.ts, compiled into components/bundle.js.",
         assets: "Add this design system's assets (logos, marks, icons, imagery) under assets/<Group>/, each group with a README on when to use them.",
         readme: "Write this design system's README.md: what the brand is, its voice, when to use what, and how to build with it.",
-        fix: "These tokens.json values dropped when the page compiled them. Fix each so it compiles, keeping what it meant:" } },
-    hu: { generated: "Ezt az oldal generálja minden mentéskor", genReadme: "A rendszer használata · Index — minden mentéskor generálva",
-      inherits: function (n) { return n + " értékét örökli"; }, inherit: function (n, t) { return n + " értékét örökölje (" + t + ")"; },
-      readable: "Olvasható árnyalat", against: function (g, k) { return "Ehhez mérve: " + g + " · kell " + k + ":1"; },
-      rename: "Átnevezés", copyName: "Név másolása", copied: "Kimásolva", goAlias: function (a) { return "Ugrás ide: " + a; }, more: "Továbbiak",
-      addHere: "Hozzáadás", delGroup: "Csoport törlése", delGroupSure: function (n) { return "Törlöd ezt a(z) " + n + " tokent?"; },
-      addUsage: "Használati megjegyzés", noUsage: "Még nincs használati megjegyzés.", needValue: "Az első témának kell érték",
-      roles: { surfaces: "Felületek", text: "Szöveg", fills: "Kitöltések és státuszhátterek", borders: "Keretek és gyűrűk", charts: "Diagramok", palette: "Paletta" },
-      preview: "Előnézet", props: "Propok", noProps: "Ez a komponens nem deklarál propokat.", propType: "Típus", note: "Megjegyzés", required: "kötelező",
-      sizeCol: "Típus · méret", storage: function (n, s) { return n + " fájl · " + s; }, newSet: "Új készlet",
-      uploadFont: "Betű feltöltése", addStyle: "Új stílus", group: "Csoport", family: "Család", size: "Méret", weight: "Vastagság",
-      lineHeight: "Sormagasság", layers: "Rétegek", addLayer: "Új réteg", inset: "belső", color: "Szín", blur: "Elmosás", spread: "Terítés",
-      cats: { docs: "Dokumentumok", css: "Stíluslapok", js: "Szkriptek", data: "Adat", fonts: "Betűk", images: "Képek", other: "Egyéb" },
-      noFilePreview: "Ehhez a fájlhoz nincs előnézet.", delFile: "Törlöd ezt a fájlt?", fontTooBig: "Legfeljebb 8 MB-os betűfájl (woff2, woff, ttf, otf)",
-      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
-      desc: { "design-system.json": "Az index: cím, névtér, könyvtárak, eszközcsoportok", "tokens.json": "A tokenek: minden stíluslap ebből készül",
-        "README.md": "A brand book: minden olvasó itt kezdi", "components/bundle.js": "A komponensek, a globális scope-ba fordítva",
-        "components/bundle.css": "A komponensek stílusai", "components/index.d.ts": "A komponensek propjai" },
-      empty: { colors: "Még nincsenek színek.", type: "Még nincsenek betűstílusok.", components: "Még nincsenek komponensek.", assets: "Még nincsenek eszközök.", readme: "Még nincs README.md: minden olvasó ott kezdi." },
-      ask: { colors: "Vedd fel a design system színeit a tokens.json-ba: felületek, szöveg, kitöltések és státuszhátterek, keretek és gyűrűk, diagramok — mindegyikhez használati megjegyzéssel, minden témára értékkel, a szöveg 4.5:1 kontraszttal a felületein.",
-        type: "Vedd fel a design system tipográfiáját a tokens.json-ba: a családokat, a betűfájlokat és a stílusokat (display, címsorok, törzsszöveg, képaláírás, kód) mérettel, sormagassággal, vastagsággal.",
-        components: "Építsd meg a design system komponenseit: mindegyik a components/<Név>/ alatt README-vel (irányelvek), preview.html-lel, a propjai a components/index.d.ts-ben, a components/bundle.js-be fordítva.",
-        assets: "Tedd be a design system eszközeit (logók, jelek, ikonok, képek) az assets/<Csoport>/ alá, minden csoporthoz README-vel, hogy mikor mit használjunk.",
-        readme: "Írd meg a design system README.md-jét: mi a márka, milyen a hangja, mikor mit használjunk, és hogyan építsünk vele.",
-        fix: "Ezek a tokens.json értékek kimaradtak, amikor az oldal lefordította őket. Javítsd mindegyiket, hogy leforduljon, és ugyanazt jelentse:" } }
+        fix: "These tokens.json values dropped when the page compiled them. Fix each so it compiles, keeping what it meant:" } }
   }[L];
 
   function stem(n) { var m = /^(.+?)[-_.][^-_.]+$/.exec(n); return m ? m[1] : n; }
@@ -1038,7 +994,7 @@
     var tile = h("button", { type: "button", "class": "ds-shtile", style: "background:" + hex(g.rgb), title: css, "aria-label": t.name + " · " + th.name },
       [h("span", { "class": "ds-shcard", style: "box-shadow:" + css + ";background:" + cardOf(th.id) })]);
     var sum = h("span", { "class": "ds-muted ds-shsum", text: (own ? "" : canInherit ? X.inherits(themeName(S.m.first)) + " · " : "") +
-      (L === "hu" ? layers.length + " réteg" : layers.length + (layers.length === 1 ? " layer" : " layers")) + (layers[0] ? " · " + [layers[0].x, layers[0].y, layers[0].blur].join(" ") : "") });
+      (layers.length + (layers.length === 1 ? " layer" : " layers")) + (layers[0] ? " · " + [layers[0].x, layers[0].y, layers[0].blur].join(" ") : "") });
     tile.addEventListener("click", function () { layerEditor(tile, key, t, th, parseShadow(own || css)); });
     return h("div", { "class": "ds-shcell" }, [tile, sum]);
   }
