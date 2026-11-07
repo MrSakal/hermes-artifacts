@@ -4,9 +4,11 @@
    (retyped, recolored, refaced, recut, retouched) and exports MP4, GIF and PNG. */
 (function () {
   "use strict";
+  // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
+  function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, FK = window.FilmKit, SND = window.MotionSound, ENC = window.MotionEncode;
-  var L = "en"; // English only
-  var T = {
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
+  var T = pickLang({
     en: { play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)", back: "Previous frame (←)",
       fwd: "Next frame (→)", present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
       comment: "Comment (C)", commentAt: "Comment on this moment", commentRange: "Comment on this stretch", tweaks: "Tweaks", rough: "Rough cut",
@@ -19,8 +21,21 @@
       pickHint: "Pause, then click a thing on the picture to change its look.", resetAll: "Reset all changes", byHand: "Changes made by hand are saved as part of the film.",
       building: "Exporting", cancel: "Cancel", frames: "frames", noCodec: "This browser can't encode video (WebCodecs H.264 missing)",
       noAudio: "Exported without sound: this browser can't encode AAC", fontsOff: "Web fonts couldn't be embedded: the export uses fallback fonts",
-      done: "Exported", cancelled: "Export cancelled", scrollHint: "", s: "s", mixed: "Mixed", rangeMark: "Stretch" }
-  }[L];
+      done: "Exported", cancelled: "Export cancelled", scrollHint: "", s: "s", mixed: "Mixed", rangeMark: "Stretch" },
+    hu: { play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)", back: "Előző képkocka (←)",
+      fwd: "Következő képkocka (→)", present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
+      comment: "Komment (C)", commentAt: "Komment erre a pillanatra", commentRange: "Komment erre a szakaszra", tweaks: "Hangolás", rough: "Nyers vágás",
+      cont: "Folytatás", fin: "Véglegesítés", left: "Scenes left: ",
+      scene: "Jelenet", of: "/", soon: "Még készül", failed: "Ez a jelenet nem futott le", bad: "A modules/scenes.json hiányzik vagy nem érvényes.",
+      badScenes: "scenes.json: ", noFilm: "Ebben a filmben még nincs jelenet.", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", retry: "Mentés",
+      conflict: "Közben megváltozott: nyisd meg újra a filmet", noSave: "Itt nem lehet menteni", rangeHint: "Shift + húzás az idővonalon: szakasz kijelölése · I / O: a két vége",
+      editHint: "Dupla katt a szövegre: átírás", name: "Név", length: "Hossz", reset: "Vissza", colors: "Színek", original: "Eredeti",
+      font: "Betűtípus", headlines: "Címek", text: "Szöveg", look: "Kijelölt", ink: "Szín", size: "Méret", weight: "Vastagság", hidden: "Elrejtve",
+      pickHint: "Állítsd meg, és kattints a képen egy elemre, hogy megváltoztasd.", resetAll: "Minden kézi módosítás visszaállítása", byHand: "A kézi módosítások a film részeként mentődnek.",
+      building: "Exportálás", cancel: "Mégse", frames: "képkocka", noCodec: "Ez a böngésző nem tud videót kódolni (nincs WebCodecs H.264)",
+      noAudio: "Hang nélkül exportálva: ez a böngésző nem tud AAC-t kódolni", fontsOff: "A webes betűk nem ágyazhatók be: az export tartalék betűkkel készül",
+      done: "Exportálva", cancelled: "Export megszakítva", scrollHint: "", s: "mp", mixed: "Vegyes", rangeMark: "Szakasz" }
+  }, L);
 
   var realNow = performance.now.bind(performance);
   var EPOCH = Date.UTC(2026, 0, 1);

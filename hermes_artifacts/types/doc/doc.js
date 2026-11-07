@@ -7,16 +7,24 @@
  */
 (function () {
   "use strict";
+  // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
+  function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes;
-  var L = "en"; // English only
-  var T = {
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
+  var T = pickLang({
     en: { exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Click to start writing, or type @Hermes and a request.",
       saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", conflict: "Hermes changed this block meanwhile: it now shows Hermes' text",
       asking: "Hermes is writing…", askHint: "@Hermes + Enter asks Hermes here", editWith: "Edit with Hermes", comment: "Comment",
       editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename",
-      byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled" }
-  }[L];
+      byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled" },
+    hu: { exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)",
+      building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Kattints ide és írj, vagy írd be: @Hermes és a kérésed.",
+      saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", conflict: "Ezt a blokkot közben a Hermes módosította: most az ő szövege látszik",
+      asking: "A Hermes ír…", askHint: "@Hermes + Enter: kérés a Hermestől ide", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
+      editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Átnevezés",
+      byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen" }
+  }, L);
 
   var bar = document.getElementById("doc-bar"), page = document.getElementById("doc-page"), toc = document.getElementById("doc-toc");
   var tabsEl = document.getElementById("doc-tabs");

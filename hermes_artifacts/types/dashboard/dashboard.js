@@ -14,14 +14,16 @@
  */
 (function () {
   "use strict";
+  // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
+  function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content;
   var spec = kit.json("dashboard.json", null);
   // Numbers and dates as Hermes writes its own (the locale it runs in), unless the dashboard names one (`lang`).
   window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : undefined;
   var root = document.getElementById("dash-root");
   var bar = document.getElementById("dash-bar");
-  var L = "en"; // English only
-  var T = {
+  var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
+  var T = pickLang({
     en: { use: "Use the page", where: "Where numbers come from", refresh: "Refresh", sources: "Sources",
       exp: "Export", csv: "Data as CSV", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
       rows: "Saved rows", calc: "Calculation", params: "Filters", failed: "Failed to load", none: "Nothing on this dashboard yet.",
@@ -82,8 +84,65 @@
       fixMsg: "This dashboard's source “{t}” ({id}) didn’t load. What it said: {m}. Find out why and fix it.",
       whyMsg: "These sources on this dashboard didn’t load: {list}. Find out why and fix what you can.", loaderSpent: "The loader ran for fifteen minutes, so no further call is made.",
       back: "Back", close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
-      showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." }
-  }[L];
+      showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
+    hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
+      exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
+      rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
+      bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
+      updated: "frissítve", unused: "Az oldal nem olvassa", preview: "Eredmény", formula: "Képlet", desc: "",
+      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor",
+      live: "Élő", ago: "frissítve", cached: "gyorsítótárból", noBridge: "Az élő adathoz a Hermes Desktop kell",
+      askTitle: "Ez a dashboard élőben kéri le a számait", askBody: "Megnyitáskor és frissítéskor ezeket a lekérdezéseket futtatja a Hermesen keresztül:",
+      allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
+      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
+      refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV",
+      reauthTitle: "Jelentkezz be újra: {s}", reauthBody: "Lejárt a bejelentkezés, ezért amíg újra be nem lépsz, ezeket a számokat nem tudja lekérni.",
+      absentTitle: "{s} nincs csatlakoztatva", absentBody: "Csatlakoztasd a Hermesben, hogy le tudja kérni ezeket a számokat.",
+      offTitle: "{s} ki van kapcsolva", offBody: "Kapcsold be a Hermesben, hogy le tudja kérni ezeket a számokat.",
+      affected: "Erre vár", signIn: "Bejelentkezés", openConnectors: "Kapcsolatok megnyitása", retry: "Újrapróbálás",
+      editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít, és lefuttatja a módosított lekérdezést.",
+      save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve",
+      test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
+      testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
+      historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi", cut: "Hiányzó sorok: a válasz nem adta vissza az összes sort.",
+      history: "Előzmények", hAuto: "A verziók maguktól mentődnek, ahogy a dashboard változik.", hNone: "A dashboard korábbi verziói itt jelennek meg.",
+      hCantRead: "Az előzmények most nem olvashatók. Próbáld újra.", loading: "Betöltés…", hCurrent: "jelenlegi verzió", hCreated: "Létrehozta az oldalt",
+      hRestored: "Visszaállította a(z) {when} verziót", hNoChange: "Nincs változás", hAdded: "Hozzáadta: {name}", hRemoved: "Eltávolította: {name}", hEditedX: "Módosította: {name}",
+      hEditedPage: "Módosította az oldalt", hEditedFilters: "Módosította a szűrőket", hEditedTitle: "Módosította a címet", hEditedLook: "Módosította a megjelenést",
+      hEditedSources: "{n} forrást módosított", hEditedFiles: "{n} fájlt módosított", hThePage: "az oldalt", hNSources: "{n} forrást", hTheFilters: "a szűrőket",
+      hTheTitle: "a címet", hTheLook: "a megjelenést", hNFiles: "{n} fájlt", hEditedMany: "Módosította {things}", and: "és",
+      backToHistory: "Vissza az Előzményekhez", hIsNow: "Ez a dashboard jelenlegi állapota.", hRestore: "Visszaállítás", hRestoredToast: "Visszaállítva.",
+      hRestoreHint: "A visszaállítás új verzióként ezt teszi újra a dashboarddá; az utána jövő verziók megmaradnak az Előzményekben.",
+      hKAdded: "hozzáadva", hKRemoved: "eltávolítva", hKEdited: "módosítva", hTooMuch: "Túl sok változott ahhoz, hogy soronként mutassa.", hDraftAsked: "Vázlatot kért", hDraftWrote: "Megírta a vázlatot", hDraftDone: "Mentett vagy elvetett egy vázlatot",
+      hEarlier: "Egy korábbi verziót látsz, a mai adatokkal.", hBackLatest: "Vissza a legújabbra", fullScreen: "Teljes képernyő", exitFull: "Kilépés a teljes képernyőből",
+      askAbout: "Kérdezd a Hermest", staged: "Beírva a Hermesnek szóló üzenetedbe. Küldd el, amikor kész vagy.",
+      testIt: "Teszt mentés nélkül", testResult: "A teszt eredménye", replaceFile: "Csere egy fájlra…", chooseFile: "Válassz egy .csv, .tsv vagy .json fájlt.",
+      fileNoRows: "A fájlban nincs olyan sor, amit a dashboard el tud olvasni.", fileReady: "{name}: {n} sor. A Mentés a(z) {old} helyére teszi.", saveFile: "Mentés",
+      fileSaved: "Fájl lecserélve.", fileTooBig: "A fájl túl nagy a csatoláshoz. Válassz kisebbet.",
+      design: "Design", look: "Megjelenés", lookHint: "Színek, betűk és sarkok az egész dashboardra, világos és sötét témában.", defaultLook: "Alap megjelenés",
+      designSystem: "Design system", customLook: "Egyedi megjelenés", lookSaved: "Megjelenés elmentve.", dsUnreadable: "Ezt a design systemet nem sikerült beolvasni.",
+      editPage: "Az oldal szerkesztése", editHint: "Írd át kézzel az oldal szövegeit, mozgasd vagy töröld a kártyákat. Minden változás magától mentődik.",
+      newDraft: "Új vázlat", draftHint: "Válassz formát egy új vázlathoz. Mentésig semmi nem változik.", draftWaiting: "Egy vázlat vár: előbb mentsd vagy vesd el.",
+      fmt_dashboard: "Dashboard", fmtd_dashboard: "Kártyák, számok és diagramok, egy pillantásra.",
+      "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "Görgetés közben elmesélt felismerés, egy végig látható diagram mellett.",
+      "fmt_visual-analysis": "Vizuális elemzés", "fmtd_visual-analysis": "Felülről lefelé olvasható felismerés, minden címsor alatt egy diagram.",
+      "fmt_visual-short": "Visual short", "fmtd_visual-short": "Egy-két perc, ami lejátszódik: fejezetek egy színpadon, feliratokkal.",
+      draftMaking: "A Hermes készíti a(z) {format} vázlatot. Mentésig semmi nem változik.", draftShowing: "A vázlatot látod. Mentésig semmi nem változik.",
+      draftAsIs: "A dashboard jelenlegi állapota. Az Újra gombbal visszakapod a vázlatot.", draftUndo: "Visszavonás", draftRedo: "Újra", draftCancel: "Elvetés", draftSave: "Mentés",
+      draftSaved: "A vázlat lett a dashboard.", draftCancelled: "Vázlat elvetve",
+      editorMode: "Szerkesztő mód", editEvery: "Minden változás magától mentődik.", editSaving: "Mentés…", editSaved: "Automatikusan mentve",
+      editFailed: "Az automatikus mentés nem sikerült — újrapróbálja.", editConflict: "A dashboard közben megváltozott: nyomd meg a Kész gombot, és szerkeszd újra.",
+      editDone: "Kész", editWritten: "Ezt az oldal kódja írja, ezért kézzel nem szerkeszthető. A kártyáját törölheted, vagy megkérheted a Hermest, hogy módosítsa.",
+      editEarlier: "Kártya feljebb", editLater: "Kártya lejjebb", editDelete: "Kártya törlése", editDeleted: "Kártya törölve. A Visszavonás visszahozza.",
+      editFirst: "Ez már az első.", editLast: "Ez már az utolsó.", editNothingUndo: "Nincs mit visszavonni", editNothingRedo: "Nincs mit újra megcsinálni",
+      editLatestFirst: "A szerkesztéshez menj vissza a legújabb verzióra.", editNeedsPage: "Ez a dashboard az elrendezéséből rajzolódik. Megkértem a Hermest, hogy tegye kézzel szerkeszthetővé.",
+      didntLoad: "Nem töltött be", didntRun: "Nem futott le", unusedTag: "Nem használt", whyNot: "Miért nem töltött be?", whyNotRun: "Miért nem futott le?",
+      errorSaid: "Amit a hiba mondott", copyError: "A hiba másolása", askFix: "Kérd meg a Hermest, hogy javítsa", retryAll: "Mind újra",
+      someFailed: "Néhány forrás nem töltött be.", someStale: "Néhány mentett szám elavult.", seeSources: "Források", askWhy: "Kérdezd meg a Hermest, miért",
+      backTo: "Vissza ide: {s}", hint: "Kattints egy számra vagy diagramra, hogy lásd a forrását.", nothingUses: "Ezen a dashboardon semmi nem használja ezt a forrást.",
+      back: "Vissza", close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
+      showMore: "Több", showLess: "Kevesebb", transform: "Átalakítás", row1: "sor", noSources: "Ennek a dashboardnak nincs forrása.", noArgs: "Nincs argumentum." }
+  }, L);
 
   // ------------------------------------------------------------------ data
   var datasets = (spec && spec.datasets) || {};
@@ -1172,7 +1231,7 @@
     var main = doc.querySelector("#dash-main");
     if (main) main.style.marginRight = "";
     var foot = h("p", { style: "margin:24px var(--dash-gutter,24px);font-size:12px;color:var(--color-fg-muted)",
-      text: (C.title || "") + " · " + new Date().toLocaleString() + " · numbers do not update" });
+      text: (C.title || "") + " · " + new Date().toLocaleString() + (L === "hu" ? " · a számok nem frissülnek" : " · numbers do not update") });
     (doc.querySelector("#dash-main") || doc.querySelector("body")).appendChild(foot);
     return "<!doctype html>\n" + doc.outerHTML;
   }
