@@ -144,6 +144,12 @@ const STRINGS = {
     tile_dashboard: 'Dashboard',
     tile_slides: 'Slides',
     tile_doc: 'Docs',
+    tile_design: 'Design',
+    tile_motion: 'Motion',
+    'tile_design-system': 'Design system',
+    prompt_design: 'Make a design artifact (type design) of: ',
+    prompt_motion: 'Make a motion artifact (type motion), an animation of: ',
+    'prompt_design-system': 'Make a design system artifact (type design-system) for: ',
     prompt_page: 'Make an artifact (a web page, type page) for: ',
     prompt_dashboard: 'Make a dashboard artifact (type dashboard) of: ',
     prompt_slides: 'Make a slide deck artifact (type slides) about: ',
@@ -262,6 +268,9 @@ const STRINGS = {
     tile_dashboard: 'Dashboard',
     tile_slides: 'Diák',
     tile_doc: 'Docs',
+    tile_design: 'Design',
+    tile_motion: 'Motion',
+    'tile_design-system': 'Arculat',
   }
 }
 
@@ -479,7 +488,11 @@ const TYPE_LOOK = {
   page: { bg: '#4f46e5', bg2: '#7c3aed', icon: 'page' },
   dashboard: { bg: '#0d9488', bg2: '#0e7490', icon: 'chart' },
   slides: { bg: '#d97706', bg2: '#db2777', icon: 'slides' },
-  doc: { bg: '#0369a1', bg2: '#4338ca', icon: 'doc' }
+  doc: { bg: '#0369a1', bg2: '#4338ca', icon: 'doc' },
+  // Designs and design systems are one family: one colour, one icon.
+  design: { bg: '#a21caf', bg2: '#e11d48', icon: 'palette' },
+  'design-system': { bg: '#a21caf', bg2: '#e11d48', icon: 'palette' },
+  motion: { bg: '#15803d', bg2: '#0891b2', icon: 'motion' }
 }
 
 const ICONS = {
@@ -487,6 +500,8 @@ const ICONS = {
   chart: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18',
   slides: 'M3 4h18M5 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4M12 15v3M9 21l3-3 3 3',
   doc: 'M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6',
+  palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01',
+  motion: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.6v6.8l5.6-3.4z',
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4',
   sort: 'M4 7h16M7 12h10M10 17h4',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
@@ -957,7 +972,7 @@ function Gallery({ ctx, pageRef }) {
             jsx('div', { style: { fontSize: 13, fontWeight: 600, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
             jsx('div', {
               style: { display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 34 },
-              children: ['doc', 'slides', 'page', 'dashboard'].map(k => jsx(NewTile, { ctx, kind: k }, k))
+              children: ['doc', 'slides', 'design', 'dashboard', 'motion', 'page', 'design-system'].map(k => jsx(NewTile, { ctx, kind: k }, k))
             }),
             body
           ]
@@ -1657,6 +1672,10 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
+      ...(art.type === 'design-system'
+        ? [{ icon: 'palette', label: $dsDefault.get() === art.id ? t('dsUnset') : t('dsMake'),
+             onClick: close(() => setDefaultDs(ctx, art, $dsDefault.get() !== art.id)) }]
+        : []),
       {
         icon: 'pin',
         label: art.pinned ? t('unpin') : t('pin'),

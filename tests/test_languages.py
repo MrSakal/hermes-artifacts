@@ -14,7 +14,7 @@ sys.path.insert(0, str(PLUGIN))
 
 # Keys whose text is a message to Hermes, per file.
 AGENT = {
-    "desktop/plugin.js": ["prompt_page", "prompt_dashboard", "prompt_slides", "prompt_doc", "commentMsg", "askMsg", "sendMsg", "docAskMsg", "docEditMsg", "chatRef"],
+    "desktop/plugin.js": ["prompt_page", "prompt_dashboard", "prompt_slides", "prompt_doc", "prompt_design", "prompt_motion", "prompt_design-system", "commentMsg", "askMsg", "sendMsg", "docAskMsg", "docEditMsg", "chatRef"],
     "hermes_artifacts/types/dashboard/dashboard.js": ["aboutSel", "draftMsg", "editAskMsg", "fixMsg", "whyMsg"],
     "hermes_artifacts/types/design/design.js": ["about"],
     "hermes_artifacts/types/design-system/ds-page.js": ["ask"],
@@ -65,13 +65,13 @@ def top_keys(block: str) -> set[str]:
         elif c in "{([":
             depth += 1
             if depth == 1:
-                m = re.match(r"\s*([A-Za-z_$][\w$]*)\s*:", block[k + 1:])
+                m = re.match(r"\s*['\"]?([A-Za-z_$][\w$-]*)['\"]?\s*:", block[k + 1:])
                 if m:
                     keys.add(m.group(1))
         elif c in "})]":
             depth -= 1
         elif c == "," and depth == 1:
-            m = re.match(r"\s*([A-Za-z_$][\w$]*)\s*:", block[k + 1:])
+            m = re.match(r"\s*['\"]?([A-Za-z_$][\w$-]*)['\"]?\s*:", block[k + 1:])
             if m:
                 keys.add(m.group(1))
         k += 1

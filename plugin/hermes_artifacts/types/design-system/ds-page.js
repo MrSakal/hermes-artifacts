@@ -34,7 +34,7 @@
       reactMissing: "The index lists React, but components/lib/ doesn't carry it: previews that need it stay static here (no network).",
       upload: "Upload image", newGroup: "New group", groupName: "Group name", tooBig: "Images up to 8 MB (png, jpeg, gif, webp)",
       badName: "Names: letters, digits, _ . - (no spaces, no /), up to 64", taken: "That name is used already",
-      wouldDrop: "That value would drop: ", download: "Download", empty: "Nothing here yet.", other: "Other",
+      search: "Search", noMatch: "Nothing matches.", wouldDrop: "That value would drop: ", download: "Download", empty: "Nothing here yet.", other: "Other",
       ci: "A pipeline republishes this system: edits here may be overwritten.", readOnly: "Editing is off for this system.",
       updated: function (by, at) { return "Updated" + (by ? " by " + by : "") + (at ? " · " + at : ""); },
       noTokens: "tokens.json is missing or not valid JSON.", addColor: "Add color", tokens: "tokens", delSure: "Delete this token?",
@@ -54,7 +54,7 @@
       reactMissing: "Az index Reactot listáz, de a components/lib/ nem tartalmazza: az ezt igénylő előnézetek itt statikusak (nincs hálózat).",
       upload: "Kép feltöltése", newGroup: "Új csoport", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp)",
       badName: "Név: betű, szám, _ . - (szóköz és / nélkül), legfeljebb 64", taken: "Ez a név már foglalt",
-      wouldDrop: "Ez az érték kimaradna: ", download: "Letöltés", empty: "Itt még nincs semmi.", other: "Egyéb",
+      search: "Keresés", noMatch: "Nincs találat.", wouldDrop: "Ez az érték kimaradna: ", download: "Letöltés", empty: "Itt még nincs semmi.", other: "Egyéb",
       ci: "Egy pipeline újraközli ezt a rendszert: az itteni szerkesztések felülíródhatnak.", readOnly: "Ennél a rendszernél a szerkesztés ki van kapcsolva.",
       updated: function (by, at) { return "Frissítve" + (by ? " · " + by : "") + (at ? " · " + at : ""); },
       noTokens: "A tokens.json hiányzik, vagy nem érvényes JSON.", addColor: "Új szín", tokens: "token", delSure: "Törlöd ezt a tokent?",
@@ -62,7 +62,7 @@
   }, L);
 
   var bar = document.getElementById("ds-bar"), nav = document.getElementById("ds-nav"), main = document.getElementById("ds-main");
-  bar.className = "kit-bar";
+  bar.hidden = true; // no bar of its own: the artifact header carries the title, Export and Make default
   var IMG = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i, VIDEO = /\.(mp4|webm|mov)$/i, FONT = /\.(woff2?|ttf|otf|ttc)$/i;
   var NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
@@ -134,7 +134,7 @@
   }
 
   // ------------------------------------------------------------------ state
-  var state = { section: "overview", theme: null, sel: null, editing: null, chosenTheme: false, renaming: null, file: null };
+  var state = { section: "overview", theme: null, sel: null, editing: null, chosenTheme: false, renaming: null, file: null, q: "" };
   load();
   state.theme = S.m.first;
   (function pickTheme() {
@@ -281,7 +281,15 @@
   expBtn.hidden = true;
   if (!C.thumb) kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
 
-  bar.append(h("span", { "class": "kit-title", text: S.title }), statusEl, themeSeg, defBtn, expBtn);
+  // The theme the page previews in, picked where themes show (Colors, Shadows, Components).
+  function themeSelect() {
+    if (!multiTheme()) return null;
+    var sel = h("select", { "class": "ds-in ds-theme-sel", "aria-label": T.theme, title: T.theme },
+      S.m.themes.map(function (t) { return h("option", { value: t.id, text: t.name }); }));
+    sel.value = state.theme;
+    sel.addEventListener("change", function () { state.chosenTheme = true; setTheme(sel.value); });
+    return sel;
+  }
 
   // ------------------------------------------------------------------ nav
   function navItems() {
@@ -296,21 +304,58 @@
     out.push({ id: "files", title: T.files, part: "build" });
     return out;
   }
+  var NAV_ICON = {
+    overview: "M4 11l8-7 8 7v9h-5v-6H9v6H4z", md: "M7 3h7l5 5v12H7zM14 3v5h5M9 13h6M9 17h6",
+    colors: "M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01",
+    type: "M4 19l5-14 5 14M6 14h6M15 19v-6.5a2.5 2.5 0 0 1 5 0V19M15 15.5h5",
+    spacing: "M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2",
+    radius: "M4 20v-8a8 8 0 0 1 8-8h8", shadow: "M4 4h12v12H4zM8 20h12V8",
+    family: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
+    components: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7",
+    assets: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01", files: "M3 6h6l2 2h10v11H3z",
+    search: "M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4"
+  };
+  function navIcon(id) {
+    var k = id.slice(0, 3) === "md:" ? "md" : id.slice(0, 4) === "fam:" ? (NAV_ICON[id.slice(4)] ? id.slice(4) : "family") : id;
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (NAV_ICON[k] || NAV_ICON.family) + '"/></svg>';
+  }
+  // Search: tokens, type styles, components, sections and files, by name.
+  function searchHits(q) {
+    q = q.toLowerCase();
+    var out = [], hit = function (s) { return String(s || "").toLowerCase().indexOf(q) >= 0; };
+    S.sections.forEach(function (s) { if (hit(s.title)) out.push({ label: s.title, sub: T.sections, icon: s.id, run: function () { go(s.id); } }); });
+    S.m.colors.forEach(function (c) { if (hit(c.name) || hit(c.usage)) out.push({ label: c.name, sub: T.colors, icon: "colors", run: function () { goToken(c.name); } }); });
+    S.m.type.groups.forEach(function (g) { g.styles.forEach(function (st) { if (hit(st.name)) out.push({ label: st.name, sub: T.type, icon: "type", run: function () {
+      go("type"); var row = main.querySelector('[data-token="' + st.name + '"]'); if (row) row.scrollIntoView({ block: "center" }); } }); }); });
+    S.m.families.forEach(function (f) { f.tokens.forEach(function (t) { if (hit(t.name) || hit(t.usage)) out.push({ label: t.name, sub: T.fam[f.key] || f.title, icon: "fam:" + f.key, run: function () { goToken(t.name); } }); }); });
+    S.components.forEach(function (c) { if (hit(c.name)) out.push({ label: c.name, sub: T.components, icon: "components", run: function () {
+      state.section = "components"; state.sel = { kind: "component", name: c.name }; render(); } }); });
+    Object.keys(C.files).forEach(function (p) { if (hit(p)) out.push({ label: p, sub: T.files, icon: "files", run: function () { state.file = p; go("files"); } }); });
+    return out.slice(0, 40);
+  }
+  var searchIn = h("input", { type: "search", "class": "ds-nav-search", placeholder: T.search, "aria-label": T.search, spellcheck: "false" });
+  searchIn.addEventListener("input", function () { state.q = searchIn.value; drawNav(); });
+  searchIn.addEventListener("keydown", function (e) { if (e.key === "Escape") { searchIn.value = ""; state.q = ""; drawNav(); } });
+  function navBtn(id, title, on, run, extra) {
+    return h("button", { type: "button", "class": "ds-nav-i" + (on ? " on" : ""), "aria-current": on ? "page" : null, onclick: run },
+      [h("span", { "class": "ds-nav-ic", html: navIcon(id) }), h("span", { "class": "ds-nav-t", text: title }), extra ? h("span", { "class": "ds-nav-n", text: extra }) : null]);
+  }
   function drawNav() {
-    var items = navItems(), last = null, kids = [];
+    var items = navItems(), kids = [h("div", { "class": "ds-nav-s" }, [h("span", { "class": "ds-nav-ic", html: navIcon("search") }), searchIn])];
     if (!items.some(function (x) { return x.id === state.section; })) state.section = "overview";
-    items.forEach(function (it) {
-      if (it.part !== last) {
-        if (it.part === "sections") kids.push(h("div", { "class": "ds-nav-h", text: T.sections }));
-        if (it.part === "foundations") kids.push(h("div", { "class": "ds-nav-h", text: T.foundations }));
-        if (it.part === "build" && last !== "build") kids.push(h("div", { "class": "ds-nav-h ds-nav-gap" }));
-        last = it.part;
-      }
-      kids.push(h("button", { type: "button", "class": "ds-nav-i" + (it.id === state.section ? " on" : ""), "aria-current": it.id === state.section ? "page" : null,
-        text: it.title, onclick: function () { go(it.id); } }));
+    var q = String(state.q || "").trim();
+    if (q) {
+      var hits = searchHits(q);
+      hits.forEach(function (r) { kids.push(navBtn(r.icon, r.label, false, function () { r.run(); }, r.sub)); });
+      if (!hits.length) kids.push(h("p", { "class": "ds-nav-none", text: T.noMatch }));
+    } else items.forEach(function (it) {
+      if (it.id === "files") return;
+      kids.push(navBtn(it.id, it.title, it.id === state.section, function () { go(it.id); }));
     });
+    var foot = [navBtn("files", T.files, state.section === "files", function () { go("files"); }, String(Object.keys(C.files).length))];
     var lc = S.index.lastChange;
-    if (lc && (lc.by || lc.at)) kids.push(h("div", { "class": "ds-nav-foot", text: T.updated(lc.by, String(lc.at || "").slice(0, 10)) }));
+    foot.push(h("div", { "class": "ds-nav-meta" }, [statusEl, lc && (lc.by || lc.at) ? h("span", { text: T.updated(lc.by, String(lc.at || "").slice(0, 10)) }) : null]));
+    kids.push(h("div", { "class": "ds-nav-foot" }, foot));
     nav.replaceChildren.apply(nav, kids);
   }
   function go(id) {
@@ -320,7 +365,7 @@
   }
 
   // ------------------------------------------------------------------ shared bits
-  function heading(text, extra) { return h("div", { "class": "ds-head" }, [h("h1", { text: text })].concat(extra || [])); }
+  function heading(text, extra) { return h("div", { "class": "ds-head" }, [h("h1", { text: text })].concat((extra || []).filter(Boolean))); }
   function problemsNote(list) {
     if (!list.length) return null;
     return h("details", { "class": "ds-problems" }, [
@@ -896,7 +941,7 @@
   function tableHead(cols) { return h("thead", {}, [h("tr", {}, cols.map(function (c) { return h("th", { "class": c.cls || null, text: c.text || "" }); }))]); }
   function themeCols() { return multiTheme() ? S.m.themes.map(function (t) { return { text: t.name }; }) : [{ text: T.value }]; }
   function colorView() {
-    var kids = [heading(T.colors)];
+    var kids = [heading(T.colors, [themeSelect()])];
     if (S.m.note) kids.push(h("p", { "class": "ds-muted", text: S.m.note }));
     var pn = problemsNote(familyProblems("color")); if (pn) kids.push(pn);
     if (!S.m.colors.length) kids.push(askBox("colors"));
@@ -987,7 +1032,7 @@
   function famView(key) {
     var f = S.m.families.filter(function (x) { return x.key === key; })[0];
     if (!f) return [heading(key), h("p", { "class": "ds-muted", text: T.empty })];
-    var kids = [heading(T.fam[f.key] || f.title)];
+    var kids = [heading(T.fam[f.key] || f.title, f.kind === "shadow" ? [themeSelect()] : [])];
     if (f.note) kids.push(h("p", { "class": "ds-muted", text: f.note }));
     var pn = problemsNote(familyProblems(key)); if (pn) kids.push(pn);
     var shadow = f.kind === "shadow", cols = shadow ? themeCols() : [{ text: T.value }, { text: X.preview }], body = h("tbody");
@@ -1301,14 +1346,7 @@
     return out;
   }
   function componentView() {
-    var tools = [];
-    if (multiTheme()) {
-      var sel = h("select", { "class": "ds-in ds-theme-sel", "aria-label": T.theme }, S.m.themes.map(function (t) { return h("option", { value: t.id, text: t.name }); }));
-      sel.value = state.theme;
-      sel.addEventListener("change", function () { state.chosenTheme = true; setTheme(sel.value); });
-      tools.push(sel);
-    }
-    var kids = [heading(T.components, tools)];
+    var kids = [heading(T.components, [themeSelect()])];
     if (reactMissing()) kids.push(h("div", { "class": "ds-banner", text: T.reactMissing }));
     if (!S.components.length) { kids.push(askBox("components")); return kids; }
     var groups = [], by = {};
@@ -1512,7 +1550,8 @@
           h("code", { text: p }), isGenerated(p) ? h("span", { "class": "ds-tag", text: "gen" }) : null]));
       });
     });
-    return [heading(T.files, [h("span", { "class": "ds-muted", text: paths.length + " · " + fmtSize(paths.reduce(function (s, p) { return s + sizeOf(p); }, 0)) })]),
+    expBtn.classList.add("ds-exp");
+    return [heading(T.files, [h("span", { "class": "ds-muted", text: paths.length + " · " + fmtSize(paths.reduce(function (s, p) { return s + sizeOf(p); }, 0)) }), expBtn]),
       h("div", { "class": "ds-fb" }, [list, cur ? filePane(cur) : h("div")])];
   }
   function filePane(p) {
