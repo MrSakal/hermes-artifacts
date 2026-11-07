@@ -615,23 +615,28 @@ function ago(ts) {
 
 const C = {
   bg: 'var(--background)',
-  fg: 'var(--foreground)',
+  fg: 'var(--ui-text-primary, var(--foreground))',
   text2: 'var(--ui-text-secondary)',
   text3: 'var(--ui-text-tertiary)',
   text4: 'var(--ui-text-quaternary)',
   line: 'var(--ui-stroke-secondary)',
   hover: 'var(--chrome-action-hover)',
   // Everything from Hermes' theme (a skin changes it all): surfaces, accent, font, radius scale.
-  card: 'var(--ui-bg-elevated, color-mix(in srgb, var(--foreground) 5%, var(--background)))',
-  hair: 'var(--ui-stroke-secondary)',
+  card: 'var(--ui-bg-card, color-mix(in srgb, var(--foreground) 5%, var(--background)))',
+  pop: 'var(--ui-bg-elevated, var(--background))', // menus, tooltips, dialogs
+  input: 'var(--ui-bg-input, transparent)',
+  rowHover: 'var(--ui-row-hover-background, var(--chrome-action-hover))',
+  rowActive: 'var(--ui-row-active-background, var(--chrome-action-hover))',
+  hair: 'var(--ui-stroke-tertiary, var(--ui-stroke-secondary))',
+  danger: 'var(--ui-red, #e5484d)',
   accent: 'var(--ui-accent, var(--foreground))',
   accentBg: 'color-mix(in srgb, var(--ui-accent, var(--foreground)) 16%, var(--background))',
   rSm: 'var(--radius-sm, 6px)', // buttons, inputs, menu rows
   rMd: 'var(--radius-md, 8px)',
   rLg: 'var(--radius-lg, 10px)', // menus, tooltips
   rXl: 'var(--radius-xl, 14px)', // cards, dialogs
-  shadowPop: '0 0 0 1px var(--ui-stroke-secondary), 0 10px 30px rgba(0,0,0,.25)',
-  shadowModal: '0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px rgba(0,0,0,.35)'
+  shadowPop: 'var(--shadow-md, 0 10px 30px rgba(0,0,0,.25))',
+  shadowModal: 'var(--shadow-lg, 0 18px 48px rgba(0,0,0,.35))'
 }
 const font = { fontFamily: 'var(--font-sans, inherit)' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
@@ -727,7 +732,7 @@ function IconButton({ icon, title, onClick, active, label, danger }) {
       border: 0,
       cursor: 'pointer',
       fontSize: 12,
-      color: danger ? '#e5484d' : active || h ? C.fg : C.text2,
+      color: danger ? C.danger : active || h ? C.fg : C.text2,
       background: active ? C.hover : h ? C.hover : 'transparent'
     },
     children: [jsx(Icon, { name: icon }), label ? jsx('span', { children: label }) : null]
@@ -945,7 +950,7 @@ function NewTile({ ctx, kind }) {
         ? jsxs('div', {
             role: 'tooltip',
             style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '10px 12px', borderRadius: C.rLg,
-              background: C.bg, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
+              background: C.pop, border: `1px solid ${C.line}`, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
             children: [
               jsx('div', { style: { fontSize: 13, fontWeight: 500, color: C.fg }, children: t(`tile_${kind}`) }),
               jsx('div', { style: { fontSize: 11.5, color: C.text3, margin: '1px 0 4px' }, children: t('tileBy') }),
@@ -1097,7 +1102,7 @@ function RenameDialog({ ctx, art, onClose }) {
     onMouseDown: e => e.stopPropagation(),
     style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)' },
     children: jsxs('div', {
-      style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 22, borderRadius: C.rXl, background: C.bg, boxShadow: C.shadowModal },
+      style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 22, borderRadius: C.rXl, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowModal },
       children: [
         jsx('div', { style: { fontSize: 16, fontWeight: 600, color: C.fg, marginBottom: 14 }, children: t('renameTitle') }),
         jsx('input', {
@@ -1106,7 +1111,7 @@ function RenameDialog({ ctx, art, onClose }) {
           onFocus: e => e.target.select(),
           onChange: e => setName(e.target.value),
           onKeyDown: e => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') save() },
-          style: { ...font, width: '100%', boxSizing: 'border-box', height: 36, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.hair}`, background: C.card, color: C.fg, fontSize: 15, outline: 'none' }
+          style: { ...font, width: '100%', boxSizing: 'border-box', height: 36, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 15, outline: 'none' }
         }),
         jsxs('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }, children: [
           jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 32, padding: '0 14px', borderRadius: C.rSm, border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
@@ -1191,7 +1196,7 @@ function ListRow({ ctx, art }) {
         role: 'button',
         tabIndex: 0,
         onClick: () => !renaming && openArtifact(ctx, art.id),
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.card : 'transparent', boxSizing: 'border-box' },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
           jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
@@ -1363,7 +1368,7 @@ function Gallery({ ctx, pageRef }) {
                       onChange: e => $query.set(e.target.value),
                       onBlur: () => !query && setSearching(false),
                       onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
+                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 13, outline: 'none' }
                     })
                   : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
@@ -1579,6 +1584,12 @@ function hostTheme() {
   }
   const root = getComputedStyle(document.documentElement)
   const val = v => root.getPropertyValue(v).trim() || null
+  const px = v => {
+    probe.style.borderRadius = ''
+    probe.style.borderRadius = `var(${v})`
+    const r = getComputedStyle(probe).borderTopLeftRadius
+    return /^[\d.]+px$/.test(r) ? r : null
+  }
   const out = {
     bg: color('--background'),
     panel: color('--ui-bg-elevated'),
@@ -1588,10 +1599,21 @@ function hostTheme() {
     line: color('--ui-stroke-secondary'),
     strong: color('--ui-stroke-primary'),
     accent: color('--ui-accent'),
-    hover: color('--chrome-action-hover'),
+    hover: color('--ui-row-hover-background') || color('--chrome-action-hover'),
+    card: color('--ui-bg-card'),
+    elevated: color('--ui-bg-elevated'),
+    input: color('--ui-bg-input'),
+    bad: color('--ui-red'),
+    ok: color('--ui-green'),
+    warn: color('--ui-yellow'),
+    selection: color('--ui-selection-background'),
     font: val('--font-sans') || getComputedStyle(document.body).fontFamily,
     mono: val('--font-mono'),
-    radius: val('--radius')
+    radius: val('--radius'),
+    // The radius scale resolved to px (it is calc() on a skin's scalar), for the page's chrome.
+    radiusSm: px('--radius-sm'),
+    radiusMd: px('--radius-md'),
+    radiusLg: px('--radius-lg')
   }
   probe.remove()
   return out
@@ -1943,7 +1965,7 @@ function FloatingChat({ ctx, art }) {
             : null,
           ...msgs.map((m, i) => jsx(ChatMessage, { m }, m.row_id || i)),
           waiting || running ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('working') }) : null,
-          err ? jsx('div', { style: { fontSize: 12, color: '#e5484d' }, children: err }) : null
+          err ? jsx('div', { style: { fontSize: 12, color: C.danger }, children: err }) : null
         ]
       }),
       jsx('div', {
@@ -2002,7 +2024,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   }, [])
   return jsx('div', {
     ref,
-    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, background: C.bg, boxShadow: C.shadowPop },
+    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowPop },
     children: items.filter(Boolean).map((it, i) =>
       it.sep
         ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.hair } }, `s${i}`)
@@ -2016,7 +2038,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
                 placeholder: it.placeholder,
                 onChange: e => it.onChange(e.target.value),
                 onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
-                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
+                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 13, outline: 'none' }
               })
             : jsx(MenuRow, { it }, it.key || it.label)
     )
@@ -2043,8 +2065,8 @@ function MenuRow({ it }) {
       textAlign: 'left',
       fontSize: 14,
       cursor: it.disabled ? 'default' : 'pointer',
-      color: it.danger ? '#e5484d' : it.disabled ? C.text4 : C.fg,
-      background: h && !it.disabled ? C.card : 'transparent'
+      color: it.danger ? C.danger : it.disabled ? C.text4 : C.fg,
+      background: h && !it.disabled ? C.rowHover : 'transparent'
     },
     children: [
       it.box

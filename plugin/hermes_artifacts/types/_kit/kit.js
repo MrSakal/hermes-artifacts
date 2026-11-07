@@ -149,6 +149,11 @@
     set("--color-bg", v.bg); set("--color-panel", v.panel); set("--color-fg", v.fg); set("--color-fg-secondary", v.fg2);
     set("--color-fg-muted", v.muted); set("--color-border-line", v.line); set("--color-border-strong", v.strong);
     set("--color-hover", v.hover);
+    set("--color-bad", v.bad); set("--color-ok", v.ok); set("--color-warn", v.warn);
+    if (ok(v.elevated)) st.setProperty("--color-elevated", v.elevated);
+    var px = function (r) { return typeof r === "string" && /^[\d.]+px$/.test(r); };
+    if (px(v.radiusSm)) st.setProperty("--kit-r-sm", v.radiusSm);
+    if (px(v.radiusLg)) st.setProperty("--kit-r-lg", v.radiusLg);
     if (ok(v.accent)) {
       st.setProperty("--color-accent", v.accent);
       st.setProperty("--chart-1", v.accent);
