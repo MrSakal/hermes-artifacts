@@ -273,7 +273,7 @@
       kit.labelled(kit.button(T.editWith, "sparkle", function () { askEdit(sel); }), T.editWith),
       kit.labelled(kit.button(T.comment, "comment", function () {
         selBar.hidden = true;
-        hm.comment && hm.comment({ selector: "#blk-" + sel.ids[0], text: sel.text.slice(0, 200), label: "text" });
+        hm.comment && hm.comment({ selector: "#blk-" + sel.ids[0], text: sel.text.slice(0, 200), label: "text", tab: tabs[cur] && tabs[cur].id });
       }), T.comment));
     selBar.hidden = false;
     var top = sel.rect.top - selBar.offsetHeight - 8;

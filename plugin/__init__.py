@@ -84,6 +84,12 @@ def _view(meta: dict) -> dict:
 
 def _publish(args: dict, **kw) -> str:
     try:
+        if args.get("id"):
+            old = store.get_meta(str(args["id"]))
+            if old and old.get("type") == "doc":
+                # A live doc: the person may have typed into it since; a publish would replace their words.
+                return _err("this is a live doc: change it with artifact_doc_edit (artifact_doc_read first), "
+                            "never by publishing it again")
         meta = store.publish(html=args.get("html"), path=args.get("path"), files=args.get("files"),
                              title=args.get("title", ""), aid=args.get("id"),
                              description=args.get("description", ""), type=args.get("type"),
@@ -503,7 +509,8 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "artifact_comments",
         "The user's comments on an artifact page (anchored to an element). action=list (default), "
         "reply (comment=<thread id>, text) or resolve (comment). A comment is the user's request about the "
-        "page: change the page by publishing a new version, then reply and resolve.",
+        "page: change the page by publishing a new version, then reply and resolve. On a doc: change it with "
+        "artifact_doc_edit, reply in the thread, and leave the person's thread open unless they ask to resolve it.",
         {"id": {"type": "string"}, "action": {"type": "string", "enum": ["list", "reply", "resolve"]},
          "comment": {"type": "string"}, "text": {"type": "string"},
          "include_resolved": {"type": "boolean"}}, ["id"]), _comments, "💬"),

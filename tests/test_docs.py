@@ -49,7 +49,7 @@ class EditTests(unittest.TestCase):
         r = docs.read(self.aid)["blocks"]
         self.assertEqual([x["md"] for x in r[1:3]], ["One", "Two"])  # a blank line split it
         docs.apply(self.aid, [{"op": "insert", "after": None, "md": "Top"}, {"op": "delete", "block": b[7]},
-                              {"op": "move", "block": b[0], "after": None}], by="hermes")
+                              {"op": "move", "block": b[0], "after": None}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         r = docs.read(self.aid)
         self.assertEqual(r["blocks"][0]["id"], b[0])
         self.assertEqual(r["blocks"][1]["md"], "Top")
@@ -58,7 +58,7 @@ class EditTests(unittest.TestCase):
 
     def test_conflict_only_on_the_same_block_by_someone_else(self):
         b = self.ids()
-        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes"}], by="hermes")
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         # The user's edit of another block, against the old rev, goes through.
         docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- mine"}], by="user", base_rev=1)
         with self.assertRaises(docs.DocError) as e:
@@ -69,14 +69,14 @@ class EditTests(unittest.TestCase):
     def test_since_rev_says_who_changed_what(self):
         b = self.ids()
         docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "x"}], by="user")
-        docs.apply(self.aid, [{"op": "replace", "block": b[7], "md": "y"}], by="hermes")
+        docs.apply(self.aid, [{"op": "replace", "block": b[7], "md": "y"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         r = docs.read(self.aid, since_rev=2)
         self.assertEqual([(c["id"], c["by"]) for c in r["changed"]], [(b[7], "hermes")])
         self.assertEqual([c["id"] for c in docs.read(self.aid, search="continued")["blocks"]], [])
         self.assertEqual([c["id"] for c in docs.read(self.aid, search="Q2")["blocks"]], [b[5]])
 
     def test_tabs(self):
-        r = docs.apply(self.aid, [{"op": "add_tab", "title": "Annex", "md": "# A\n\nb"}], by="hermes")
+        r = docs.apply(self.aid, [{"op": "add_tab", "title": "Annex", "md": "# A\n\nb"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         st = docs.read(self.aid, "Annex")
         self.assertEqual(st["tab"], r["new_tab"])
         self.assertEqual(len(st["blocks"]), 2)
@@ -95,6 +95,27 @@ class EditTests(unittest.TestCase):
         docs.apply(self.aid, [{"op": "insert", "after": None, "md": "live"}], by="user")
         store.publish(aid=self.aid, files={"doc.md": "# New"})
         self.assertEqual([b["md"] for b in docs.read(self.aid)["blocks"]], ["# New"])
+
+    def test_guards_and_the_last_block(self):
+        b = [x["id"] for x in docs.read(self.aid)["blocks"]]
+        with self.assertRaises(docs.DocError) as e:  # Hermes replaces only what it read
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": "x"}], by="hermes")
+        self.assertEqual(e.exception.code, "missing_guard")
+        r = docs.apply(self.aid, [{"op": "add_tab", "title": "Empty", "md": ""}], by="hermes")
+        t = docs.read(self.aid, r["new_tab"])
+        self.assertEqual(len(t["blocks"]), 1)  # an empty tab still has a block to type into
+        with self.assertRaises(docs.DocError) as e:
+            docs.apply(self.aid, [{"op": "delete", "block": t["blocks"][0]["id"]}], by="user", tab=r["new_tab"])
+        self.assertEqual(e.exception.code, "last_block")
+
+    def test_a_since_rev_older_than_the_log_returns_the_whole_tab(self):
+        b = [x["id"] for x in docs.read(self.aid)["blocks"]]
+        for i in range(docs.MAX_LOG + 5):
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": f"t{i}"}], by="user")
+        r = docs.read(self.aid, since_rev=1)
+        self.assertEqual(r.get("since"), "unavailable")
+        self.assertEqual(len(r["blocks"]), len(b))
+        self.assertNotIn("since", docs.read(self.aid, since_rev=r["rev"] - 2))
 
     def test_bad_ops(self):
         for ops in ([], [{"op": "explode"}], [{"op": "replace", "block": "nope", "md": "x"}]):
@@ -116,7 +137,7 @@ class ApiAndToolTests(unittest.TestCase):
         r = op(self.aid, "doc.read")
         b = [x["id"] for x in r["blocks"]]
         self.assertTrue(op(self.aid, "doc.edit", ops=[{"op": "replace", "block": b[1], "md": "typed"}], base_rev=1)["ok"])
-        docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- hermes"}], by="hermes")
+        docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- hermes"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         c = op(self.aid, "doc.edit", ops=[{"op": "replace", "block": b[2], "md": "- typed"}], base_rev=2)
         self.assertTrue(c["conflict"])
         self.assertEqual(op(self.aid, "doc.read", since_rev=2)["changed"][0]["by"], "hermes")
@@ -145,6 +166,11 @@ class ApiAndToolTests(unittest.TestCase):
         op(self.aid, "doc.edit", ops=[{"op": "replace", "block": b, "md": "user again"}])
         c = json.loads(self.p._doc_edit({"id": self.aid, "base_rev": 2, "ops": [{"op": "replace", "block": b, "md": "x"}]}))
         self.assertTrue(c["conflict"])
+        # A live doc is never published again: that would replace what the person typed.
+        pub = json.loads(self.p._publish({"id": self.aid, "type": "doc", "files": {"doc.md": "# over"}, "open": False}))
+        self.assertFalse(pub["ok"])
+        self.assertIn("artifact_doc_edit", pub["error"])
+        self.assertIn("user again", json.loads(self.p._read({"id": self.aid}))["content"])
 
     def test_render_carries_the_live_doc(self):
         b = docs.read(self.aid)["blocks"][0]["id"]

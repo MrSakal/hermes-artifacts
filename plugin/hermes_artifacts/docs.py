@@ -151,8 +151,13 @@ def _fresh(aid: str, meta: dict) -> dict:
             md = store.read_file(aid, "doc.md").decode("utf-8")
         except FileNotFoundError:
             md = ""
-        tabs = [{"id": _new_id("t"), "title": meta.get("title", "Doc")[:120], "blocks": blocks_from_markdown(md), "rev": 1}]
+        tabs = [{"id": _new_id("t"), "title": meta.get("title", "Doc")[:120], "blocks": _some(blocks_from_markdown(md)), "rev": 1}]
     return {"version": meta["versions"][-1]["n"], "tabs": tabs, "log": [], "edits": 0, "updated": time.time()}
+
+
+def _some(blocks: list) -> list:
+    """A tab always holds a block (an empty one to type into)."""
+    return blocks or [{"id": _new_id(), "md": ""}]
 
 
 def load(aid: str) -> dict:
@@ -206,6 +211,13 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
     out = {"tab": t["id"], "title": t["title"], "rev": t["rev"], "tabs": overview(st), "edits": st.get("edits", 0)}
     view = [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in t["blocks"]]
     if since_rev is not None:
+        # The log keeps the last entries only: older than that, the whole tab comes back (Claude's
+        # since: "unavailable"), never a delta that silently misses changes.
+        revs = sorted(e["rev"] for e in st["log"] if e["tab"] == t["id"])
+        if int(since_rev) < t["rev"] and (not revs or revs[0] > int(since_rev) + 1):
+            out["since"] = "unavailable"
+            out["blocks"] = view
+            return out
         changed = {}
         for e in st["log"]:
             if e["tab"] == t["id"] and e["rev"] > since_rev:
@@ -244,6 +256,9 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
     with _LOCK:
         st = load(aid)
         t = _tab(st, tab)
+        if by == "hermes" and base_rev is None and any(o.get("op") in ("replace", "delete") for o in ops):
+            raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (artifact_doc_read)",
+                           rev=t["rev"])
         if base_rev is not None:
             touched = {o.get("block") for o in ops if o.get("block")}
             for e in st["log"]:
@@ -271,6 +286,8 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
                 changed += [b["id"] for b in new]
             elif kind == "delete":
                 i = _index(t, str(o.get("block")))
+                if len(t["blocks"]) == 1:
+                    raise DocError("last_block", "a tab keeps at least one block: replace it instead")
                 changed.append(t["blocks"].pop(i)["id"])
             elif kind == "move":
                 i = _index(t, str(o.get("block")))
@@ -281,7 +298,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
                 changed.append(b["id"])
             elif kind == "add_tab":
                 new_tab = {"id": _new_id("t"), "title": str(o.get("title") or "Tab")[:120],
-                           "blocks": blocks_from_markdown(o.get("md") or ""), "rev": 1}
+                           "blocks": _some(blocks_from_markdown(o.get("md") or "")), "rev": 1}
                 st["tabs"].append(new_tab)
             elif kind == "rename_tab":
                 t["title"] = str(o.get("title") or t["title"])[:120]

@@ -534,7 +534,7 @@ def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[d
         raise ValueError("bad author")
     anchor = anchor if isinstance(anchor, dict) else None
     if anchor:  # only short, plain fields
-        anchor = {k: str(anchor[k])[:500] for k in ("selector", "text", "label") if anchor.get(k)}
+        anchor = {k: str(anchor[k])[:500] for k in ("selector", "text", "label", "tab") if anchor.get(k)}
     with _LOCK:
         items = comments_list(aid)
         if parent and not any(c["id"] == parent for c in items):

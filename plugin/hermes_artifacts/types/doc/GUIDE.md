@@ -48,8 +48,13 @@ Requests from inside the doc reach you as chat messages:
   `request=<id>` from the message.
 - **Edit with Hermes** (`[Edit with Hermes …]`): the user selected text and said what to change. Change
   only the named blocks, keeping everything else as it is.
-- **Comments** (`[comment on the artifact …]`) anchor to a block (`#blk-<id>`): fix that block with
-  `artifact_doc_edit`, then reply and resolve with `artifact_comments`.
+- **Comments** (`[comment on the doc …]`) name their tab and block: fix that block with
+  `artifact_doc_edit`, then reply in the thread with `artifact_comments`. Leave a thread a person wrote
+  open: resolve it only when they ask you to in chat.
+- Never publish a doc again (`artifact_publish` with its id is refused): the person may have typed into
+  it since. Every change is an `artifact_doc_edit`; `replace` and `delete` need `base_rev`, the rev you
+  read. A tab always keeps one block (`last_block`: replace it instead). A `since_rev` read that comes
+  back with `since: "unavailable"` holds the whole tab: read it as new.
 
 Keep the chat reply to one line: the change is in the doc.
 
