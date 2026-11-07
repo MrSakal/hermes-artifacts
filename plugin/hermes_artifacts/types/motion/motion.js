@@ -680,7 +680,8 @@
     if (muted) { if (live) live.stop(); }
     else if (live && live.ready()) startSound();
   }
-  controls.append(playBtn, backBtn, fwdBtn, timeEl, tl, commentBtn, loopBtn, muteBtn, kit.button("", "presenter", function () { present(!presenting); }, T.present));
+  controls.append(tl, playBtn, backBtn, fwdBtn, timeEl, h("span", { "class": "mo-spacer" }), commentBtn, loopBtn, muteBtn,
+    kit.button("", "presenter", function () { present(!presenting); }, T.present));
 
   function continueMsg() {
     var left = timeline.filter(function (s) { return s.state !== "ok"; }).map(function (s) { return s.index + 1; });

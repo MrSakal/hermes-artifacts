@@ -21,11 +21,15 @@ html, body { overflow: hidden; }
 .mo-rough { filter: grayscale(1) contrast(1.15); }
 
 /* Transport */
-#mo-controls { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px 10px; background: var(--color-bg);
-  border-top: 1px solid var(--color-border-line); user-select: none; }
-#mo-controls .kit-btn { padding: 0 7px; }
-.mo-time { font: 500 12px/1 var(--font-mono); color: var(--color-fg-secondary); min-width: 116px; text-align: center; font-variant-numeric: tabular-nums; }
-.mo-tl { position: relative; flex: 1; height: 40px; cursor: pointer; touch-action: none; }
+/* The player: the timeline across the whole width, then one row of controls under it (play, step and
+   time on the left; comment, loop, sound and present on the right), at any width. */
+#mo-controls { flex: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; row-gap: 2px;
+  padding: 4px 12px 8px; background: var(--color-bg); border-top: 1px solid var(--color-border-line); user-select: none; }
+#mo-controls .kit-btn { height: 30px; min-width: 30px; justify-content: center; padding: 0 7px; }
+#mo-controls .kit-btn svg { width: 16px; height: 16px; }
+.mo-time { font: 500 12px/30px var(--font-mono); color: var(--color-fg-secondary); padding: 0 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mo-spacer { flex: 1; }
+.mo-tl { order: -1; position: relative; flex: 1 1 100%; height: 40px; cursor: pointer; touch-action: none; }
 .mo-segs { position: absolute; left: 0; right: 0; top: 10px; height: 26px; display: flex; gap: 2px; }
 .mo-seg { position: relative; min-width: 0; height: 100%; border-radius: 4px; background: var(--color-hover); overflow: hidden;
   font-size: 11px; line-height: 26px; padding: 0 6px; color: var(--color-fg-muted); white-space: nowrap; text-overflow: ellipsis; }
