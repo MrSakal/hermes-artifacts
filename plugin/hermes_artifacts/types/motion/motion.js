@@ -662,7 +662,7 @@
     kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
   }), T.exp);
   expBtn.hidden = true;
-  var titleEl = h("span", { "class": "kit-title", style: "font-weight:400;font-size:12px;color:var(--color-fg-muted)" });
+  var titleEl = h("span", { "class": "kit-title", style: "visibility:hidden" }); // the host's toolbar shows the title
 
   var playBtn = kit.button("", "play", toggle, T.play);
   var backBtn = kit.button("", "prev", function () { stepFrame(-1); }, T.back);
@@ -680,7 +680,7 @@
     if (muted) { if (live) live.stop(); }
     else if (live && live.ready()) startSound();
   }
-  controls.append(playBtn, backBtn, fwdBtn, timeEl, tl, loopBtn, muteBtn, kit.button("", "presenter", function () { present(!presenting); }, T.present));
+  controls.append(playBtn, backBtn, fwdBtn, timeEl, tl, commentBtn, loopBtn, muteBtn, kit.button("", "presenter", function () { present(!presenting); }, T.present));
 
   function continueMsg() {
     var left = timeline.filter(function (s) { return s.state !== "ok"; }).map(function (s) { return s.index + 1; });
@@ -1010,9 +1010,12 @@
       drawer.appendChild(h("h3", { text: T.colors }));
       var pals = h("div", { "class": "mo-pals" });
       var palList = [cols.map(function (c) { return c.base; })].concat(Array.isArray(SJ && SJ.palettes) ? SJ.palettes : []);
+      var picked = REC.recolored && typeof REC.recolored.palette === "number" ? REC.recolored.palette : null, marked = false;
       palList.forEach(function (p, i) {
         if (!Array.isArray(p) || p.length < cols.length || !p.every(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); })) return;
-        var on = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
+        var same = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
+        var on = same && !marked && (picked == null || picked === i);
+        if (on) marked = true;
         var b = h("button", { "class": "mo-pal" + (on ? " on" : ""), type: "button", title: p.join(" ") }, [
           h("i", { style: "background:linear-gradient(90deg," + p.slice(0, 4).map(function (c, j) { return c + " " + j * 25 + "% " + (j + 1) * 25 + "%"; }).join(",") + ")" }),
           h("span", { text: i === 0 ? T.original : (i <= ((SJ && SJ.theirs) | 0) ? "★ " : "") + "#" + i })]);
@@ -1356,6 +1359,9 @@
   // ------------------------------------------------------------------ layout
   function fit() {
     var r = view.getBoundingClientRect(), pad = presenting || C.thumb ? 0 : 24;
+    // Tweaks lies over the right side: the film fits in what is left beside it.
+    var dw = !presenting && drawer && drawer.isConnected ? Math.min(drawer.offsetWidth, r.width * 0.7) : 0;
+    r = { width: r.width - dw, height: r.height };
     var k = Math.min((r.width - pad * 2) / W, (r.height - pad * 2) / H);
     if (!(k > 0)) return;
     frame.style.transform = "scale(" + k + ")";
@@ -1366,7 +1372,7 @@
   new ResizeObserver(fit).observe(view);
 
   // ------------------------------------------------------------------ start
-  bar.append(titleEl, roughBadge, contBtn, finBtn, statusEl, retryBtn, commentBtn, tweaksBtn, expBtn);
+  bar.append(titleEl, roughBadge, contBtn, finBtn, statusEl, retryBtn, tweaksBtn, expBtn);
   titleEl.textContent = TITLE;
   if (!editable) tweaksBtn.hidden = true;
   if (!(window.hermes && window.hermes.comment)) commentBtn.hidden = true;

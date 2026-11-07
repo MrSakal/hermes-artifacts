@@ -56,7 +56,7 @@ html, body { overflow: hidden; }
 #mo-view.picking { cursor: crosshair; }
 
 /* Tweaks drawer */
-.mo-drawer { padding: 14px 16px 30px; }
+.mo-drawer { padding: 14px 16px 30px; width: min(420px, 62%); } /* the film stays in sight beside it */
 .mo-drawer h3 { margin: 18px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-fg-muted); font-weight: 600; }
 .mo-drawer h3:first-child { margin-top: 0; }
 .mo-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }

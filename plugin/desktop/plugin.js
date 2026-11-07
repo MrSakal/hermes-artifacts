@@ -451,6 +451,7 @@ function PinnedPage({ ctx, id }) {
   return jsx(Page, { ctx })
 }
 
+let listedOnce = false // the list has loaded since start (the pinned sidebar rows come from it)
 async function refresh(ctx) {
   try {
     const r = await ctx.rest('/artifacts')
@@ -461,6 +462,7 @@ async function refresh(ctx) {
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
     if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
     syncPinnedNav(ctx, list)
+    listedOnce = true
     $error.set(null)
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
     const now = current()
@@ -2496,8 +2498,25 @@ function CommentsPanel({ ctx, art, portRef }) {
   const open = roots.filter(c => !c.resolved)
   const done = roots.filter(c => c.resolved)
   const replies = id => comments.filter(c => c.parent === id)
+  // Beside the artifact when there is room; over it when the view is narrow (a split), so the artifact
+  // is never squeezed to a sliver.
+  const box = useRef(null)
+  const [narrow, setNarrow] = useState(false)
+  useLayoutEffect(() => {
+    const host = box.current?.parentElement
+    if (!host) return undefined
+    const check = () => setNarrow(host.clientWidth < 760)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(host)
+    return () => ro.disconnect()
+  }, [])
   return jsxs('aside', {
-    style: { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: `1px solid ${C.line}`, background: C.bg },
+    ref: box,
+    style: narrow
+      ? { position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 30, width: 'min(340px, 92%)', display: 'flex', flexDirection: 'column', minHeight: 0,
+          borderLeft: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowModal }
+      : { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: `1px solid ${C.line}`, background: C.bg },
     children: [
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 8px 0 14px', borderBottom: `1px solid ${C.line}` },
@@ -2583,7 +2602,7 @@ function Viewer({ ctx, docked = false }) {
     children: [
       jsx(Header, { ctx, art, v, portRef, docked }),
       jsxs('div', {
-        style: { display: 'flex', flex: 1, minHeight: 0 },
+        style: { position: 'relative', display: 'flex', flex: 1, minHeight: 0 },
         children: [
           jsxs('div', {
             id: docked ? undefined : `${ID}-stage`,
@@ -2759,8 +2778,11 @@ export default {
     ctx.onEvent(`plugin.${ID}.comments`, () => loadComments(ctx))
     ctx.onEvent(`plugin.${ID}.doc`, ev => docListeners.forEach(fn => fn(payloadOf(ev).id)))
     ctx.onEvent(`plugin.${ID}.deleted`, () => refresh(ctx))
+    // The pinned rows in the sidebar come from the list: load it at start (retrying until the backend
+    // answers), not only when the Artifacts page is opened.
+    refresh(ctx)
     ctx.setInterval(() => {
-      if (window.location.hash.startsWith(`#${PAGE}`)) refresh(ctx)
+      if (window.location.hash.startsWith(`#${PAGE}`) || !listedOnce) refresh(ctx)
     }, 5000)
 
     return () => {
