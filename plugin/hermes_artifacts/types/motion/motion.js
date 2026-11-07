@@ -1103,6 +1103,15 @@
     saveRecords({ refaced: Object.keys(rf.slots).length ? rf : null });
   }
 
+  // A click on the picture plays or pauses it, as in any video player (a double click retypes words,
+  // so the single click waits a moment to be sure it is one).
+  var clickTimer = null;
+  frame.addEventListener("click", function () {
+    if (tweaksOpen || picking || editor || !editable) return;
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(toggle, 220);
+  });
+  frame.addEventListener("dblclick", function () { clearTimeout(clickTimer); });
   // Select a thing on the paused picture (Tweaks open): its color, size, weight, or hide it.
   frame.addEventListener("click", function (e) {
     if (!tweaksOpen || playing || picking || custom) return;
@@ -1362,6 +1371,8 @@
     var r = view.getBoundingClientRect(), pad = presenting || C.thumb ? 0 : 24;
     // Tweaks lies over the right side: the film fits in what is left beside it.
     var dw = !presenting && drawer && drawer.isConnected ? Math.min(drawer.offsetWidth, r.width * 0.7) : 0;
+    // Tweaks ends above the player row, so play, loop and sound stay clickable while it is open.
+    if (drawer) drawer.style.bottom = (controls.offsetHeight || 0) + "px";
     r = { width: r.width - dw, height: r.height };
     var k = Math.min((r.width - pad * 2) / W, (r.height - pad * 2) / H);
     if (!(k > 0)) return;
