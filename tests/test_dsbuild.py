@@ -10,7 +10,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 
 from hermes_artifacts import dsbuild, store  # noqa: E402
@@ -51,7 +52,7 @@ class BuildTests(unittest.TestCase):
         names = {(p["family"], p["name"]) for p in m["problems"]}
         self.assertTrue({("color", "bad"), ("color", "loop"), ("spacing", "space-x")} <= names)
         if NODE:
-            r = subprocess.run([NODE, "-e", PARITY, str(ROOT / "hermes_artifacts" / "types" / "_kit" / "ds.js"), json.dumps(TOKENS)],
+            r = subprocess.run([NODE, "-e", PARITY, str(PLUGIN / "hermes_artifacts" / "types" / "_kit" / "ds.js"), json.dumps(TOKENS)],
                                capture_output=True, text=True, timeout=60)
             self.assertEqual(r.returncode, 0, r.stderr)
             js = json.loads(r.stdout)

@@ -9,7 +9,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 
 # Keys whose text is a message to Hermes, per file.
 AGENT = {
@@ -80,7 +81,7 @@ def top_keys(block: str) -> set[str]:
 class LanguageTests(unittest.TestCase):
     def test_messages_to_hermes_are_only_english(self):
         for rel, agent in AGENT.items():
-            src = (ROOT / rel).read_text(encoding="utf-8")
+            src = (PLUGIN / rel).read_text(encoding="utf-8")
             en = set().union(*[top_keys(b) for b in blocks(src, "en")])
             for key in agent:
                 self.assertIn(key, en, f"{rel}: {key} missing on the en side")
@@ -89,15 +90,15 @@ class LanguageTests(unittest.TestCase):
 
     def test_pages_take_the_apps_language(self):
         from hermes_artifacts import render
-        src = (ROOT / "hermes_artifacts" / "render.py").read_text(encoding="utf-8")
+        src = (PLUGIN / "hermes_artifacts" / "render.py").read_text(encoding="utf-8")
         self.assertIn('"lang": lang if', src)
         for rel in AGENT:
             if rel.startswith("hermes_artifacts/"):
-                self.assertIn("pickLang(", (ROOT / rel).read_text(encoding="utf-8"), rel)
+                self.assertIn("pickLang(", (PLUGIN / rel).read_text(encoding="utf-8"), rel)
         self.assertTrue(render)
 
     def test_what_hermes_reads_is_english(self):
-        for p in list((ROOT / "hermes_artifacts" / "types").glob("*/GUIDE.md")) + list((ROOT / "hermes_artifacts" / "types").glob("*/guides/*.md")) + [ROOT / "__init__.py"]:
+        for p in list((PLUGIN / "hermes_artifacts" / "types").glob("*/GUIDE.md")) + list((PLUGIN / "hermes_artifacts" / "types").glob("*/guides/*.md")) + [PLUGIN / "__init__.py"]:
             text = p.read_text(encoding="utf-8")
             self.assertFalse(re.search(r"[őűŐŰ]", text), p)
 

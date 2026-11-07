@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+PLUGIN = ROOT / "plugin"
 NODE = shutil.which("node")
 
 HARNESS = r"""
@@ -29,7 +30,7 @@ const read = window.dashReads({ call, args: { projectId: 'p1' } });
 @unittest.skipIf(NODE is None, "node not installed")
 class ReadsTests(unittest.TestCase):
     def run_reads(self, answers, replies=None):
-        r = subprocess.run([NODE, "-e", HARNESS, str(ROOT / "hermes_artifacts" / "types" / "dashboard" / "reads.js"),
+        r = subprocess.run([NODE, "-e", HARNESS, str(PLUGIN / "hermes_artifacts" / "types" / "dashboard" / "reads.js"),
                             json.dumps(replies or {}), json.dumps(answers)], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)

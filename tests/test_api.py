@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 
 try:
@@ -22,7 +23,7 @@ except Exception:  # pragma: no cover
 class ApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        sys.path.insert(0, str(ROOT / "dashboard"))
+        sys.path.insert(0, str(PLUGIN / "dashboard"))
         import plugin_api
         cls.plugin_api = plugin_api
         app = FastAPI()
@@ -55,7 +56,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.post(f"/artifacts/{self.aid}/op", {"op": "save", "args": {"files": {"x.py": "y"}}}).status_code, 400)
 
     def test_hot_reload_after_update(self):
-        api_file = ROOT / "hermes_artifacts" / "api.py"
+        api_file = PLUGIN / "hermes_artifacts" / "api.py"
         self.get("/artifacts")
         before = sys.modules["hermes_artifacts.api"]
         st = api_file.stat()

@@ -10,7 +10,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 sys.path.insert(0, str(ROOT / "tests"))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 

@@ -10,7 +10,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 
 _tmp = tempfile.mkdtemp(prefix="hermes-artifacts-test-")
 os.environ["HERMES_ARTIFACTS_DIR"] = _tmp

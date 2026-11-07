@@ -29,7 +29,7 @@ jobs:
       - name: Syntax-check browser and desktop JS
         shell: bash
         run: |
-          cp desktop/plugin.js "$RUNNER_TEMP/plugin.mjs" && node --check "$RUNNER_TEMP/plugin.mjs"
-          node --check hermes_artifacts/assets/bridge.js
-          node --check hermes_artifacts/assets/shell.js
-          for f in hermes_artifacts/types/_kit/kit.js hermes_artifacts/types/*/*.js; do node --check "$f"; done
+          cp plugin/desktop/plugin.js "$RUNNER_TEMP/plugin.mjs" && node --check "$RUNNER_TEMP/plugin.mjs"
+          node --check plugin/hermes_artifacts/assets/bridge.js
+          node --check plugin/hermes_artifacts/assets/shell.js
+          for f in plugin/hermes_artifacts/types/_kit/kit.js plugin/hermes_artifacts/types/*/*.js; do node --check "$f"; done

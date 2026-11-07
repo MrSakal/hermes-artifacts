@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+PLUGIN = ROOT / "plugin"
 NODE = shutil.which("node")
 
 SDK_STUB = """
@@ -33,7 +34,7 @@ JSX_STUB = "export const jsx = () => null, jsxs = () => null\n"
 class DesktopPluginTests(unittest.TestCase):
     def test_loads_and_exports_the_plugin(self):
         d = Path(tempfile.mkdtemp(prefix="ha-desktop-"))
-        src = (ROOT / "desktop" / "plugin.js").read_text("utf-8")
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         src = (src.replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
                   .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
         (d / "plugin.mjs").write_text(src, "utf-8")

@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.11.0
+version: 0.12.0
 description: >
   Claude-style artifacts for Hermes. The agent publishes pages, dashboards (charts and tables from
   datasets, every figure traceable to its source), slide decks (present; export PDF/PPTX) and docs
@@ -11,6 +11,8 @@ license: MIT
 homepage: https://github.com/MrSakal/hermes-artifacts
 requires_hermes: ">=0.22.5"
 tags: [artifacts, desktop, html, ui, preview]
+provides_hooks:
+  - pre_llm_call
 provides_tools:
   - artifact_publish
   - artifact_guide

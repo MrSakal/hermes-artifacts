@@ -10,7 +10,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 
 from hermes_artifacts import api, history, store  # noqa: E402
@@ -99,7 +100,7 @@ console.log(JSON.stringify({ d, saved, clay: clay && { light: clay.light.ground,
 @unittest.skipIf(NODE is None, "node not installed")
 class DesignKitTests(unittest.TestCase):
     def test_drafts_and_looks(self):
-        r = subprocess.run([NODE, "-e", DESIGN, str(ROOT / "hermes_artifacts" / "types" / "dashboard" / "design.js")],
+        r = subprocess.run([NODE, "-e", DESIGN, str(PLUGIN / "hermes_artifacts" / "types" / "dashboard" / "design.js")],
                            capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         out = json.loads(r.stdout.strip().splitlines()[-1])

@@ -12,7 +12,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 
 from hermes_artifacts import api, render, store  # noqa: E402
@@ -58,14 +59,14 @@ class RenderTests(unittest.TestCase):
             store.publish(title="x", type="design-system", files={"tokens.json": "{}"})
 
     def test_guide(self):
-        g = (ROOT / "hermes_artifacts" / "types" / "design-system" / "GUIDE.md").read_text("utf-8")
+        g = (PLUGIN / "hermes_artifacts" / "types" / "design-system" / "GUIDE.md").read_text("utf-8")
         for s in ("design-system.json", "tokens.json", "default_design_system", "base=true", "README.md"):
             self.assertIn(s, g)
 
     def test_content_is_in_the_users_language(self):
         import importlib.util
-        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
-                                                      submodule_search_locations=[str(ROOT)])
+        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                      submodule_search_locations=[str(PLUGIN)])
         plugin = sys.modules.get("hermes_artifacts_plugin")
         if plugin is None:
             plugin = importlib.util.module_from_spec(spec)
@@ -81,8 +82,8 @@ class RenderTests(unittest.TestCase):
         import importlib.util
         plugin = sys.modules.get("hermes_artifacts_plugin")
         if plugin is None:
-            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
-                                                          submodule_search_locations=[str(ROOT)])
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
             plugin = importlib.util.module_from_spec(spec)
             sys.modules["hermes_artifacts_plugin"] = plugin
             spec.loader.exec_module(plugin)
@@ -114,8 +115,8 @@ class RenderTests(unittest.TestCase):
         import importlib.util
         plugin = sys.modules.get("hermes_artifacts_plugin")
         if plugin is None:
-            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
-                                                          submodule_search_locations=[str(ROOT)])
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
             plugin = importlib.util.module_from_spec(spec)
             sys.modules["hermes_artifacts_plugin"] = plugin
             spec.loader.exec_module(plugin)
@@ -213,8 +214,8 @@ class DefaultTests(unittest.TestCase):
 
     def test_artifact_list_names_the_default(self):
         import importlib.util
-        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
-                                                      submodule_search_locations=[str(ROOT)])
+        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                      submodule_search_locations=[str(PLUGIN)])
         p = importlib.util.module_from_spec(spec)
         sys.modules["hermes_artifacts_plugin"] = p
         spec.loader.exec_module(p)
@@ -231,7 +232,7 @@ class CompileTests(unittest.TestCase):
     def run_js(self, tokens, expr):
         js = ("global.window = global; require(%s); var t = %s; var r = dsKit.compile(t); "
               "process.stdout.write(JSON.stringify(%s));") % (
-            json.dumps(str(ROOT / "hermes_artifacts" / "types" / "_kit" / "ds.js")), json.dumps(tokens), expr)
+            json.dumps(str(PLUGIN / "hermes_artifacts" / "types" / "_kit" / "ds.js")), json.dumps(tokens), expr)
         out = subprocess.run(["node", "-e", js], capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)

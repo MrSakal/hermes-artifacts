@@ -35,14 +35,15 @@ sandboxed frame, so no extra port has to be reachable.
 
 ## Install
 
-The plugin has two halves in one repo. The **agent half** (tools, page API) runs on the Hermes your
-sessions run on. The **desktop half** (`desktop/plugin.js`) runs inside Hermes Desktop on your computer.
+The plugin is the `plugin/` folder of this repo (tests, examples and scripts stay out of the install).
+It has two halves. The **agent half** (tools, page API) runs on the Hermes your sessions run on. The
+**desktop half** (`plugin/desktop/plugin.js`) runs inside Hermes Desktop on your computer.
 
 **One step for both, from Hermes Desktop (recommended):** open this link, or use **Capabilities →
-Plugins → Install from Git** with `MrSakal/hermes-artifacts`, and keep both components ticked:
+Plugins → Install from Git** with `MrSakal/hermes-artifacts/plugin`, and keep both components ticked:
 
 ```
-hermes://plugin/install?repo=MrSakal/hermes-artifacts&enable=1
+hermes://plugin/install?repo=MrSakal/hermes-artifacts/plugin&enable=1
 ```
 
 Desktop installs the agent half on the backend it is connected to, including a remote server, and the
@@ -58,7 +59,7 @@ talks to a remote server, also install the desktop half through **Install from G
 Desktop component ticked. Otherwise the Plugins page shows it as *unavailable (remote backend)*.
 
 ```bash
-hermes plugins install MrSakal/hermes-artifacts
+hermes plugins install MrSakal/hermes-artifacts/plugin
 hermes plugins enable hermes-artifacts
 hermes gateway restart
 ```
@@ -66,7 +67,17 @@ hermes gateway restart
 A desktop half installed from the terminal ships switched off. Turn it on in **Capabilities → Plugins →
 Artifacts**.
 
-Requires Hermes 0.22.5 or newer. No Python dependencies.
+Requires Hermes 0.22.5 or newer. No Python dependencies. `hermes plugins update hermes-artifacts`
+re-fetches the `plugin/` folder only.
+
+**Installed before 0.12 (from the repo root)?** Move to the folder install once; your artifacts
+(`$HERMES_HOME/plugin-data/hermes-artifacts`) stay where they are:
+
+```bash
+hermes plugins remove hermes-artifacts
+hermes plugins install MrSakal/hermes-artifacts/plugin --enable
+hermes gateway restart
+```
 
 ## What you get
 
@@ -118,14 +129,14 @@ hermes artifacts cdp --restart         # restart a running Hermes Desktop that h
 
 | Piece | File | Role |
 |---|---|---|
-| Store | `hermes_artifacts/store.py` | `<HERMES_HOME>/plugin-data/hermes-artifacts/<id>/v<N>/`, per-artifact storage, comments, inbox, replies |
-| Rendering | `hermes_artifacts/render.py`, `bundle.py` | A page with its files inlined, or a type runtime with the artifact's files embedded as JSON |
-| Type runtimes | `hermes_artifacts/types/<type>/` | Dashboard, slides and doc viewers (shared `_kit/`), each with its `GUIDE.md` for the agent |
-| Desktop page | `desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
+| Store | `plugin/hermes_artifacts/store.py` | `<HERMES_HOME>/plugin-data/hermes-artifacts/<id>/v<N>/`, per-artifact storage, comments, inbox, replies |
+| Rendering | `plugin/hermes_artifacts/render.py`, `bundle.py` | A page with its files inlined, or a type runtime with the artifact's files embedded as JSON |
+| Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Dashboard, slides and doc viewers (shared `_kit/`), each with its `GUIDE.md` for the agent |
+| Desktop page | `plugin/desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
 | Page API | `dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send) |
-| Bridge | `hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
-| Browser viewer | `hermes_artifacts/server.py` | optional loopback viewer: a shell origin plus a separate content origin |
-| CDP | `hermes_artifacts/desktop_cdp.py` | attach to or launch Hermes Desktop with `--remote-debugging-port` |
+| Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
+| Browser viewer | `plugin/hermes_artifacts/server.py` | optional loopback viewer: a shell origin plus a separate content origin |
+| CDP | `plugin/hermes_artifacts/desktop_cdp.py` | attach to or launch Hermes Desktop with `--remote-debugging-port` |
 
 The isolation follows Claude Desktop's artifact model. Artifact HTML runs in an iframe with an opaque
 origin (`allow-scripts`, no `allow-same-origin`), so it cannot read the host page, its storage or the
@@ -145,7 +156,7 @@ which decides what is allowed.
   | pdf-lib | 1.17.1 | MIT | PDF export |
   | fflate | 0.8.3 | MIT | .docx export |
 
-  Their license files sit next to them under `hermes_artifacts/types/`.
+  Their license files sit next to them under `plugin/hermes_artifacts/types/`.
 - **Background server:** none by default. The browser viewer (`127.0.0.1:8797` and `:8798`, loopback only,
   Host-header checked, token-protected API) starts only on `artifact_open where=browser` or
   `hermes artifacts serve`, and runs until that Hermes process exits.
@@ -165,7 +176,7 @@ which decides what is allowed.
 
 ```bash
 python -m unittest discover -s tests        # stdlib only
-hermes plugins validate .                   # the catalog admission checks
+hermes plugins validate plugin              # the catalog admission checks
 python scripts/cdp_eval.py "document.title" # eval in a Hermes Desktop started with a CDP port (needs `websockets`)
 ```
 

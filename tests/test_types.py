@@ -9,15 +9,16 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+PLUGIN = ROOT / "plugin"
+sys.path.insert(0, str(PLUGIN))
 os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
 
 from hermes_artifacts import render, store  # noqa: E402
 
 
 def load_plugin():
-    spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", ROOT / "__init__.py",
-                                                  submodule_search_locations=[str(ROOT)])
+    spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                  submodule_search_locations=[str(PLUGIN)])
     mod = importlib.util.module_from_spec(spec)
     sys.modules["hermes_artifacts_plugin"] = mod
     spec.loader.exec_module(mod)
