@@ -277,7 +277,7 @@
     if (st.mode === "edit") {
       var mod = e.ctrlKey || e.metaKey;
       if (e.key === " " || e.key === "Delete" || e.key === "Backspace" || e.key === "Enter" || e.key === "Escape" || /^Arrow/.test(e.key) ||
-          (mod && /^[zysdaZYSDA0=+-]$/.test(e.key))) e.preventDefault();
+          (mod && /^[zysdagZYSDAG0=+-]$/.test(e.key))) e.preventDefault();
     }
     post({ t: "key", key: e.key, code: e.code, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey });
   }, true);

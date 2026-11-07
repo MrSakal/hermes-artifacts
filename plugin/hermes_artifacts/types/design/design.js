@@ -34,6 +34,7 @@
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
       comment: "Comment", editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties",
       exp: "Export", png: "This artboard (PNG)", pdf: "This artboard (PDF)", pdfAll: "All artboards (PDF)", html: "This artboard (HTML)",
+      dupEl: "Duplicate", group: "Group", ungroup: "Ungroup", forward: "Bring forward", backward: "Send backward",
       text: "Text", color: "Color", size: "Size", weight: "Weight", align: "Align", fill: "Fill", background: "Background",
       layout: "Layout", width: "Width", height: "Height", padding: "Padding", gap: "Gap", radius: "Radius", display: "Display",
       direction: "Direction", columns: "Columns", rows: "Rows", justify: "Justify", items: "Align items", wrap: "Wrap", style: "Text style",
@@ -50,6 +51,7 @@
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
       comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
+      dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
       text: "Szöveg", color: "Szín", size: "Méret", weight: "Vastagság", align: "Igazítás", fill: "Kitöltés", background: "Háttér",
       layout: "Elrendezés", width: "Szélesség", height: "Magasság", padding: "Belső margó", gap: "Térköz", radius: "Lekerekítés", display: "Megjelenés",
       direction: "Irány", columns: "Oszlopok", rows: "Sorok", justify: "Igazítás (fő)", items: "Igazítás (kereszt)", wrap: "Tördelés", style: "Szövegstílus",
@@ -664,7 +666,12 @@
     if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(tbtn("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
     if (n && n.localName === "img") kids.push(tbtn("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
     kids.push(tbtn("sparkle", T.ask, askAbout, true), tbtn("comment", T.comment, commentOn, true));
-    if (n && !editing) kids.push(tbtn("trash", T.del, removeSel));
+    if (n && !editing) {
+      kids.push(tbtn("copy", T.dupEl, dupSel), tbtn("front", T.forward, function () { reorderSel(1); }), tbtn("back", T.backward, function () { reorderSel(-1); }));
+      if (sameParent().length > 1) kids.push(tbtn("grid", T.group, groupSel));
+      else if (n.localName === "div" && n.children.length && n.parentNode && n.parentNode.nodeType === 1) kids.push(tbtn("panel", T.ungroup, ungroupSel));
+      kids.push(tbtn("trash", T.del, removeSel));
+    }
     tools.replaceChildren.apply(tools, kids);
     tools.hidden = false;
     placeTools();
@@ -756,6 +763,58 @@
     sel.tids.map(function (t) { return nodeOf(p, t); }).forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
     select(null, []);
     commitFile(p);
+  }
+  // ------------------------------------------------------------------ element operations
+  /** The selected nodes in document order, when they share one parent (else just the first). */
+  function sameParent() {
+    if (!sel.path) return [];
+    var ns = sel.tids.map(function (t) { return nodeOf(sel.path, t); }).filter(Boolean);
+    if (!ns.length) return [];
+    var par = ns[0].parentNode;
+    ns = ns.filter(function (n) { return n.parentNode === par; });
+    return ns.sort(function (a, b) { return a.__dcTid - b.__dcTid; });
+  }
+  /** After a change to the template: number it again and select these nodes (the reparse keeps the order). */
+  function settle(p, nodes) {
+    DC.index(files[p]);
+    var tids = nodes.map(function (n) { return n.__dcTid; }).filter(function (t) { return typeof t === "number"; });
+    commitFile(p);
+    select(p, tids);
+  }
+  function dupSel() {
+    var ns = sameParent(), p = sel.path;
+    if (!ns.length) return;
+    checkpoint();
+    var last = ns[ns.length - 1], copies = ns.map(function (n) { return n.cloneNode(true); });
+    copies.forEach(function (c) { last.parentNode.insertBefore(c, last.nextSibling); last = c; });
+    settle(p, copies);
+  }
+  function groupSel() {
+    var ns = sameParent(), p = sel.path;
+    if (ns.length < 2) return;
+    checkpoint();
+    var doc = ns[0].ownerDocument, g = doc.createElement("div");
+    ns[0].parentNode.insertBefore(g, ns[0]);
+    ns.forEach(function (n) { g.appendChild(n); });
+    settle(p, [g]);
+  }
+  function ungroupSel() {
+    var g = sel.path && nodeOf(sel.path, sel.tids[0]), p = sel.path;
+    if (!g || g.localName !== "div" || !g.children.length || !g.parentNode || g.parentNode.nodeType !== 1) return;
+    checkpoint();
+    var kids = Array.prototype.slice.call(g.children);
+    while (g.firstChild) g.parentNode.insertBefore(g.firstChild, g);
+    g.parentNode.removeChild(g);
+    settle(p, kids);
+  }
+  /** Forward (later in the order: over its siblings) or backward, one step. */
+  function reorderSel(d) {
+    var ns = sameParent(), p = sel.path;
+    if (!ns.length) return;
+    var par = ns[0].parentNode;
+    if (d > 0) { var after = ns[ns.length - 1].nextElementSibling; if (!after) return; checkpoint(); ns.forEach(function (n) { par.insertBefore(n, after.nextSibling); after = n; }); }
+    else { var before = ns[0].previousElementSibling; if (!before) return; checkpoint(); ns.forEach(function (n) { par.insertBefore(n, before); }); }
+    settle(p, ns);
   }
   function commitAll() { frames.forEach(function (f) { if (f.mode === "edit") f.send({ t: "commit" }); }); }
 
@@ -1259,6 +1318,10 @@
       return;
     }
     if ((k === "Delete" || k === "Backspace") && sel.path) { removeSel(); return; }
+    if (mod && (k === "d" || k === "D") && sel.path) { dupSel(); return; }
+    if (mod && (k === "g" || k === "G") && sel.path) { if (e.shift) ungroupSel(); else groupSel(); return; }
+    if (k === "]" && sel.path) { reorderSel(1); return; }
+    if (k === "[" && sel.path) { reorderSel(-1); return; }
     if (k === "Enter" && sel.path && sel.tids.length === 1) { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); return; }
   }
   function zoomSel() {
@@ -1275,7 +1338,7 @@
   document.addEventListener("keydown", function (e) {
     if (/input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable) return;
     var mod = e.ctrlKey || e.metaKey;
-    if (e.key === " " || (mod && /^[zysZYS=+0-]$/.test(e.key)) || ((e.key === "Delete" || e.key === "Backspace") && sel.path)) e.preventDefault();
+    if (e.key === " " || (mod && /^[zysdgZYSDG=+0-]$/.test(e.key)) || ((e.key === "Delete" || e.key === "Backspace") && sel.path)) e.preventDefault();
     key({ key: e.key, code: e.code, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey });
   });
   document.addEventListener("keyup", function (e) { if (e.key === " ") key({ key: " ", up: true }); });
