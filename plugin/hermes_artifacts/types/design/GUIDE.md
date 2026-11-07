@@ -68,6 +68,7 @@ artifact_publish type=design title="Spring Menu Poster" files={
   - no `kind`: a sticky. Set `w`; it grows to 4/3 `w` tall, then scrolls.
   - Both take `size` (px or `s`|`m`|`l`|`xl`|`xxl`), `bold`, `italic`, `page`, `color`, and a sticky
     `fill`: `gray`|`red`|`orange`|`green`|`teal`|`blue`|`purple`|`pink`.
+  - `kind: "link"`: a link card, `url` (http or https) required, `text` its title (else the host), `w`.
   - Other kinds (`rect`, `oval`, `pen`, `line`, `arrow`, `image`) are the user's: leave them.
 - An index that exists: keep every key and entry you are not changing, unknown ones too.
 

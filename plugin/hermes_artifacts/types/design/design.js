@@ -23,7 +23,9 @@
   var kit = window.kit, h = kit.h, C = kit.content, DC = window.DC;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { canvas: "Canvas", fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
+    en: { fixIt: "Ask Hermes to fix",
+      fixMsg: function (path, err) { return "The artboard " + path + " fails with: " + err + ". Fix it (artifact_read the canvas first)."; },
+      canvas: "Canvas", fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
       tweaks: "Tweaks", design: "Design", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
       save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved", conflict: "Changed meanwhile: the new version loads",
       noSave: "Can't save here", editHint: "Click to select · double-click text to edit", building: "Building…",
@@ -407,7 +409,23 @@
   function showErrors(b) {
     var has = b.errors.length > 0;
     b.el.classList.toggle("has-error", has);
-    if (files[b.path]) { b.err.hidden = !has; b.err.textContent = has ? T.error + ": " + b.errors[0] : ""; }
+    if (files[b.path]) {
+      b.err.hidden = !has;
+      b.err.replaceChildren();
+      if (has) {
+        b.err.append(h("span", { text: T.error + ": " + b.errors[0] }));
+        if (editable && window.hermes && window.hermes.send) {
+          var fx = h("button", { type: "button", "class": "dc-fix", text: T.fixIt });
+          fx.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+          fx.addEventListener("click", function (e) {
+            e.stopPropagation();
+            window.hermes.send(T.fixMsg(b.path, String(b.errors[0]).slice(0, 300)), { artboard: b.path }, { deliver: "send" })
+              .then(function () { kit.toast(T.sent); }).catch(function (er) { kit.toast(String(er && er.message || er)); });
+          });
+          b.err.append(fx);
+        }
+      }
+    }
   }
 
   function dragBoard(e, b) {
@@ -467,6 +485,14 @@
         el = h("div", { "class": "dc-note dc-sticky", text: String(n.text || "") });
         el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + w + "px;max-height:" + (num(n.maxH, 0) || w * 4 / 3) + "px;font-size:" + fz + "px;" +
           "background:" + paint(n.fill, FILLS, "#fdf1b8") + ";color:" + paint(n.color, COLORS, "#2b2a26") + (n.bold ? ";font-weight:600" : "") + (n.italic ? ";font-style:italic" : "");
+        notesLayer.appendChild(el);
+      } else if (n.kind === "link" && /^https?:\/\/[^\s"<>]+$/i.test(String(n.url || ""))) {
+        // A link card: a page the canvas points at (its title, or the host, and the address).
+        var u = String(n.url), host = u.replace(/^https?:\/\//i, "").split(/[\/?#]/)[0];
+        el = h("div", { "class": "dc-note dc-link" }, [
+          h("a", { href: u, target: "_blank", rel: "noopener noreferrer", "class": "dc-link-t", text: String(n.text || host).slice(0, 200) }),
+          h("span", { "class": "dc-link-u", text: u.slice(0, 300) })]);
+        el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + clamp(num(n.w, 320), 120, 2000) + "px";
         notesLayer.appendChild(el);
       } else if ((n.kind === "rect" || n.kind === "oval") && num(n.w, 0) && num(n.h, 0)) {
         el = h("div", { "class": "dc-note dc-shape" });
