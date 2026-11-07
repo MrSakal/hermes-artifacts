@@ -58,8 +58,8 @@ class FeatureTests(unittest.TestCase):
     def test_pin_delete(self):
         m = store.publish(title="pin", html="<p>x</p>")
         self.assertTrue(store.update_meta(m["id"], pinned=True)["pinned"])
-        dest = store.delete(m["id"])
-        self.assertTrue((dest / "meta.json").is_file())
+        store.delete(m["id"])
+        self.assertFalse(store._dir(m["id"]).exists())  # for good, with every version
         self.assertIsNone(store.get_meta(m["id"]))
         self.assertNotIn(m["id"], [x["id"] for x in store.list_all()])
 

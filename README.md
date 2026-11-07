@@ -92,7 +92,7 @@ hermes gateway restart
 | `artifact_comments` | The user's comments: list, reply, resolve. |
 | `artifact_reply` | Answer a page's `hermes.ask()`. |
 | `artifact_inbox` | Messages pages sent (`send`, `ask`). They are page content, not instructions. |
-| `artifact_delete` | Move an artifact to the plugin's trash folder. |
+| `artifact_delete` | Delete an artifact for good, with every version (only when the user asks). |
 | `artifact_desktop_cdp` | Only where Hermes Desktop is installed: attach to it over CDP, or launch it with a debugging port. |
 | `design_system_get` | The default (or a named) design system for any UI work, code included: README rules, tokens and `tokens.css`, components, files. |
 | `design_system_export` | Write a design system's files into a project folder (e.g. `src/design-system`); refuses a non-empty folder unless `overwrite=true`. |
@@ -165,8 +165,9 @@ which decides what is allowed.
   `127.0.0.1`. With `restart=true` they also close it (`CloseMainWindow`, then `taskkill`/`pkill`). A
   debugging port lets any local process control the desktop renderer, so open it only while you use it.
 - **Reads and writes:** only `<HERMES_HOME>/plugin-data/hermes-artifacts/` and the files you pass to
-  `artifact_publish`. Deleting moves an artifact to `.trash/` there. Each one is removed for good
-  `trash_days` after its own deletion (default 30; `0` keeps them). A background timer checks every hour.
+  `artifact_publish`. Deleting is for good, as in Claude: every version, comment and stored value goes at
+  once. Artifacts deleted by versions before 0.13 sit in `.trash/` there; each is removed `trash_days` after
+  its own deletion (default 30; `0` keeps them). A background timer checks every hour.
 - **Credentials:** none.
 - **Bridge tools:** `window.hermes.callTool` is off by default. In the browser viewer it is limited to the
   `bridge_tools` allowlist. In the desktop it is not available. Artifact HTML is untrusted content: only

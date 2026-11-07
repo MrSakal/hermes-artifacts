@@ -1,4 +1,4 @@
-"""Trash retention: each deleted artifact is purged N days after its own deletion."""
+"""Deleting is for good; the old trash folder (versions before 0.13) is still emptied on its schedule."""
 
 import json
 import os
@@ -18,13 +18,27 @@ from hermes_artifacts import store  # noqa: E402
 
 class TrashTests(unittest.TestCase):
     def _trash(self, title, deleted_days_ago):
-        aid = store.publish(title=title, html="<p>x</p>")["id"]
-        dest = store.delete(aid)
-        mark = dest / store.TRASH_MARK
-        data = json.loads(mark.read_text(encoding="utf-8"))
-        data["deleted_at"] = time.time() - deleted_days_ago * 86400
-        mark.write_text(json.dumps(data), encoding="utf-8")
+        """An item as the old delete left it in .trash/."""
+        trash = store.root() / ".trash"
+        trash.mkdir(exist_ok=True)
+        at = time.time() - deleted_days_ago * 86400
+        dest = trash / f"{title.replace(' ', '-').lower()}-{int(at)}"
+        dest.mkdir()
+        (dest / "meta.json").write_text("{}", encoding="utf-8")
+        (dest / store.TRASH_MARK).write_text(json.dumps({"id": title, "title": title, "deleted_at": at}), encoding="utf-8")
         return dest
+
+    def test_delete_is_for_good_and_drops_the_default(self):
+        aid = store.publish(title="DS", html="<p>x</p>")["id"]
+        store.publish(aid=aid, html="<p>y</p>")
+        store.comment_add(aid, "note")
+        store.settings_set("default_design_system", aid)
+        store.delete(aid)
+        self.assertFalse(store._dir(aid).exists())
+        self.assertIsNone(store.settings().get("default_design_system"))
+        self.assertFalse(any(t["name"].startswith(aid) for t in store.trash_list()))
+        with self.assertRaises(FileNotFoundError):
+            store.delete(aid)
 
     def test_each_item_counts_from_its_own_deletion(self):
         old = self._trash("old", 31)
@@ -52,14 +66,6 @@ class TrashTests(unittest.TestCase):
         legacy.mkdir()
         (legacy / "meta.json").write_text("{}", encoding="utf-8")
         self.assertIn(legacy.name, store.purge_trash(30))
-
-    def test_deleting_twice_in_one_second_keeps_both(self):
-        a = store.publish(title="same", html="x", aid="same-name-01")["id"]
-        d1 = store.delete(a)
-        store.publish(title="same", html="x", aid="same-name-01")
-        d2 = store.delete(a)
-        self.assertNotEqual(d1, d2)
-        self.assertTrue(d1.exists() and d2.exists())
 
 
 if __name__ == "__main__":

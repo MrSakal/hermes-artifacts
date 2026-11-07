@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.12.0
+version: 0.13.0
 description: >
   Claude-style artifacts for Hermes. The agent publishes pages, dashboards (charts and tables from
   datasets, every figure traceable to its source), slide decks (present; export PDF/PPTX) and docs
@@ -54,7 +54,7 @@ config_schema:
     type: int
     default: 30
     label: Keep deleted artifacts (days)
-    description: A deleted artifact stays in the plugin's .trash folder this many days, counted from its own deletion, then it is removed for good (checked every hour). 0 keeps them until you remove them by hand.
+    description: Deleting is for good. Only artifacts deleted by versions before 0.13 sit in the plugin's .trash folder; each is removed this many days after its own deletion for good (checked every hour). 0 keeps them until you remove them by hand.
   bridge_tools:
     type: str
     default: ""

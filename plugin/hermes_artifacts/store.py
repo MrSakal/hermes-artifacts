@@ -282,25 +282,23 @@ def update_meta(aid: str, **fields) -> dict:
 TRASH_MARK = ".deleted.json"
 
 
-def delete(aid: str) -> Path:
-    """Move an artifact to <root>/.trash/ (recoverable by moving it back until it is purged). The
-    deletion time is written into it, so each item's retention counts from its own deletion."""
+def delete(aid: str) -> None:
+    """Delete an artifact for good (Claude's): every version, file, comment, stored value and record
+    goes at once, and nothing can bring it back. A design system that was the default stops being it."""
     with _LOCK:
         d = _dir(aid)
         meta = get_meta(aid)
         if meta is None:
             raise FileNotFoundError(aid)
-        trash = root() / ".trash"
-        trash.mkdir(exist_ok=True)
-        now = time.time()
-        dest = trash / f"{aid}-{int(now)}"
-        n = 1
-        while dest.exists():
-            n += 1
-            dest = trash / f"{aid}-{int(now)}-{n}"
-        shutil.move(str(d), str(dest))
-        _write_json(dest / TRASH_MARK, {"id": aid, "title": meta.get("title", aid), "deleted_at": now})
-        return dest
+        shutil.rmtree(d)
+        if d.exists():
+            raise OSError(f"could not delete {aid}")
+        if settings().get("default_design_system") == aid:
+            settings_set("default_design_system", None)
+
+
+# Artifacts deleted by versions before 0.13 went to <root>/.trash/; that folder is still emptied on
+# its schedule (trash_days), and nothing new goes there.
 
 
 def _deleted_at(item: Path) -> Optional[float]:
