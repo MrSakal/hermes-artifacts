@@ -25,7 +25,7 @@
     var s = String(v).replace(/\s/g, "").replace(/,(\d{1,2})$/, ".$1").replace(/,/g, "");
     return +s;
   }
-  function lang() { return window.dashLocale || "en-US"; } // the dashboard's own language (dashboard.json `lang`)
+  function lang() { return window.dashLocale; } // dashboard.json `lang`, else the locale Hermes runs in
 
   function format(v, f) {
     if (v == null || v === "" || (typeof v === "number" && isNaN(v))) return "—";

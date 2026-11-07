@@ -358,7 +358,7 @@ function ago(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m`
   if (s < 86400) return `${Math.floor(s / 3600)}h`
   const d = new Date(ts * 1000)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) // as Hermes writes its own dates
 }
 
 // ---------------------------------------------------------------- look
@@ -1519,7 +1519,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   useEffect(() => {
     ctx.rest(`/artifacts/${enc(art.id)}`).then(r => setSize(r.size)).catch(() => {})
   }, [art.id, art.version])
-  const date = art.updated ? new Date(art.updated * 1000).toLocaleDateString(hostLang, { month: 'short', day: 'numeric' }) : ''
+  const date = art.updated ? new Date(art.updated * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
   const close = fn => () => {
     onClose()
     fn()

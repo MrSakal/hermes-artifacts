@@ -78,8 +78,8 @@ side by side.
 Common fields:
 - **`agg`:** `sum`, `avg`, `min`, `max`, `count`, `countDistinct`, `first` (the default) or `last`.
 - **`where`:** `{"column": "value"}`. A value of `"{param}"` follows that filter, and an empty filter means all rows.
-- **`lang`** (top level, optional): the language you wrote the dashboard in, as a BCP 47 tag; its numbers
-  and dates format in it (default `en-US`). Set it to the language of the conversation.
+- **`lang`** (top level, optional): a BCP 47 tag the numbers and dates format in. Leave it out and they
+  follow the viewer's Hermes, as its own dates do; set it only when the user asks for one format.
 - **`format`:** `int`, `number`, `number:2`, `compact`, `percent` (0–1), `percent100`, `currency:USD`, `date`, `month`, `datetime` or `text`.
 
 A filter whose `param` appears in a live query's `args` (`{{year}}`) re-runs that query. A filter used

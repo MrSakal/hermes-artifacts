@@ -16,8 +16,8 @@
   "use strict";
   var kit = window.kit, h = kit.h, C = kit.content;
   var spec = kit.json("dashboard.json", null);
-  // The dashboard's own language (what Hermes wrote it in): its numbers and dates. The page's words are English.
-  window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : "en-US";
+  // Numbers and dates as Hermes writes its own (the locale it runs in), unless the dashboard names one (`lang`).
+  window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : undefined;
   var root = document.getElementById("dash-root");
   var bar = document.getElementById("dash-bar");
   var L = "en"; // English only
@@ -580,7 +580,7 @@
     var s = (Date.now() - t) / 1000;
     if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
     if (s < 86400) return Math.round(s / 3600) + " h";
-    return new Date(t).toLocaleDateString("en-US");
+    return new Date(t).toLocaleDateString();
   }
   function isStale(d) {
     if (!d.staleAfterHours || !d.updated || !d.updated.at) return false;
@@ -920,8 +920,8 @@
     if (!at) return "";
     var d = new Date(at * 1000), s = (Date.now() - d.getTime()) / 1000;
     if (s < 60) return T.justNow;
-    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" });
-    return d.toLocaleDateString(L, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" });
+    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }
   function summaryText(sm, versions) {
     if (!sm) return "";
@@ -929,7 +929,7 @@
     if (sm.what === "restored") {
       var v = (versions || []).filter(function (x) { return x.n === sm.restored; })[0];
       var d = v && v.at ? new Date(v.at * 1000) : null;
-      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(L, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
+      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
     }
     var th = sm.things || [];
     if (!th.length) return T.hNoChange;
@@ -1085,7 +1085,7 @@
           var same = JSON.stringify(e.args) === JSON.stringify(d.source.args || {});
           histBox.appendChild(h("button", { "class": "src-hist-row", type: "button", onclick: function () {
             ta.value = JSON.stringify(e.args, null, 2); msg.textContent = T.restored; ta.dispatchEvent(new Event("input"));
-          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString("en-US") }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
+          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString() }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
         });
         histBox.hidden = false;
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
@@ -1172,7 +1172,7 @@
     var main = doc.querySelector("#dash-main");
     if (main) main.style.marginRight = "";
     var foot = h("p", { style: "margin:24px var(--dash-gutter,24px);font-size:12px;color:var(--color-fg-muted)",
-      text: (C.title || "") + " · " + new Date().toLocaleString("en-US") + " · numbers do not update" });
+      text: (C.title || "") + " · " + new Date().toLocaleString() + " · numbers do not update" });
     (doc.querySelector("#dash-main") || doc.querySelector("body")).appendChild(foot);
     return "<!doctype html>\n" + doc.outerHTML;
   }

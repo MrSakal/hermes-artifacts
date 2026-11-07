@@ -872,7 +872,7 @@
     var p2 = function (n) { return ("0" + n).slice(-2); };
     pres.timer.textContent = (s >= 3600 ? Math.floor(s / 3600) + ":" : "") + p2(Math.floor(s / 60) % 60) + ":" + p2(s % 60);
     pres.timer.classList.toggle("is-paused", !!pres.pauseAt);
-    pres.clock.textContent = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    pres.clock.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
   function paint(dir) {
     var s = slides[pres.i], r = pres.main.getBoundingClientRect(), pad = pres.presenter ? 32 : 0;
