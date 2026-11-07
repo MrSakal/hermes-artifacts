@@ -12,13 +12,17 @@
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)",
+    en: { hist: "History", histNone: "No earlier states yet", byYou: "you", byH: "Hermes", byRestore: "restored", histNow: "now",
+      restoreThis: "Restore this state", restored: "Restored", cancel: "Cancel",
+      exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Click to start writing, or type @Hermes and a request.",
       saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", conflict: "Hermes changed this block meanwhile: it now shows Hermes' text",
       asking: "Hermes is writing…", askHint: "@Hermes + Enter asks Hermes here", editWith: "Edit with Hermes", comment: "Comment",
       editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename",
       byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled" },
-    hu: { exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)",
+    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "te", byH: "Hermes", byRestore: "visszaállítva", histNow: "most",
+      restoreThis: "Visszaállítás erre", restored: "Visszaállítva", cancel: "Mégse",
+      exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Kattints ide és írj, vagy írd be: @Hermes és a kérésed.",
       saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", conflict: "Ezt a blokkot közben a Hermes módosította: most az ő szövege látszik",
       asking: "A Hermes ír…", askHint: "@Hermes + Enter: kérés a Hermestől ide", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
@@ -614,7 +618,27 @@
   expBtn.hidden = true;
   kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
   var hint = h("span", { "class": "doc-hint", text: live ? T.askHint : "" });
-  bar.append(titleEl, hint, status, expBtn);
+  // History (Claude's): the tab's earlier states; picking one and confirming brings it back as a new edit.
+  var histBtn = kit.labelled(kit.button(T.hist, "history", function () {
+    if (editing) commit();
+    var t = tab();
+    hm.doc.history(t.id).then(function (r) {
+      var fmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
+      if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
+      kit.menu(histBtn, list.slice(0, 30).map(function (x) {
+        var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
+        return { label: fmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () {
+          kit.menu(histBtn, [{ label: T.restoreThis, onClick: function () {
+            hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored); return pull(true); })
+              .catch(function (e) { kit.toast(String(e && e.message || e)); });
+          } }, { label: T.cancel, onClick: function () {} }]);
+        } };
+      }));
+    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+  }), T.hist);
+  histBtn.hidden = !live;
+  bar.append(titleEl, hint, status, histBtn, expBtn);
 
   render();
   titleEl.textContent = title();

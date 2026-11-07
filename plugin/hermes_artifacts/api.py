@@ -217,6 +217,15 @@ def _op(aid: str, op: str, a: dict) -> dict:
         return {"ok": True}
     if op == "doc.read":
         return docs.read(aid, a.get("tab") or None, since_rev=_int(a.get("since_rev")))
+    if op == "doc.history":
+        return docs.history(aid, a.get("tab") or None)
+    if op == "doc.at":
+        return docs.at_rev(aid, a.get("tab") or None, _int(a.get("rev")) or 0)
+    if op == "doc.restore":
+        try:
+            return docs.restore(aid, a.get("tab") or None, _int(a.get("rev")) or 0)
+        except docs.DocError as e:
+            raise ValueError(e.message)
     if op == "doc.edit":
         # The doc's own editor (the user typing). Hermes edits through its artifact_doc_edit tool.
         try:

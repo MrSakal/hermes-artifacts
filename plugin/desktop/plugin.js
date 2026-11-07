@@ -1490,6 +1490,7 @@ function useBridge(ref, art, ctx, portRef) {
             return reply({ ok: true, value: { ok: true } })
           }
           if (m.op === 'history.restore' && !gesture) return reply({ ok: false, error: 'restoring needs a click in the page' })
+          if (m.op === 'doc.restore' && !gesture) return reply({ ok: false, error: 'restoring needs a click in the page' })
           if (m.op === 'save' && !gesture) return reply({ ok: false, error: 'saving needs a click or key press in the page' })
           if (m.op === 'ds.default' && !gesture) return reply({ ok: false, error: 'choosing the default design system needs a click in the page' })
           if (m.op === 'dataset.test' && !gesture) return reply({ ok: false, error: 'testing a query needs a click in the page' })

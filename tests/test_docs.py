@@ -117,6 +117,21 @@ class EditTests(unittest.TestCase):
         self.assertEqual(len(r["blocks"]), len(b))
         self.assertNotIn("since", docs.read(self.aid, since_rev=r["rev"] - 2))
 
+    def test_history_at_rev_and_restore(self):
+        b = [x["id"] for x in docs.read(self.aid)["blocks"]]
+        docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": "# Mine"}], by="user")
+        docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": "# Hermes"}], by="hermes", base_rev=2)
+        h = docs.history(self.aid)
+        self.assertEqual([x["by"] for x in h["snaps"]], ["hermes", "user", "start"])
+        self.assertEqual(docs.at_rev(self.aid, None, 2)["blocks"][0]["md"], "# Mine")
+        self.assertEqual(docs.at_rev(self.aid, None, 1)["blocks"][0]["md"], "# Title")
+        r = docs.restore(self.aid, None, 2)
+        self.assertEqual(r["rev"], 4)
+        self.assertEqual(docs.read(self.aid)["blocks"][0]["md"], "# Mine")
+        self.assertEqual(docs.history(self.aid)["snaps"][0]["by"], "restore")
+        with self.assertRaises(docs.DocError):
+            docs.at_rev(self.aid, None, 0)
+
     def test_bad_ops(self):
         for ops in ([], [{"op": "explode"}], [{"op": "replace", "block": "nope", "md": "x"}]):
             with self.assertRaises(docs.DocError):
@@ -171,6 +186,15 @@ class ApiAndToolTests(unittest.TestCase):
         self.assertFalse(pub["ok"])
         self.assertIn("artifact_doc_edit", pub["error"])
         self.assertIn("user again", json.loads(self.p._read({"id": self.aid}))["content"])
+
+    def test_hermes_adds_an_anchored_comment(self):
+        r = json.loads(self.p._doc_read({"id": self.aid}))
+        b = r["blocks"][1]["id"]
+        c = json.loads(self.p._comments({"id": self.aid, "action": "add", "text": "Too long?", "block": b, "quote": "Para one"}))
+        self.assertEqual(c["comment"]["anchor"]["selector"], "#blk-" + b)
+        self.assertEqual(c["comment"]["author"], "hermes")
+        bad = json.loads(self.p._comments({"id": self.aid, "action": "add", "text": "x", "block": "nope"}))
+        self.assertFalse(bad["ok"])
 
     def test_render_carries_the_live_doc(self):
         b = docs.read(self.aid)["blocks"][0]["id"]

@@ -197,7 +197,10 @@
     doc: Object.freeze({
       read: function (tab, sinceRev) { return call("doc.read", { tab: tab || null, since_rev: sinceRev == null ? null : sinceRev }); },
       edit: function (tab, ops, baseRev) { return call("doc.edit", { tab: tab || null, ops: ops, base_rev: baseRev == null ? null : baseRev }); },
-      ask: function (a) { return call("doc.ask", a || {}); }
+      ask: function (a) { return call("doc.ask", a || {}); },
+      history: function (tab) { return call("doc.history", { tab: tab || null }); },
+      at: function (tab, rev) { return call("doc.at", { tab: tab || null, rev: rev }); },
+      restore: function (tab, rev) { return call("doc.restore", { tab: tab || null, rev: rev }); }
     }),
     /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
      *  version in place (null = the latest). */

@@ -256,6 +256,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
     with _LOCK:
         st = load(aid)
         t = _tab(st, tab)
+        before = _snap(t, "start")
         if by == "hermes" and base_rev is None and any(o.get("op") in ("replace", "delete") for o in ops):
             raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (artifact_doc_read)",
                            rev=t["rev"])
@@ -317,8 +318,96 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         st["log"].append({"tab": t["id"], "rev": t["rev"], "by": by, "blocks": changed, "at": time.time()})
         st["log"] = st["log"][-MAX_LOG:]
         _save(aid, st)
+        if not any(x["id"] == t["id"] for x in st["tabs"]):
+            pass  # the tab was deleted: nothing to keep
+        else:
+            _record(aid, st, t, by, before)
         return {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
                 "new_tab": new_tab["id"] if new_tab else None}
+
+
+# ----------------------------------------------------------------------------- history
+MAX_SNAPS = 120
+SNAP_GAP = 120  # seconds: edits by the same author closer than this share one snapshot
+
+
+def _hist_path(aid: str) -> Path:
+    return store._dir(aid) / "doc" / "history.json"
+
+
+def _hist(aid: str, version: int) -> list:
+    p = _hist_path(aid)
+    try:
+        h = json.loads(p.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return []
+    return h.get("snaps", []) if h.get("version") == version else []  # a republish starts it again
+
+
+def _hist_save(aid: str, version: int, snaps: list) -> None:
+    p = _hist_path(aid)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"version": version, "snaps": snaps[-MAX_SNAPS:]}, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(p)
+
+
+def _snap(t: dict, by: str) -> dict:
+    return {"tab": t["id"], "rev": t["rev"], "by": by, "at": time.time(), "title": t["title"],
+            "blocks": [{"id": b["id"], "md": b["md"]} for b in t["blocks"]]}
+
+
+def _record(aid: str, st: dict, t: dict, by: str, before: Optional[dict]) -> None:
+    """Called with the lock held, after an edit of tab ``t``. ``before`` is the tab as it was."""
+    snaps = _hist(aid, st["version"])
+    mine = [x for x in snaps if x["tab"] == t["id"]]
+    if not mine and before:  # the tab as it started: always restorable
+        snaps.append(before)
+    last = mine[-1] if mine else None
+    if last and last["by"] == by and by == "user" and time.time() - last["at"] < SNAP_GAP:
+        snaps[snaps.index(last)] = _snap(t, by)  # the same burst of typing
+    else:
+        snaps.append(_snap(t, by))
+    _hist_save(aid, st["version"], snaps)
+
+
+def history(aid: str, tab: Optional[str] = None) -> dict:
+    """The tab's snapshots, newest first: {rev, by, at, blocks (count)}."""
+    st = load(aid)
+    t = _tab(st, tab)
+    snaps = [x for x in _hist(aid, st["version"]) if x["tab"] == t["id"]]
+    return {"tab": t["id"], "rev": t["rev"],
+            "snaps": [{"rev": x["rev"], "by": x["by"], "at": x["at"], "blocks": len(x["blocks"])} for x in reversed(snaps)]}
+
+
+def at_rev(aid: str, tab: Optional[str], rev: int) -> dict:
+    """The tab as it was at ``rev`` (the newest snapshot at or before it)."""
+    st = load(aid)
+    t = _tab(st, tab)
+    cands = [x for x in _hist(aid, st["version"]) if x["tab"] == t["id"] and x["rev"] <= int(rev)]
+    if not cands:
+        raise DocError("absent", f"no snapshot at or before rev {rev}")
+    x = cands[-1]
+    return {"tab": t["id"], "title": x["title"], "rev": x["rev"], "current_rev": t["rev"], "by": x["by"], "at": x["at"],
+            "blocks": [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in x["blocks"]]}
+
+
+def restore(aid: str, tab: Optional[str], rev: int) -> dict:
+    """Bring a tab back to a snapshot, as a new rev by the person (it can itself be undone the same way)."""
+    with _LOCK:
+        st = load(aid)
+        t = _tab(st, tab)
+        x = at_rev(aid, t["id"], rev)
+        before = _snap(t, "user")
+        t["blocks"] = [{"id": b["id"], "md": b["md"]} for b in x["blocks"]] or _some([])
+        t["title"] = x["title"]
+        t["rev"] += 1
+        st["log"].append({"tab": t["id"], "rev": t["rev"], "by": "user", "blocks": [b["id"] for b in t["blocks"]] + ["tab"],
+                          "at": time.time(), "restored": x["rev"]})
+        st["log"] = st["log"][-MAX_LOG:]
+        _save(aid, st)
+        _record(aid, st, t, "restore", before)
+        return {"ok": True, "tab": t["id"], "rev": t["rev"], "restored": x["rev"]}
 
 
 def markdown(aid: str) -> str:
