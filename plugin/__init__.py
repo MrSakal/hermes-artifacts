@@ -618,47 +618,20 @@ def _cli(args):
 
 # ----------------------------------------------------------------------------- entry
 
-# ----------------------------------------------------------------------------- trash retention
+# ----------------------------------------------------------------------------- the old trash
 
-_PURGE_EVERY_S = 3600
-_purger_started = False
-_purger_lock = threading.Lock()
+def _empty_old_trash() -> None:
+    """Versions before 0.13 kept deleted artifacts in .trash/; deleting is for good now, so that folder is
+    emptied once when the plugin starts (in the background: a large one must not hold up Hermes)."""
+    def run():
+        try:
+            gone = store.empty_trash()
+            if gone:
+                logger.info("hermes-artifacts: emptied the old trash (%d artifact(s))", len(gone))
+        except Exception:
+            logger.debug("emptying the old trash failed", exc_info=True)
 
-
-def _trash_days() -> float:
-    try:
-        return max(0.0, float(_setting("trash_days", 30)))
-    except (TypeError, ValueError):
-        return 30.0
-
-
-def _purge_once() -> list[str]:
-    try:
-        purged = store.purge_trash(_trash_days())
-        if purged:
-            logger.info("hermes-artifacts: purged %d trashed artifact(s): %s", len(purged), ", ".join(purged))
-        return purged
-    except Exception:
-        logger.debug("trash purge failed", exc_info=True)
-        return []
-
-
-def _start_purger() -> None:
-    """A daemon timer that empties the trash on a schedule: each item goes once it has been deleted
-    for longer than ``trash_days`` (re-read every round, so a changed setting applies without a
-    restart). Checked at start and then every hour."""
-    global _purger_started
-    with _purger_lock:
-        if _purger_started:
-            return
-        _purger_started = True
-
-    def loop():
-        while True:
-            _purge_once()
-            time.sleep(_PURGE_EVERY_S)
-
-    threading.Thread(target=loop, name="hermes-artifacts-trash", daemon=True).start()
+    threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True).start()
 
 
 def _view_context(**kw):
@@ -755,7 +728,7 @@ def _ds_export(args: dict, **_kw) -> str:
 def register(ctx) -> None:
     global _ctx
     _ctx = ctx
-    _start_purger()
+    _empty_old_trash()
     try:
         ctx.register_hook("pre_llm_call", _view_context)
     except Exception:  # an older Hermes without this hook: no view context, everything else works

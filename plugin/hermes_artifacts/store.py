@@ -279,9 +279,6 @@ def update_meta(aid: str, **fields) -> dict:
         return meta
 
 
-TRASH_MARK = ".deleted.json"
-
-
 def delete(aid: str) -> None:
     """Delete an artifact for good (Claude's): every version, file, comment, stored value and record
     goes at once, and nothing can bring it back. A design system that was the default stops being it."""
@@ -297,62 +294,26 @@ def delete(aid: str) -> None:
             settings_set("default_design_system", None)
 
 
-# Artifacts deleted by versions before 0.13 went to <root>/.trash/; that folder is still emptied on
-# its schedule (trash_days), and nothing new goes there.
-
-
-def _deleted_at(item: Path) -> Optional[float]:
-    """When a trashed item was deleted: its mark, else the time in its folder name, else its mtime."""
-    try:
-        return float(json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))["deleted_at"])
-    except Exception:
-        pass
-    m = re.search(r"-(\d{9,11})(?:-\d+)?$", item.name)
-    if m:
-        return float(m.group(1))
-    try:
-        return item.stat().st_mtime
-    except OSError:
-        return None
-
-
-def trash_list() -> list[dict]:
+def empty_trash() -> list[str]:
+    """Delete for good what versions before 0.13 moved to <root>/.trash/ (deleting is for good now, so
+    nothing new goes there). Returns the folder names removed."""
     trash = root() / ".trash"
     if not trash.is_dir():
         return []
-    out = []
-    for item in sorted(trash.iterdir()):
-        if item.is_dir():
-            title = item.name
-            try:
-                title = json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("title", title)
-            except Exception:
-                pass
-            out.append({"name": item.name, "title": title, "deleted_at": _deleted_at(item)})
-    return out
-
-
-def purge_trash(days: float, now: Optional[float] = None) -> list[str]:
-    """Delete for good every trashed item deleted more than ``days`` ago (each counted from its own
-    deletion). ``days <= 0`` keeps everything. Returns the purged folder names."""
-    if not days or days <= 0:
-        return []
-    now = time.time() if now is None else now
-    limit = float(days) * 86400
-    purged = []
-    trash = root() / ".trash"
-    if not trash.is_dir():
-        return []
+    gone = []
     with _LOCK:
         for item in list(trash.iterdir()):
-            if not item.is_dir():
-                continue
-            at = _deleted_at(item)
-            if at is not None and now - at >= limit:
+            if item.is_dir():
                 shutil.rmtree(item, ignore_errors=True)
-                if not item.exists():
-                    purged.append(item.name)
-    return purged
+            else:
+                item.unlink(missing_ok=True)
+            if not item.exists():
+                gone.append(item.name)
+        try:
+            trash.rmdir()
+        except OSError:
+            pass
+    return gone
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:

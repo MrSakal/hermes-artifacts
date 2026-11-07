@@ -166,8 +166,7 @@ which decides what is allowed.
   debugging port lets any local process control the desktop renderer, so open it only while you use it.
 - **Reads and writes:** only `<HERMES_HOME>/plugin-data/hermes-artifacts/` and the files you pass to
   `artifact_publish`. Deleting is for good, as in Claude: every version, comment and stored value goes at
-  once. Artifacts deleted by versions before 0.13 sit in `.trash/` there; each is removed `trash_days` after
-  its own deletion (default 30; `0` keeps them). A background timer checks every hour.
+  once. What versions before 0.13 kept in `.trash/` there is emptied once when the plugin starts.
 - **Credentials:** none.
 - **Bridge tools:** `window.hermes.callTool` is off by default. In the browser viewer it is limited to the
   `bridge_tools` allowlist. In the desktop it is not available. Artifact HTML is untrusted content: only
