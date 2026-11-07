@@ -621,40 +621,19 @@ const C = {
   text4: 'var(--ui-text-quaternary)',
   line: 'var(--ui-stroke-secondary)',
   hover: 'var(--chrome-action-hover)',
-  card: 'var(--ha-mist)', // Warm Paper's mist-gray: the flat card surface
-  fog: 'var(--ha-fog)', // one step off the page: hover
-  hair: 'var(--ha-hair)', // the 1px hairline
-  accent: 'var(--ha-mark)', // sienna: the one colour, for marks (comments, the default system)
-  accentBg: 'var(--ha-peach)', // blush peach, under sienna
-  serif: '"Signifier", "Source Serif 4", Georgia, ui-serif, serif',
-  shadowPop: '0 0 0 1px var(--ha-hair), 0 4px 24px rgba(0,0,0,.14)', // popovers (shadow-subtle)
-  shadowModal: '0 0 0 1px var(--ha-hair), 0 8px 40px rgba(0,0,0,.22)' // dialogs (shadow-subtle-2)
+  // Everything from Hermes' theme (a skin changes it all): surfaces, accent, font, radius scale.
+  card: 'var(--ui-bg-elevated, color-mix(in srgb, var(--foreground) 5%, var(--background)))',
+  hair: 'var(--ui-stroke-secondary)',
+  accent: 'var(--ui-accent, var(--foreground))',
+  accentBg: 'color-mix(in srgb, var(--ui-accent, var(--foreground)) 16%, var(--background))',
+  rSm: 'var(--radius-sm, 6px)', // buttons, inputs, menu rows
+  rMd: 'var(--radius-md, 8px)',
+  rLg: 'var(--radius-lg, 10px)', // menus, tooltips
+  rXl: 'var(--radius-xl, 14px)', // cards, dialogs
+  shadowPop: '0 0 0 1px var(--ui-stroke-secondary), 0 10px 30px rgba(0,0,0,.25)',
+  shadowModal: '0 0 0 1px var(--ui-stroke-secondary), 0 18px 48px rgba(0,0,0,.35)'
 }
-/** Warm Paper on Hermes: surfaces mixed from the app's own ink and paper (so light and dark both work),
- *  and the peach/sienna pair, with a dark variant of it when Hermes is dark. */
-function installLook() {
-  if (typeof document === 'undefined' || document.getElementById('ha-look')) return
-  const st = document.createElement('style')
-  st.id = 'ha-look'
-  st.textContent = ':root{--ha-mist:color-mix(in srgb,var(--foreground) 5%,var(--background));' +
-    '--ha-fog:color-mix(in srgb,var(--foreground) 3%,var(--background));' +
-    '--ha-hair:color-mix(in srgb,var(--foreground) 10%,var(--background));--ha-peach:#fbe1d1;--ha-mark:#5d2a1a}' +
-    ':root[data-ha-dark]{--ha-peach:#3d2a21;--ha-mark:#f6cfb8}'
-  document.head.appendChild(st)
-  const probe = document.createElement('div')
-  probe.style.cssText = 'display:none;color:var(--background)'
-  document.body.appendChild(probe)
-  const sync = () => {
-    const m = /(\d+)\D+(\d+)\D+(\d+)/.exec(getComputedStyle(probe).color || '')
-    const dark = m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 < 0.45 : false
-    if (dark !== document.documentElement.hasAttribute('data-ha-dark')) document.documentElement.toggleAttribute('data-ha-dark', dark)
-  }
-  sync()
-  new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
-  new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
-  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', sync)
-}
-const font = { fontFamily: 'inherit' }
+const font = { fontFamily: 'var(--font-sans, inherit)' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
 const hoverFill = `linear-gradient(${C.hover}, ${C.hover}), ${C.bg}`
 
@@ -744,7 +723,7 @@ function IconButton({ icon, title, onClick, active, label, danger }) {
       gap: 6,
       height: 30,
       padding: label ? '0 12px' : '0 7px',
-      borderRadius: 999,
+      borderRadius: C.rSm,
       border: 0,
       cursor: 'pointer',
       fontSize: 12,
@@ -765,13 +744,13 @@ function Chip({ label, active, onClick }) {
       ...font,
       height: 30,
       padding: '0 14px',
-      borderRadius: 999,
+      borderRadius: C.rSm,
       border: 0,
       cursor: 'pointer',
       fontSize: 13,
       // Warm Paper: the chosen one is a filled ink pill, the others ghost.
-      color: active ? C.bg : h ? C.fg : C.text2,
-      background: active ? C.fg : h ? C.card : 'transparent'
+      color: active ? C.fg : h ? C.fg : C.text2,
+      background: active ? C.accentBg : h ? C.card : 'transparent'
     },
     children: label
   })
@@ -852,7 +831,7 @@ function Thumb({ ctx, art, height }) {
 function TypeBadge({ type, size = 32 }) {
   const look = TYPE_LOOK[type] || TYPE_LOOK.page
   return jsx('div', {
-    style: { width: size, height: size, borderRadius: 999, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.fg, background: C.bg },
+    style: { width: size, height: size, borderRadius: C.rMd, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.fg, background: C.bg },
     children: jsx(Icon, { name: look.icon, size: size * 0.5, stroke: 1.5 })
   })
 }
@@ -875,7 +854,7 @@ function DsBadge({ art }) {
   if (art.type !== 'design-system' || def !== art.id) return null
   return jsx('span', {
     title: t('dsDefaultTitle'),
-    style: { flexShrink: 0, fontSize: 12, fontWeight: 500, padding: '2px 9px', borderRadius: 999, color: C.accent, background: C.accentBg },
+    style: { flexShrink: 0, fontSize: 12, fontWeight: 500, padding: '2px 9px', borderRadius: C.rSm, color: C.accent, background: C.accentBg },
     children: t('dsDefault')
   })
 }
@@ -949,7 +928,7 @@ function NewTile({ ctx, kind }) {
             style: {
               width: 136,
               height: 96,
-              borderRadius: 20,
+              borderRadius: C.rXl,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -965,7 +944,7 @@ function NewTile({ ctx, kind }) {
       h && !menu
         ? jsxs('div', {
             role: 'tooltip',
-            style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '10px 12px', borderRadius: 16,
+            style: { position: 'absolute', left: '50%', top: 104, transform: 'translateX(-50%)', zIndex: 30, width: 230, padding: '10px 12px', borderRadius: C.rLg,
               background: C.bg, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
             children: [
               jsx('div', { style: { fontSize: 13, fontWeight: 500, color: C.fg }, children: t(`tile_${kind}`) }),
@@ -996,7 +975,7 @@ function OverlayBtn({ icon, title, active, onClick }) {
     'aria-label': title,
     ...hp,
     onClick: e => (e.stopPropagation(), onClick(e)),
-    style: { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: 999, cursor: 'pointer',
+    style: { width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: C.rSm, cursor: 'pointer',
       border: 0, color: active ? C.bg : C.fg, background: active ? C.fg : h ? C.card : C.bg, boxShadow: C.shadowPop },
     children: jsx(Icon, { name: icon, size: 15 })
   })
@@ -1118,20 +1097,20 @@ function RenameDialog({ ctx, art, onClose }) {
     onMouseDown: e => e.stopPropagation(),
     style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)' },
     children: jsxs('div', {
-      style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 24, borderRadius: 24, background: C.bg, boxShadow: C.shadowModal },
+      style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 22, borderRadius: C.rXl, background: C.bg, boxShadow: C.shadowModal },
       children: [
-        jsx('div', { style: { fontFamily: C.serif, fontSize: 24, fontWeight: 400, letterSpacing: '-0.3px', color: C.fg, marginBottom: 16 }, children: t('renameTitle') }),
+        jsx('div', { style: { fontSize: 16, fontWeight: 600, color: C.fg, marginBottom: 14 }, children: t('renameTitle') }),
         jsx('input', {
           autoFocus: true,
           value: name,
           onFocus: e => e.target.select(),
           onChange: e => setName(e.target.value),
           onKeyDown: e => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') save() },
-          style: { ...font, width: '100%', boxSizing: 'border-box', height: 40, padding: '0 16px', borderRadius: 16, border: `1px solid ${C.hair}`, background: C.card, color: C.fg, fontSize: 15, outline: 'none' }
+          style: { ...font, width: '100%', boxSizing: 'border-box', height: 36, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.hair}`, background: C.card, color: C.fg, fontSize: 15, outline: 'none' }
         }),
         jsxs('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }, children: [
-          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 36, padding: '0 18px', borderRadius: 999, border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 36, padding: '0 18px', borderRadius: 999, border: 0, background: changed ? C.fg : C.card, color: changed ? C.bg : C.text3, fontSize: 14, fontWeight: 500, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
+          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 32, padding: '0 14px', borderRadius: C.rSm, border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 32, padding: '0 14px', borderRadius: C.rSm, border: 0, background: changed ? C.fg : C.card, color: changed ? C.bg : C.text3, fontSize: 14, fontWeight: 500, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
         ] })
       ]
     })
@@ -1155,12 +1134,12 @@ function Card({ ctx, art }) {
         onClick: () => !renaming && openArtifact(ctx, art.id),
         onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openArtifact(ctx, art.id),
         style: {
-          ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: 24, overflow: 'hidden', padding: 8,
+          ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: C.rXl, overflow: 'hidden', padding: 8,
           cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease', outline: 'none'
         },
         children: [
           jsx('div', {
-            style: { borderRadius: 16, overflow: 'hidden', background: C.bg },
+            style: { borderRadius: C.rLg, overflow: 'hidden', background: C.bg },
             children: jsx(Thumb, { ctx, art, height: 158 })
           }),
           jsxs('div', {
@@ -1212,7 +1191,7 @@ function ListRow({ ctx, art }) {
         role: 'button',
         tabIndex: 0,
         onClick: () => !renaming && openArtifact(ctx, art.id),
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: 16, cursor: 'pointer', background: h ? C.card : 'transparent', boxSizing: 'border-box' },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.card : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
           jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
@@ -1369,7 +1348,7 @@ function Gallery({ ctx, pageRef }) {
         children: jsxs('div', {
           style: { maxWidth: 1180, margin: '0 auto', padding: '28px 28px 40px' },
           children: [
-            jsx('h1', { style: { margin: '0 0 24px', fontFamily: C.serif, fontSize: 40, lineHeight: 1.2, fontWeight: 400, letterSpacing: '-0.6px', color: C.fg }, children: t('title') }),
+            jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, lineHeight: 1.25, fontWeight: 600, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
             jsxs('div', {
               style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26, flexWrap: 'wrap' },
               children: [
@@ -1384,7 +1363,7 @@ function Gallery({ ctx, pageRef }) {
                       onChange: e => $query.set(e.target.value),
                       onBlur: () => !query && setSearching(false),
                       onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      style: { ...font, height: 30, width: 240, padding: '0 14px', borderRadius: 999, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
+                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
                     })
                   : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
@@ -2023,7 +2002,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   }, [])
   return jsx('div', {
     ref,
-    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: 16, background: C.bg, boxShadow: C.shadowPop },
+    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, background: C.bg, boxShadow: C.shadowPop },
     children: items.filter(Boolean).map((it, i) =>
       it.sep
         ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.hair } }, `s${i}`)
@@ -2037,7 +2016,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
                 placeholder: it.placeholder,
                 onChange: e => it.onChange(e.target.value),
                 onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
-                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 14px', borderRadius: 999, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
+                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.card, color: C.fg, fontSize: 13, outline: 'none' }
               })
             : jsx(MenuRow, { it }, it.key || it.label)
     )
@@ -2060,7 +2039,7 @@ function MenuRow({ it }) {
       minHeight: 34,
       padding: '0 10px',
       border: 0,
-      borderRadius: 10,
+      borderRadius: C.rSm,
       textAlign: 'left',
       fontSize: 14,
       cursor: it.disabled ? 'default' : 'pointer',
@@ -2334,7 +2313,7 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
   return jsxs('div', {
     ref: boxRef,
     onClick: () => c.anchor?.selector && postToPage(portRef, 'flash', { selector: c.anchor.selector }),
-    style: { padding: 14, borderRadius: 16, border: `1px solid ${focused ? C.accent : 'transparent'}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
+    style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${focused ? C.accent : 'transparent'}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
     children: [
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
@@ -2574,7 +2553,7 @@ function Toast() {
   const msg = useValue($toast)
   if (!msg) return null
   return jsx('div', {
-    style: { position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 30, padding: '9px 18px', borderRadius: 999, background: C.fg, color: C.bg, fontSize: 13, boxShadow: C.shadowPop },
+    style: { position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 30, padding: '8px 14px', borderRadius: C.rMd, background: C.fg, color: C.bg, fontSize: 13, boxShadow: C.shadowPop },
     children: msg
   })
 }
@@ -2632,7 +2611,6 @@ export default {
   description: 'Replaces the built-in Artifacts page with agent-published, versioned artifacts (pages, dashboards, slides, docs).',
   register(ctx) {
     CTX = ctx
-    installLook()
     // The UI in the app's language (display.language); a language without a bundle, and every message to
     // Hermes (left out of the other bundles), fall back to `en`.
     ctx.i18n.register(STRINGS)

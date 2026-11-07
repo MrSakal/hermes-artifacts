@@ -39,10 +39,10 @@ html, body { overflow: hidden; }
 .mo-seg.recut span::after { content: " ·"; color: var(--color-accent); }
 .mo-head { position: absolute; top: 4px; bottom: 0; width: 2px; margin-left: -1px; background: var(--color-fg); border-radius: 1px; pointer-events: none; }
 .mo-head::before { content: ""; position: absolute; top: -2px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--color-fg); }
-.mo-range { position: absolute; top: 6px; bottom: 0; background: color-mix(in srgb, #e8b79a 22%, transparent); border-left: 2px solid #e8b79a;
-  border-right: 2px solid #e8b79a; pointer-events: none; }
+.mo-range { position: absolute; top: 6px; bottom: 0; background: color-mix(in srgb, var(--color-accent) 22%, transparent); border-left: 2px solid var(--color-accent);
+  border-right: 2px solid var(--color-accent); pointer-events: none; }
 .mo-range[hidden] { display: none; }
-.mo-pin { position: absolute; top: 0; min-width: 16px; height: 16px; margin-left: -8px; padding: 0 4px; border-radius: 8px; background: #fbe1d1; color: #5d2a1a; border: 1px solid #5d2a1a;
+.mo-pin { position: absolute; top: 0; min-width: 16px; height: 16px; margin-left: -8px; padding: 0 4px; border-radius: 8px; background: var(--color-accent); color: #fff;
   font: 500 10px/16px system-ui, sans-serif; text-align: center; cursor: pointer; z-index: 2; }
 .mo-pin.range { border-radius: 3px; }
 
