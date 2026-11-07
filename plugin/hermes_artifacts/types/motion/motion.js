@@ -9,7 +9,7 @@
   var kit = window.kit, h = kit.h, C = kit.content, FK = window.FilmKit, SND = window.MotionSound, ENC = window.MotionEncode;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)", back: "Previous frame (←)",
+    en: { retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)", back: "Previous frame (←)",
       fwd: "Next frame (→)", present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
       comment: "Comment (C)", commentAt: "Comment on this moment", commentRange: "Comment on this stretch", tweaks: "Tweaks", rough: "Rough cut",
       cont: "Continue", fin: "Finalize", contMsg: "Continue the animation.", left: "Scenes left: ", finMsg: "Finalize the animation.",
@@ -22,7 +22,7 @@
       building: "Exporting", cancel: "Cancel", frames: "frames", noCodec: "This browser can't encode video (WebCodecs H.264 missing)",
       noAudio: "Exported without sound: this browser can't encode AAC", fontsOff: "Web fonts couldn't be embedded: the export uses fallback fonts",
       done: "Exported", cancelled: "Export cancelled", scrollHint: "", s: "s", mixed: "Mixed", rangeMark: "Stretch" },
-    hu: { play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)", back: "Előző képkocka (←)",
+    hu: { retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)", back: "Előző képkocka (←)",
       fwd: "Következő képkocka (→)", present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
       comment: "Komment (C)", commentAt: "Komment erre a pillanatra", commentRange: "Komment erre a szakaszra", tweaks: "Hangolás", rough: "Nyers vágás",
       cont: "Folytatás", fin: "Véglegesítés", left: "Scenes left: ",
@@ -1036,6 +1036,37 @@
       sel.addEventListener("change", function () { setFace(pair[0], sel.value || null); });
       drawer.appendChild(row(pair[1], [sel]));
     });
+    // What was changed by hand in this scene, each with its own Reset (Claude's per-line Reset).
+    var here = function (id) { return sc ? id === sc.id : true; };
+    var lines = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && here(x.scene || "film"); });
+    if (lines.length) {
+      drawer.appendChild(h("h3", { text: T.retypedH }));
+      lines.forEach(function (x) {
+        drawer.appendChild(h("div", { "class": "mo-chg" }, [
+          h("span", { "class": "mo-chg-t", title: x.was + " → " + x.v, text: String(x.v).slice(0, 60) }),
+          resetLink(function () {
+            var rt = JSON.parse(JSON.stringify(REC.retyped));
+            rt.lines = rt.lines.filter(function (y) { return !(y && norm(y.was) === norm(x.was) && (y.scene || "film") === (x.scene || "film")); });
+            saveRecords({ retyped: rt.lines.length ? rt : null });
+          })]));
+      });
+    }
+    var layers = ((REC.retouched && REC.retouched.layers) || []).filter(function (e) {
+      var m = e && typeof e.id === "string" && /^([a-z][a-z0-9-]*|film)-\d+\//.exec(e.id);
+      return m && here(m[1]);
+    });
+    if (layers.length) {
+      drawer.appendChild(h("h3", { text: T.layersH }));
+      layers.forEach(function (e) {
+        var what = Object.keys(RT_KEYS).filter(function (k) { return e[k]; }).map(function (k) { return T[k] || k; }).join(", ");
+        drawer.appendChild(h("div", { "class": "mo-chg" }, [
+          h("span", { "class": "mo-chg-t", title: what, text: (e.label || e.id.split("/")[1]).slice(0, 40) + (what ? " · " + what : "") }),
+          resetLink(function () {
+            var all = ((REC.retouched && REC.retouched.layers) || []).filter(function (x) { return x && x.id !== e.id; });
+            saveRecords({ retouched: all.length ? { v: 1, layers: all } : null });
+          })]));
+      });
+    }
     // The look of one thing on the picture.
     drawer.appendChild(h("h3", { text: T.look }));
     if (selected && selected.isConnected) drawer.appendChild(lookControls(selected));

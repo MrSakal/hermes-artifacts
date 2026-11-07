@@ -92,3 +92,6 @@ html[data-thumb] #mo-bar, html[data-thumb] #mo-controls { display: none !importa
 html[data-thumb] #mo-app { top: 0; }
 html[data-thumb] #mo-view { background: transparent; }
 html[data-thumb] #mo-frame { box-shadow: none; }
+
+.mo-chg { display: flex; align-items: center; gap: 8px; margin: 2px 0; font-size: 12px; }
+.mo-chg-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
