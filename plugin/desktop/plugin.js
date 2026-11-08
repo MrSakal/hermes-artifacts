@@ -571,64 +571,54 @@ function watchChatArtifactTool(ctx) {
     if (!art) return
     const label = open ? tr('closeBeside') : tr('openBeside', art.title)
     const onSelect = () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
-    // On the chat's own route the button sits in Hermes' right cluster (the titleBar.right slot): the pane
-    // header measures that cluster and keeps its 48px window-drag handle clear of it. In the pane-tool row
-    // the handle lands on the button and the OS swallows every click and hover. Off the chat route the slot
-    // would make the page own the titlebar, so the pane-tool row is the fallback there.
-    if (onChatRoute(sid)) {
-      dispose = ctx.register({
-        id: 'chat-artifact-slot',
-        area: 'titleBar.right',
-        order: 9999,
-        render: () => jsx(TitlebarArtifactButton, { label, active: open, count: arts.length, onSelect })
-      })
-      return
-    }
+    // Only on the chat's own route, in Hermes' right cluster (the titleBar.right slot): the pane header
+    // keeps its window-drag handle clear of that cluster, and off a chat (the Artifacts page, other pages)
+    // the button has nothing to open beside.
+    if (!onChatRoute(sid)) return
     dispose = ctx.register({
-      id: 'chat-artifact-tool',
-      area: 'titleBar.tools.right',
-      data: {
-        id: `${ID}:chat-artifact`,
-        label: open ? tr('closeBeside') : tr('openBeside', art.title),
-        title: open ? tr('closeBeside') : tr('openBeside', art.title),
-        // The same icon as the sidebar's Artifacts row, so it reads as "artifacts" at a glance.
-        icon: titlebarIcon(),
-        active: open,
-        badge: arts.length > 1 ? arts.length : undefined,
-        onSelect: () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
-      }
+      id: 'chat-artifact-slot',
+      area: 'titleBar.right',
+      order: 9999,
+      render: () => jsx(TitlebarArtifactButton, { label, active: open, count: arts.length, onSelect })
     })
   }
   // Entering a chat that made an artifact opens it beside the chat, as Claude does; closing it there keeps
   // it closed in that chat (until the person opens it again).
-  let lastSid = sidAtom.get()
+  // The chat in front, but only while its own route shows (not the Artifacts page or another page).
+  const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
+  let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
   const closedIn = new Set(Array.isArray(ctx.storage?.get('closedIn')) ? ctx.storage.get('closedIn') : [])
   const remember = () => ctx.storage?.set('closedIn', [...closedIn].slice(-200))
   const enter = () => {
-    const sid = sidAtom.get()
+    if (!listedOnce) return // try again when the list arrives
+    const sid = chatInFront()
     if (sid === lastSid) return
     lastSid = sid
+    if (!sid) return // on a page: the dock stays as it is
     // The artifact belongs to its chat: another chat in front closes it.
     const shown = current()
     if ($chat.get() === 'split' && dockClose && shown?.session && shown.session !== sid) {
       closeDock()
       $chat.set('off')
     }
-    if (!sid || closedIn.has(sid) || !listedOnce) return
+    if (closedIn.has(sid)) return
     if ($chat.get() === 'split' && current()?.session === sid) return
     const art = $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0))[0]
-    if (art && !window.location.hash.startsWith(`#${PAGE}`)) openBeside(ctx, art)
+    if (art) openBeside(ctx, art)
   }
+  // A close counts only when the person closed it in that chat, not when they went to another page.
   let wasOpenFor = null
   const track = () => {
-    const sid = sidAtom.get()
+    const sid = chatInFront()
+    if (!sid) return
     const open = $chat.get() === 'split' && current()?.session === sid
     if (open) { wasOpenFor = sid; if (closedIn.delete(sid)) remember() }
     else if (wasOpenFor && wasOpenFor === sid) { closedIn.add(sid); remember(); wasOpenFor = null }
   }
   window.addEventListener('hashchange', sync)
-  offs0.push(() => window.removeEventListener('hashchange', sync))
-  const offs = [...offs0, sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
+  window.addEventListener('hashchange', enter)
+  offs0.push(() => window.removeEventListener('hashchange', sync), () => window.removeEventListener('hashchange', enter))
+  const offs = [...offs0, sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $list.listen(enter), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
   sync()
   return () => { offs.forEach(f => f?.()); dispose?.() }
 }
@@ -678,9 +668,9 @@ async function refresh(ctx) {
     if (JSON.stringify(r.folders || []) !== JSON.stringify($folders.get())) $folders.set(r.folders || [])
     const prev = current()
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
+    listedOnce = true // before the set: its listeners (opening a chat's artifact at start) check it
     if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
     syncPinnedNav(ctx, list)
-    listedOnce = true
     $error.set(null)
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
     const now = current()
