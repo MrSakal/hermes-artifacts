@@ -74,8 +74,6 @@ const STRINGS = {
     send: 'Send',
     confirmTitle: 'Send this to Hermes?',
     confirmBody: 'The artifact wants to send this message into its chat.',
-    newChatMade: 'The earlier chat is gone: started a new one with this artifact',
-    sentNew: 'The earlier chat is gone: sent into a new chat with this artifact',
     chatGone: 'The chat this artifact was made in is archived or deleted. Write here and a new chat starts with this artifact.',
     title: 'Artifacts',
     all: 'All',
@@ -253,8 +251,6 @@ const STRINGS = {
     send: 'Küldés',
     confirmTitle: 'Elküldöd ezt a Hermesnek?',
     confirmBody: 'Az artifact ezt az üzenetet küldené a chatjébe.',
-    newChatMade: 'A korábbi chat már nincs meg: új chat indult ezzel az artifacttal',
-    sentNew: 'A korábbi chat már nincs meg: új chatbe küldve, ezzel az artifacttal',
     chatGone: 'A chat, amelyben ez az artifact készült, archivált vagy törölt. Írj ide, és új chat indul ezzel az artifacttal.',
     title: 'Artifacts',
     all: 'Összes',
@@ -2084,7 +2080,6 @@ async function openSplit(ctx, art) {
     try {
       const c = await ensureChat(art)
       await host.openSession(c.stored)
-      if (c.created) toast(T('newChatMade'))
     } catch {
       $chat.set('float')
       return
@@ -2426,7 +2421,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
           toast(t('duplicated'))
         })
       },
-      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored); if (c.created) toast(t('newChatMade')) } catch (e) { toast(String(e?.message || e)) } }) },
+      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(String(e?.message || e)) } }) },
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
@@ -2690,7 +2685,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
           ? T('docCommentMsg', art.title, art.id, parent || c.id, anchor, body)
           : t('commentMsg', art.title, art.id, parent || c.id, where, body)
         const mode = await toChat(msg, gesture, art)
-        toast(mode === 'submitted' ? t('sent') : mode === 'submitted-new' ? t('sentNew') : mode === 'draft' ? t('drafted') : t('notDelivered'))
+        toast(mode === 'submitted' || mode === 'submitted-new' ? t('sent') : mode === 'draft' ? t('drafted') : t('notDelivered'))
       }
       setText('')
       onDone()
