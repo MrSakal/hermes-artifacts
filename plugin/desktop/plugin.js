@@ -642,26 +642,30 @@ function watchChatArtifactTool(ctx) {
 function PinMark({ ctx, sessionId }) {
   const list = useValue($list)
   const t = usePluginI18n(ID)
-  const arts = list.filter(a => a.pinned && a.session && a.session === sessionId)
+  const [hover, setHover] = useState(false)
+  // Every chat that made an artifact wears it, pinned or not: the newest one's type icon (the same icons as
+  // the gallery's "Make something new" cards); a click opens it beside the chat.
+  const arts = list.filter(a => a.session && a.session === sessionId).sort((x, y) => (y.updated || 0) - (x.updated || 0))
   if (!arts.length) return null
-  return jsx('span', {
-    style: { display: 'inline-flex', gap: 2, marginRight: 4, flexShrink: 0 },
-    children: arts.slice(0, 3).map(a => jsx('button', {
-      key: a.id,
-      type: 'button',
-      title: t('openPinned', a.title),
-      'aria-label': t('openPinned', a.title),
-      onPointerDown: e => e.stopPropagation(),
-      onMouseDown: e => e.stopPropagation(),
-      onClick: e => {
-        e.preventDefault()
-        e.stopPropagation()
-        openBeside(ctx, a)
-      },
-      style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
-        borderRadius: C.rSm, background: 'transparent', color: C.accent, cursor: 'pointer' },
-      children: jsx(Icon, { name: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, size: 14, stroke: 1.8 })
-    }))
+  const a = arts[0]
+  const label = arts.length > 1 ? `${t('openBeside', a.title)} (+${arts.length - 1})` : t('openBeside', a.title)
+  return jsx('button', {
+    type: 'button',
+    title: label,
+    'aria-label': label,
+    onPointerDown: e => e.stopPropagation(),
+    onMouseDown: e => e.stopPropagation(),
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+    onClick: e => {
+      e.preventDefault()
+      e.stopPropagation()
+      openBeside(ctx, a)
+    },
+    style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
+      marginRight: 4, flexShrink: 0, borderRadius: C.rSm, cursor: 'pointer',
+      background: hover ? C.rowHover : 'transparent', color: hover ? C.fg : C.text2 },
+    children: jsx(Icon, { name: a.type === 'page' || !TYPE_LOOK[a.type] ? 'code' : TYPE_LOOK[a.type].icon, size: 14, stroke: 1.8 })
   })
 }
 /** A pinned artifact's own route: the Artifacts page, opened on it. */
