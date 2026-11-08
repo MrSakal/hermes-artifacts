@@ -532,26 +532,23 @@ function onChatRoute(sid) {
 /** Hermes' titlebar icon size, so it matches the buttons beside it. */
 function titlebarIcon() {
   return SDK.Codicon
-    ? jsx(SDK.Codicon, { name: 'files', size: 'var(--titlebar-icon-size, 14px)' })
+    ? jsx(SDK.Codicon, { name: 'files', size: 'var(--titlebar-icon-size, 14px)', className: 'leading-none' })
     : jsx(Icon, { name: 'page', size: 14 })
 }
 
-/** A button styled like Hermes' own titlebar buttons (24px, transparent, hover tint). */
+/** Hermes' own titlebar button: its classes (muted icon, hover tint, 24px), so it matches the buttons beside
+ *  it in every skin. Like Hermes' titlebar actions it shows no "active" look. */
 function TitlebarArtifactButton({ label, active, count, onSelect }) {
-  const [hover, setHover] = useState(false)
   return jsxs('button', {
     type: 'button',
     title: label,
     'aria-label': label,
     'aria-pressed': active,
-    onMouseEnter: () => setHover(true),
-    onMouseLeave: () => setHover(false),
+    className: 'titlebar-icon-button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[4px] ' +
+      'h-(--titlebar-control-height) w-(--titlebar-control-size) bg-transparent select-none ' +
+      'text-muted-foreground/85 hover:bg-(--ui-control-hover-background) hover:text-foreground',
     onClick: e => { e.preventDefault(); onSelect() },
-    style: { position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: 'var(--titlebar-control-size, 24px)', height: 'var(--titlebar-control-height, 24px)', padding: 0, border: 0,
-      borderRadius: 4, cursor: 'pointer', WebkitAppRegion: 'no-drag',
-      background: hover ? 'var(--ui-control-hover-background, var(--chrome-action-hover))' : 'transparent',
-      color: active || hover ? 'var(--foreground)' : 'color-mix(in srgb, var(--muted-foreground) 85%, transparent)' },
+    style: { position: 'relative', padding: 0, border: 0, WebkitAppRegion: 'no-drag' },
     children: [
       titlebarIcon(),
       count > 1 ? jsx('span', { style: { position: 'absolute', top: 1, right: 0, fontSize: 9, lineHeight: 1, fontWeight: 600 }, children: count }) : null
