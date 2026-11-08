@@ -116,6 +116,7 @@ const STRINGS = {
     tileAbout_dashboard: 'Charts, figures and tables of data; every number shows where it came from.',
     tileAbout_motion: 'A short animation that plays in place and exports as video.',
     tileAbout_page: 'Any web page or small tool, written as code.',
+    'tileAbout_design-system': "A brand's colours, type and components that designs, decks and films build on.",
     filterSort: 'Filter and sort',
     sortBy: 'Sort by',
     lastOpened: 'Last opened',
@@ -293,6 +294,7 @@ const STRINGS = {
     tileAbout_dashboard: 'Diagramok, számok és táblázatok; minden szám mutatja, honnan jön.',
     tileAbout_motion: 'Rövid animáció, ami helyben lejátszódik, és videóként exportálható.',
     tileAbout_page: 'Bármilyen weboldal vagy kis eszköz, kódként megírva.',
+    'tileAbout_design-system': 'Egy márka színei, betűi és komponensei, amelyekre a designok, diák és filmek épülnek.',
     filterSort: 'Szűrés és rendezés',
     sortBy: 'Rendezés',
     lastOpened: 'Utoljára megnyitva',
@@ -878,13 +880,14 @@ const TYPE_LOOK = {
   dashboard: { bg: '#0d9488', bg2: '#0e7490', icon: 'chart' },
   slides: { bg: '#d97706', bg2: '#db2777', icon: 'slides' },
   doc: { bg: '#0369a1', bg2: '#4338ca', icon: 'doc' },
-  // Designs and design systems are one family: one colour, one icon.
+  // Designs and design systems are one family: one colour; the system wears a swatch book.
   design: { bg: '#a21caf', bg2: '#e11d48', icon: 'palette' },
-  'design-system': { bg: '#a21caf', bg2: '#e11d48', icon: 'palette' },
+  'design-system': { bg: '#a21caf', bg2: '#e11d48', icon: 'swatch' },
   motion: { bg: '#15803d', bg2: '#0891b2', icon: 'motion' }
 }
 
 const ICONS = {
+  swatch: 'M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2zM16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7M7 17h.01M11 8l2.3-2.3a2.4 2.4 0 0 1 3.4 0l1.9 1.9a2.4 2.4 0 0 1 0 3.4L9.9 19.8',
   page: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 9h16M8 6h.01M11 6h.01',
   chart: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18',
   slides: 'M3 4h18M5 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4M12 15v3M9 21l3-3 3 3',
@@ -1549,7 +1552,7 @@ function NewMenu({ ctx, onClose }) {
     ]
   })
 }
-const NEW_KINDS = ['doc', 'slides', 'design', 'dashboard', 'motion', 'page']
+const NEW_KINDS = ['doc', 'slides', 'design', 'dashboard', 'motion', 'design-system', 'page']
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
