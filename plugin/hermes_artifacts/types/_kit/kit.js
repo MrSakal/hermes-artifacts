@@ -173,8 +173,12 @@
       }
     });
   }
-  // A card preview has no bridge: the host wrote its theme into the page instead.
-  var pre = window.__hermesTheme;
+  // A card preview has no bridge: the host wrote its theme into a <meta name="hermes-theme"> (JSON).
+  var pre = null;
+  try {
+    var tm = document.querySelector('meta[name="hermes-theme"]');
+    pre = tm ? JSON.parse(tm.getAttribute("content") || "null") : null;
+  } catch (e) { pre = null; }
   if (pre && typeof pre === "object" && pre.vars && typeof pre.vars === "object") {
     if (pre.mode === "dark" || pre.mode === "light") document.documentElement.setAttribute("data-theme", pre.mode);
     host = Object.assign({ mode: pre.mode }, pre.vars);

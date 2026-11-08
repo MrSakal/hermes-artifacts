@@ -505,6 +505,8 @@
     },
     resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); refreshLive(false); },
     setLink: function (name) { try { history.replaceState(null, "", "#" + encodeURIComponent(name || "")); } catch (e) {} },
+    // The Visual short engine (short.js): plays the page's chapters with these scene functions.
+    short: function (scenes, o) { return window.dashShort ? window.dashShort(dash, scenes || {}, o) : null; },
     colors: colors,
     colorValues: colorValues,
     format: function (n, o) {

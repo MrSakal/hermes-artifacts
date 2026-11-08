@@ -737,10 +737,12 @@ function toDataUrl(html) {
 // Rendered HTML per (id, version, page, thumb): a version never changes, so this is a plain LRU.
 const htmlCache = new Map()
 let hostLang = 'en' // set from the plugin's i18n (the app's active language)
-/** A card preview has no bridge, so it gets Hermes' theme written into its page (read by the kit at start). */
+/** A card preview has no bridge, so it gets Hermes' theme written into its page as a meta tag (read by the kit at start). */
 function withTheme(html, theme) {
   const json = JSON.stringify(theme).replace(/</g, '\\u003c')
-  const tag = `<script>window.__hermesTheme=${json}</script>`
+  // A <meta> the kit reads (no script: the page's own scripts stay the only ones).
+  const attr = json.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+  const tag = `<meta name="hermes-theme" content="${attr}">`
   const at = html.search(/<head[^>]*>/i)
   if (at < 0) return tag + html
   const end = html.indexOf('>', at) + 1
