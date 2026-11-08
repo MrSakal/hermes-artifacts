@@ -1,16 +1,16 @@
 # The look: colors, type and corners
 
-A dashboard wears a look: `dashboard.json` `"look"`, values recorded once. The dashboard checks every value,
-sets its own tokens from them for light and dark readers, and the page, written on the tokens
-(`--color-*`, `--chart-1..8`, `dash.colors`, `--font-sans`, `--font-display`, `--radius`), wears it. So the
-page names none of the look's colors, fonts or corners, and has no dark-mode rule.
+`dashboard.json` `"look"`: values recorded once. The dashboard checks every value and sets its own
+tokens from them for light and dark; the page, written on the tokens (`--color-*`, `--chart-1..8`,
+`dash.colors`, `--font-sans`, `--font-display`, `--radius`), wears it. The page names none of the look's
+colors, fonts or corners and has no dark-mode rule.
 
-**Design system first.** `artifact_guide` returns `design_system`. A default: read its tokens card
-(`api/tokens.md`, else `tokens.json`) and record its look in the first build, without asking; one the user
-names: the same. With none set and systems listed: name them and ask, when someone can answer; else the
-dashboard's own look (no `look`). The look is a copy: a later edit of the system changes no dashboard until
-you record it again: when the person asks, or when you change the dashboard anyway and `artifact_read`
-reports `design_system_changed` (then say so in a line).
+**Design system first.** `artifact_guide` returns `design_system`. A default, or one the user names:
+read its tokens card (`api/tokens.md`, else `tokens.json`) and record its look in the first build,
+without asking. None set but systems listed: name them and ask, when someone can answer; else the
+dashboard's own look (no `look`). The look is a copy: a later edit of the system changes no dashboard
+until you record it again, when the person asks, or when you change the dashboard anyway and
+`artifact_read` reports `design_system_changed` (then say so in a line).
 
 ```json
 "look": {
@@ -24,21 +24,21 @@ reports `design_system_changed` (then say so in a line).
 }
 ```
 
-- `system`: the system's name, id and the version you read (from `design_system`).
-- Read the system by name and usage: the page background is `ground`, cards and surfaces `card`, body text
-  `text`, secondary text `muted`, hairlines `border`. Fill both sets (its light and dark themes; one theme:
-  derive the other). `charts` leads with the brand color, then the accents most unlike those chosen, in the
-  same order in both sets (eight at most); statuses only where the system names them.
-- Take only values from the system and write them only to `look`: no script, stylesheet, component, font
-  file, image or wording of it goes into the page.
-- A color is a hex or `rgb()`, `hsl()`, `oklch()`, `oklab()`, `lab()`, `lch()`: no names, `var()` or
-  gradients. Lengths in `px` or `rem` within bounds: corners 0–32px, caption 9–18, body 11–22, heading
-  12–32, title 16–64. A font stack is up to twelve names; no font files load, so end it in faces every
-  reader has and a generic.
-- A light `ground` is `#eaeaea` or lighter, a dark one `#383838` or darker; one just outside is moved
-  toward white or black, one far outside drops its set. `text` needs 4.5:1 on ground and card, `muted`
-  3:1 (else they are worked out), a chart color 1.5:1.
-- A ready-made look, only when the person asks for one by name: Clay (warm paper, clay and ink), Ocean
-  (cool blue-white, deep blues and teal), Meadow (soft green-white, greens and ochre). `artifact_guide
+- `system`: name, id and the version you read (from `design_system`).
+- Map by name and usage: page background `ground`, cards/surfaces `card`, body text `text`, secondary
+  text `muted`, hairlines `border`. Fill both sets (its light and dark themes; one theme: derive the
+  other). `charts`: brand color first, then the accents most unlike those chosen, same order in both
+  sets, eight at most. Statuses only where the system names them.
+- Take only values from the system, written only to `look`: no script, stylesheet, component, font file,
+  image or wording of it goes into the page.
+- Color: hex or `rgb()`, `hsl()`, `oklch()`, `oklab()`, `lab()`, `lch()`; no names, `var()` or gradients.
+  Lengths in `px` or `rem` within bounds: corners 0–32px, caption 9–18, body 11–22, heading 12–32,
+  title 16–64. Font stack: up to twelve names; no font files load, so end it in faces every reader has
+  and a generic.
+- Light `ground` `#eaeaea` or lighter, dark `#383838` or darker; just outside is moved toward white or
+  black, far outside drops its set. `text` needs 4.5:1 on ground and card, `muted` 3:1 (else worked
+  out), a chart color 1.5:1.
+- Ready-made looks, only when the person asks by name: Clay (warm paper, clay and ink), Ocean (cool
+  blue-white, deep blues and teal), Meadow (soft green-white, greens and ochre). `artifact_guide
   type=dashboard topic=looks` gives each whole.
-- Asked to drop the look, remove `look`.
+- Asked to drop the look: remove `look`.

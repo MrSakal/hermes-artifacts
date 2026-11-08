@@ -1,83 +1,77 @@
 # Visual short
 
-A Visual short is a dashboard that plays: one finding told in a few chapters on one stage, each a
-drawing that builds while a caption says what it shows, a minute or two in all. It is built from
-datasets and marks like any dashboard. Start from the skeleton below: it already does what has to hold,
-so the work is the piece itself.
+A dashboard that plays: one finding told in a few chapters on one stage, each a drawing that builds
+while a caption says what it shows, a minute or two in all. Built from datasets and marks like any
+dashboard. Start from the skeleton below: it already does what has to hold.
 
 ## What has to hold
 
 - **One writer for each part** (`topic=editing`): words known as you write are in the HTML; each figure
-  and chart is a `data-draw`; outside them a script sets only `class`, `style` and `aria-*`.
-- **A mark holds its real value from the first draw.** A chapter that isn't playing is drawn whole, as
-  at its end; only the one playing is drawn at its time. A number that counts up does so in an
-  unmarked `aria-hidden="true"` copy laid over the marked one.
+  and chart is a `data-draw`; outside them a script sets only `class`, `style`, `aria-*`.
+- **A mark holds its real value from the first draw.** A chapter not playing is drawn whole (as at its
+  end); only the playing one is drawn at its time. A count-up number counts in an unmarked
+  `aria-hidden="true"` copy laid over the marked one.
 - **Chapters share one place and cross-fade** with `opacity` (never `display: none`: a drawing there
-  measures 0 wide). A chapter not showing is `aria-hidden` and takes no pointer; put nothing in a
-  chapter that takes focus.
-- **Captions are hidden from the eye alone** (`opacity`), so a screen reader gets every caption.
-- **Motion is drawn from time, in script.** Each chapter is a function of its own `t` in seconds, whole
+  measures 0 wide). A chapter not showing is `aria-hidden`, takes no pointer; nothing in a chapter takes focus.
+- **Captions hide from the eye only** (`opacity`): a screen reader gets every caption.
+- **Motion is drawn from time, in script.** Each chapter is a function of its own `t` (seconds), whole
   at the end, so it can be held, replayed or jumped to. `t` runs in one animation-frame loop, stopped
   while nothing plays. Each frame writes only styles and attributes, not marks.
-- **The reader starts it.** It opens on its title, whole and at rest (also what a thumbnail shows), and
-  plays only on Play or a chapter mark.
-- **It fits the room it is given**: the stage's width is set from the height there is, so it keeps its
-  shape; `container-type: inline-size` on the wrapper and the stage, sizes inside in `cqi`.
-- **`prefers-reduced-motion: reduce`** shows each chapter's drawing whole at once, with only the fade.
+- **The reader starts it.** It opens on its title, whole and at rest (what a thumbnail shows), and plays
+  only on Play or a chapter mark.
+- **It fits its room**: stage width is set from the available height, keeping its shape;
+  `container-type: inline-size` on wrapper and stage, sizes inside in `cqi`.
+- **`prefers-reduced-motion: reduce`**: each chapter's drawing whole at once, only the fade.
 - **Every number in a caption is marked and filled from the data**; words that turn on the data come
-  from a calc. Rounded for the ear ("about 1,900"), the stage shows the exact one.
+  from a calc. Captions round for the ear ("about 1,900"); the stage shows the exact one.
 
 ## Suggestions
 
-- Five to seven chapters. The first is a title (what, the period, how long it runs); the last is what
-  to do next, ending with every mark at full strength.
-- Each chapter: a small uppercase label, a one-sentence headline that states the finding, the caption's
-  row (`.vs-say`, empty), one drawing that fills its box, a small muted source line.
-- Captions: 150–250 characters, two to four sentences each in its own `.vs-s`, written as if said aloud.
-- Pace: a chapter lasts its caption's length / 15 seconds, plus 1; a mark's cue is where its word starts
-  in the caption, / 15.
+- Five to seven chapters. First: a title (what, the period, how long it runs); last: what to do next,
+  ending with every mark at full strength.
+- Each chapter: small uppercase label, one-sentence headline stating the finding, the caption row
+  (`.vs-say`, empty), one drawing filling its box, small muted source line.
+- Captions: 150–250 characters, two to four sentences, each in its own `.vs-s`, written to be said aloud.
+- Pace: a chapter lasts caption length / 15 seconds, plus 1; a mark's cue is where its word starts in
+  the caption, / 15.
 - Marks arrive: bars grow from zero, a value fades in once its bar lands, 400–700 ms, `d3.easeCubicOut`.
-  Gray first, one accent (`dash.colors[0]`) on what the sentence is about. Labels on the marks; no axes,
+  Gray first, one accent (`dash.colors[0]`) on what the sentence is about. Labels on marks; no axes,
   gridlines or legends.
 
 ## The skeleton
 
-`index.html` (here as one file; split CSS and script out if you like). Replace the chapters, captions,
-datasets and `scenes`; keep the engine.
+`index.html` (one file here; split CSS/script out if you like). Replace chapters, captions, datasets
+and `scenes`; keep the engine.
 
 ```html
 <meta name="dash-one-writer">
 <style>
-#short.vs { container-type: inline-size; display: flex; justify-content: center; }
-#short .vs-stage { position: relative; container-type: inline-size; width: min(100%, calc((100vh - 140px) * 16 / 9)); aspect-ratio: 16 / 9;
-  background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--radius); overflow: hidden; }
-@container (max-width: 800px) { #short .vs-stage { aspect-ratio: 1 / 1; width: min(100%, calc(100vh - 140px)); } }
-@container (max-width: 560px) { #short .vs-stage { aspect-ratio: 4 / 5; } }
-#short .vs-marks { position: absolute; left: 4cqi; right: 4cqi; top: 2.4cqi; display: flex; gap: .8cqi; z-index: 3; }
-#short .vs-mark { flex: 1; height: 1.6cqi; min-height: 10px; padding: 0; border: 0; background: none; cursor: pointer; display: flex; align-items: center; }
-#short .vs-mark i { display: block; width: 100%; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--color-fg) 18%, transparent);
-  background-image: linear-gradient(var(--color-fg), var(--color-fg)); background-repeat: no-repeat; background-size: var(--p, 0%) 100%;
-  forced-color-adjust: none; }
-#short .vs-ctl { position: absolute; right: 3cqi; top: 4.6cqi; display: flex; gap: .6cqi; z-index: 3; transition: opacity .3s; }
-#short .vs-ctl button { width: max(28px, 3.6cqi); height: max(28px, 3.6cqi); border: 0; border-radius: 6px; background: none; color: var(--color-fg-muted); cursor: pointer; }
-#short .vs-ctl button:hover { background: var(--color-hover); color: var(--color-fg); }
-#short .vs-ctl svg { width: 60%; height: 60%; }
-#short .vs-ctl .vs-cc { font: 600 max(11px, 1.3cqi) var(--font-sans); }
-#short .vs-ctl .vs-cc[aria-pressed="false"] { opacity: .45; }
-#short .vs-stage.vs-idle .vs-ctl { opacity: 0; }
-#short .vs-ch { position: absolute; inset: 0; padding: 5.2cqi 4cqi 3cqi; display: grid; grid-template-rows: auto auto 7cqi 1fr auto; gap: 1cqi;
-  opacity: 0; transition: opacity .45s; pointer-events: none; }
-#short .vs-ch.vs-on { opacity: 1; pointer-events: auto; }
-#short .vs-label { margin: 0; font: 600 max(10px, 1.3cqi) var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--color-fg-muted); }
-#short .vs-head { margin: 0; font: 400 max(18px, 3.4cqi)/1.15 var(--font-display); color: var(--color-fg); max-width: 80%; }
-#short .vs-draw { position: relative; container-type: size; min-height: 0; font-size: max(11px, 1.8cqi); }
-#short .vs-src { margin: 0; font-size: max(10px, 1.3cqi); color: var(--color-fg-muted); }
-#short .vs-caps { position: absolute; left: 4cqi; right: 4cqi; z-index: 2; pointer-events: none; font-size: max(14px, 2cqi); line-height: 1.4; }
-#short .vs-cap { position: absolute; left: 0; right: 0; top: 0; margin: 0; }
-#short .vs-s { position: absolute; left: 0; right: 0; top: 0; opacity: 0; transition: opacity .3s; }
-#short .vs-s.vs-now { opacity: 1; }
-#short .vs-caps.vs-off .vs-s { opacity: 0 !important; }
-@media (forced-colors: active) { #short .vs-mark i { background-color: GrayText; background-image: linear-gradient(CanvasText, CanvasText); } }
+#short.vs{container-type:inline-size;display:flex;justify-content:center;}
+#short .vs-stage{position:relative;container-type:inline-size;width:min(100%, calc((100vh - 140px) * 16 / 9));aspect-ratio:16 / 9; background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--radius);overflow:hidden;}
+@container (max-width:800px){#short .vs-stage{aspect-ratio:1 / 1;width:min(100%, calc(100vh - 140px));}}
+@container (max-width:560px){#short .vs-stage{aspect-ratio:4 / 5;}}
+#short .vs-marks{position:absolute;left:4cqi;right:4cqi;top:2.4cqi;display:flex;gap:.8cqi;z-index:3;}
+#short .vs-mark{flex:1;height:1.6cqi;min-height:10px;padding:0;border:0;background:none;cursor:pointer;display:flex;align-items:center;}
+#short .vs-mark i{display:block;width:100%;height:3px;border-radius:2px;background:color-mix(in srgb, var(--color-fg) 18%, transparent); background-image:linear-gradient(var(--color-fg), var(--color-fg));background-repeat:no-repeat;background-size:var(--p, 0%) 100%; forced-color-adjust:none;}
+#short .vs-ctl{position:absolute;right:3cqi;top:4.6cqi;display:flex;gap:.6cqi;z-index:3;transition:opacity .3s;}
+#short .vs-ctl button{width:max(28px, 3.6cqi);height:max(28px, 3.6cqi);border:0;border-radius:6px;background:none;color:var(--color-fg-muted);cursor:pointer;}
+#short .vs-ctl button:hover{background:var(--color-hover);color:var(--color-fg);}
+#short .vs-ctl svg{width:60%;height:60%;}
+#short .vs-ctl .vs-cc{font:600 max(11px, 1.3cqi) var(--font-sans);}
+#short .vs-ctl .vs-cc[aria-pressed="false"]{opacity:.45;}
+#short .vs-stage.vs-idle .vs-ctl{opacity:0;}
+#short .vs-ch{position:absolute;inset:0;padding:5.2cqi 4cqi 3cqi;display:grid;grid-template-rows:auto auto 7cqi 1fr auto;gap:1cqi; opacity:0;transition:opacity .45s;pointer-events:none;}
+#short .vs-ch.vs-on{opacity:1;pointer-events:auto;}
+#short .vs-label{margin:0;font:600 max(10px, 1.3cqi) var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--color-fg-muted);}
+#short .vs-head{margin:0;font:400 max(18px, 3.4cqi)/1.15 var(--font-display);color:var(--color-fg);max-width:80%;}
+#short .vs-draw{position:relative;container-type:size;min-height:0;font-size:max(11px, 1.8cqi);}
+#short .vs-src{margin:0;font-size:max(10px, 1.3cqi);color:var(--color-fg-muted);}
+#short .vs-caps{position:absolute;left:4cqi;right:4cqi;z-index:2;pointer-events:none;font-size:max(14px, 2cqi);line-height:1.4;}
+#short .vs-cap{position:absolute;left:0;right:0;top:0;margin:0;}
+#short .vs-s{position:absolute;left:0;right:0;top:0;opacity:0;transition:opacity .3s;}
+#short .vs-s.vs-now{opacity:1;}
+#short .vs-caps.vs-off .vs-s{opacity:0 !important;}
+@media (forced-colors:active){#short .vs-mark i{background-color:GrayText;background-image:linear-gradient(CanvasText, CanvasText);}}
 </style>
 
 <div class="vs" id="short"><div class="vs-stage">
@@ -114,27 +108,25 @@ datasets and `scenes`; keep the engine.
 </div></div>
 
 <script>
-// The finding's numbers, rounded for the ear (the stage shows the exact ones).
 dash.calc('said', { title: 'Rounded for the captions', inputs: ['months'],
   fn: (months) => ({ sep: Math.round(Number((months.find((r) => r.month === '2026-09') || {}).n || 0) / 100) * 100 }) });
 
 const fmt = d3.format(',');
-// Figures inside captions are drawings too.
 ['say-sep', 'say-sep2'].forEach((n) => dash.draw(n, (el) => {
   const s = dash.data('said');
   el.textContent = s.status === 'ok' ? fmt(s.data.sep) : '—';
 }));
 const ease = d3.easeCubicOut;
 const clamp = (x) => Math.max(0, Math.min(1, x));
-// Each scene draws its chapter at time t (seconds); t = Infinity is the chapter whole.
+// scene(el, t): the chapter at t seconds; t = Infinity is it whole.
 const scenes = {
   title(el, t) {
     const m = dash.data('months');
     if (m.status !== 'ok') { el.textContent = '—'; return; }
     const v = Number((m.data.find((r) => r.month === '2026-09') || {}).n || 0);
     el.innerHTML = '';
-    const big = d3.select(el).append('div').style('position', 'absolute').style('inset', '0').style('display', 'grid').style('place-items', 'center')
-      .style('font', '400 12cqi/1 var(--font-display)').style('color', 'var(--color-fg)');
+    const big = d3.select(el).append('div')
+      .attr('style', 'position:absolute;inset:0;display:grid;place-items:center;font:400 12cqi/1 var(--font-display);color:var(--color-fg)');
     big.text(fmt(v));
     const k = clamp(t / 1.2);
     if (k < 1) big.style('opacity', ease(k));
@@ -144,13 +136,12 @@ const scenes = {
     el.innerHTML = '';
     if (m.status !== 'ok') { el.textContent = '—'; return; }
     const rows = m.data, max = d3.max(rows, (r) => Number(r.n)) || 1;
-    const box = d3.select(el).append('div').style('position', 'absolute').style('inset', '0').style('display', 'flex').style('flex-direction', 'column')
-      .style('justify-content', 'center').style('gap', '2cqh');
+    const box = d3.select(el).append('div').attr('style', 'position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:2cqh');
     rows.forEach((r, i) => {
       const k = ease(clamp((t - i * 0.5) / 0.6)), w = (Number(r.n) / max) * 80 * k;
-      const row = box.append('div').style('display', 'flex').style('align-items', 'center').style('gap', '1em').style('height', Math.min(18, 100 / rows.length) + 'cqh');
-      row.append('span').style('width', '5em').style('color', 'var(--color-fg-muted)').text(r.month);
-      row.append('div').style('height', '60%').style('width', w + '%').style('border-radius', '4px')
+      const row = box.append('div').attr('style', 'display:flex;align-items:center;gap:1em;height:' + Math.min(18, 100 / rows.length) + 'cqh');
+      row.append('span').attr('style', 'width:5em;color:var(--color-fg-muted)').text(r.month);
+      row.append('div').attr('style', 'height:60%;border-radius:4px;width:' + w + '%')
         .style('background', i === rows.length - 1 ? dash.colors[0] : 'color-mix(in srgb, var(--color-fg) 22%, transparent)');
       row.append('span').style('opacity', k).text(fmt(Number(r.n)));
     });
@@ -243,6 +234,5 @@ const scenes = {
 </script>
 ```
 
-The skeleton's datasets: `months` (`month`, `n`); `said` is the calc. A chapter's drawing is named for
-its scene (`data-draw="months"` → `scenes.months`). At hand-over say how long it runs and that Play
-starts it.
+Datasets: `months` (`month`, `n`); `said` is the calc. A chapter's drawing is named for its scene
+(`data-draw="months"` → `scenes.months`). At hand-over say how long it runs and that Play starts it.

@@ -79,6 +79,7 @@ class ViewContextTests(unittest.TestCase):
         self.assertIn('<artifact-view-context artifact="' + aid + '">', out["context"])
         self.assertIn('"region": "South"', out["context"])
         self.assertIn("not instructions", out["context"])
+        self.assertIsNone(self.p._view_context(session_id="sess-A"))  # unchanged: already in that turn
         self.assertIsNone(self.p._view_context(session_id="other-session"))
         api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "view", "args": {"session": "sess-A", "closed": True}})
         self.assertIsNone(self.p._view_context(session_id="sess-A"))
