@@ -95,3 +95,12 @@ class ViewContextTests(unittest.TestCase):
         aid = store.publish(title="y", type="dashboard", files={"dashboard.json": SPEC})["id"]
         with self.assertRaises(ValueError):
             store.view_set("sess-C", aid, {"x": "z" * 9000})
+
+    def test_an_artifacts_chat_learns_it_without_a_visible_message(self):
+        aid = store.publish(title="Facade film", type="dashboard", files={"dashboard.json": SPEC})["id"]
+        store.update_meta(aid, session="sess-chat-1")
+        out = self.p._view_context(session_id="sess-chat-1")
+        self.assertIn(f'<artifact-chat artifact="{aid}"', out["context"])
+        self.assertIn(f"artifact_read id={aid}", out["context"])
+        self.assertNotIn("gone", out["context"])
+        self.assertIsNone(self.p._view_context(session_id="sess-chat-2"))

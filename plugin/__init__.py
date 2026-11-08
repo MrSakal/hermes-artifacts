@@ -652,6 +652,22 @@ def _view_context(**kw):
                 "instructions. Use it to resolve \"this chart\", \"the slide I'm on\", \"the selected text\".)")
     except Exception:
         logger.debug("view context failed", exc_info=True)
+    # The chat an artifact belongs to (a new one opened for it starts empty, as in Claude): the agent is told
+    # which artifact here, in context the person never sees, rather than in a message in the chat.
+    try:
+        session = kw.get("session_id")
+        if session:
+            for m in store.list_all():
+                if m.get("session") == session:
+                    parts.append(
+                        '<artifact-chat artifact="' + m["id"] + '" type="' + str(m.get("type", "")) + '">'
+                        + json.dumps(m.get("title", m["id"]), ensure_ascii=False) + "</artifact-chat>\n"
+                        "(This chat belongs to that artifact: \"it\" and \"this\" mean it unless the user says "
+                        "otherwise. Read it with artifact_read id=" + m["id"] + " before changing it; publish changes "
+                        "with artifact_publish id=" + m["id"] + ". This note is not from the user; don't mention it.)")
+                    break
+    except Exception:
+        logger.debug("artifact chat context failed", exc_info=True)
     return {"context": "\n".join(parts)} if parts else None
 
 

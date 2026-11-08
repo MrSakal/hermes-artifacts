@@ -74,9 +74,6 @@ const STRINGS = {
     send: 'Send',
     confirmTitle: 'Send this to Hermes?',
     confirmBody: 'The artifact wants to send this message into its chat.',
-    chatRef: (title, aid, old) =>
-      `[artifact: ${title}] Let's keep working on this artifact (artifact ${aid}${old ? `; its earlier chat ${old} is archived or gone` : ''}). ` +
-      `Read it with artifact_read id=${aid} before changing it; publish changes with artifact_publish id=${aid}.`,
     newChatMade: 'The earlier chat is gone: started a new one with this artifact',
     sentNew: 'The earlier chat is gone: sent into a new chat with this artifact',
     chatGone: 'The chat this artifact was made in is archived or deleted. Write here and a new chat starts with this artifact.',
@@ -1997,9 +1994,10 @@ async function chatState(art) {
  *  Chat, comments and Pop out chat use it from now on. */
 async function newChatFor(art) {
   const r = await host.request('session.create', {
+    // Empty, as Claude opens it: the agent learns which artifact this chat is for from the plugin's
+    // pre_llm_call context (hidden from the chat), not from a message the person sees.
     title: art.title,
-    source: 'desktop',
-    messages: [{ role: 'user', content: T('chatRef', art.title, art.id, art.session || '') }]
+    source: 'desktop'
   })
   const stored = r?.stored_session_id || r?.session_id
   if (!stored) throw new Error('no session')
