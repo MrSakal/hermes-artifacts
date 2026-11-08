@@ -453,7 +453,9 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
-        "Publish an artifact (shown on the Hermes Desktop Artifacts page). Pick the type by what the user wants, "
+        "Publish an artifact (shown on the Hermes Desktop Artifacts page) when the result is made to be looked "
+        "at, used, kept or shared (a report for others, a dashboard reopened, a tool, a deck); a quick answer or "
+        "advice the user acts on right away stays in chat. Pick the type by what the user wants, "
         "named or not: dashboard (data: KPIs, charts, tables, filters), slides (a deck/presentation), doc (text "
         "to read and edit: report, plan, notes), design (screens, websites, mockups, posters, social posts), "
         "motion (an animation/video), design-system (a brand's tokens and components), page (anything else: a "
