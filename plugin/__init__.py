@@ -453,8 +453,11 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
-        "Publish an artifact (shown on the Hermes Desktop Artifacts page). Types: page (any web page, default), "
-        "dashboard, slides, doc, design, motion, design-system. Before a type's first publish call artifact_guide "
+        "Publish an artifact (shown on the Hermes Desktop Artifacts page). Pick the type by what the user wants, "
+        "named or not: dashboard (data: KPIs, charts, tables, filters), slides (a deck/presentation), doc (text "
+        "to read and edit: report, plan, notes), design (screens, websites, mockups, posters, social posts), "
+        "motion (an animation/video), design-system (a brand's tokens and components), page (anything else: a "
+        "tool, game, prototype). Before a type's first publish call artifact_guide "
         "for its files; write data, not HTML/chart code, where the type can express it. Users edit slides, docs "
         "and designs too: artifact_read before changing (doc: artifact_doc_edit, never republish). Give `files` ({path: text | {\"base64\":...}}), `path` (file/folder) or `html`. Same `id` "
         "adds a version; base=true changes only the files passed (null removes one). Max 16 MB. Write its content "
