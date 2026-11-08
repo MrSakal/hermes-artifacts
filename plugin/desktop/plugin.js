@@ -2003,6 +2003,8 @@ async function newChatFor(art) {
   })
   const stored = r?.stored_session_id || r?.session_id
   if (!stored) throw new Error('no session')
+  // The chat carries the artifact's name for good: an explicit title keeps Hermes' auto-title off it.
+  if (r.session_id) await host.request('session.title', { session_id: r.session_id, title: art.title }).catch(() => null)
   await CTX.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body: { session: stored } })
   await refresh(CTX)
   return { stored, runtime: r.session_id, created: true }
