@@ -57,7 +57,10 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
         try:
             from . import docs
             st = docs.load(meta["id"])
-            data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]]}
+            data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]],
+                           "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
+                           "selects": st.get("selects") or {}, "settings": st.get("settings") or {},
+                           "suggestions": [x for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
         except Exception:
             pass
     # </script inside JSON would end the block; < keeps it valid JSON.

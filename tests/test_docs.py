@@ -196,6 +196,87 @@ class ApiAndToolTests(unittest.TestCase):
         bad = json.loads(self.p._comments({"id": self.aid, "action": "add", "text": "x", "block": "nope"}))
         self.assertFalse(bad["ok"])
 
+    def test_an_outline_fills_section_by_section(self):
+        outline = ("# Plan\n\n<!-- pending: Goals: the three outcomes -->\n\n"
+                   "<!-- pending: Risks: what could slip -->\n\n<!-- pending: Staffing -->")
+        pub = json.loads(self.p._publish({"type": "doc", "title": "Plan", "files": {"doc.md": outline}, "open": False}))
+        aid, tab = pub["id"], pub["doc"]["tabs"][0]
+        goals, risks, staff = [x["block"] for x in tab["pending"]]
+        self.assertEqual(tab["pending"][0]["intent"], "Goals: the three outcomes")
+        self.assertEqual(docs.read(aid)["blocks"][1]["kind"], "pending")
+        self.assertTrue(docs.read(aid)["hermes_active"])
+        # A pending block is filled without base_rev; what is left comes back in reading order.
+        e = json.loads(self.p._doc_edit({"id": aid, "ops": [{"op": "replace", "block": goals, "md": "## Goals\n\n- Ship it"}]}))
+        self.assertTrue(e["ok"])
+        self.assertEqual([x["block"] for x in e["pending"]], [risks, staff])
+        # Readers and exports never see a section still to write.
+        content = json.loads(self.p._read({"id": aid}))["content"]
+        self.assertIn("## Goals", content)
+        self.assertNotIn("pending", content)
+        # The user removed a section: Hermes is told to leave it out.
+        op(aid, "doc.edit", ops=[{"op": "delete", "block": risks}])
+        gone = json.loads(self.p._doc_edit({"id": aid, "ops": [{"op": "replace", "block": risks, "md": "## Risks"}]}))
+        self.assertFalse(gone["ok"])
+        self.assertIn("leave it out", gone["error"])
+        # The user typed into one: it is an ordinary block now, and the guard applies again.
+        op(aid, "doc.edit", ops=[{"op": "replace", "block": staff, "md": "Ana runs it"}])
+        guarded = json.loads(self.p._doc_edit({"id": aid, "ops": [{"op": "replace", "block": staff, "md": "## Staffing"}]}))
+        self.assertFalse(guarded["ok"])
+        self.assertIn("base_rev", guarded["error"])
+        self.assertNotIn("pending", json.loads(self.p._doc_edit(
+            {"id": aid, "ops": [{"op": "insert", "after": None, "md": "x"}]})))
+
+    def test_suggestions_wait_for_the_person(self):
+        b = [x["id"] for x in docs.read(self.aid)["blocks"]]
+        # Hermes proposes; the doc keeps its words until the person accepts.
+        r = json.loads(self.p._doc_edit({"id": self.aid, "suggest": True, "ops": [
+            {"op": "replace", "block": b[1], "md": "Para one, shorter."},
+            {"op": "insert", "after": b[1], "md": "A new line."},
+            {"op": "delete", "block": b[2]}]}))
+        self.assertTrue(r["ok"])
+        st = docs.read(self.aid)
+        self.assertEqual(len(st["suggestions"]), 3)
+        self.assertNotIn("shorter", docs.markdown(self.aid))
+        rep, ins, dele = st["suggestions"]
+        self.assertEqual(rep["was"], st["blocks"][1]["md"])
+        # The person types on in Suggesting mode: one card per block, updated.
+        op(self.aid, "doc.suggest", ops=[{"op": "replace", "block": b[1], "md": "Mine."}])
+        op(self.aid, "doc.suggest", ops=[{"op": "replace", "block": b[1], "md": "Mine, again."}])
+        self.assertEqual(sum(1 for s in docs.read(self.aid)["suggestions"] if s["by"] == "user"), 1)
+        op(self.aid, "doc.decide", id=rep["id"], verdict="accept")
+        op(self.aid, "doc.decide", id=ins["id"], verdict="reject")
+        md_now = docs.markdown(self.aid)
+        self.assertIn("Para one, shorter.", md_now)
+        self.assertNotIn("A new line.", md_now)
+        with self.assertRaises(api.ApiError):
+            op(self.aid, "doc.decide", id=ins["id"], verdict="accept")  # gone
+        with self.assertRaises(api.ApiError):
+            op(self.aid, "doc.decide", id=dele["id"], verdict="maybe")
+
+    def test_dropdowns_look_and_pictures(self):
+        docs.apply(self.aid, [{"op": "set_select", "name": "Status", "options": ["Todo", "Done", "Done", "x}"]},
+                              {"op": "settings", "set": {"head": "sans", "wide": True, "evil": 1}}], by="hermes")
+        st = docs.read(self.aid)
+        self.assertEqual(st["selects"], {"Status": ["Todo", "Done"]})
+        self.assertEqual(st["settings"], {"head": "sans", "wide": True})
+        png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        up = op(self.aid, "doc.upload", data=png)
+        self.assertTrue(up["src"].startswith("doc:"))
+        self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/op", {}, {"op": "doc.file", "args": {"name": up["name"]}})["url"], png)
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", f"artifacts/{self.aid}/op", {}, {"op": "doc.file", "args": {"name": "../meta.json"}})
+        with self.assertRaises(api.ApiError):
+            op(self.aid, "doc.upload", data="data:text/html;base64,PHA+")
+
+    def test_reactions_on_comments(self):
+        c = store.comment_add(self.aid, "Looks right?")
+        store.comment_react(self.aid, c["id"], "👍")
+        self.assertEqual(store.comments_list(self.aid)[-1]["reactions"], {"👍": ["user"]})
+        store.comment_react(self.aid, c["id"], "👍")
+        self.assertEqual(store.comments_list(self.aid)[-1]["reactions"], {})
+        with self.assertRaises(ValueError):
+            store.comment_react(self.aid, c["id"], "<b>")
+
     def test_render_carries_the_live_doc(self):
         b = docs.read(self.aid)["blocks"][0]["id"]
         docs.apply(self.aid, [{"op": "replace", "block": b, "md": "# Live title"}], by="user")

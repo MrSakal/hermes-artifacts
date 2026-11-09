@@ -1,6 +1,12 @@
 /* A small CommonMark-ish Markdown parser for the Doc type: headings, paragraphs, emphasis, code, links,
  * images, lists (nested, ordered, tasks), block quotes, fenced code, GFM tables, rules. Raw HTML is
- * shown as text. Produces an AST that both the HTML view and the DOCX writer read. window.md. */
+ * shown as text. Produces an AST that both the HTML view and the DOCX writer read. window.md.
+ *
+ * Doc extras (each readable as plain text elsewhere):
+ *   {{date:2026-11-20}}  a date chip          {{@Anna}}  a mention
+ *   {{select:Status=Done}}  a dropdown chip (options per name, kept with the doc)
+ *   [words]{.underline .red .bg-yellow}  underline, a text colour, a highlight colour
+ *   ==words==  highlighted          ```latex / csv / chart / svg  shown as widgets (the page's choice) */
 (function () {
   "use strict";
 
@@ -9,14 +15,24 @@
     function flush() { if (buf) { out.push({ t: "text", v: buf }); buf = ""; } }
     while (i < src.length) {
       var c = src[i], rest = src.slice(i), m;
-      if (c === "\\" && i + 1 < src.length && /[\\`*_{}\[\]()#+\-.!|~>]/.test(src[i + 1])) { buf += src[i + 1]; i += 2; continue; }
+      if (c === "\\" && i + 1 < src.length && /[\\`*_{}\[\]()#+\-.!|~>=]/.test(src[i + 1])) { buf += src[i + 1]; i += 2; continue; }
       if (c === "`" && (m = /^(`+)([\s\S]*?[^`])\1(?!`)/.exec(rest))) { flush(); out.push({ t: "code", v: m[2].replace(/^ (.*) $/, "$1") }); i += m[0].length; continue; }
       if (c === "!" && (m = /^!\[([^\]]*)\]\(\s*<?([^\s)>]+)>?(?:\s+"([^"]*)")?\s*\)/.exec(rest))) { flush(); out.push({ t: "img", src: m[2], alt: m[1], title: m[3] }); i += m[0].length; continue; }
+      if (c === "[" && (m = /^\[((?:[^\[\]]|\[[^\]]*\])*)\]\{((?:\s*\.[a-z][\w-]*)+)\s*\}/.exec(rest))) {
+        flush(); out.push({ t: "span", cls: m[2].trim().split(/\s+/).map(function (x) { return x.slice(1); }), c: parseInline(m[1]) }); i += m[0].length; continue;
+      }
       if (c === "[" && (m = /^\[((?:[^\[\]]|\[[^\]]*\])*)\]\(\s*<?([^\s)>]+)>?(?:\s+"([^"]*)")?\s*\)/.exec(rest))) { flush(); out.push({ t: "link", href: m[2], c: parseInline(m[1]) }); i += m[0].length; continue; }
       if (c === "<" && (m = /^<(https?:\/\/[^\s>]+|mailto:[^\s>]+)>/.exec(rest))) { flush(); out.push({ t: "link", href: m[1], c: [{ t: "text", v: m[1] }] }); i += m[0].length; continue; }
       if ((c === "*" || c === "_") && (m = (c === "*" ? /^\*\*(?=\S)([\s\S]*?\S)\*\*/ : /^__(?=\S)([\s\S]*?\S)__(?!\w)/).exec(rest))) { flush(); out.push({ t: "strong", c: parseInline(m[1]) }); i += m[0].length; continue; }
       if ((c === "*" || c === "_") && (m = (c === "*" ? /^\*(?=\S)([\s\S]*?\S)\*(?!\*)/ : /^_(?=\S)([\s\S]*?\S)_(?!\w)/).exec(rest)) && !(c === "_" && /\w/.test(src[i - 1] || ""))) { flush(); out.push({ t: "em", c: parseInline(m[1]) }); i += m[0].length; continue; }
       if (c === "~" && (m = /^~~(?=\S)([\s\S]*?\S)~~/.exec(rest))) { flush(); out.push({ t: "del", c: parseInline(m[1]) }); i += m[0].length; continue; }
+      if (c === "=" && (m = /^==(?=\S)([\s\S]*?\S)==/.exec(rest))) { flush(); out.push({ t: "mark", c: parseInline(m[1]) }); i += m[0].length; continue; }
+      if (c === "{" && (m = /^\{\{(?:date:(\d{4}-\d{2}-\d{2})|@([^{}\n]{1,80})|select:([^{}=\n]{1,60})=([^{}\n]{0,80}))\}\}/.exec(rest))) {
+        flush();
+        out.push(m[1] ? { t: "chip", kind: "date", v: m[1] } : m[2] ? { t: "chip", kind: "mention", v: m[2].trim() } :
+          { t: "chip", kind: "select", name: m[3].trim(), v: m[4].trim() });
+        i += m[0].length; continue;
+      }
       if (c === "\n") { if (/ {2,}$/.test(buf) || buf.slice(-1) === "\\") { buf = buf.replace(/ +$|\\$/, ""); flush(); out.push({ t: "br" }); } else buf += " "; i++; continue; }
       if (c === "h" && (m = /^https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]/.exec(rest)) && !/\w/.test(src[i - 1] || "")) { flush(); out.push({ t: "link", href: m[0], c: [{ t: "text", v: m[0] }] }); i += m[0].length; continue; }
       buf += c; i++;
@@ -62,12 +78,14 @@
         continue;
       }
       if (line.indexOf("|") >= 0 && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+        var sepWidths = splitRow(lines[i + 1]).map(function (a) { var n = (a.match(/-/g) || []).length; return n >= 12 ? "extra" : n >= 9 ? "wide" : n >= 6 ? "medium" : n >= 4 ? "narrow" : null; });
         var head = splitRow(line), align = splitRow(lines[i + 1]).map(function (a) {
           return /^:-+:$/.test(a) ? "center" : /-:$/.test(a) ? "right" : /^:-/.test(a) ? "left" : null; });
         i += 2;
         var rows = [];
         while (i < lines.length && !isBlank(lines[i]) && lines[i].indexOf("|") >= 0) rows.push(splitRow(lines[i++]));
-        out.push({ t: "table", align: align, head: head.map(parseInline), rows: rows.map(function (r) {
+        // a column's width rides the dashes of its separator: --- auto, ---- narrow, ------ medium, --------- wide, ------------ extra wide
+        out.push({ t: "table", align: align, widths: sepWidths, head: head.map(parseInline), rows: rows.map(function (r) {
           var cells = []; for (var k = 0; k < head.length; k++) cells.push(parseInline(r[k] || "")); return cells; }) });
         continue;
       }
@@ -91,7 +109,7 @@
             body2.push(l2); i++; // lazy continuation
           }
           var item = { c: null };
-          var tm = /^\[([ xX])\]\s+/.exec(body2[0]);
+          var tm = /^\[([ xX])\](\s+|$)/.exec(body2[0]);
           if (tm) { item.task = true; item.checked = tm[1] !== " "; body2[0] = body2[0].slice(tm[0].length); }
           item.c = parseBlocks(body2);
           items.push(item);
@@ -118,27 +136,46 @@
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function safeHref(u) { return /^(https?:|mailto:|#)/i.test(u) ? u : "#"; }
-  function plain(nodes) { return (nodes || []).map(function (n) { return n.v != null ? n.v : n.c ? plain(n.c) : n.alt || ""; }).join(""); }
+  var COLORS = ["gray", "red", "orange", "yellow", "green", "blue", "purple"];
+  function spanClass(cls) {
+    return cls.filter(function (c) { return c === "underline" || c === "sug-ins" || c === "sug-del" || COLORS.indexOf(c) >= 0 || COLORS.indexOf(c.replace(/^bg-/, "")) >= 0; })
+      .map(function (c) { return "md-" + c; }).join(" ");
+  }
+  function chipText(n, fmtDate) {
+    if (n.kind === "date") return fmtDate ? fmtDate(n.v) : n.v;
+    if (n.kind === "mention") return "@" + n.v;
+    return n.v;
+  }
+  function plain(nodes) { return (nodes || []).map(function (n) { return n.t === "chip" ? chipText(n) : n.v != null ? n.v : n.c ? plain(n.c) : n.alt || ""; }).join(""); }
   function slug(s) { return plain(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "section"; }
 
+  // opts: {chip(n) -> html} for the live doc's chips (else they are plain words).
+  var O = {};
   function inlineHtml(nodes, src) {
     return nodes.map(function (n) {
       switch (n.t) {
         case "text": return esc(n.v);
+        case "mark": return "<mark>" + inlineHtml(n.c, src) + "</mark>";
+        case "span": var k = spanClass(n.cls); return k ? '<span class="' + k + '">' + inlineHtml(n.c, src) + "</span>" : inlineHtml(n.c, src);
+        case "chip": return O.chip ? O.chip(n) : esc(chipText(n, O.date));
         case "code": return "<code>" + esc(n.v) + "</code>";
         case "strong": return "<strong>" + inlineHtml(n.c, src) + "</strong>";
         case "em": return "<em>" + inlineHtml(n.c, src) + "</em>";
         case "del": return "<del>" + inlineHtml(n.c, src) + "</del>";
         case "br": return "<br>";
         case "link": return '<a href="' + esc(safeHref(n.href)) + '" target="_blank" rel="noopener noreferrer">' + inlineHtml(n.c, src) + "</a>";
-        case "img": return '<img src="' + esc(src ? src(n.src) || "" : n.src) + '" alt="' + esc(n.alt) + '"' + (n.title ? ' title="' + esc(n.title) + '"' : "") + ">";
+        case "img": return '<img src="' + esc(src ? src(n.src) || "" : n.src) + '" data-src="' + esc(n.src) + '" alt="' + esc(n.alt) + '"' + (n.title ? ' title="' + esc(n.title) + '"' : "") + ">";
       }
       return "";
     }).join("");
   }
 
-  function html(ast, src) {
-    var seen = {};
+  function html(ast, src, opts) {
+    var seen = {}, was = O;
+    O = opts || {};
+    try { return htmlOf(ast, src, seen); } finally { O = was; }
+  }
+  function htmlOf(ast, src, seen) {
     return ast.map(function blk(b) {
       switch (b.t) {
         case "h":
@@ -146,22 +183,26 @@
           return "<h" + b.level + ' id="' + esc(id) + '">' + inlineHtml(b.c, src) + "</h" + b.level + ">";
         case "p": return "<p>" + inlineHtml(b.c, src) + "</p>";
         case "hr": return "<hr>";
-        case "code": return '<pre><code data-lang="' + esc(b.lang) + '">' + esc(b.v) + "</code></pre>";
+        case "code":
+          var w = O.widget && O.widget(b.lang, b.v);
+          return w || '<pre><code data-lang="' + esc(b.lang) + '">' + esc(b.v) + "</code></pre>";
         case "quote": return "<blockquote>" + b.c.map(blk).join("") + "</blockquote>";
         case "list":
           var tag = b.ordered ? "ol" : "ul";
           return "<" + tag + (b.ordered && b.start !== 1 ? ' start="' + b.start + '"' : "") + ">" + b.items.map(function (it) {
             var inner = it.c.length === 1 && it.c[0].t === "p" ? inlineHtml(it.c[0].c, src) : it.c.map(blk).join("");
-            return it.task ? '<li class="task"><input type="checkbox" disabled' + (it.checked ? " checked" : "") + ">" + inner + "</li>" : "<li>" + inner + "</li>";
+            return it.task ? '<li class="task' + (it.checked ? " done" : "") + '"><input type="checkbox"' + (O.live ? "" : " disabled") + (it.checked ? " checked" : "") + ">" + inner + "</li>" : "<li>" + inner + "</li>";
           }).join("") + "</" + tag + ">";
         case "table":
           var al = function (k) { return b.align[k] ? ' style="text-align:' + b.align[k] + '"' : ""; };
-          return "<table><thead><tr>" + b.head.map(function (c, k) { return "<th" + al(k) + ">" + inlineHtml(c, src) + "</th>"; }).join("") +
+          var cw = function (k) { return b.widths && b.widths[k] ? ' class="cw-' + b.widths[k] + '"' : ""; };
+          return "<table><thead><tr>" + b.head.map(function (c, k) { return "<th" + cw(k) + al(k) + ">" + inlineHtml(c, src) + "</th>"; }).join("") +
             "</tr></thead><tbody>" + b.rows.map(function (r) { return "<tr>" + r.map(function (c, k) { return "<td" + al(k) + ">" + inlineHtml(c, src) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
       }
       return "";
     }).join("\n");
   }
 
-  window.md = { parse: parse, html: html, plain: plain, slug: slug };
+  window.md = { parse: parse, parseInline: parseInline, html: html, inline: function (nodes, src, opts) {
+    var was = O; O = opts || {}; try { return inlineHtml(nodes, src); } finally { O = was; } }, plain: plain, slug: slug, chipText: chipText, COLORS: COLORS };
 })();

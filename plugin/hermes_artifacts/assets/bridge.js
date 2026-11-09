@@ -129,6 +129,7 @@
   on("comment-mode", function (d) { setPicking(d && d.on); });
   on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
     pins.forEach(function (p) { p.remove(); }); pins = [];
+    if (document.documentElement.hasAttribute("data-own-pins")) return; // the page draws its own (a doc's margin cards)
     (items || []).forEach(function (it) {
       var el; try { el = document.querySelector(it.selector); } catch (_) {}
       if (!el) return;
@@ -207,7 +208,13 @@
       ask: function (a) { return call("doc.ask", a || {}); },
       history: function (tab) { return call("doc.history", { tab: tab || null }); },
       at: function (tab, rev) { return call("doc.at", { tab: tab || null, rev: rev }); },
-      restore: function (tab, rev) { return call("doc.restore", { tab: tab || null, rev: rev }); }
+      restore: function (tab, rev) { return call("doc.restore", { tab: tab || null, rev: rev }); },
+      /** Suggesting mode: propose ops instead of making them; the person accepts or rejects each. */
+      suggest: function (tab, ops) { return call("doc.suggest", { tab: tab || null, ops: ops }); },
+      decide: function (id, verdict) { return call("doc.decide", { id: id, verdict: verdict }); },
+      /** A picture put in the doc (data URL) -> {src: "doc:<name>"}; file(name) -> {url} to show it. */
+      upload: function (dataUrl) { return call("doc.upload", { data: dataUrl }); },
+      file: function (name) { return call("doc.file", { name: name }); }
     }),
     /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
      *  version in place (null = the latest). */
@@ -237,6 +244,8 @@
     /** Slides: present full screen (the host makes the frame fill the window and goes full screen). */
     present: function (on) { return call("present", { on: !!on }); },
     /** Host events for type runtimes (e.g. "theme"). */
-    on: on
+    on: on,
+    /** Open a comment thread in the host's panel (a page that draws its own comment marks). */
+    openPin: function (n) { emit("pinOpen", { n: Number(n) || 0 }); }
   });
 })();

@@ -12,6 +12,8 @@ by keystroke). Publishing a new version of the artifact (doc.md) starts the doc 
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 import secrets
@@ -27,6 +29,11 @@ MAX_BLOCK_CHARS = 20_000
 MAX_BLOCKS = 4000
 MAX_LOG = 400
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+# A section still to write: `<!-- pending: what comes here -->` on its own line. The viewer shows the
+# intent in place (and Hermes' cursor at the first one while it works); exports and reads of the doc's
+# text leave it out, and other Markdown viewers hide it as a comment.
+PENDING = re.compile(r"^<!--\s*pending:\s*(.*?)\s*-->$", re.S)
+ACTIVE_SECS = 300  # Hermes counts as at work in a doc this long after its last change there
 
 
 class DocError(Exception):
@@ -98,8 +105,15 @@ def split_markdown(text: str) -> list[str]:
     return out
 
 
+def pending_intent(md: str) -> Optional[str]:
+    m = PENDING.match(str(md or "").strip())
+    return m.group(1) if m else None
+
+
 def block_kind(md: str) -> str:
     s = md.lstrip()
+    if PENDING.match(s.strip()):
+        return "pending"
     if re.match(r"#{1,6}\s", s):
         return "h" + str(len(s) - len(s.lstrip("#")))
     if re.match(r"(`{3,}|~{3,})", s):
@@ -126,7 +140,8 @@ def blocks_from_markdown(text: str) -> list[dict]:
 
 
 def tab_markdown(tab: dict) -> str:
-    return "\n\n".join(b["md"] for b in tab["blocks"]) + "\n"
+    """The tab's text as a reader gets it: sections still to write are left out."""
+    return "\n\n".join(b["md"] for b in tab["blocks"] if not pending_intent(b["md"])) + "\n"
 
 
 # ----------------------------------------------------------------------------- state
@@ -138,9 +153,11 @@ def _state_path(aid: str) -> Path:
 def _fresh(aid: str, meta: dict) -> dict:
     """A doc started from the latest published version: doc.md becomes the first tab, or doc.json
     (``{"tabs": [{"title", "markdown"}]}``) gives several."""
-    tabs = []
+    tabs, selects, settings = [], {}, {}
     try:
         spec = json.loads(store.read_file(aid, "doc.json").decode("utf-8"))
+        selects = _clean_selects(spec.get("selects"))
+        settings = _clean_settings(spec.get("settings"))
         for t in spec.get("tabs") or []:
             tabs.append({"id": _new_id("t"), "title": str(t.get("title") or "Tab")[:120],
                          "blocks": blocks_from_markdown(t.get("markdown") or ""), "rev": 1})
@@ -152,7 +169,36 @@ def _fresh(aid: str, meta: dict) -> dict:
         except FileNotFoundError:
             md = ""
         tabs = [{"id": _new_id("t"), "title": meta.get("title", "Doc")[:120], "blocks": _some(blocks_from_markdown(md)), "rev": 1}]
-    return {"version": meta["versions"][-1]["n"], "tabs": tabs, "log": [], "edits": 0, "updated": time.time()}
+    return {"version": meta["versions"][-1]["n"], "tabs": tabs, "log": [], "edits": 0, "updated": time.time(),
+            "hermes_at": time.time(),  # Hermes just published it
+            "selects": selects, "settings": settings, "suggestions": []}
+
+
+# ----------------------------------------------------------------------------- the doc's own settings
+SETTINGS = {"head": ("serif", "sans"), "body": ("serif", "sans"), "wide": (True, False)}
+
+
+def _clean_settings(v) -> dict:
+    out = {}
+    for k, ok in SETTINGS.items():
+        if isinstance(v, dict) and v.get(k) in ok:
+            out[k] = v[k]
+    return out
+
+
+def _clean_selects(v) -> dict:
+    """Dropdown option lists by name: {"Status": ["Not started", "In progress", "Done"]}."""
+    out = {}
+    for name, opts in (v.items() if isinstance(v, dict) else []):
+        name = str(name).strip()[:60]
+        if name and isinstance(opts, list):
+            seen = []
+            for o in opts[:30]:
+                o = str(o).strip()[:80]
+                if o and o not in seen and "}" not in o and "{" not in o:
+                    seen.append(o)
+            out[name] = seen
+    return dict(list(out.items())[:40])
 
 
 def _some(blocks: list) -> list:
@@ -208,7 +254,15 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
     ``search``, or just the named ``blocks``."""
     st = load(aid)
     t = _tab(st, tab)
-    out = {"tab": t["id"], "title": t["title"], "rev": t["rev"], "tabs": overview(st), "edits": st.get("edits", 0)}
+    out = {"tab": t["id"], "title": t["title"], "rev": t["rev"], "tabs": overview(st), "edits": st.get("edits", 0),
+           "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS}
+    if st.get("selects"):
+        out["selects"] = st["selects"]
+    if st.get("settings"):
+        out["settings"] = st["settings"]
+    sug = [s for s in st.get("suggestions", []) if s["tab"] == t["id"]]
+    if sug:
+        out["suggestions"] = sug
     view = [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in t["blocks"]]
     if since_rev is not None:
         # The log keeps the last entries only: older than that, the whole tab comes back (Claude's
@@ -257,7 +311,18 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         st = load(aid)
         t = _tab(st, tab)
         before = _snap(t, "start")
-        if by == "hermes" and base_rev is None and any(o.get("op") in ("replace", "delete") for o in ops):
+        # Filling a section still to write needs no guard: nobody else writes into a pending block (typing
+        # into it makes it an ordinary block, and then the guard applies).
+        def guarded(o):
+            if o.get("op") == "delete":
+                return True
+            if o.get("op") != "replace":
+                return False
+            try:
+                return not pending_intent(t["blocks"][_index(t, str(o.get("block")))]["md"])
+            except DocError:
+                return False  # gone: the op itself says so
+        if by == "hermes" and base_rev is None and any(guarded(o) for o in ops):
             raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (artifact_doc_read)",
                            rev=t["rev"])
         if base_rev is not None:
@@ -271,7 +336,11 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         for o in ops:
             kind = o.get("op")
             if kind == "replace":
-                i = _index(t, str(o.get("block")))
+                try:
+                    i = _index(t, str(o.get("block")))
+                except DocError:
+                    raise DocError("absent", f"no block {o.get('block')!r} in this tab: the user may have removed it "
+                                             "(a removed pending section is not wanted: leave it out)")
                 pieces = split_markdown(str(o.get("md", ""))[:MAX_BLOCK_CHARS]) or [""]
                 t["blocks"][i]["md"] = pieces[0]
                 extra = [{"id": _new_id(), "md": p} for p in pieces[1:]]
@@ -301,6 +370,15 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
                 new_tab = {"id": _new_id("t"), "title": str(o.get("title") or "Tab")[:120],
                            "blocks": _some(blocks_from_markdown(o.get("md") or "")), "rev": 1}
                 st["tabs"].append(new_tab)
+            elif kind == "settings":
+                st["settings"] = {**st.get("settings", {}), **_clean_settings(o.get("set"))}
+                changed.append("settings")
+            elif kind == "set_select":
+                sel = _clean_selects({o.get("name"): o.get("options")})
+                if not sel:
+                    raise DocError("invalid", "set_select needs a name and a list of options")
+                st.setdefault("selects", {}).update(sel)
+                changed.append("selects")
             elif kind == "rename_tab":
                 t["title"] = str(o.get("title") or t["title"])[:120]
                 changed.append("tab")
@@ -315,6 +393,8 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
             raise DocError("too_large", "the tab is over 4000 blocks")
         t["rev"] += 1
         st["edits"] = st.get("edits", 0) + (1 if by == "user" else 0)
+        if by == "hermes":
+            st["hermes_at"] = time.time()
         st["log"].append({"tab": t["id"], "rev": t["rev"], "by": by, "blocks": changed, "at": time.time()})
         st["log"] = st["log"][-MAX_LOG:]
         _save(aid, st)
@@ -322,8 +402,125 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
             pass  # the tab was deleted: nothing to keep
         else:
             _record(aid, st, t, by, before)
-        return {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
-                "new_tab": new_tab["id"] if new_tab else None}
+        out = {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
+               "new_tab": new_tab["id"] if new_tab else None}
+        left = pending(t)
+        if left:
+            out["pending"] = left  # sections still to write, in reading order
+        return out
+
+
+def pending(t: dict) -> list[dict]:
+    """A tab's sections still to write: [{block, intent}]."""
+    return [{"block": b["id"], "intent": pending_intent(b["md"])} for b in t["blocks"] if pending_intent(b["md"])]
+
+
+def outline(aid: str) -> dict:
+    """What a just-published doc hands Hermes: each tab's id, rev and pending sections."""
+    st = load(aid)
+    return {"tabs": [dict({"id": t["id"], "title": t["title"], "rev": t["rev"]},
+                          **({"pending": pending(t)} if pending(t) else {})) for t in st["tabs"]]}
+
+
+# ----------------------------------------------------------------------------- suggestions
+# A change proposed, not made: {id, tab, kind: replace | insert | delete, block (insert: the block it
+# follows, null = the top), md, by, at}. Accepting applies it as an edit by the person; rejecting drops it.
+MAX_SUGGESTIONS = 300
+
+
+def suggest(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None) -> dict:
+    if not isinstance(ops, list) or not ops:
+        raise DocError("invalid", "ops must be a non-empty list")
+    with _LOCK:
+        st = load(aid)
+        t = _tab(st, tab)
+        sugs = st.setdefault("suggestions", [])
+        made = []
+        for o in ops:
+            kind = o.get("op")
+            if kind not in ("replace", "insert", "delete"):
+                raise DocError("invalid", "a suggestion is a replace, an insert or a delete")
+            block = o.get("after") if kind == "insert" else o.get("block")
+            if block not in (None, ""):
+                _index(t, str(block))
+            elif kind != "insert":
+                raise DocError("invalid", f"{kind} needs a block")
+            md = str(o.get("md", ""))[:MAX_BLOCK_CHARS * 10]
+            # One open proposal per block and author: typing on in Suggesting mode updates it.
+            same = next((s for s in sugs if s["tab"] == t["id"] and s["by"] == by and s["kind"] == kind
+                         and s["block"] == block and kind != "insert"), None)
+            if same:
+                same.update(md=md, at=time.time())
+                made.append(same["id"])
+                continue
+            s = {"id": _new_id("sg"), "tab": t["id"], "kind": kind, "block": block, "md": md, "by": by, "at": time.time()}
+            if kind == "replace":
+                s["was"] = t["blocks"][_index(t, str(block))]["md"]
+            sugs.append(s)
+            made.append(s["id"])
+        st["suggestions"] = sugs[-MAX_SUGGESTIONS:]
+        t["rev"] += 1
+        st["log"].append({"tab": t["id"], "rev": t["rev"], "by": by, "blocks": ["suggestions"], "at": time.time()})
+        st["log"] = st["log"][-MAX_LOG:]
+        if by == "hermes":
+            st["hermes_at"] = time.time()
+        _save(aid, st)
+        return {"ok": True, "tab": t["id"], "rev": t["rev"], "suggestions": made}
+
+
+def decide(aid: str, sid: str, verdict: str) -> dict:
+    """The person accepts or rejects a suggestion (Hermes never decides)."""
+    if verdict not in ("accept", "reject"):
+        raise DocError("invalid", "verdict is accept or reject")
+    with _LOCK:
+        st = load(aid)
+        s = next((x for x in st.get("suggestions", []) if x["id"] == sid), None)
+        if not s:
+            raise DocError("absent", "no such open suggestion")
+        st["suggestions"] = [x for x in st["suggestions"] if x["id"] != sid]
+        _save(aid, st)
+    if verdict == "reject":
+        t = _tab(load(aid), s["tab"])
+        return {"ok": True, "tab": t["id"], "rev": t["rev"], "rejected": sid}
+    op = {"op": s["kind"], "block": s["block"], "md": s["md"]} if s["kind"] != "insert" else {"op": "insert", "after": s["block"], "md": s["md"]}
+    try:
+        r = apply(aid, [op], by="user", tab=s["tab"])
+    except DocError as e:
+        raise DocError(e.code, "the suggestion no longer fits the doc: " + e.message)
+    r["accepted"] = sid
+    return r
+
+
+# ----------------------------------------------------------------------------- pictures in the doc
+MAX_UPLOAD = 8 * 1024 * 1024
+_IMG = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp"}
+
+
+def upload(aid: str, data_url: str) -> dict:
+    """A picture the person put in the doc: kept beside it, referenced as `doc:<name>`."""
+    load(aid)
+    m = re.match(r"^data:(image/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=\s]+)$", str(data_url or ""))
+    if not m:
+        raise DocError("invalid", "a picture (png, jpeg, gif or webp) as a data URL")
+    raw = base64.b64decode(m.group(2))
+    if len(raw) > MAX_UPLOAD:
+        raise DocError("too_large", "pictures are up to 8 MB")
+    name = hashlib.sha256(raw).hexdigest()[:20] + "." + _IMG[m.group(1)]
+    p = store._dir(aid) / "doc" / "files" / name
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists():
+        p.write_bytes(raw)
+    return {"ok": True, "name": name, "src": "doc:" + name}
+
+
+def file_data(aid: str, name: str) -> dict:
+    if not re.match(r"^[0-9a-f]{20}\.(png|jpg|gif|webp)$", str(name or "")):
+        raise DocError("invalid", "bad file name")
+    p = store._dir(aid) / "doc" / "files" / name
+    if not p.is_file():
+        raise DocError("absent", "no such picture")
+    mime = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}[name.rsplit(".", 1)[1]]
+    return {"name": name, "url": f"data:{mime};base64," + base64.b64encode(p.read_bytes()).decode("ascii")}
 
 
 # ----------------------------------------------------------------------------- history

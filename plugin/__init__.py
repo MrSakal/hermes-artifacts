@@ -121,8 +121,12 @@ def _publish(args: dict, **kw) -> str:
             ds = _default_ds(full=False)
             if ds:  # a reminder on a new one, in case the guide was read before the default was set
                 view["design_system"] = {**ds, "rule": "The default design system: build on it (artifact_guide returns it in full)."}
+        shown = dict(view)
+        if meta.get("type") == "doc":
+            from .hermes_artifacts import docs
+            view["doc"] = docs.outline(meta["id"])  # tab ids, revs and the pending sections to fill
         if args.get("open", True):
-            view["shown_in_desktop"] = _broadcast("open", view)
+            view["shown_in_desktop"] = _broadcast("open", shown)
         return _ok(**view)
     except Exception as e:
         return _err(str(e))
@@ -337,6 +341,10 @@ def _doc_edit(args: dict, **_kw) -> str:
         ops = args.get("ops")
         if isinstance(ops, str):
             ops = json.loads(ops)
+        if args.get("suggest"):  # proposed, for the person to accept or reject (Suggesting mode, or asked to suggest)
+            r = docs.suggest(args["id"], ops, by="hermes", tab=args.get("tab") or None)
+            _broadcast("doc", {"id": args["id"], "tab": r["tab"], "rev": r["rev"]})
+            return _ok(**r)
         r = docs.apply(args["id"], ops, by="hermes", tab=args.get("tab") or None, base_rev=args.get("base_rev"))
         # The open doc pulls the change at once (it also checks every few seconds).
         _broadcast("doc", {"id": args["id"], "tab": r["tab"], "rev": r["rev"]})
@@ -497,9 +505,11 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         "artifact_doc_edit",
         "Edit a doc live, ops in order on one tab: {op:replace,block,md} {op:insert,after:id|null,md} "
         "{op:delete,block} {op:move,block,after} {op:add_tab,title,md} {op:rename_tab,title} {op:delete_tab}. "
-        "base_rev: the rev you read (conflict: read again). request: the doc request id answered.",
+        "{op:set_select,name,options} {op:settings,set:{head,body:serif|sans,wide}}. "
+        "base_rev: the rev you read (conflict: read again); filling a pending block needs none. "
+        "suggest=true: replace/insert/delete become suggestions the user accepts. request: the doc request id answered.",
         {"id": {"type": "string"}, "tab": {"type": "string"}, "base_rev": {"type": "integer"},
-         "request": {"type": "string"},
+         "request": {"type": "string"}, "suggest": {"type": "boolean"},
          "ops": {"type": "array", "items": {"type": "object"}}}, ["id", "ops"]), _doc_edit, "✍️"),
     ("artifact_list", _schema(
         "artifact_list", "Artifacts, newest first (`type` filters). default_design_system: build on it unless told otherwise.",

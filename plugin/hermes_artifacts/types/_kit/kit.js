@@ -18,7 +18,7 @@
     more: "M5 12h.01M12 12h.01M19 12h.01",
     panel: "M4 5h16v14H4zM14 5v14",
     braces: "M8 4c-2 0-2 1.5-2 3s0 3-2 5c2 2 2 3.5 2 5s0 3 2 3M16 4c2 0 2 1.5 2 3s0 3 2 5c-2 2-2 3.5-2 5s0 3-2 3",
-    sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
+    sparkle: "M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2", // Hermes' caduceus: the buttons that ask Hermes
     comment: "M4 5h16v11H9l-5 4z",
     plus: "M12 5v14M5 12h14",
     minus: "M5 12h14",
@@ -75,9 +75,15 @@
   }
   function labelled(btn, label) { var s = btn.querySelector("span"); if (s) s.textContent = label; return btn; }
 
-  var openMenu = null;
+  var openMenu = null, menuAnchor = null;
+  /** A dropdown under anchor. Clicking anchor again closes it (it never closes and reopens);
+   *  a scroll or a resize closes it too, so it never drifts away from its button. */
   function menu(anchor, items) {
-    if (openMenu) { openMenu.remove(); openMenu = null; }
+    if (openMenu) {
+      var same = menuAnchor === anchor;
+      openMenu.close();
+      if (same) return;
+    }
     var m = h("div", { "class": "kit-menu", role: "menu" });
     items.forEach(function (it) {
       if (it.hint) return m.appendChild(h("div", { "class": "kit-hint", text: it.hint }));
@@ -87,10 +93,16 @@
     var r = anchor.getBoundingClientRect();
     m.style.top = r.bottom + 4 + "px";
     m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + "px";
-    function close() { m.remove(); openMenu = null; document.removeEventListener("mousedown", out, true); }
-    function out(e) { if (!m.contains(e.target)) close(); }
-    setTimeout(function () { document.addEventListener("mousedown", out, true); }, 0);
-    openMenu = m;
+    function close() {
+      m.remove(); openMenu = null; menuAnchor = null;
+      document.removeEventListener("mousedown", out, true);
+      window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close);
+    }
+    function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
+    function out(e) { if (!m.contains(e.target) && !(anchor.contains && anchor.contains(e.target))) close(); }
+    setTimeout(function () { document.addEventListener("mousedown", out, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
+    m.close = close;
+    openMenu = m; menuAnchor = anchor;
   }
 
   var toastTimer = null;

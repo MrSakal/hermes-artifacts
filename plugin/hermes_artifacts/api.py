@@ -234,11 +234,22 @@ def _op(aid: str, op: str, a: dict) -> dict:
             if e.code == "conflict":
                 return {"ok": False, "conflict": True, **e.extra}
             raise ValueError(e.message)
+    if op in ("doc.suggest", "doc.decide", "doc.upload", "doc.file"):
+        try:
+            if op == "doc.suggest":
+                return docs.suggest(aid, a.get("ops") or [], by="user", tab=a.get("tab") or None)
+            if op == "doc.decide":
+                return docs.decide(aid, str(a.get("id", "")), str(a.get("verdict", "")))
+            if op == "doc.upload":
+                return docs.upload(aid, str(a.get("data", "")))
+            return docs.file_data(aid, str(a.get("name", "")))
+        except docs.DocError as e:
+            raise ValueError(e.message)
     if op == "doc.ask":
         # "@Hermes …" typed in the doc, or "Edit with Hermes" on a selection: into the chat (the host
         # words the message), and kept in the inbox with where it was asked.
         _meta(aid)
-        kind = "edit" if a.get("kind") == "edit" else "ask"
+        kind = a.get("kind") if a.get("kind") in ("edit", "convert") else "ask"
         data = {"kind": kind, "tab": str(a.get("tab") or "")[:40], "blocks": [str(b)[:40] for b in (a.get("blocks") or [])][:50],
                 "selection": str(a.get("selection") or "")[:2000]}
         item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="doc-" + kind)
@@ -331,6 +342,12 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             elif len(rest) == 3 and rest[0] == "comments" and rest[2] == "resolve" and method == "POST":
                 _meta(aid)
                 return store.comment_resolve(aid, rest[1], bool(body.get("resolved", True)))
+            elif len(rest) == 3 and rest[0] == "comments" and rest[2] == "react" and method == "POST":
+                _meta(aid)
+                try:
+                    return store.comment_react(aid, rest[1], str(body.get("emoji", "")))
+                except ValueError as e:
+                    raise ApiError(400, str(e))
             elif rest == ["op"] and method == "POST":
                 return _op(aid, str(body.get("op", "")), body.get("args") if isinstance(body.get("args"), dict) else {})
     except ApiError:

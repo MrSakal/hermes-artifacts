@@ -519,6 +519,29 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
     raise FileNotFoundError(cid)
 
 
+REACTIONS = ("👍", "❤️", "🎉", "✅", "👀", "😄")
+
+
+def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
+    """Toggle one reaction (Claude's emoji on a comment) by the person or Hermes."""
+    if emoji not in REACTIONS or who not in ("user", "hermes"):
+        raise ValueError("unknown reaction")
+    with _LOCK:
+        items = comments_list(aid)
+        for c in items:
+            if c["id"] == cid:
+                r = c.setdefault("reactions", {})
+                people = r.setdefault(emoji, [])
+                if who in people:
+                    people.remove(who)
+                else:
+                    people.append(who)
+                c["reactions"] = {k: v for k, v in r.items() if v}
+                _write_json(_comments_path(aid), items)
+                return c
+    raise FileNotFoundError(cid)
+
+
 # --- approvals of live dashboard calls (per artifact, per call template) ----
 
 def _approvals_path(aid: str) -> Path:
