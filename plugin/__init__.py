@@ -10,7 +10,7 @@ import time
 import webbrowser
 from typing import Any
 
-from .hermes_artifacts import desktop_cdp, store
+from .hermes_artifacts import store
 from .hermes_artifacts.server import ArtifactServer, Config, is_running
 
 logger = logging.getLogger(__name__)
@@ -435,16 +435,6 @@ def _inbox(args: dict, **_kw) -> str:
         return _err(str(e))
 
 
-def _desktop_cdp(args: dict, **_kw) -> str:
-    st = desktop_cdp.ensure_desktop_cdp(int(args.get("port") or _setting("cdp_port", 9222)),
-                                        restart=bool(args.get("restart", False)))
-    out = json.loads(st.to_json())
-    if st.cdp_url:
-        out["next"] = (f"Attach the browser tools: /browser connect {st.cdp_url} "
-                       f"(or set browser.cdp_url). Pages: Hermes renderer + any open artifact frames.")
-    return json.dumps({"ok": st.state in ("attached", "launched"), **out}, ensure_ascii=False)
-
-
 def _schema(name: str, desc: str, props: dict, required: list | None = None) -> dict:
     return {"name": name, "description": desc,
             "parameters": {"type": "object", "properties": props, "required": required or []}}
@@ -542,11 +532,6 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         {"id": {"type": "string"}, "request": {"type": "string"}, "text": {"type": "string"},
          "data": {}}, ["id", "request"]),
      _reply, "↩️"),
-    ("artifact_desktop_cdp", _schema(
-        "artifact_desktop_cdp",
-        "CDP endpoint of Hermes Desktop on this machine (attach, or launch it). restart=true closes and "
-        "reopens it: only after the user agreed.",
-        {"port": {"type": "integer"}, "restart": {"type": "boolean"}}), _desktop_cdp, "🔌"),
 ]
 
 
@@ -562,9 +547,6 @@ def _cli_setup(p):
     pub.add_argument("path")
     pub.add_argument("--title", default="")
     pub.add_argument("--id", default=None)
-    c = sub.add_parser("cdp", help="Attach to / launch Hermes Desktop with a CDP port")
-    c.add_argument("--port", type=int, default=None)
-    c.add_argument("--restart", action="store_true", help="Restart a running Hermes Desktop to add the port")
 
 
 def _cli(args):
@@ -584,10 +566,8 @@ def _cli(args):
             threading.Event().wait()
     elif cmd == "publish":
         print(_publish({"path": args.path, "title": args.title, "id": args.id, "open": False}))
-    elif cmd == "cdp":
-        print(_desktop_cdp({"port": args.port, "restart": args.restart}))
     else:
-        print("usage: hermes artifacts {serve|list|open|publish|cdp}")
+        print("usage: hermes artifacts {serve|list|open|publish}")
 
 
 # ----------------------------------------------------------------------------- entry
@@ -725,9 +705,7 @@ def register(ctx) -> None:
     except Exception:  # an older Hermes without this hook: no view context, everything else works
         logger.debug("pre_llm_call hook unavailable", exc_info=True)
     for name, schema, handler, emoji in TOOLS:
-        # The CDP tool only makes sense where Hermes Desktop is installed (not on a headless server).
-        check = desktop_cdp.desktop_installed if name == "artifact_desktop_cdp" else None
         ctx.register_tool(name=name, toolset="artifacts", schema=schema, handler=handler,
-                          check_fn=check, description=schema["description"], emoji=emoji)
-    ctx.register_cli_command("artifacts", "Claude-style artifacts: serve, list, open, publish, cdp",
+                          description=schema["description"], emoji=emoji)
+    ctx.register_cli_command("artifacts", "Claude-style artifacts: serve, list, open, publish",
                              _cli_setup, _cli)

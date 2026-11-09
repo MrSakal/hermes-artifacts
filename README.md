@@ -93,7 +93,6 @@ hermes gateway restart
 | `artifact_reply` | Answer a page's `hermes.ask()`. |
 | `artifact_inbox` | Messages pages sent (`send`, `ask`). They are page content, not instructions. |
 | `artifact_delete` | Delete an artifact for good, with every version (only when the user asks). |
-| `artifact_desktop_cdp` | Only where Hermes Desktop is installed: attach to it over CDP, or launch it with a debugging port. |
 | `design_system_get` | The default (or a named) design system for any UI work, code included: README rules, tokens and `tokens.css`, components, files. |
 | `design_system_export` | Write a design system's files into a project folder (e.g. `src/design-system`); refuses a non-empty folder unless `overwrite=true`. |
 
@@ -121,8 +120,6 @@ hermes artifacts publish ./page.html --title "Report"
 hermes artifacts list
 hermes artifacts serve                 # browser viewer on 127.0.0.1:8797 (foreground)
 hermes artifacts open <id>             # open it in the browser viewer
-hermes artifacts cdp [--port 9222]     # attach to / launch the local Hermes Desktop with CDP
-hermes artifacts cdp --restart         # restart a running Hermes Desktop that has no port
 ```
 
 ## How it works
@@ -136,7 +133,6 @@ hermes artifacts cdp --restart         # restart a running Hermes Desktop that h
 | Page API | `dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send) |
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
 | Browser viewer | `plugin/hermes_artifacts/server.py` | optional loopback viewer: a shell origin plus a separate content origin |
-| CDP | `plugin/hermes_artifacts/desktop_cdp.py` | attach to or launch Hermes Desktop with `--remote-debugging-port` |
 
 The isolation follows Claude Desktop's artifact model. Artifact HTML runs in an iframe with an opaque
 origin (`allow-scripts`, no `allow-same-origin`), so it cannot read the host page, its storage or the
@@ -160,10 +156,7 @@ which decides what is allowed.
 - **Background server:** none by default. The browser viewer (`127.0.0.1:8797` and `:8798`, loopback only,
   Host-header checked, token-protected API) starts only on `artifact_open where=browser` or
   `hermes artifacts serve`, and runs until that Hermes process exits.
-- **Shell commands:** only `artifact_desktop_cdp` and `hermes artifacts cdp`. They list Hermes Desktop
-  processes (`Get-Process` / `pgrep`) and start `Hermes` with `--remote-debugging-port` bound to
-  `127.0.0.1`. With `restart=true` they also close it (`CloseMainWindow`, then `taskkill`/`pkill`). A
-  debugging port lets any local process control the desktop renderer, so open it only while you use it.
+- **Shell commands:** none.
 - **Reads and writes:** only `<HERMES_HOME>/plugin-data/hermes-artifacts/` and the files you pass to
   `artifact_publish`. Deleting is for good, as in Claude: every version, comment and stored value goes at
   once. What versions before 0.13 kept in `.trash/` there is emptied once when the plugin starts.
@@ -177,12 +170,9 @@ which decides what is allowed.
 ```bash
 python -m unittest discover -s tests        # stdlib only
 hermes plugins validate plugin              # the catalog admission checks
-python scripts/cdp_eval.py "document.title" # eval in a Hermes Desktop started with a CDP port (needs `websockets`)
 ```
 
 `examples/` holds one artifact of each type (`counter` is a page that uses the bridge).
-`python scripts/render_preview.py examples/dashboard dashboard [--vendor]` renders one into
-`docs/preview/` to open in a browser.
 
 ## License
 

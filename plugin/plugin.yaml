@@ -26,7 +26,6 @@ provides_tools:
   - artifact_delete
   - artifact_comments
   - artifact_reply
-  - artifact_desktop_cdp
   - design_system_get
   - design_system_export
 config_schema:
@@ -40,11 +39,6 @@ config_schema:
     default: 8798
     label: Browser viewer content port
     description: Loopback port the browser viewer serves artifact HTML from (a separate origin, sandboxed).
-  cdp_port:
-    type: int
-    default: 9222
-    label: Hermes Desktop CDP port
-    description: Debugging port artifact_desktop_cdp attaches to, or launches the local Hermes Desktop with.
   require_approval:
     type: bool
     default: false
