@@ -420,9 +420,11 @@ const $confirm = atom(null) // {text, resolve}: a page asked to send something; 
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
 const $reopen = atom(null) // {panel, version}: the page asked to come back with that panel open (History)
 const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat with the artifact beside it)
-// {id, session} while the full page shows an artifact expanded (⤢) from its split: its header then offers
-// one "Show chat", which docks it back beside that chat. null when the page was reached any other way.
-const $expandedFrom = atom(null)
+// Where the tile beside the chat sits: 'right' (beside the chat) or 'center' (expanded with ⤢: a tab in the
+// chat's own zone that takes over the chat area). Expanding stays on the chat's route, so Hermes keeps the
+// chat's sidebar row lit and the Artifacts row unlit (sidebar/index.tsx: a session row is active while the
+// view is the chat's, a nav row only at its own pathname). "Show chat" puts it back at 'right'.
+const $dockPos = atom('right')
 // What chats are making now (Hermes read a type's guide, has not published): stored chat id -> {session,
 // type (null: not known yet), started (ms, this desktop's clock), title, step, tool, local}. From the
 // backend's `making` events (local: false) or, without one, the chat's own artifact_publish (local: true).
@@ -478,7 +480,7 @@ function syncPinnedNav(ctx, list) {
     }
   for (const [id, a] of want) {
     if (pinnedRegs.has(id)) continue
-    const dispose = ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) })
+    const dispose = ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(Page, { ctx }) }) // the page opens it from its route
     pinnedRegs.set(id, { key: `${a.title}|${a.type}`, dispose: () => typeof dispose === 'function' && dispose() })
   }
   syncPinnedChats(ctx, list)
@@ -500,6 +502,8 @@ function syncPinnedChats(ctx, list) {
 /** The artifact beside its chat (the Chat split); again on the same one closes it. */
 function openBeside(ctx, art) {
   if ($chat.get() === 'split' && $selected.get() === art.id && dockClose) {
+    // Expanded over its chat: the same artifact again brings the chat back beside it rather than closing.
+    if ($dockPos.get() === 'center') return openSplit(ctx, art)
     closeBeside(art)
     return
   }
@@ -762,7 +766,8 @@ function ChatArtifactCard({ ctx, attrs }) {
     title: t('openBeside', art.title),
     onMouseEnter: () => setHover(true),
     onMouseLeave: () => setHover(false),
-    onClick: () => { if (!($chat.get() === 'split' && $selected.get() === art.id)) openBeside(ctx, art) },
+    // Already beside the chat: nothing to do. Expanded (the chat tab fronted by the person): beside again.
+    onClick: () => { if (!($chat.get() === 'split' && $selected.get() === art.id && $dockPos.get() !== 'center')) openBeside(ctx, art) },
     style: box,
     children: [
       jsx(TypeBadge, { type: art.type, size: 36 }),
@@ -840,7 +845,6 @@ function watchChatArtifactTool(ctx) {
     if (sid === lastSid) return
     lastSid = sid
     if (!sid) return // on a page: the dock stays as it is
-    $expandedFrom.set(null) // a chat is in front again: no full page to come back from
     // The artifact (or placeholder) belongs to its chat: another chat in front closes it (not the person's close).
     const owner = dockOwner()
     if (owner && owner !== sid) {
@@ -849,6 +853,8 @@ function watchChatArtifactTool(ctx) {
       $chat.set('off')
     }
     if (closedIn.has(sid)) return
+    // Chat on one artifact brings its chat in front: openSplit docks that one, not the chat's newest.
+    if (splitWant && splitWant.session === sid) return
     if (dockOwner() === sid) return
     const art = chatArtifacts(sid)[0]
     if (art) return openBeside(ctx, art)
@@ -903,11 +909,6 @@ function PinMark({ ctx, sessionId }) {
     children: jsx(Icon, { name: a.type === 'page' || !TYPE_ICON[a.type] ? 'code' : TYPE_ICON[a.type], size: 14, stroke: 1.8 })
   })
 }
-/** A pinned artifact's own route: the Artifacts page, opened on it. */
-function PinnedPage({ ctx, id }) {
-  useEffect(() => { if ($selected.get() !== id) openArtifact(ctx, id) }, [id])
-  return jsx(Page, { ctx })
-}
 
 let listedOnce = false // the list has loaded since start (the pinned sidebar rows come from it)
 /** The list, once at a time: a call while one runs gets one more run after it (shared by every caller
@@ -955,8 +956,33 @@ async function loadComments(ctx) {
   } catch {}
 }
 
+// The full page shows one artifact only when its route names it: `#/hermes-artifacts?artifact=<id>` (a card,
+// a link, Copy link, artifact_open) or a pinned artifact's own route. Plain `#/hermes-artifacts` (the sidebar
+// row, the keybind, the palette, the redirected `/artifacts`) is always the gallery, whatever the tile beside
+// a chat had selected. Back from an artifact is the gallery's history entry; a reload reopens the same one.
+const pageHash = id => (id ? `${PAGE}?artifact=${enc(id)}` : PAGE)
+const onPageRoute = () => { const p = window.location.hash.replace(/^#/, '').split('?')[0]; return p === PAGE || p.startsWith(`${PAGE}/`) }
+
+/** The artifact the page's route names: undefined off the page, null for the gallery. */
+function routeArtifact() {
+  const [path, q = ''] = window.location.hash.replace(/^#/, '').split('?')
+  const dec = s => { try { return decodeURIComponent(s) } catch { return null } }
+  if (path.startsWith(`${PAGE}/pinned/`)) return dec(path.slice(PAGE.length + 8)) || null
+  if (path !== PAGE && path !== `${PAGE}/`) return undefined
+  const m = /(?:^|&)artifact=([^&]+)/.exec(q)
+  return m ? dec(m[1]) : null
+}
+
+/** An artifact on the full page: its own route (a history entry: back is the gallery). */
+function openOnPage(ctx, id) {
+  openArtifact(ctx, id)
+  host.navigate(pageHash(id))
+}
+
+/** On the full page: the artifact by its route; in the tile beside a chat: in place. */
+const openHere = (ctx, id) => (onPageRoute() ? openOnPage(ctx, id) : openArtifact(ctx, id))
+
 function openArtifact(ctx, id) {
-  if ($expandedFrom.get()?.id !== id) $expandedFrom.set(null) // another artifact: not the expanded one
   $selected.set(id)
   $shown.set(null)
   $page.set(null)
@@ -969,9 +995,15 @@ function openArtifact(ctx, id) {
   loadComments(ctx)
 }
 
+/** ✕ on the full page: the gallery. */
+function closeOnPage() {
+  $chat.set('off')
+  closeArtifact()
+  if (routeArtifact()) host.navigate(PAGE)
+}
+
 function closeArtifact() {
   $selected.set(null)
-  $expandedFrom.set(null)
   $picking.set(false)
   $draft.set(null)
 }
@@ -1668,8 +1700,8 @@ function Card({ ctx, art }) {
       jsxs('div', {
         role: 'button',
         tabIndex: 0,
-        onClick: () => !renaming && openArtifact(ctx, art.id),
-        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openArtifact(ctx, art.id),
+        onClick: () => !renaming && openOnPage(ctx, art.id),
+        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openOnPage(ctx, art.id),
         style: {
           ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: C.rXl, overflow: 'hidden', padding: 8,
           cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease', outline: 'none'
@@ -1727,7 +1759,7 @@ function ListRow({ ctx, art }) {
       jsxs('div', {
         role: 'button',
         tabIndex: 0,
-        onClick: () => !renaming && openArtifact(ctx, art.id),
+        onClick: () => !renaming && openOnPage(ctx, art.id),
         style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
@@ -2278,15 +2310,19 @@ function sendPins(portRef) {
 // Where the artifact shows, and the moves between (one place each):
 //   none           $chat 'off', no tile
 //   beside         $chat 'split', one workspace tile right of the artifact's chat (dockClose), chat route
-//   page/expanded  the full page with $expandedFrom = the split it came from; "Show chat" -> beside
-//   page/gallery   the full page opened from the gallery or a link; Chat -> beside (its chat, or a new one)
+//   expanded       $chat 'split', $dockPos 'center': the same tile as a tab in the chat's zone, over the chat;
+//                  the route stays the chat's, so its sidebar row stays lit. "Show chat" -> beside
+//   page           the full page at #/hermes-artifacts: the gallery, or the artifact its route names
+//                  (?artifact=<id>, a pinned route); Chat -> beside (its chat, or a new one)
 //   float          $chat 'float': the floating chat over the full page
 // none -> beside: openBeside/openSplit (titlebar, card, sidebar mark, entering the chat). beside -> none:
 // closeBeside (the person: remembered in closedIn) or closeDock (the plugin: another chat, the page).
-// beside -> page/expanded: expandDock. page -> beside: openSplit, which first brings the chat route back.
+// beside -> expanded: expandDock; expanded -> beside: collapseDock (both a close and an open of the one tile,
+// not the person's close). page -> beside: openSplit, which first brings the chat route back.
 let dockClose = null // closes the artifact tile docked beside the chat (split view)
 let dockClosing = false // true while the plugin closes the tile itself (its onClose is then not the person's)
 let splitRun = 0 // the newest openSplit: an older one still awaiting its chat gives way
+let splitWant = null // {run, id, session} while openSplit brings that artifact's chat in front
 
 function closeDock() {
   const c = dockClose
@@ -2311,12 +2347,14 @@ function dock(ctx, art) {
   openTile(ctx, art.title)
 }
 
-/** The one workspace tile right of the chat (an artifact or a being-made placeholder: DockView picks). */
+/** The one workspace tile beside the chat, or over it when expanded (an artifact or a being-made
+ *  placeholder: DockView picks). The dock hint only places a tile not yet in the layout, so a move between
+ *  'right' and 'center' closes the tile first (expandDock, collapseDock). */
 function openTile(ctx, title) {
   $chat.set('split')
   const close = host.openWorkspace(`${ID}:view`, {
     title,
-    dock: { pane: 'workspace', pos: 'right' },
+    dock: { pane: 'workspace', pos: $dockPos.get() === 'center' ? 'center' : 'right' },
     minWidth: '26rem',
     render: () => jsx(DockView, { ctx }),
     onClose: () => {
@@ -2325,6 +2363,7 @@ function openTile(ctx, title) {
       // The tab's own ✕ (or ⌘W) is the person closing it in this chat.
       if (!dockClosing) markClosed($dockMaking.get() || current()?.session, true)
       $dockMaking.set(null)
+      $dockPos.set('right') // the next tile opens beside the chat
       if ($chat.get() === 'split') $chat.set('off')
     }
   })
@@ -2382,7 +2421,7 @@ async function ensureChat(art) {
  *  text in its message box, not sent. */
 async function stageInChat(ctx, art, text) {
   const c = await ensureChat(art)
-  if ($chat.get() !== 'split') await openSplit(ctx, current() || art)
+  if ($chat.get() !== 'split' || $dockPos.get() === 'center') await openSplit(ctx, current() || art)
   for (let i = 0; i < 15; i++) {
     if (await host.composer.insertText(c.stored, text, { mode: 'block' }).catch(() => false)) return 'staged'
     await new Promise(r => setTimeout(r, 200))
@@ -2445,32 +2484,53 @@ async function openSplit(ctx, art) {
   // routes), so the chat is on screen only on its own route: from the full page, go back to it first, or
   // the tile would dock beside the Artifacts page (the full page and the tile showing the same artifact).
   const here = art.session && host.state?.focusedStoredSessionId?.get?.() === art.session
+  // Until it docks, entering that chat leaves the tile to this call (enter() would dock the chat's newest).
+  const give = () => { if (splitWant?.run === run) splitWant = null }
   if (here) {
+    splitWant = { run, id: art.id, session: art.session }
     if (!onChatRoute(art.session)) host.navigate(`/${enc(art.session)}`)
   } else {
     try {
       const c = await ensureChat(art)
       if (run !== splitRun) return
+      splitWant = { run, id: art.id, session: c.stored }
       await host.openSession(c.stored)
     } catch {
+      give()
       if (run === splitRun) $chat.set('float')
       return
     }
-    if (run !== splitRun) return
+    if (run !== splitRun) return give()
   }
-  $expandedFrom.set(null)
+  give()
+  // Expanded over the chat: Chat means beside it again.
+  if ($dockPos.get() === 'center') closeDock()
+  // Entering the chat may have docked another of its artifacts (its newest): this one is asked for.
+  if ($selected.get() !== art.id) openArtifact(ctx, art.id)
   // Entering the chat may have docked it already (the route change runs enter()): one tile either way.
   if (!(dockClose && $chat.get() === 'split' && $selected.get() === art.id && !$dockMaking.get())) dock(ctx, art)
 }
 
-/** ⤢ in the docked pane: the artifact full page, remembering the split it came from ("Show chat" there
- *  docks it back). Not the person's close: the chat keeps its artifact. */
-function expandDock() {
+/** ⤢ in the docked pane: the same tile over its chat (a tab in the chat's zone that takes the whole chat
+ *  area), on the chat's own route: the chat's sidebar row stays the lit one and the Artifacts row does not
+ *  light (an extension route would light neither the chat nor keep it "in the chat"). Not the person's
+ *  close: the chat keeps its artifact. */
+function expandDock(ctx) {
   const art = current()
-  $expandedFrom.set(art ? { id: art.id, session: art.session || null } : null)
-  closeDock()
-  $chat.set('off')
-  host.navigate(PAGE)
+  if (!art || !dockClose || $dockPos.get() === 'center') return
+  closeDock() // Hermes remembers the beside tile's width (rememberPaneShare) for the way back
+  $dockPos.set('center')
+  dock(ctx, art)
+}
+
+/** "Show chat" on the expanded tile: back beside the chat, at the width it had. */
+function collapseDock(ctx) {
+  if ($dockPos.get() !== 'center') return
+  const making = $dockMaking.get()
+  const art = current()
+  closeDock() // resets $dockPos to 'right'
+  if (making) dockMaking(ctx, making)
+  else if (art) dock(ctx, art)
 }
 
 const shownText = m => String(m.text || '').replace(/^\[artifact: [^\]]*\]\s*/, '')
@@ -2780,7 +2840,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
       ...(siblings.length
         ? [{ header: t('chatArtifacts') },
             ...siblings.map(a => ({ key: `sib-${a.id}`, icon: TYPE_ICON[a.type] || 'page', label: a.title,
-              onClick: close(() => openArtifact(ctx, a.id)) })),
+              onClick: close(() => openHere(ctx, a.id)) })),
             { sep: true }]
         : []),
       { icon: 'download', label: t('exportMenu'), sub: true, disabled: !exportItems.length, onClick: () => setView('export') },
@@ -2791,7 +2851,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
           const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e)), null))
           if (!r) return
           await refresh(ctx)
-          openArtifact(ctx, r.id)
+          openHere(ctx, r.id)
           toast(t('duplicated'))
         })
       },
@@ -2827,6 +2887,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
           await ctx.rest(`/artifacts/${enc(art.id)}`, { method: 'DELETE' }).catch(() => {})
           closeDock()
           closeArtifact()
+          if (routeArtifact()) host.navigate(PAGE) // its own route would reopen it: the gallery
           refresh(ctx)
         }
       }
@@ -2893,8 +2954,7 @@ function Header({ ctx, art, v, portRef, docked }) {
   const panel = useValue($panel)
   const comments = useValue($comments)
   const [cmenu, setCmenu] = useState(false)
-  const expandedFrom = useValue($expandedFrom)
-  const fromSplit = !docked && expandedFrom?.id === art.id && chat !== 'float'
+  const expanded = useValue($dockPos) === 'center'
   const open = comments.filter(c => !c.parent && !c.resolved).length
   return jsxs('div', {
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
@@ -2903,10 +2963,6 @@ function Header({ ctx, art, v, portRef, docked }) {
       jsx('div', { style: { flex: 1 } }),
       docked
         ? null
-        : fromSplit
-        // Expanded from its split (Claude's): one "Show chat" where the docked pane had ⤢; it docks the
-        // artifact back beside the same chat.
-        ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => openSplit(ctx, art) })
         : jsxs('div', {
             style: { display: 'flex', alignItems: 'center', borderRadius: 8, background: C.hover },
             children: [
@@ -2941,8 +2997,15 @@ function Header({ ctx, art, v, portRef, docked }) {
             : null
         ]
       }),
-      docked ? jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: expandDock }) : null,
-      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => ($chat.set('off'), closeArtifact()) })
+      // Expanded over its chat (Claude's): one "Show chat" where ⤢ was; it puts the tile back beside the chat.
+      docked
+        ? expanded
+          ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => collapseDock(ctx) })
+          : jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) })
+        : null,
+      // ✕ beside or over a chat: the chat alone, remembered as the person's close there. On the full page:
+      // the gallery (an artifact's own route would reopen it).
+      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => closeOnPage() })
     ]
   })
 }
@@ -3002,6 +3065,7 @@ const elapsedText = ms => {
  *  once known, the time it has taken, one line for the current step, and a quiet outline of the type. */
 function MakingView({ ctx, m }) {
   const t = usePluginI18n(ID)
+  const expanded = useValue($dockPos) === 'center'
   const [, setTick] = useState(0)
   useEffect(() => every(ctx, () => setTick(n => n + 1), 1000), [])
   const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
@@ -3017,6 +3081,7 @@ function MakingView({ ctx, m }) {
             jsx('span', { style: { ...one, fontWeight: 600, fontSize: 14 }, children: m.title || name }),
             jsx('span', { style: { ...one, fontSize: 12, color: C.text3 }, children: m.title ? `${name} · ${t('makingTag')}` : t('makingTag') })
           ] }),
+          expanded ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => collapseDock(ctx) }) : null,
           jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session) })
         ]
       }),
@@ -3392,35 +3457,21 @@ function Page({ ctx }) {
   const sel = useValue($selected)
   useEffect(() => {
     refresh(ctx)
-    // A link (Copy link) opens its artifact, also while the page is already open.
-    const fromLink = () => {
-      const m = /[?&]artifact=([^&]+)/.exec(window.location.hash)
-      if (m && decodeURIComponent(m[1]) !== $selected.get()) openArtifact(ctx, decodeURIComponent(m[1]))
-    }
-    fromLink()
-    const offLink = listen(ctx, window, 'hashchange', fromLink)
     if (dockClose) {
       closeDock()
       $chat.set('off')
     }
-    // The sidebar's Artifacts row, clicked while an artifact is open, opens the same route again: Hermes
-    // adds a history entry (a new key) but the address stays, so nothing else tells the page. Seeing a new
-    // entry on this route goes back to the gallery, as in Claude. (Read only: the history is the app's.)
-    // The Navigation API says when the entry changes; without it, a poll.
-    let key = window.history.state?.key
-    const sameRoute = () => {
-      const k = window.history.state?.key
-      if (k === key) return
-      key = k
-      const h = window.location.hash
-      if ((h === `#${PAGE}` || h === `#${PAGE}/`) && $selected.get()) closeArtifact()
+    // What the page shows follows its route (routeArtifact): an artifact only when the route names it, else
+    // the gallery, also when the tile beside a chat had one selected a moment ago. On every route change
+    // (back, a link, the sidebar row again while an artifact shows), not only on arrival.
+    const fromRoute = () => {
+      const id = routeArtifact()
+      if (id === undefined) return // leaving the page
+      if (id) { if (id !== $selected.get()) openArtifact(ctx, id) }
+      else if ($selected.get()) closeArtifact()
     }
-    const nav = window.navigation
-    const offRoute = nav?.addEventListener ? listen(ctx, nav, 'currententrychange', sameRoute) : every(ctx, sameRoute, 300)
-    return () => {
-      offLink()
-      offRoute()
-    }
+    fromRoute()
+    return onRouteChange(ctx, fromRoute)
   }, [])
   return jsxs('div', {
     ref: pageRef,
@@ -3514,7 +3565,7 @@ export default {
       // artifact_open, or an older backend: the full page.
       await refresh(ctx)
       if (p.id) openArtifact(ctx, p.id)
-      host.navigate(PAGE)
+      host.navigate(pageHash(p.id))
     })
     ctx.onEvent(`plugin.${ID}.making`, ev => onMaking(ctx, payloadOf(ev)))
     for (const type of ['tool.generating', 'tool.start', 'tool.complete']) ctx.onEvent(type, ev => onTool(ctx, ev))

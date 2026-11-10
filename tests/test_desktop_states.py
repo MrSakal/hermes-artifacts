@@ -13,7 +13,14 @@ beside the Artifacts page, the dock belongs to the chat in front. Then the early
 opens a being-made placeholder beside the chat in front (one tile), its step line follows the chat's tool
 events, the publish's `open` swaps the same tile to the artifact, `ended` closes a placeholder without
 remembering a close, a new making reopens a chat closed before, other chats stay quiet until they come in
-front while busy, and a doc gets no placeholder. Skipped without node.
+front while busy, and a doc gets no placeholder. Then the reported faults: the sidebar's Artifacts row
+always shows the gallery (an artifact only when the route names it), expand keeps the chat's sidebar row
+lit (the tile goes over the chat on the chat's own route: no Artifacts row lit), the x on the expanded
+tile is the chat alone and the person's close, and the neighbouring paths (a gallery card then Chat, the
+chat card and the sidebar mark while expanded, a pinned route, another chat, a publish while expanded, a
+reload while expanded or on an artifact). The sidebar highlight follows the host's rule
+(app/chat/sidebar/index.tsx): a contributed nav row is lit only at its own pathname, a chat row only
+while the route is a chat's. Skipped without node.
 """
 
 import json
@@ -40,6 +47,7 @@ const W = globalThis.__W
 export const host = W.host
 export const ROUTES_AREA = 'routes', SIDEBAR_NAV_AREA = 'sidebar.nav', SIDEBAR_NAV_PREFS_AREA = 'sidebar.nav.prefs'
 export const STATUSBAR_AREAS = { left: 'statusBar.left', right: 'statusBar.right' }
+export const SESSION_ROW_AREAS = { leading: 'sessionRow.leading' }
 export const SandboxedFrame = () => null
 export const usePluginI18n = () => (k, ...a) => (a.length ? `${k}:${a.join(',')}` : k)
 export const useValue = a => a.get()
@@ -97,7 +105,8 @@ const host = {
     const prev = tiles.get(id)
     if (prev) log.push(`re-open ${id}`)
     const close = () => { if (tiles.get(id)?.close === close) tiles.delete(id); opts.onClose?.() }
-    tiles.set(id, { opts, close })
+    // The dock hint places a tile not yet in the layout; a re-open refreshes it where it is (revealTreePane).
+    tiles.set(id, { opts, close, pos: prev ? prev.pos : (opts.dock?.pos || 'center') })
     return close
   }
 }
@@ -105,7 +114,7 @@ globalThis.__W = { host, collect: null }
 
 // The app's route effects: the selection follows a chat route (after the URL, as use-route-resume does);
 // our page mounts on its route and unmounts off it.
-let pageMounted = null
+let pageMounted = null, mountedKey = null
 function setRoute(v, fireHash) {
   hash = v.startsWith('#') ? v : `#${v}`
   window.history.state = { key: `k${++entryKey}` }
@@ -115,9 +124,14 @@ function setRoute(v, fireHash) {
   if (path === '/') selected.set(null)
   else if (!path.slice(1).includes('/') && !path.startsWith(PAGE) && !['/artifacts', '/capabilities'].includes(path)) selected.set(decodeURIComponent(path.slice(1)))
   const onPage = path === PAGE || path.startsWith(`${PAGE}/`)
-  if (onPage && !pageMounted) pageMounted = mount(routeEl())
-  if (!onPage && pageMounted) { pageMounted.forEach(f => typeof f === 'function' && f()); pageMounted = null }
+  const key = onPage ? routeKey(path) : null
+  if (pageMounted && key !== mountedKey) unmountPage()
+  if (onPage && !pageMounted) { mountedKey = key; pageMounted = mount(routeElFor(path)) }
 }
+function unmountPage() { pageMounted.forEach(f => typeof f === 'function' && f()); pageMounted = null; mountedKey = null }
+// Each route its own element: the page, or a pinned artifact's route.
+const routeKey = path => (path.startsWith(`${PAGE}/pinned/`) ? `pinned-page:${decodeURIComponent(path.slice(PAGE.length + 8))}` : 'page')
+const routeElFor = path => contribs.get(routeKey(path)).render()
 // The HashRouter: history.pushState, so no hashchange.
 function routerNav(path) { setRoute(`#${path}`, false) }
 
@@ -149,9 +163,9 @@ const ctx = {
   addEventListener(t, type, fn, o) { t.addEventListener(type, fn, o); return () => t.removeEventListener(type, fn, o) }
 }
 
-const mod = await import('./plugin.mjs')
-const I = mod.__test
-const routeEl = () => contribs.get('page').render()
+let mod = await import('./plugin.mjs')
+let I = mod.__test
+const routeEl = () => routeElFor(hash.slice(1).split('?')[0])
 
 // A shallow renderer: function components are called (hooks are stubs), host elements collected.
 const SKIP = new Set(['Gallery', 'CommentsPanel', 'FloatingChat', 'CommentPopover', 'ConfirmSend', 'Toast', 'PopMenu', 'TitleMenu'])
@@ -179,6 +193,22 @@ const click = (el, pred, what) => {
 }
 const titlebar = () => contribs.get('chat-artifact-slot')
 const tileEl = () => [...tiles.values()][0]?.opts.render()
+const tilePos = () => [...tiles.values()][0]?.pos || null
+// Which sidebar row Hermes lights (app/chat/sidebar/index.tsx): our nav row at pathname === its path only;
+// a chat row while the view is a chat (a chat route; no session tiles here).
+function lit() {
+  const path = hash.slice(1).split('?')[0]
+  if (path === PAGE) return 'artifacts'
+  if (path === '/' || (!path.slice(1).includes('/') && !path.startsWith(PAGE) && !['/artifacts', '/capabilities'].includes(path))) return `chat:${selected.get()}`
+  return 'none'
+}
+const hasEl = (el, name) => {
+  if (el == null || typeof el !== 'object') return false
+  if (Array.isArray(el)) return el.some(e => hasEl(e, name))
+  if (typeof el.type === 'function' && el.type.name === name) return true
+  if (typeof el.type === 'function') return SKIP.has(el.type.name) ? false : hasEl(el.type(el.props || {}), name)
+  return hasEl(el.props?.children, name)
+}
 
 // ---------------------------------------------------------------- invariants
 const fails = []
@@ -204,6 +234,15 @@ function check(expect = {}) {
   if ('page' in expect && Boolean(pageMounted) !== expect.page) bad(`expected page=${expect.page}`)
   if ('titlebarOpen' in expect) { const b = titlebar() && buttons(titlebar().render())[0]; if (!b || b.props['aria-pressed'] !== expect.titlebarOpen) bad('titlebar button not in the open state') }
   if ('selected' in expect && I.$selected.get() !== expect.selected) bad(`expected selected=${expect.selected}, got ${I.$selected.get()}`)
+  // The plugin's idea of where the tile is matches the host's; a tile over the chat only on its chat route.
+  if (tiles.size && I.$dockPos.get() !== tilePos()) bad(`$dockPos=${I.$dockPos.get()} with the tile at ${tilePos()}`)
+  if (tilePos() === 'center' && !onChat) bad('an expanded tile off its chat route')
+  // Plain #/hermes-artifacts is the gallery, whatever was selected before (fault 1).
+  if (pageMounted && hash === `#${PAGE}` && I.$selected.get()) bad(`the plain Artifacts route shows ${I.$selected.get()}, not the gallery`)
+  if ('gallery' in expect && (Boolean(pageMounted) && hasEl(routeEl(), 'Gallery')) !== expect.gallery) bad(`expected gallery=${expect.gallery}`)
+  if ('expanded' in expect && (tilePos() === 'center') !== expect.expanded) bad(`expected expanded=${expect.expanded}, tile at ${tilePos()}`)
+  if ('lit' in expect && lit() !== expect.lit) bad(`expected the ${expect.lit} sidebar row lit, got ${lit()}`)
+  if ('route' in expect && hash !== expect.route) bad(`expected route ${expect.route}, got ${hash}`)
 }
 async function S(name, fn, expect) {
   step = name
@@ -219,22 +258,29 @@ const B = { id: 'b1', title: 'Beta', type: 'page', session: 'chatB', updated: 2,
 list = [A, B]
 
 routerNav('/chatA') // the app starts on chat A; the list arrives later
-mod.default.register(ctx)
+let stop = mod.default.register(ctx)
 await settle()
 await S('start on chat A, list late', () => openGate(), { split: true, selected: 'a1', titlebarOpen: true })
-await S('to Artifacts page by the sidebar', () => routerNav(PAGE), { split: false, page: true })
+await S('to Artifacts page by the sidebar: the gallery, not the docked artifact', () => routerNav(PAGE), { split: false, page: true, gallery: true, selected: null, lit: 'artifacts' })
 await S('back to chat A by the sidebar', () => routerNav('/chatA'), { split: true })
 await S('to chat B', () => routerNav('/chatB'), { split: true, selected: 'b1' })
 await S('back to chat A', () => routerNav('/chatA'), { split: true, selected: 'a1' })
-await S('expand from the split', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { split: false, page: true, selected: 'a1' })
-await S('the expanded page offers one Show chat', () => {
-  const bs = buttons(routeEl()).map(b => b.props.title)
-  if (bs.filter(x => x === 'showChat').length !== 1 || bs.includes('chat') || bs.includes('popOut')) throw new Error('header buttons ' + bs.join(' '))
-}, { page: true })
-await S('Show chat on the full page', () => click(routeEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, page: false, selected: 'a1', titlebarOpen: true })
-await S('expand again', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { split: false, page: true })
-await S('back to chat A by the sidebar after expand', () => routerNav('/chatA'), { split: true, page: false, titlebarOpen: true })
+const EXP = { split: true, expanded: true, page: false, lit: 'chat:chatA', route: '#/chatA', titlebarOpen: true }
+await S('expand from the split: over the chat, the chat row stays lit', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { ...EXP, selected: 'a1', closed: false })
+await S('the expanded tile offers one Show chat and no expand', () => {
+  const bs = buttons(tileEl()).map(b => b.props.title)
+  if (bs.filter(x => x === 'showChat').length !== 1 || bs.includes('expand') || bs.includes('chat') || bs.includes('popOut')) throw new Error('header buttons ' + bs.join(' '))
+}, EXP)
+await S('Show chat: beside the chat again', () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, expanded: false, page: false, selected: 'a1', titlebarOpen: true, lit: 'chat:chatA', closed: false })
+await S('expand again', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), EXP)
+await S('the Artifacts row while expanded: the gallery', () => routerNav(PAGE), { split: false, page: true, gallery: true, lit: 'artifacts' })
+await S('back to chat A by the sidebar after expand: beside', () => routerNav('/chatA'), { split: true, expanded: false, page: false, titlebarOpen: true })
 await S('expand is not a close (persisted state)', () => { if ((storage.get('closedIn') || []).includes('chatA')) throw new Error('chatA marked closed') }, { split: true })
+await S('expand, then its x: the chat alone, the person\'s close', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  click(tileEl(), b => b.props.title === 'close', 'close')
+}, { split: false, page: false, lit: 'chat:chatA', route: '#/chatA', closed: true })
+await S('reopen with the titlebar button after that close', () => click(titlebar().render(), () => true, 'titlebar'), { split: true, expanded: false, selected: 'a1', closed: false })
 await S('close with the titlebar button', () => click(titlebar().render(), () => true, 'titlebar'), { split: false })
 await S('the close is persisted (a reload keeps it closed)', () => { if (!(storage.get('closedIn') || []).includes('chatA')) throw new Error('not persisted') }, { split: false })
 await S('to chat B and back: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
@@ -249,6 +295,46 @@ await S('gallery: open B full page, then Chat', async () => {
 }, { split: true, page: false, selected: 'b1', titlebarOpen: true })
 await S('the dock close (header x) in chat B', () => click(tileEl(), b => b.props.title === 'close', 'close'), { split: false })
 await S('Settings-like page and back', async () => { routerNav('/capabilities'); await settle(); routerNav('/chatB') }, { split: false })
+
+// ---------------------------------------------------------------- the page's route and the neighbours of expand
+const card = id => ({ type: I.ChatArtifactCard, props: { ctx, attrs: { id } } })
+await S('a gallery card names its artifact in the route', async () => { routerNav(PAGE); await settle(); I.openOnPage(ctx, 'a1') }, { page: true, gallery: false, selected: 'a1', route: `#${PAGE}?artifact=a1`, lit: 'artifacts' })
+await S('remounted on that artifact: the same artifact', async () => { unmountPage(); I.closeArtifact(); setRoute(hash, false) }, { page: true, selected: 'a1', gallery: false })
+await S('back to the gallery (its history entry)', () => routerNav(PAGE), { page: true, gallery: true, selected: null })
+await S('the x on a page artifact: the gallery', async () => { I.openOnPage(ctx, 'b1'); await settle(); click(routeEl(), b => b.props.title === 'close', 'close') }, { page: true, gallery: true, route: `#${PAGE}` })
+await S('an older artifact of chat A from the gallery, then Chat: that one beside its chat', async () => {
+  I.openOnPage(ctx, 'a1'); await settle()
+  click(routeEl(), b => b.props.title === 'chat', 'Chat')
+}, { split: true, page: false, selected: 'a1', lit: 'chat:chatA', titlebarOpen: true })
+await S('expand, then the chat card in the transcript: beside again', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  click(card('a1'), () => true, 'card')
+}, { split: true, expanded: false, selected: 'a1', lit: 'chat:chatA', closed: false })
+await S('the card again beside: nothing changes', () => { log.length = 0; click(card('a1'), () => true, 'card') }, { split: true, expanded: false, selected: 'a1', reopens: 0 })
+await S('expand, then the sidebar mark on the chat row: beside again', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  click(contribs.get('pin-mark').data.render({ sessionId: 'chatA' }), () => true, 'mark')
+}, { split: true, expanded: false, lit: 'chat:chatA', closed: false })
+await S('expanded, a pinned artifact\'s route: that artifact, no tile', async () => {
+  list = list.map(a => (a.id === 'b1' ? { ...a, pinned: true } : a)); await I.refresh(ctx)
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  routerNav(`${PAGE}/pinned/b1`)
+}, { split: false, page: true, selected: 'b1', gallery: false, lit: 'none', closed: false })
+await S('from the pinned route to the Artifacts row: the gallery', () => routerNav(PAGE), { page: true, gallery: true, lit: 'artifacts' })
+await S('back to chat A: beside, not expanded', () => routerNav('/chatA'), { split: true, expanded: false, lit: 'chat:chatA' })
+await S('expanded, then another chat (closed there before): that chat alone', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  routerNav('/chatB')
+}, { split: false, lit: 'chat:chatB', closed: true })
+await S('back to chat A after that: beside, and not closed', () => routerNav('/chatA'), { split: true, expanded: false, lit: 'chat:chatA', closed: false })
+await S('expanded, Hermes publishes another artifact in this chat: the same tile, still over the chat', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  log.length = 0
+  list = [...list, { id: 'a3', title: 'Alpha three', type: 'page', session: 'chatA', updated: 20, version: 1 }]
+  emit('plugin.hermes-artifacts.open', { payload: { id: 'a3', session: 'chatA' } })
+}, { ...EXP, selected: 'a3', reopens: 1 })
+await S('expanded, the titlebar button closes it: the chat alone', () => click(titlebar().render(), () => true, 'titlebar'), { split: false, lit: 'chat:chatA', route: '#/chatA', closed: true })
+await S('the titlebar button opens it beside again', () => click(titlebar().render(), () => true, 'titlebar'), { split: true, expanded: false, closed: false })
 
 // ---------------------------------------------------------------- the early pane (an artifact being made)
 const texts = el => expand(el).map(e => e.props?.children).filter(c => typeof c === 'string')
@@ -306,6 +392,31 @@ await S('a publish with no guide this turn: a placeholder from the tool event', 
 }, { split: true, making: 'chatJ' })
 await S('that turn ends: it goes', () => host.state.busy.set(false), { split: false, closed: false })
 
+// ---------------------------------------------------------------- reloads (the plugin's state is in memory only)
+// A reload: a fresh copy of the module; Hermes drops the tile it has no registration for while hydrating
+// the layout (store.ts hydrateContributedPanes), then the plugin registers again.
+async function reload() {
+  if (pageMounted) unmountPage()
+  stop?.()
+  for (const t of tiles.values()) t.opts.onClose = null
+  tiles.clear(); contribs.clear(); evs.clear()
+  mod = await import(`./plugin.mjs?r=${Math.random()}`)
+  I = mod.__test
+  stop = mod.default.register(ctx)
+  const path = hash.slice(1).split('?')[0]
+  if (path === PAGE || path.startsWith(`${PAGE}/`)) { await settle(); mountedKey = routeKey(path); pageMounted = mount(routeElFor(path)) }
+}
+await S('reload while expanded: the chat with its artifact beside it', async () => {
+  routerNav('/chatA'); await settle()
+  if (I.$chat.get() !== 'split') click(titlebar().render(), () => true, 'titlebar')
+  await settle()
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  await reload()
+}, { split: true, expanded: false, lit: 'chat:chatA', closed: false, titlebarOpen: true })
+await S('reload on the gallery: the gallery', async () => { routerNav(PAGE); await settle(); await reload() }, { page: true, gallery: true, split: false })
+await S('reload on an artifact page: that artifact', async () => { I.openOnPage(ctx, 'b1'); await settle(); await reload() }, { page: true, selected: 'b1', gallery: false })
+
+
 console.log(JSON.stringify({ fails, log }, null, 1))
 process.exit(0)
 """
@@ -318,7 +429,8 @@ class DesktopStateTests(unittest.TestCase):
         src = (PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
                .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
         # The internals the invariants read, exported from the copy only.
-        src += "\nexport const __test = { $chat, $selected, current, openArtifact, $makings, $dockMaking }\n"
+        src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh,"
+                " $makings, $dockMaking, $dockPos, ChatArtifactCard }\n")
         (d / "plugin.mjs").write_text(src, "utf-8")
         (d / "sdk.mjs").write_text(SDK, "utf-8")
         (d / "react.mjs").write_text(REACT, "utf-8")
