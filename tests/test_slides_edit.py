@@ -103,7 +103,7 @@ class RuntimeTests(unittest.TestCase):
     def test_editor_presenter_and_text_layer_ship(self):
         m = store.publish(path=str(ROOT / "examples" / "slides-layout"), title="L", type="slides")
         html = render.render(m, store.version_dir(m["id"]))
-        for marker in ("function magicMove", "function setPresenter", "kit.pdfText(PDFLib", "function pin(sec)",
+        for marker in ("function magicMove", "function setPresenter", "kit.pdfText(PDFLib", "function itemOf(t)", "function reorder(el, ev)", "function detach()", "function drawProps()",
                        "window.slideTheme", "L.blank", "data-deco"):
             self.assertIn(marker, html)
 

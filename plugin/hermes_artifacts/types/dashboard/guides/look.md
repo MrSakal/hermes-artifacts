@@ -3,11 +3,11 @@
 `dashboard.json` `"look"`: values recorded once. The dashboard checks every value and sets its own
 tokens from them for light and dark; the page, written on the tokens (`--color-*`, `--chart-1..8`,
 `dash.colors`, `--font-sans`, `--font-display`, `--radius`), wears it. The page names none of the look's
-colors, fonts or corners and has no dark-mode rule.
+colors, fonts or corners and has no dark-mode rule. The look dresses the dashboard's own area only;
+the bar, the Sources panel and menus around it keep Hermes' theme.
 
-**Design system first.** `artifact_guide` returns `design_system`. A default, or one the user names:
-read its tokens card (`api/tokens.md`, else `tokens.json`) and record its look in the first build,
-without asking. None set but systems listed: name them and ask, when someone can answer; else the
+**Design system first.** `artifact_guide` returns `design_system` with its tokens card. A default, or
+one the user names: record its look in the first build, without asking; read nothing else of it. None set but systems listed: name them and ask, when someone can answer; else the
 dashboard's own look (no `look`). The look is a copy: a later edit of the system changes no dashboard
 until you record it again, when the person asks, or when you change the dashboard anyway and
 `artifact_read` reports `design_system_changed` (then say so in a line).

@@ -13,13 +13,13 @@
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes, E = window.docEdit, WG = window.docWidgets;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { hist: "History", histNone: "No earlier states yet", byYou: "you", byH: "Hermes", byRestore: "restored", histNow: "now",
+    en: { hist: "History", histNone: "No earlier states yet", byYou: "you", byH: "Hermes", byRestore: "restored", 
       restoreThis: "Restore this state", restored: "Restored", cancel: "Cancel",
       exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)", toSlides: "Slides from this doc", toDesign: "Design from this doc",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Type / for blocks, or @Hermes and a request.",
       saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", conflict: "Hermes changed this block meanwhile: it now shows Hermes' text",
       asking: "Hermes is writing…", editWith: "Edit with Hermes", comment: "Comment",
-      editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename tab",
+      editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename tab", tabs: "Tabs", delTabAsk: "Delete this tab and everything in it?", ok: "OK",
       byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled",
       hermesHere: "Hermes", dropSection: "Leave this section out",
       editing: "Editing", editingHint: "Change the text directly", suggesting: "Suggesting", suggestingHint: "Your edits become suggestions",
@@ -31,11 +31,11 @@
       mention: "Mention", formula: "Formula", chart: "Chart", image: "Image", slashHint: "Type / in the document for more",
       mentionAsk: "Who? (a name)", dropdownAsk: "Dropdown name (e.g. Status)", optionsAsk: "Options, comma-separated", editOptions: "Edit options…",
       rowAbove: "Insert row above", rowBelow: "Insert row below", colLeft: "Insert column left", colRight: "Insert column right",
-      delRow: "Delete row", delCol: "Delete column", cellColor: "Cell colour", alignL: "Align left", alignC: "Align centre", alignR: "Align right",
+      delRow: "Delete row", delCol: "Delete column", alignL: "Align left", alignC: "Align centre", alignR: "Align right",
       addRow: "Add a row", addCol: "Add a column", source: "Source", done: "Done",
       editData: "Edit", chartTitle: "Title", chartType: "Type", cBar: "Bars", cLine: "Line", cArea: "Area", chartUnit: "Unit", chartHighlight: "Highlight",
       chartSource: "Source line", addSeries: "Add a series", seriesN: "Series",
-      rowMenu: "Row", colMenu: "Column", tableMenu: "Table", sortAsc: "Sort A → Z", sortDesc: "Sort Z → A", moveUp: "Move up", moveDown: "Move down",
+      rowMenu: "Row", colMenu: "Column", sortAsc: "Sort A → Z", sortDesc: "Sort Z → A", moveUp: "Move up", moveDown: "Move down",
       moveRowCol: "Move row or column", moveRowUp: "Move row up", moveRowDown: "Move row down", moveColLeft: "Move column left", moveColRight: "Move column right",
       colWidth: "Set column width", wNarrow: "Narrow", wMedium: "Medium", wWide: "Wide", wExtra: "Extra wide", wAuto: "Auto", askBlock: "Ask Hermes about this",
       askGroup: "Ask Hermes", people: "People", dates: "Dates", today: "Today's date", tomorrow: "Tomorrow's date", newMention: "Someone else…", textStyle: "Text style", listStyle: "List",
@@ -44,13 +44,13 @@
       accept: "Accept", reject: "Reject", sReplace: "Change", sInsert: "Addition", sDelete: "Deletion", replies: "replies", reply1: "reply",
       wLabels: { latex: "Formula", math: "Formula", tex: "Formula", csv: "CSV", chart: "Chart", svg: "Drawing" },
       colors: { gray: "Gray", red: "Red", orange: "Orange", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple" } },
-    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "te", byH: "Hermes", byRestore: "visszaállítva", histNow: "most",
+    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "te", byH: "Hermes", byRestore: "visszaállítva", 
       restoreThis: "Visszaállítás erre", restored: "Visszaállítva", cancel: "Mégse",
       exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)", toSlides: "Slides készítése a doksiból", toDesign: "Design készítése a doksiból",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Írj / jelet a blokkokhoz, vagy @Hermes és a kérésed.",
       saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", conflict: "Ezt a blokkot közben a Hermes módosította: most az ő szövege látszik",
       asking: "A Hermes ír…", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
-      editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Fül átnevezése",
+      editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Fül átnevezése", tabs: "Fülek", delTabAsk: "Törlöd ezt a fület a teljes tartalmával együtt?", ok: "OK",
       byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen",
       dropSection: "Ez a rész ne legyen benne",
       editing: "Szerkesztés", editingHint: "Közvetlenül módosítod a szöveget", suggesting: "Javaslat", suggestingHint: "A módosításaid javaslatok lesznek",
@@ -62,11 +62,11 @@
       mention: "Említés", formula: "Képlet", chart: "Grafikon", image: "Kép", slashHint: "Írj / jelet a doksiban a többihez",
       mentionAsk: "Kit? (név)", dropdownAsk: "A legördülő neve (pl. Státusz)", optionsAsk: "Opciók vesszővel elválasztva", editOptions: "Opciók szerkesztése…",
       rowAbove: "Sor beszúrása fölé", rowBelow: "Sor beszúrása alá", colLeft: "Oszlop beszúrása balra", colRight: "Oszlop beszúrása jobbra",
-      delRow: "Sor törlése", delCol: "Oszlop törlése", cellColor: "Cella színe", alignL: "Balra igazítás", alignC: "Középre igazítás", alignR: "Jobbra igazítás",
+      delRow: "Sor törlése", delCol: "Oszlop törlése", alignL: "Balra igazítás", alignC: "Középre igazítás", alignR: "Jobbra igazítás",
       addRow: "Új sor", addCol: "Új oszlop", source: "Forrás", done: "Kész",
       editData: "Szerkesztés", chartTitle: "Cím", chartType: "Típus", cBar: "Oszlop", cLine: "Vonal", cArea: "Terület", chartUnit: "Mértékegység", chartHighlight: "Kiemelés",
       chartSource: "Forrás sor", addSeries: "Új sorozat", seriesN: "Sorozat",
-      rowMenu: "Sor", colMenu: "Oszlop", tableMenu: "Táblázat", sortAsc: "Rendezés A → Z", sortDesc: "Rendezés Z → A", moveUp: "Feljebb", moveDown: "Lejjebb",
+      rowMenu: "Sor", colMenu: "Oszlop", sortAsc: "Rendezés A → Z", sortDesc: "Rendezés Z → A", moveUp: "Feljebb", moveDown: "Lejjebb",
       moveRowCol: "Sor vagy oszlop mozgatása", moveRowUp: "Sor feljebb", moveRowDown: "Sor lejjebb", moveColLeft: "Oszlop balra", moveColRight: "Oszlop jobbra",
       colWidth: "Oszlopszélesség", wNarrow: "Keskeny", wMedium: "Közepes", wWide: "Széles", wExtra: "Extra széles", wAuto: "Automatikus", askBlock: "Kérdezd a Hermest erről",
       askGroup: "Kérdezd a Hermest", people: "Személyek", dates: "Dátumok", today: "Mai dátum", tomorrow: "Holnapi dátum", newMention: "Valaki más…", textStyle: "Szövegstílus", listStyle: "Lista",
@@ -398,7 +398,7 @@
   }
   function mdOf(el) {
     var src = el.querySelector("textarea.doc-src");
-    if (src) return src.value;
+    if (src) return src.fenced ? src.fenced(src.value) : src.value;
     var code = el.querySelector("[contenteditable=plaintext-only]");
     if (code) { var b = blockOf(el.getAttribute("data-block")), m = /^(`{3,}|~{3,})\s*([\w+#.-]*)/.exec(s(b && b.md)) || [0, "```", ""]; return m[1] + m[2] + "\n" + code.textContent.replace(/\n$/, "") + "\n" + m[1]; }
     return E.toMd(el);
@@ -452,7 +452,39 @@
       commit();
     }, 0);
   });
-  function floating() { return [selBar, slash.el, popover].some(function (x) { return x && !x.hidden && x.contains(document.activeElement); }); }
+  function floating() { return [selBar, slash.el, popover, dlg && dlg.el].some(function (x) { return x && !x.hidden && x.contains(document.activeElement); }); }
+  // Questions are asked in the page itself: the viewer's frame is sandboxed, where prompt() and confirm() do nothing.
+  var dlg = null;
+  function closeDlg(v) {
+    if (!dlg) return;
+    var d = dlg; dlg = null;
+    d.el.remove(); document.removeEventListener("mousedown", d.out, true);
+    d.done(v);
+  }
+  /** ask(label, value) -> the text typed (null when left); ask(label) -> true or false. */
+  function ask(label, value, yes) {
+    closeDlg(null);
+    return new Promise(function (done) {
+      var text = value !== undefined, none = text ? null : false;
+      var input = text ? h("input", { type: "text", "class": "doc-dlg-in", value: value || "", "aria-label": label }) : null;
+      var ok = h("button", { type: "button", "class": "doc-src-done", text: yes || T.ok });
+      var no = h("button", { type: "button", "class": "doc-data-cancel", text: T.cancel });
+      var el = h("div", { "class": "doc-dlg", role: "dialog", "aria-label": label }, [h("div", { "class": "doc-dlg-q", text: label }), input, h("div", { "class": "doc-dlg-bar" }, [no, ok])]);
+      var finish = function () { closeDlg(text ? input.value.trim() || null : true); };
+      ok.addEventListener("click", finish);
+      no.addEventListener("click", function () { closeDlg(none); });
+      el.addEventListener("keydown", function (e) {
+        e.stopPropagation();
+        if (e.key === "Enter") { e.preventDefault(); finish(); }
+        else if (e.key === "Escape") { e.preventDefault(); closeDlg(none); }
+      });
+      var out = function (e) { if (!el.contains(e.target)) closeDlg(none); };
+      dlg = { el: el, done: done, out: out };
+      document.body.appendChild(el);
+      setTimeout(function () { if (dlg && dlg.el === el) document.addEventListener("mousedown", out, true); }, 0);
+      (input || ok).focus(); if (input) input.select();
+    });
+  }
   page.addEventListener("input", function (e) {
     var el = e.target.closest && e.target.closest(".doc-blk[data-block]");
     if (!el || el.hasAttribute("data-source")) return;
@@ -476,7 +508,12 @@
     var id = el.getAttribute("data-block"), b = blockOf(id);
     b.md = newMd.trim() === k ? newMd : newMd;
     drawBlock(b, el);
-    if (!rest) { var leaf = firstLeaf(el); if (leaf.tagName !== "LI" && !leaf.textContent) leaf.innerHTML = "<br>"; }
+    if (!rest) { // nothing typed yet: the empty heading, item or quote still needs a line for the caret
+      var q = el.querySelector("blockquote");
+      if (q && !q.firstChild) q.innerHTML = "<p><br></p>";
+      var leaf = firstLeaf(el);
+      if (leaf !== el && leaf.tagName !== "LI" && !leaf.textContent) leaf.innerHTML = "<br>";
+    }
     focusBlock(id, true);
     scheduleSave(el);
   }
@@ -787,6 +824,7 @@
     var parent = rows[0].parentNode, num = function (s) { var n = parseFloat(String(s).replace(/\s/g, "").replace(",", ".")); return isFinite(n) ? n : null; };
     rows.sort(function (a, b) {
       var x = ((cellsOf(a)[k] || {}).textContent || "").trim(), y = ((cellsOf(b)[k] || {}).textContent || "").trim(), nx = num(x), ny = num(y);
+      if (!x || !y) return x ? -1 : y ? 1 : 0; // blank cells go last, whichever way it sorts
       return (nx !== null && ny !== null ? nx - ny : x.localeCompare(y, L)) * dir;
     });
     rows.forEach(function (r) { parent.appendChild(r); });
@@ -838,7 +876,7 @@
       { sep: true },
       swatchRow(function (c) { paint(cell, c); done(); }),
       { sep: true },
-      { icon: "dropdown", label: T.dropdown, onClick: function () { var c = itemByKey("dropdown").chip(); if (c) chipInCell(cell, c); } },
+      { icon: "dropdown", label: T.dropdown, onClick: function () { Promise.resolve(itemByKey("dropdown").chip()).then(function (c) { if (c) chipInCell(cell, c); }); } },
       { icon: "date", label: T.date, onClick: function () { chipInCell(cell, "{{date:" + new Date().toISOString().slice(0, 10) + "}}"); } }
     ], 0, from);
   }
@@ -852,7 +890,6 @@
   // Claude's table handles: a pill on the hovered row's left edge and the hovered column's top edge,
   // a + bar when the pointer nears the bottom or right edge, a … menu, and ⋮⋮ to move the table.
   var PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>';
-  var DOTS = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="12.5" cy="8" r="1.4"/></svg>';
   var GRIP_V = '<svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></svg>';
   function uiBtn(cls, label, html) {
     var b = h("button", { type: "button", "class": "doc-tui " + cls, title: label, "aria-label": label, html: html || "", hidden: true });
@@ -861,8 +898,7 @@
     return b;
   }
   var tui = { row: uiBtn("doc-tui-row", T.rowMenu), col: uiBtn("doc-tui-col", T.colMenu),
-    addRow: uiBtn("doc-tui-addrow", T.addRow, PLUS), addCol: uiBtn("doc-tui-addcol", T.addCol, PLUS), more: uiBtn("doc-tui-more", T.tableMenu, DOTS),
-    grip: uiBtn("doc-tui-grip", T.blockMenu, GRIP_V) };
+    addRow: uiBtn("doc-tui-addrow", T.addRow, PLUS), addCol: uiBtn("doc-tui-addcol", T.addCol, PLUS) };
   var tState = { table: null, row: 0, col: 0 };
   function hideTableUi() { Object.keys(tui).forEach(function (k) { tui[k].hidden = true; }); tState.table = null; }
   function place(b, x, y, w, hh) { b.hidden = false; b.style.left = x + "px"; b.style.top = y + "px"; if (w != null) b.style.width = w + "px"; if (hh != null) b.style.height = hh + "px"; }
@@ -876,9 +912,13 @@
       var head = cellsOf(rowsOf(table)[0])[tState.col], hr = head ? head.getBoundingClientRect() : cell.getBoundingClientRect();
       place(tui.col, hr.left + hr.width / 2 - 9, tr.top - 4);
     }
-    if (py != null && py > tr.bottom - 26) place(tui.addRow, tr.left, tr.bottom + 2, tr.width); else if (!tui.addRow.matches(":hover")) tui.addRow.hidden = true;
-    if (px != null && px > tr.right - 26) place(tui.addCol, tr.right + 2, tr.top, null, tr.height); else if (!tui.addCol.matches(":hover")) tui.addCol.hidden = true;
-    place(tui.more, tr.right + 10, tr.top);
+    // The two "add" bars follow one rule: the bar under the table shows from the last row (and below it),
+    // the bar beside it from the last column (and right of it).
+    var rows = rowsOf(table);
+    var nearRow = cell ? cell.parentNode === rows[rows.length - 1] : py != null && py > tr.bottom - 4;
+    var nearCol = cell ? !cell.nextElementSibling : px != null && px > tr.right - 4;
+    if (nearRow) place(tui.addRow, tr.left, tr.bottom + 2, tr.width); else if (!tui.addRow.matches(":hover")) tui.addRow.hidden = true;
+    if (nearCol) place(tui.addCol, tr.right + 2, tr.top, null, tr.height); else if (!tui.addCol.matches(":hover")) tui.addCol.hidden = true;
   }
   tui.row.addEventListener("click", function (e) {
     var t = tState.table; if (!t) return;
@@ -892,19 +932,14 @@
     var t = tState.table; if (!t) return;
     var tr = addRow(t, rowsOf(t).length - 1, true), el = t.closest(".doc-blk");
     saveEl(el); el.focus(); E.placeCaret(tr.firstChild, true);
+    var r = t.getBoundingClientRect(); place(tui.addRow, r.left, r.bottom + 2, r.width); // the bar moves with the table's new edge
   });
   tui.addCol.addEventListener("click", function () {
     var t = tState.table; if (!t) return;
-    addCol(t, 999, true); saveEl(t.closest(".doc-blk"));
-  });
-  tui.more.addEventListener("click", function (e) {
-    var t = tState.table; if (!t) return;
-    var el = t.closest(".doc-blk"), id = el.getAttribute("data-block");
-    richMenu(e.clientX - 180, e.clientY + 12, [
-      { icon: "duplicate", label: T.duplicate, onClick: function () { insertBlock(id, blockOf(id).md, null); } },
-      { icon: "comment", label: T.comment, onClick: function () { hm.comment && hm.comment({ selector: "#blk-" + id, text: t.textContent.trim().slice(0, 200), label: "table", tab: tab().id }); } },
-      { sep: true },
-      { icon: "trash", label: T.delTable, danger: true, onClick: function () { hideTableUi(); removeBlock(id); } }], 0, tui.more);
+    addCol(t, 999, true);
+    var el = t.closest(".doc-blk"), head = cellsOf(rowsOf(t)[0]);
+    saveEl(el); el.focus(); E.placeCaret(head[head.length - 1], true); // the caret goes to the new column, as it does to a new row
+    var r = t.getBoundingClientRect(); place(tui.addCol, r.right + 2, r.top, null, r.height); // the bar moves with the table's new edge
   });
 
   // ⋮⋮ beside a table: drag it to another place, or click for its menu (as in Claude's doc).
@@ -952,12 +987,23 @@
       drag.after = prev ? prev.getAttribute("data-block") : null;
       return;
     }
+    hoverEv = e;
+    if (!hoverRaf) hoverRaf = requestAnimationFrame(hoverUi); // the pointer fires far more often than the screen draws
+  });
+  var hoverEv = null, hoverRaf = 0;
+  function hoverUi() {
+    var e = hoverEv; hoverRaf = 0; hoverEv = null;
+    if (!e || drag) return;
     if (!live || menuOpen()) return;
     if (bar.contains(e.target)) { hideGutter(); if (tState.table) hideTableUi(); return; } // nothing of the page's floats over its bar
+    if (e.target === tui.addRow || tui.addRow.contains(e.target)) { tui.addCol.hidden = true; return; } // on one bar: the other goes
+    if (e.target === tui.addCol || tui.addCol.contains(e.target)) { tui.addRow.hidden = true; return; }
     if (e.target.closest && e.target.closest(".doc-tui, .doc-gutter")) return;
     var pr0 = page.getBoundingClientRect(), over = null;
     if (e.clientX > pr0.left - 64 && e.clientX < pr0.right + 20) {
-      over = Array.prototype.find.call(page.querySelectorAll(".doc-blk[data-block]"), function (x) { var r = x.getBoundingClientRect(); return e.clientY >= r.top && e.clientY < r.bottom; }) || null;
+      over = e.target.closest ? e.target.closest(".doc-blk[data-block]") : null; // over a block: no need to measure them all
+      if (over && !page.contains(over)) over = null;
+      if (!over) over = Array.prototype.find.call(page.querySelectorAll(".doc-blk[data-block]"), function (x) { var r = x.getBoundingClientRect(); return e.clientY >= r.top && e.clientY < r.bottom; }) || null;
     }
     if (over && !/^tmp-/.test(over.getAttribute("data-block"))) showGutter(over); else if (!gut.el.matches(":hover")) hideGutter();
     var cell = cellOf(e.target), table = cell ? cell.closest("table") : null;
@@ -967,7 +1013,7 @@
       if (e.clientX < tr.left - 34 || e.clientX > tr.right + 44 || e.clientY < tr.top - 20 || e.clientY > tr.bottom + 26) hideTableUi();
       else showTableUi(tState.table, null, e.clientX, e.clientY);
     }
-  });
+  }
   document.addEventListener("mouseup", function (e) {
     if (!drag) return;
     var d = drag; drag = null;
@@ -976,7 +1022,7 @@
     moveBlock(d.id, d.after);
   });
   window.addEventListener("scroll", function () {
-    hideTableUi(); hideGutter(); placeAsk(); closePopover();
+    hideTableUi(); hideGutter(); closePopover();
     if (slash.open) { // the / menu stays with its line, and goes when the line passes under the bar
       if (slash.block && slash.block.getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom) slash.close(); else slash.update();
     }
@@ -1032,21 +1078,6 @@
     richMenu(x, y, items, 0, from);
   }
 
-  // ✳ beside the line being typed in: ask Hermes about this block (Claude's mark beside the caret).
-  var askMark = h("button", { type: "button", "class": "doc-askmark", title: T.askBlock, "aria-label": T.askBlock, hidden: true,
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="' + MI.hermes + '"/></svg>' });
-  document.body.appendChild(askMark);
-  askMark.addEventListener("mousedown", function (e) { e.preventDefault(); });
-  function placeAsk() { // Hermes is reached from the selection bar and the block's ⋮⋮ menu; no mark floats beside the line
-    askMark.hidden = true; return;
-    var el = live && focused && blockEl(focused.id);
-    if (!el || !el.contains(document.activeElement)) { askMark.hidden = true; return; }
-    var r = E.caretRange(), rc = r && r.getClientRects()[0], br = el.getBoundingClientRect();
-    var line = rc ? rc.top + rc.height / 2 : br.top + 12;
-    askMark.hidden = false;
-    askMark.style.left = br.right + 8 + "px"; // right of the line: the left margin holds + and ⋮⋮
-    askMark.style.top = line - 9 + "px";
-  }
   function askBlock(id) { // ask Hermes about one whole block
     var el = blockEl(id);
     if (!el) return;
@@ -1055,7 +1086,6 @@
     selBar.style.top = r.bottom + 6 + "px"; selBar.style.left = Math.max(8, r.left) + "px";
     askEdit({ ids: [id], text: el.textContent.trim().slice(0, 600), rect: r });
   }
-  askMark.addEventListener("click", function () { if (focused) askBlock(focused.id); });
 
   // ------------------------------------------------------------------ checkboxes, chips, widgets, pending sections
   page.addEventListener("change", function (e) {
@@ -1126,11 +1156,12 @@
           chipChanged(place, "{{select:" + name + "=" + o + "}}");
         } };
       }).concat([{ label: T.editOptions, onClick: function () {
-        var v = prompt(T.optionsAsk, opts.join(", "));
-        if (v == null) return;
-        var list = v.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-        selects[name] = list;
-        edit([{ op: "set_select", name: name, options: list }]).then(function () { render(); });
+        ask(T.optionsAsk, opts.join(", ")).then(function (v) {
+          if (v == null) return;
+          var list = v.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+          selects[name] = list;
+          edit([{ op: "set_select", name: name, options: list }]).then(function () { render(); });
+        });
       } }]));
     }
   }
@@ -1267,7 +1298,10 @@
     // The block shows its source as text: the rich editor keeps out of it until Done.
     el.setAttribute("data-source", ""); el.removeAttribute("contenteditable");
     var ta = h("textarea", { "class": "doc-src", spellcheck: "false", "aria-label": T.source });
-    ta.value = b.md;
+    // A widget shows what is inside its fence (the formula, the rows): the fence itself is not the person's to keep right.
+    var fm = /^(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n?\1\s*$/.exec(s(b.md));
+    ta.fenced = fm ? function (v) { return fm[1] + fm[2] + "\n" + v.replace(/\s+$/, "") + "\n" + fm[1]; } : null;
+    ta.value = fm ? fm[3] : b.md;
     var ok = h("button", { type: "button", "class": "doc-src-done", text: T.done });
     el.replaceChildren(h("div", { "class": "doc-src-box" }, [ta, h("div", { "class": "doc-src-bar" }, [h("span", { "class": "doc-src-hint", text: "Ctrl+Enter" }), ok])]));
     var size = function () { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
@@ -1276,9 +1310,9 @@
     var done = false;
     var finish = function () {
       if (done) return; done = true;
-      var v = ta.value, cur = blockOf(id) || b;
+      var v = ta.fenced ? ta.fenced(ta.value) : ta.value, cur = blockOf(id) || b;
       el.removeAttribute("data-source");
-      if (v.trim() && v !== cur.md) { cur.md = v; drawBlock(cur, el); writeBlock(id, v); }
+      if ((ta.fenced || v.trim()) && v !== cur.md) { cur.md = v; drawBlock(cur, el); writeBlock(id, v); }
       else drawBlock(cur, el);
       drawToc();
     };
@@ -1314,10 +1348,13 @@
   function makeLink() {
     if (!inEditable()) return;
     var r = E.caretRange(); var saved = r && r.cloneRange();
-    var url = prompt(T.linkAsk, "https://");
-    if (!url || !/^(https?:\/\/|mailto:)/i.test(url)) return;
-    var s0 = window.getSelection(); s0.removeAllRanges(); if (saved) s0.addRange(saved);
-    after(function () { if (saved && saved.collapsed) document.execCommand("insertHTML", false, '<a href="' + kit.esc(url) + '">' + kit.esc(url) + "</a>"); else document.execCommand("createLink", false, url); });
+    var home = currentBlockEl();
+    ask(T.linkAsk, "https://").then(function (url) {
+      if (!url || !/^(https?:\/\/|mailto:)/i.test(url)) return;
+      if (home) home.focus();
+      var s0 = window.getSelection(); s0.removeAllRanges(); if (saved) s0.addRange(saved);
+      after(function () { if (saved && saved.collapsed) document.execCommand("insertHTML", false, '<a href="' + kit.esc(url) + '">' + kit.esc(url) + "</a>"); else document.execCommand("createLink", false, url); });
+    });
   }
   var selBar = h("div", { "class": "doc-selbar", hidden: true });
   document.body.appendChild(selBar);
@@ -1378,14 +1415,6 @@
     var row = function (prefix) { return swatchRow(function (c) { back(); if (c) wrapSel("span", "md-" + prefix + c); else clearColor(); }); };
     richMenu(r0.left, r0.bottom + 6, [{ hint: T.textColor }, row(""), { hint: T.highlight }, row("bg-")], 0, anchor);
   }
-  function colorMenuOld(anchor) {
-    var r = anchor.getBoundingClientRect(), saved = E.caretRange() && E.caretRange().cloneRange();
-    var restore = function () { var s0 = window.getSelection(); s0.removeAllRanges(); if (saved) s0.addRange(saved); };
-    var items = [{ hint: T.textColor }].concat(md.COLORS.map(function (c) { return { label: T.colors[c], onClick: function () { restore(); wrapSel("span", "md-" + c); } }; }))
-      .concat([{ hint: T.highlight }]).concat(md.COLORS.map(function (c) { return { label: T.colors[c], onClick: function () { restore(); wrapSel("span", "md-bg-" + c); } }; }))
-      .concat([{ label: T.clear, onClick: function () { restore(); clearColor(); } }]);
-    menuAt(r.left, r.bottom + 4, items);
-  }
   function askEdit(sel) {
     var input = h("input", { type: "text", "class": "doc-askin", placeholder: T.editAsk, "aria-label": T.editAsk });
     var go = function () {
@@ -1402,7 +1431,6 @@
   var selTimer = null;
   document.addEventListener("selectionchange", function () {
     clearTimeout(selTimer);
-    placeAsk();
     if (selBar.contains(document.activeElement)) return;
     selTimer = setTimeout(showSelBar, 200);
   });
@@ -1426,15 +1454,17 @@
       { k: "h1", ic: "h1", label: T.h1, md: "# " }, { k: "h2", ic: "h2", label: T.h2, md: "## " }, { k: "h3", ic: "h3", label: T.h3, md: "### " },
       { k: "table", ic: "table", label: T.table, md: TABLE_MD },
       { k: "dropdown", ic: "dropdown", label: T.dropdown, chip: function () {
-        var name = prompt(T.dropdownAsk, Object.keys(selects)[0] || (L === "hu" ? "Státusz" : "Status"));
-        if (!name) return null;
-        name = name.replace(/[{}=]/g, "").trim();
-        if (!optionsOf(name).length) {
-          var o = prompt(T.optionsAsk, L === "hu" ? "Nincs elkezdve, Folyamatban, Kész" : "Not started, In progress, Done");
-          var list = (o || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-          if (list.length) { selects[name] = list; edit([{ op: "set_select", name: name, options: list }]); }
-        }
-        return "{{select:" + name + "=" + (optionsOf(name)[0] || "") + "}}";
+        return ask(T.dropdownAsk, Object.keys(selects)[0] || (L === "hu" ? "Státusz" : "Status")).then(function (name) {
+          if (!name) return null;
+          name = name.replace(/[{}=]/g, "").trim();
+          var chip = function () { return "{{select:" + name + "=" + (optionsOf(name)[0] || "") + "}}"; };
+          if (optionsOf(name).length) return chip();
+          return ask(T.optionsAsk, L === "hu" ? "Nincs elkezdve, Folyamatban, Kész" : "Not started, In progress, Done").then(function (o) {
+            var list = (o || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+            if (list.length) { selects[name] = list; edit([{ op: "set_select", name: name, options: list }]); }
+            return chip();
+          });
+        });
       } },
       { sep: true },
       { k: "bullets", ic: "bullets", label: T.bullets, md: "- " }, { k: "checklist", ic: "checklist", label: T.checklist, md: "- [ ] " },
@@ -1446,7 +1476,7 @@
       { sep: true },
       { k: "formula", ic: "formula", label: T.formula, md: "```latex\nE = mc^2\n```" },
       { k: "chart", ic: "chart", label: T.chart, md: "```chart\n" + JSON.stringify({ type: "bar", title: "", x: "label", y: "value", data: [{ label: "A", value: 3 }, { label: "B", value: 5 }, { label: "C", value: 4 }] }, null, 2) + "\n```" },
-      { k: "mention", ic: "mention", label: T.mention, chip: function () { var n = prompt(T.mentionAsk, ""); return n ? "{{@" + n.replace(/[{}]/g, "").trim() + "}}" : null; } },
+      { k: "mention", ic: "mention", label: T.mention, chip: function () { return ask(T.mentionAsk, "").then(function (n) { return n ? "{{@" + n.replace(/[{}]/g, "").trim() + "}}" : null; }); } },
       { k: "text", ic: "text", label: T.text, md: "" }
     ];
   }
@@ -1458,7 +1488,7 @@
     var day = function (n) { var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
     return [{ group: T.askGroup }, { k: "hermes", ic: "hermes", label: "Hermes", text: "@Hermes " }]
       .concat([{ group: T.people }]).concat(people.slice(0, 8).map(function (n) { return { k: n.toLowerCase(), ic: "person", label: n, chip: function () { return "{{@" + n + "}}"; } }; }))
-      .concat([{ k: "mention", ic: "person", label: T.newMention, chip: function () { var n = prompt(T.mentionAsk, ""); return n ? "{{@" + n.replace(/[{}]/g, "").trim() + "}}" : null; } }])
+      .concat([{ k: "mention", ic: "person", label: T.newMention, chip: function () { return ask(T.mentionAsk, "").then(function (n) { return n ? "{{@" + n.replace(/[{}]/g, "").trim() + "}}" : null; }); } }])
       .concat([{ group: T.dates }, { k: "date", ic: "date", label: T.date, chip: function () { return "{{date:" + day(0) + "}}"; } },
         { k: "today", ic: "date", label: T.today, chip: function () { return "{{date:" + day(0) + "}}"; } },
         { k: "tomorrow", ic: "date", label: T.tomorrow, chip: function () { return "{{date:" + day(1) + "}}"; } }]);
@@ -1469,16 +1499,24 @@
     if (it.text) { if (el) { el.focus(); document.execCommand("insertText", false, it.text); scheduleSave(el); } return; }
     if (it.chip) {
       var saved = E.caretRange() && E.caretRange().cloneRange();
-      var c = it.chip(); if (!c) return;
+      return Promise.resolve(it.chip()).then(function (c) { // a chip that asks first (a name, the options) comes later
+      if (!c) return;
       var cur = id && blockEl(id), bb = id && blockOf(id);
       if (cur && bb && editable(bb) && !isCode(bb.md)) { // in the line, where the caret was
         cur.focus();
         if (saved && cur.contains(saved.startContainer)) { var s0 = window.getSelection(); s0.removeAllRanges(); s0.addRange(saved); }
         else E.placeCaret(lastLeaf(cur), true);
+        // Put in with the Range API: insertHTML refuses an empty line (the "/date" just taken out of it).
         var tmp = h("span"); tmp.innerHTML = md.inline(md.parseInline(c), imgSrc, R);
-        document.execCommand("insertHTML", false, tmp.innerHTML + "&nbsp;"); scheduleSave(cur); return;
+        var at = E.caretRange(), gap = document.createTextNode(" "), frag = document.createDocumentFragment();
+        while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+        at.deleteContents(); at.insertNode(gap); at.insertNode(frag);
+        var after = document.createRange(); after.setStartAfter(gap); after.collapse(true);
+        var s1 = window.getSelection(); s1.removeAllRanges(); s1.addRange(after);
+        markEmpty(cur, true); scheduleSave(cur); return;
       }
       return insertBlock(id, c, "end");
+      });
     }
     if (replace && el) {
       var b = blockOf(id); b.md = it.md; drawBlock(b, el);
@@ -1486,12 +1524,15 @@
       if (it.md === "---") return insertBlock(id, "", "start");
       if (/^\|/.test(it.md)) { var c1 = el.querySelector("td,th"); if (c1) { el.focus(); E.placeCaret(c1, true); } return; }
       if (/^```/.test(it.md) && !isWidget(it.md)) { var cd = el.querySelector("[contenteditable=plaintext-only]"); if (cd) { cd.focus(); E.placeCaret(cd, false); } return; }
-      if (isWidget(it.md)) return openSource(el);
-      var leaf = firstLeaf(el); if (!leaf.textContent) leaf.innerHTML = "<br>";
+      if (isWidget(it.md)) return /^```chart/.test(it.md) ? openData(el) : openSource(el);
+      var q0 = el.querySelector("blockquote");
+      if (q0 && !q0.firstChild) q0.innerHTML = "<p><br></p>";
+      var leaf = firstLeaf(el); if (leaf !== el && !leaf.textContent) leaf.innerHTML = "<br>";
       focusBlock(id, true); scheduleSave(el);
       return;
     }
-    insertBlock(id, it.md, "end").then(function (nid) { if (nid && isWidget(it.md)) openSource(blockEl(nid)); });
+    // a new table starts in its first cell
+    insertBlock(id, it.md, /^\|/.test(it.md) ? "start" : "end").then(function (nid) { if (nid && isWidget(it.md)) (/^```chart/.test(it.md) ? openData : openSource)(blockEl(nid)); });
   }
   var slash = { open: false, el: null, block: null, items: [], idx: 0,
     trigger: "/",
@@ -1502,7 +1543,7 @@
       this.el.hidden = false; this.update();
     },
     query: function () {
-      var t = this.block ? this.block.textContent.replace(/​/g, "") : "";
+      var t = this.block ? this.block.textContent.replace(/​/g, "").replace(/ /g, " ") : ""; // a typed space at the end of a line is a no-break space
       if (this.bare) return t.trim().toLowerCase();
       var i = t.lastIndexOf(this.trigger); return i < 0 ? null : t.slice(i + 1).toLowerCase();
     },
@@ -1692,7 +1733,8 @@
     }
   }
   if (live && hm.on) hm.on("pins", function (items) { pins = items || []; drawMargin(); });
-  window.addEventListener("resize", function () { drawMargin(); });
+  var marginRaf = 0; // a resize fires many times a frame; the cards are laid out once
+  window.addEventListener("resize", function () { if (!marginRaf) marginRaf = requestAnimationFrame(function () { marginRaf = 0; drawMargin(); }); });
   function decide(sid, verdict) {
     hm.doc.decide(sid, verdict).then(function () { return pull(true); }).catch(function (e) { kit.toast(String(e && e.message || e)); });
   }
@@ -1769,7 +1811,7 @@
     return b;
   }
   var CARET = '<svg class="doc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
-  var tabBtn = barBtn(T.newTab, "", function () { tabMenu(); }, "doc-tabbtn");
+  var tabBtn = barBtn(T.tabs, "", function () { tabMenu(); }, "doc-tabbtn");
   function drawTabs() {
     if (tabsEl) tabsEl.hidden = true;
     tabBtn.innerHTML = "<span>" + kit.esc(tab().title || T.untitled) + "</span>" + CARET;
@@ -1780,18 +1822,25 @@
     });
     if (live) items = items.concat([
       { label: "+ " + T.newTab, onClick: function () {
-        var name = prompt(T.tabName, T.newTab);
-        if (!name) return;
-        edit([{ op: "add_tab", title: name, md: "" }]).then(function (r) { pull(true).then(function () {
-          var i = tabs.findIndex(function (t) { return t.id === r.new_tab; });
-          if (i >= 0) { cur = i; render(); pull(true); }
-        }); });
+        ask(T.tabName, T.newTab).then(function (name) {
+          if (!name) return;
+          edit([{ op: "add_tab", title: name, md: "" }]).then(function (r) { pull(true).then(function () {
+            var i = tabs.findIndex(function (t) { return t.id === r.new_tab; });
+            if (i >= 0) { cur = i; render(); pull(true); }
+          }); });
+        });
       } },
       { label: T.rename, onClick: function () {
-        var name = prompt(T.tabName, tab().title);
-        if (!name || name === tab().title) return;
-        edit([{ op: "rename_tab", title: name }]).then(function () { tab().title = name; drawTabs(); });
-      } }].concat(tabs.length > 1 ? [{ label: T.delTab, onClick: function () { edit([{ op: "delete_tab" }]).then(function () { cur = 0; pull(true); }); } }] : []));
+        ask(T.tabName, tab().title).then(function (name) {
+          if (!name || name === tab().title) return;
+          edit([{ op: "rename_tab", title: name }]).then(function () { tab().title = name; drawTabs(); });
+        });
+      } }].concat(tabs.length > 1 ? [{ label: T.delTab, onClick: function () {
+        var full = tab().blocks.some(function (b) { return s(b.md); }); // an empty tab goes without asking
+        (full ? ask(T.delTabAsk, undefined, T.delTab) : Promise.resolve(true)).then(function (yes) {
+          if (yes) edit([{ op: "delete_tab" }]).then(function () { cur = 0; pull(true); });
+        });
+      } }] : []));
     kit.menu(tabBtn, items);
   }
   function setSettings(patch) {
@@ -1865,7 +1914,7 @@
   // --- Word: a minimal WordprocessingML package, zipped with fflate ---------------------------
   function xesc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, ""); }
 
-  function docxParts() {
+  function docxParts(tree, pics) {
     var rels = [], media = {}, imgN = 0;
     function rel(type, target, ext) {
       var id = "rId" + (rels.length + 10);
@@ -1913,12 +1962,16 @@
       var data = imgSrc(n.src), m = /^data:image\/(png|jpe?g|gif);base64,(.*)$/i.exec(data || "");
       if (!m) return null;
       var el = Array.prototype.find.call(page.querySelectorAll("img"), function (i) { return i.getAttribute("alt") === n.alt; });
-      var w = el && el.naturalWidth || 600, hh = el && el.naturalHeight || 400, max = 600;
+      return picRun(Uint8Array.from(atob(m[2]), function (c) { return c.charCodeAt(0); }), m[1].toLowerCase() === "jpg" ? "jpeg" : m[1].toLowerCase(),
+        el && el.naturalWidth || 600, el && el.naturalHeight || 400, n.alt);
+    }
+    function picRun(bytes, ext, w, hh, alt) {
+      var max = 600;
       if (w > max) { hh = hh * max / w; w = max; }
-      var name = "image" + (++imgN) + "." + (m[1].toLowerCase() === "jpg" ? "jpeg" : m[1].toLowerCase());
-      media["word/media/" + name] = Uint8Array.from(atob(m[2]), function (c) { return c.charCodeAt(0); });
+      var name = "image" + (++imgN) + "." + ext;
+      media["word/media/" + name] = bytes;
       var id = rel("image", "media/" + name), cx = Math.round(w * 9525), cy = Math.round(hh * 9525);
-      return '<w:r><w:drawing><wp:inline><wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + imgN + '" name="' + name + '" descr="' + xesc(n.alt || "") + '"/>' +
+      return '<w:r><w:drawing><wp:inline><wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + imgN + '" name="' + name + '" descr="' + xesc(alt || "") + '"/>' +
         '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
         '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' + imgN + '" name="' + name + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
         '<pic:blipFill><a:blip r:embed="' + id + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
@@ -1934,36 +1987,70 @@
         var q = qb + qi;
         switch (b.t) {
           case "h": return para(runs(b.c), '<w:pStyle w:val="Heading' + Math.min(b.level, 4) + '"/>');
-          case "p": return para(runs(b.c), q);
+          case "p": return para(runs(b.c), quote ? '<w:pStyle w:val="Quote"/>' + q : "");
           case "hr": return para("", '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="CCCCCC"/></w:pBdr>');
-          case "code": return b.v.split("\n").map(function (l) { return para(run(l || " ", { code: true }), '<w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/><w:spacing w:after="0"/>'); }).join("");
+          case "code":
+            var made = WG.kinds[String(b.lang || "").toLowerCase()] ? widget(String(b.lang).toLowerCase(), b) : null;
+            if (made) return made;
+            return b.v.split("\n").map(function (l) { return para(run(l || " ", { code: true }), '<w:pStyle w:val="Code"/>'); }).join("") + para("");
           case "quote": return blocks(b.c, depth, true);
           case "list":
             return b.items.map(function (it) {
               var head = it.c[0] && it.c[0].t === "p" ? it.c[0] : null;
-              var mark = it.task ? (it.checked ? "☑ " : "☐ ") : "";
-              var p0 = para((mark ? run(mark, {}) : "") + (head ? runs(head.c) : ""),
-                '<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="' + Math.min(depth, 8) + '"/><w:numId w:val="' + (b.ordered ? 2 : 1) + '"/></w:numPr>' + qb);
+              // A task is a line with Word's own check box (it can be ticked there), not a bullet with a box drawn after it.
+              var p0 = it.task
+                ? para(checkBox(it.checked) + "<w:r><w:tab/></w:r>" + (head ? runs(head.c) : ""),
+                  '<w:pStyle w:val="ListParagraph"/>' + qb + '<w:ind w:left="' + (720 + 360 * Math.min(depth, 8)) + '" w:hanging="360"/>')
+                : para(head ? runs(head.c) : "",
+                  '<w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="' + Math.min(depth, 8) + '"/><w:numId w:val="' + (b.ordered ? 2 : 1) + '"/></w:numPr>' + qb);
               return p0 + blocks(head ? it.c.slice(1) : it.c, depth + 1, quote);
             }).join("");
-          case "table":
-            var cell = function (c, k, hd) {
-              var a = b.align[k] ? '<w:jc w:val="' + (b.align[k] === "right" ? "right" : b.align[k] === "center" ? "center" : "left") + '"/>' : "";
-              return "<w:tc><w:tcPr>" + (hd ? '<w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/>' : "") + "</w:tcPr>" + para(runs(c, hd ? { b: true } : {}), a) + "</w:tc>";
-            };
-            return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>' +
-              '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="CCCCCC"/><w:bottom w:val="single" w:sz="4" w:color="CCCCCC"/><w:insideH w:val="single" w:sz="4" w:color="CCCCCC"/></w:tblBorders></w:tblPr>' +
-              "<w:tblGrid>" + b.head.map(function () { return '<w:gridCol w:w="' + Math.round(9298 / b.head.length) + '"/>'; }).join("") + "</w:tblGrid>" +
-              "<w:tr>" + b.head.map(function (c, k) { return cell(c, k, true); }).join("") + "</w:tr>" +
-              b.rows.map(function (r) { return "<w:tr>" + r.map(function (c, k) { return cell(c, k, false); }).join("") + "</w:tr>"; }).join("") +
-              "</w:tbl>" + para("");
+          case "table": return table(b);
         }
         return "";
       }).join("");
     }
-    var body = blocks(ast, 0, false);
+    function table(b) {
+      // The doc's column widths (narrow … extra) become the columns' share of the page.
+      var share = b.head.map(function (_, k) { return { narrow: 1, medium: 2.5, wide: 4, extra: 6 }[b.widths && b.widths[k]] || 2; });
+      var sum = share.reduce(function (x, y) { return x + y; }, 0), wide = share.map(function (x) { return Math.round(9298 * x / sum); });
+      var cell = function (c, k, hd) {
+        var a = b.align[k] ? '<w:jc w:val="' + (b.align[k] === "right" ? "right" : b.align[k] === "center" ? "center" : "left") + '"/>' : "";
+        return '<w:tc><w:tcPr><w:tcW w:w="' + wide[k] + '" w:type="dxa"/>' + (hd ? '<w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/>' : "") + "</w:tcPr>" + para(runs(c, hd ? { b: true } : {}), a) + "</w:tc>";
+      };
+      return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>' +
+        '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="CCCCCC"/><w:bottom w:val="single" w:sz="4" w:color="CCCCCC"/><w:insideH w:val="single" w:sz="4" w:color="CCCCCC"/></w:tblBorders>' +
+        '<w:tblLook w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>' +
+        "<w:tblGrid>" + wide.map(function (w) { return '<w:gridCol w:w="' + w + '"/>'; }).join("") + "</w:tblGrid>" +
+        // The first row is the table's heading row: it repeats on each page and is read out as the header.
+        "<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>" + b.head.map(function (c, k) { return cell(c, k, true); }).join("") + "</w:tr>" +
+        b.rows.map(function (r) { return "<w:tr>" + b.head.map(function (_, k) { return cell(r[k] || [], k, false); }).join("") + "</w:tr>"; }).join("") +
+        "</w:tbl>" + para("");
+    }
+    function checkBox(on) {
+      return '<w:sdt><w:sdtPr><w14:checkbox><w14:checked w14:val="' + (on ? 1 : 0) + '"/><w14:checkedState w14:val="2612" w14:font="MS Gothic"/><w14:uncheckedState w14:val="2610" w14:font="MS Gothic"/></w14:checkbox></w:sdtPr>' +
+        '<w:sdtContent><w:r><w:rPr><w:rFonts w:ascii="MS Gothic" w:eastAsia="MS Gothic" w:hAnsi="MS Gothic" w:hint="eastAsia"/></w:rPr><w:t>' + (on ? "\u2612" : "\u2610") + "</w:t></w:r></w:sdtContent></w:sdt>";
+    }
+    // A widget as Word has it: rows are a table; a chart, a drawing and a formula are pictures (their source is the picture's description).
+    function widget(lang, b) {
+      if (lang === "csv") {
+        var rows = WG.csvRows(b.v);
+        if (!rows.length) return null;
+        var txt = function (v) { return v ? [{ t: "text", v: v }] : []; }, rest = rows.slice(1);
+        var isNum = function (v) { return /^-?[\d\s.,]+%?$/.test(String(v || "").trim()); };
+        return table({ head: rows[0].map(txt), rows: rest.map(function (r) { return rows[0].map(function (_, k) { return txt(r[k] || ""); }); }),
+          align: rows[0].map(function (_, k) { return rest.length && rest.every(function (r) { return !r[k] || isNum(r[k]); }) ? "right" : null; }) });
+      }
+      var pic = pics && pics.get(b);
+      if (!pic) return null;
+      return para(picRun(pic.bytes, "png", pic.w, pic.h, pic.alt), '<w:jc w:val="center"/>') +
+        (pic.caption ? para(run(pic.caption, {}), '<w:pStyle w:val="Caption"/>') : "");
+    }
+    var body = blocks(tree, 0, false);
     var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
-      'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+      'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" ' +
+      'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"';
+    var bodyFont = settings.body === "serif" ? "Georgia" : "Calibri", headFont = settings.head === "serif" ? "Georgia" : bodyFont; // the doc's own choice of fonts
     var lvls = function (ordered) {
       var out = "";
       for (var k = 0; k < 9; k++) out += '<w:lvl w:ilvl="' + k + '"><w:start w:val="1"/><w:numFmt w:val="' + (ordered ? (k % 3 === 0 ? "decimal" : k % 3 === 1 ? "lowerLetter" : "lowerRoman") : "bullet") +
@@ -1973,7 +2060,7 @@
     var hstyle = function (n, size) {
       return '<w:style w:type="paragraph" w:styleId="Heading' + n + '"><w:name w:val="heading ' + n + '"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>' +
         '<w:pPr><w:keepNext/><w:spacing w:before="' + (n === 1 ? 0 : 320) + '" w:after="120"/><w:outlineLvl w:val="' + (n - 1) + '"/></w:pPr>' +
-        '<w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>' + (n > 2 ? "<w:b/>" : "") + '<w:sz w:val="' + size + '"/></w:rPr></w:style>';
+        '<w:rPr><w:rFonts w:ascii="' + headFont + '" w:hAnsi="' + headFont + '"/><w:b/><w:sz w:val="' + size + '"/></w:rPr></w:style>';
     };
     return {
       "[Content_Types].xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -1993,11 +2080,16 @@
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
         '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' + rels.join("") + "</Relationships>",
       "word/styles.xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ' + NS + '>' +
-        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>' +
+        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="' + bodyFont + '" w:hAnsi="' + bodyFont + '" w:eastAsia="' + bodyFont + '" w:cs="' + bodyFont + '"/><w:sz w:val="22"/>' +
+        '<w:lang w:val="' + (L === "hu" ? "hu-HU" : "en-US") + '"/></w:rPr></w:rPrDefault>' + // the language Word checks the spelling in
         '<w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
         '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
         hstyle(1, 44) + hstyle(2, 32) + hstyle(3, 26) + hstyle(4, 23) +
         '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="60"/><w:contextualSpacing/></w:pPr></w:style>' +
+        '<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:qFormat/><w:rPr><w:i/><w:color w:val="555555"/></w:rPr></w:style>' +
+        '<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:pPr><w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/><w:spacing w:after="0"/></w:pPr>' +
+        '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:noProof/><w:sz w:val="20"/></w:rPr></w:style>' +
+        '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:i/><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr></w:style>' +
         '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="C96442"/><w:u w:val="single"/></w:rPr></w:style>' +
         '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:tblPr><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>',
       "word/numbering.xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ' + NS + '>' +
@@ -2014,7 +2106,8 @@
     busy(true);
     try {
       var fflate = await lib("fflate.umd.js", "fflate");
-      var parts = docxParts(), files = {}, enc = new TextEncoder();
+      var tree = md.parse(fullText());
+      var parts = docxParts(tree, await widgetPics(tree)), files = {}, enc = new TextEncoder();
       Object.keys(parts).forEach(function (k) { if (k !== "_media") files[k] = enc.encode(parts[k]); });
       Object.keys(parts._media).forEach(function (k) { files[k] = [parts._media[k], { level: 0 }]; });
       var zip = fflate.zipSync(files, { level: 6 });
@@ -2042,17 +2135,16 @@
     holder.remove();
     return out;
   }
-  function picture(htmlStr, sheet) {
+  /** A piece of the doc pictured on white paper (SVG foreignObject), twice as sharp as it is wide. */
+  function shoot(el, sheet, w, hh) {
     return new Promise(function (resolve, reject) {
-      var wrap = h("article", { "class": "doc-prose doc-pdfpage" });
-      wrap.innerHTML = htmlStr;
-      wrap.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-      var xhtml = new XMLSerializer().serializeToString(wrap);
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="794" height="1123"><foreignObject width="100%" height="100%">' +
+      el.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+      var xhtml = new XMLSerializer().serializeToString(el);
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + hh + '"><foreignObject width="100%" height="100%">' +
         '<style xmlns="http://www.w3.org/1999/xhtml"><![CDATA[' + sheet + ']]></style>' + xhtml + "</foreignObject></svg>";
       var img = new Image();
       img.onload = function () {
-        var c = document.createElement("canvas"); c.width = 794 * 2; c.height = 1123 * 2;
+        var c = document.createElement("canvas"); c.width = w * 2; c.height = hh * 2;
         var g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
         resolve(c);
       };
@@ -2060,14 +2152,60 @@
       img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     });
   }
+  function picture(htmlStr, sheet) {
+    var wrap = h("article", { "class": "doc-prose doc-pdfpage" });
+    wrap.innerHTML = htmlStr;
+    return shoot(wrap, sheet, 794, 1123);
+  }
+  /** Light colors on paper whatever the viewer's theme; the accent stays the theme's. */
+  function paperSheet() {
+    return css().replace(/]]>/g, "") + ".doc-pdfpage{--color-fg:#1f1e1d;--color-fg-secondary:#3d3c39;--color-fg-muted:#6f6d66;--color-border-line:#e7e5dd;--color-border-strong:#cfccc0;--color-hover:rgba(0,0,0,.05);--color-accent:" + ((kit.hostTheme() || {}).accent || "#c96442") + "}";
+  }
+  /** Word has no chart, drawing or formula of ours: each goes in as a picture. Map of the tree's code block -> {bytes, w, h, alt, caption}. */
+  async function widgetPics(tree) {
+    var found = [], out = new Map();
+    (function walk(list) {
+      list.forEach(function (b) {
+        if (b.t === "code" && /^(chart|svg|latex|math|tex)$/i.test(b.lang || "")) found.push(b);
+        else if (b.t === "quote") walk(b.c);
+        else if (b.t === "list") b.items.forEach(function (it) { walk(it.c); });
+      });
+    })(tree);
+    if (!found.length) return out;
+    var isMath = function (b) { return !/^(chart|svg)$/i.test(b.lang); };
+    if (found.some(isMath) && !WG.ready() && live && hm.vendor) { // the formula drawer loads on first use
+      await new Promise(function (res) { WG.html("latex", "x", { vendor: hm.vendor, redraw: res, bare: true }); setTimeout(res, 5000); });
+    }
+    var sheet = paperSheet();
+    for (var i = 0; i < found.length; i++) {
+      var b = found[i], math = isMath(b);
+      try {
+        if (math && !WG.ready()) continue;
+        var box = h("article", { "class": "doc-prose doc-pdfpage", style: "display:inline-block;height:auto;overflow:visible;width:" + (math ? "auto" : "640px") + ";padding:" + (math ? "4px 10px" : "0") });
+        box.innerHTML = WG.html(b.lang, b.v, { bare: true }) || "";
+        if (!box.firstChild || box.querySelector(".w-error, .w-wait")) continue;
+        var cap = box.querySelector("figcaption"), caption = cap ? cap.textContent.trim() : "";
+        if (cap) cap.remove();
+        var holder = h("div", { style: "position:fixed;left:-30000px;top:0" }, [box]);
+        document.body.appendChild(holder);
+        var r = box.getBoundingClientRect(), w = Math.ceil(r.width), hh = Math.ceil(r.height);
+        holder.remove();
+        if (!w || !hh) continue;
+        var c = await shoot(box, sheet, w, hh), title = "";
+        if (/^chart$/i.test(b.lang)) { try { title = JSON.parse(b.v).title || ""; } catch (e) {} }
+        out.set(b, { bytes: Uint8Array.from(atob(c.toDataURL("image/png").split(",")[1]), function (ch) { return ch.charCodeAt(0); }), w: w, h: hh,
+          alt: math ? b.v.trim() : title || (T.wLabels[String(b.lang).toLowerCase()] || ""), caption: caption });
+      } catch (e) { /* the block then goes in as its source text */ }
+    }
+    return out;
+  }
   async function exportPdf() {
     busy(true);
     try {
       var PDFLib = await lib("pdf-lib.min.js", "PDFLib");
       var pdf = await PDFLib.PDFDocument.create();
       pdf.setTitle(title()); pdf.setCreator("Hermes Artifacts");
-      // Light colors on paper whatever the viewer's theme.
-      var sheet = css().replace(/]]>/g, "") + ".doc-pdfpage{--color-fg:#1f1e1d;--color-fg-secondary:#3d3c39;--color-fg-muted:#6f6d66;--color-border-line:#e7e5dd;--color-border-strong:#cfccc0;--color-hover:rgba(0,0,0,.05);--color-accent:" + ((kit.hostTheme() || {}).accent || "#c96442") + "}"; // paper stays white; the accent is the theme's
+      var sheet = paperSheet();
       var list = pages();
       for (var i = 0; i < list.length; i++) {
         var c = await picture(list[i].join(""), sheet);

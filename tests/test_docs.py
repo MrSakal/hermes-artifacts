@@ -287,3 +287,34 @@ class ApiAndToolTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarkdownJsTests(unittest.TestCase):
+    """The doc's own Markdown reader (types/doc/markdown.js), run in node when there is one."""
+
+    def _html(self, sources):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        js = ("global.window={};require(process.argv[1]);const md=window.md;"
+              "console.log(JSON.stringify(JSON.parse(process.argv[2]).map(s=>md.html(md.parse(s)))))")
+        path = str(PLUGIN / "hermes_artifacts" / "types" / "doc" / "markdown.js")
+        out = subprocess.run([node, "-e", js, path, json.dumps(sources)], capture_output=True, text=True, encoding="utf-8", check=True)
+        return json.loads(out.stdout)
+
+    def test_a_marker_alone_keeps_its_block_kind(self):
+        # A block just started ("## ", "- ", "1. ") is saved trimmed; it must stay a heading or a list, not turn into text.
+        h2, bullet, number, task = self._html(["##", "-", "1.", "- [ ]"])
+        self.assertTrue(h2.startswith("<h2"))
+        self.assertEqual(bullet, "<ul><li></li></ul>")
+        self.assertEqual(number, "<ol><li></li></ol>")
+        self.assertIn('class="task"', task)
+
+    def test_text_that_only_looks_like_a_marker_stays_text(self):
+        tag, dash, decimal, rule = self._html(["#hashtag", "-x", "1.5 m", "---"])
+        self.assertEqual(tag, "<p>#hashtag</p>")
+        self.assertEqual(dash, "<p>-x</p>")
+        self.assertEqual(decimal, "<p>1.5 m</p>")
+        self.assertEqual(rule, "<hr>")

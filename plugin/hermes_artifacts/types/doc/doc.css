@@ -63,7 +63,7 @@ html[data-thumb] #doc-view { padding-top: 32px; }
 .doc-pend.is-here > span:not(.doc-who) { font: 500 22px/1.35 var(--font-serif); color: var(--color-fg-secondary); }
 .doc-pend.is-here > span:not(.doc-who)::before, .doc-pend.is-here > span:not(.doc-who)::after { content: none; }
 .doc-who { position: absolute; left: -2px; top: -18px; font-size: 11px; line-height: 16px; font-weight: 600; padding: 0 5px; border-radius: 4px;
-  color: var(--color-accent-fg, #fff); background: var(--color-accent); animation: doc-blink 1.2s ease-in-out infinite; }
+  color: var(--color-accent-fg, var(--color-bg)); background: var(--color-accent); animation: doc-blink 1.2s ease-in-out infinite; }
 @keyframes doc-blink { 50% { opacity: .55; } }
 .doc-pend-x { position: absolute; right: -4px; top: 0; border: 0; background: none; color: var(--color-fg-muted); font-size: 16px; line-height: 1;
   padding: 2px 6px; border-radius: var(--kit-r-sm, 6px); cursor: pointer; opacity: 0; }

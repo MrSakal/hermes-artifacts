@@ -21,8 +21,8 @@
   var T = pickLang({
     en: { overview: "Overview", colors: "Colors", type: "Typography", components: "Components", assets: "Assets", files: "Files",
       sections: "Sections", foundations: "Foundations", theme: "Theme", makeDefault: "Make default", isDefault: "Default",
-      defaultOn: "Designs, decks and films now build on this system", defaultOff: "No longer the default design system",
-      defaultTitle: "The design system new designs, decks and films use", exp: "Export", css: "tokens.css", json: "tokens.json",
+      defaultOn: "Designs, decks, films and dashboards now build on this system", defaultOff: "No longer the default design system",
+      defaultTitle: "The design system new designs, decks, films and dashboards use", exp: "Export", css: "tokens.css", json: "tokens.json",
       zip: "All files (.zip)", noLib: "The export library didn't load (open the system in Hermes Desktop)",
       edit: "Edit", save: "Save", cancel: "Cancel", del: "Delete", add: "Add token", saving: "Saving…", saved: "Saved",
       notSaved: "Not saved", conflict: "Changed meanwhile: reopen to see the new version", noSave: "Can't save here",
@@ -32,7 +32,7 @@
       notListed: "not in tokens.json type.fonts: no @font-face", missingFont: "listed, but the file is missing",
       noPreview: "No preview.html", guidelines: "Guidelines", previewFailed: "The preview failed: ",
       reactMissing: "The index lists React, but components/lib/ doesn't carry it: previews that need it stay static here (no network).",
-      upload: "Upload image", newGroup: "New group", groupName: "Group name", tooBig: "Images up to 8 MB (png, jpeg, gif, webp)",
+      upload: "Upload image", newGroup: "New group", groupName: "Group name", tooBig: "Images up to 8 MB (png, jpeg, gif, webp) or an SVG up to 2 MB",
       badName: "Names: letters, digits, _ . - (no spaces, no /), up to 64", taken: "That name is used already",
       search: "Search", noMatch: "Nothing matches.", wouldDrop: "That value would drop: ", download: "Download", empty: "Nothing here yet.", other: "Other",
       ci: "A pipeline republishes this system: edits here may be overwritten.", readOnly: "Editing is off for this system.",
@@ -41,8 +41,8 @@
       uploaded: "Uploaded", fam: { spacing: "Spacing", radius: "Radius", shadow: "Shadows" } },
     hu: { overview: "Áttekintés", colors: "Színek", type: "Tipográfia", components: "Komponensek", assets: "Eszközök", files: "Fájlok",
       sections: "Fejezetek", foundations: "Alapok", theme: "Téma", makeDefault: "Legyen alapértelmezett", isDefault: "Alapértelmezett",
-      defaultOn: "Az új tervek, diasorok és filmek mostantól erre épülnek", defaultOff: "Már nem ez az alapértelmezett",
-      defaultTitle: "Erre a design systemre épülnek az új tervek, diasorok és filmek", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
+      defaultOn: "Az új tervek, diasorok, filmek és dashboardok mostantól erre épülnek", defaultOff: "Már nem ez az alapértelmezett",
+      defaultTitle: "Erre a design systemre épülnek az új tervek, diasorok, filmek és dashboardok", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
       zip: "Minden fájl (.zip)", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)",
       edit: "Szerkesztés", save: "Mentés", cancel: "Mégse", del: "Törlés", add: "Új token", saving: "Mentés…", saved: "Elmentve",
       notSaved: "Nincs mentve", conflict: "Közben megváltozott: nyisd meg újra az új verzióért", noSave: "Itt nem lehet menteni",
@@ -52,7 +52,7 @@
       notListed: "nincs a tokens.json type.fonts listájában: nincs @font-face", missingFont: "listázva, de a fájl hiányzik",
       noPreview: "Nincs preview.html", guidelines: "Irányelvek", previewFailed: "Az előnézet hibát dobott: ",
       reactMissing: "Az index Reactot listáz, de a components/lib/ nem tartalmazza: az ezt igénylő előnézetek itt statikusak (nincs hálózat).",
-      upload: "Kép feltöltése", newGroup: "Új csoport", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp)",
+      upload: "Kép feltöltése", newGroup: "Új csoport", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp) vagy 2 MB-os SVG",
       badName: "Név: betű, szám, _ . - (szóköz és / nélkül), legfeljebb 64", taken: "Ez a név már foglalt",
       search: "Keresés", noMatch: "Nincs találat.", wouldDrop: "Ez az érték kimaradna: ", download: "Letöltés", empty: "Itt még nincs semmi.", other: "Egyéb",
       ci: "Egy pipeline újraközli ezt a rendszert: az itteni szerkesztések felülíródhatnak.", readOnly: "Ennél a rendszernél a szerkesztés ki van kapcsolva.",
@@ -389,7 +389,7 @@
     return parts.join("/");
   }
   function dirOf(p) { return p.indexOf("/") >= 0 ? p.slice(0, p.lastIndexOf("/")) : ""; }
-  function markdown(text, path, stripTitle) {
+  function markdown(text, path, stripTitle, title) {
     var src = String(text || "");
     if (stripTitle) src = src.replace(/^\s*#\s+[^\n]*\n?/, "");
     var art = h("div", { "class": "ds-prose" });
@@ -398,6 +398,19 @@
       var p = resolveRel(dirOf(path || ""), u);
       return p && C.files[p] != null ? kit.fileUrl(p) : "";
     });
+    // A brand-book section (title given): each heading an anchor, section:<file>#<slug>, with a comment button.
+    if (title != null) {
+      var seen = {};
+      art.querySelectorAll("h1, h2, h3, h4").forEach(function (hd) {
+        var words = hd.textContent.trim(), n;
+        var slug = words.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "h";
+        n = seen[slug] = (seen[slug] || 0) + 1;
+        var an = "section:" + path + "#" + (n > 1 ? slug + "-" + n : slug), next = hd.nextElementSibling;
+        hd.setAttribute("data-ds-anchor", an);
+        var b = cmtBtn(an, words + (next && !/^H\d$/.test(next.tagName) ? " — " + next.textContent : ""), title + " · " + words);
+        if (b) hd.appendChild(b);
+      });
+    }
     return art;
   }
   function mdEditor(path, text, onDone, toFile) {
@@ -416,13 +429,19 @@
   function btn(label, kind, fn, title) {
     return h("button", { type: "button", "class": "ds-btn" + (kind ? " ds-btn-" + kind : ""), text: label, title: title || null, onclick: fn });
   }
+  // A section's title row: the anchor section:<file>, a comment button after the title.
+  function sectionHead(path, title, tools) {
+    var hd = heading(title, [cmtBtn("section:" + path, title, title)].concat(tools || []));
+    hd.setAttribute("data-ds-anchor", "section:" + path);
+    return hd;
+  }
   function mdSection(path, title) {
     var text = kit.fileText(path), editing = state.editing === path;
     var tools = S.editable && !editing ? [btn(T.edit, "", function () { state.editing = path; render(); })] : [];
-    var kids = [heading(title, tools)];
+    var kids = [sectionHead(path, title, tools)];
     if (editing) kids.push(mdEditor(path, text));
     else if (text == null) kids.push(h("p", { "class": "ds-muted", text: T.noReadme }));
-    else kids.push(markdown(text, path, true));
+    else kids.push(markdown(text, path, true, title));
     return kids;
   }
 
@@ -537,7 +556,7 @@
       lineHeight: "Line height", layers: "Layers", addLayer: "Add layer", inset: "inset", color: "Color", blur: "Blur", spread: "Spread",
       cats: { docs: "Documents", css: "Stylesheets", js: "Scripts", data: "Data", fonts: "Fonts", images: "Images", other: "Other" },
       noFilePreview: "No preview for this file.", delFile: "Delete this file?", fontTooBig: "Fonts up to 8 MB (woff2, woff, ttf, otf)",
-      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", guideline: "Guidelines", noGuide: "No guidelines yet.",
+      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", comment: "Comment", guideline: "Guidelines", noGuide: "No guidelines yet.",
       desc: { "design-system.json": "The index: title, namespace, libraries, asset groups", "tokens.json": "The tokens every stylesheet is compiled from",
         "README.md": "The brand book: every reader starts here", "components/bundle.js": "The components, compiled for the global scope",
         "components/bundle.css": "The components' styles", "components/index.d.ts": "The components' props" },
@@ -561,7 +580,7 @@
       lineHeight: "Sormagasság", layers: "Rétegek", addLayer: "Új réteg", inset: "belső", color: "Szín", blur: "Elmosás", spread: "Terítés",
       cats: { docs: "Dokumentumok", css: "Stíluslapok", js: "Szkriptek", data: "Adat", fonts: "Betűk", images: "Képek", other: "Egyéb" },
       noFilePreview: "Ehhez a fájlhoz nincs előnézet.", delFile: "Törlöd ezt a fájlt?", fontTooBig: "Legfeljebb 8 MB-os betűfájl (woff2, woff, ttf, otf)",
-      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
+      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", comment: "Megjegyzés", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
       desc: { "design-system.json": "Az index: cím, névtér, könyvtárak, eszközcsoportok", "tokens.json": "A tokenek: minden stíluslap ebből készül",
         "README.md": "A brand book: minden olvasó itt kezdi", "components/bundle.js": "A komponensek, a globális scope-ba fordítva",
         "components/bundle.css": "A komponensek stílusai", "components/index.d.ts": "A komponensek propjai" },
@@ -605,6 +624,41 @@
   // ---- small shared controls
   function iconBtn(name, label, fn, extra) {
     return h("button", { type: "button", "class": "ds-ib" + (extra ? " " + extra : ""), title: label, "aria-label": label, html: kit.icon(name), onclick: fn });
+  }
+  // ---- comments: the host opens its comment form on an anchor the page resolves later (showAnchor)
+  // Anchors: token:<family>/<name>, style:<name>, component:<Name>, asset:<Group>/<file>, section:<file>[#<slug>].
+  var CAN_COMMENT = !C.thumb && !!(window.hermes && window.hermes.comment);
+  function cmtBtn(anchor, text, label) {
+    if (!CAN_COMMENT) return null;
+    return iconBtn("comment", X.comment, function (e) {
+      e.stopPropagation();
+      window.hermes.comment({ selector: anchor, text: String(text || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(label || "").slice(0, 40) });
+    }, "ds-cmt");
+  }
+  function tokenCmt(fam, title, t, value) {
+    var v = value == null || typeof value === "object" ? "" : String(value);
+    return cmtBtn((fam === "type" ? "style:" : "token:" + fam + "/") + t.name, t.name + (v ? ": " + v : "") + (t.usage ? " — " + t.usage : ""), title + " · " + t.name);
+  }
+  function showAnchor(sel) {
+    var m = /^(token|style|component|asset|section):(.+)$/.exec(sel), sec = null;
+    if (!m) return;
+    if (m[1] === "token") { var fam = m[2].split("/")[0]; sec = fam === "color" ? "colors" : "fam:" + fam; }
+    else if (m[1] === "style") sec = "type";
+    else if (m[1] === "component") sec = "components";
+    else if (m[1] === "asset") sec = "assets";
+    else { var file = m[2].split("#")[0]; sec = file === "README.md" ? "overview" : "md:" + file; }
+    if (!navItems().some(function (x) { return x.id === sec; })) return;
+    if (state.section !== sec) { state.section = sec; state.sel = null; state.editing = null; state.renaming = null; render(); }
+    var find = function (s) { return [].filter.call(main.querySelectorAll("[data-ds-anchor]"), function (n) { return n.getAttribute("data-ds-anchor") === s; })[0]; };
+    var el = find(sel) || (m[1] === "section" ? find("section:" + m[2].split("#")[0]) : null);
+    if (!el) return;
+    var dt = el.closest("details"); if (dt) dt.open = true;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.remove("ds-flash"); void el.offsetWidth; el.classList.add("ds-flash");
+  }
+  if (CAN_COMMENT && window.hermes.on) {
+    // A comment's anchor clicked in the host: show that row or heading.
+    window.hermes.on("flash", function (d) { showAnchor(String(d && d.selector || "")); });
   }
   function confirmMenu(anchor, q, fn) { kit.menu(anchor, [{ hint: q }, { label: T.del, onClick: fn }]); }
   function copyText(s) {
@@ -926,12 +980,12 @@
     if (pn) kids.push(pn);
     var rp = readmeParts(), editing = state.editing === "README.md";
     var tools = S.editable && !editing ? [btn(rp.own == null ? T.writeReadme : T.edit, "", function () { state.editing = "README.md"; render(); })] : [];
-    kids.push(heading(S.title, tools));
+    kids.push(sectionHead("README.md", S.title, tools));
     if (editing) kids.push(mdEditor("README.md", rp.own == null ? "# " + S.title + "\n\n" : rp.own, null, function (v) {
       return v.replace(/\s+$/, "") + "\n" + (rp.tail ? "\n---\n" + README_MARK + rp.tail : "");
     }));
     else if (rp.own == null) kids.push(askBox("readme"));
-    else kids.push(markdown(rp.own, "README.md", true));
+    else kids.push(markdown(rp.own, "README.md", true, S.title));
     if (rp.tail && !editing) kids.push(h("details", { "class": "ds-gen" }, [h("summary", { text: X.genReadme }), markdown(rp.tail, "README.md", false)]));
     return kids;
   }
@@ -969,9 +1023,9 @@
   function colorTable(title, list, prefix) {
     var key = "new:color:" + title, cols = themeCols(), body = h("tbody");
     list.forEach(function (c) {
-      var tr = h("tr", { "class": "ds-row" + (isSel("color", c.name) ? " on" : ""), "data-token": c.name }, [h("td", { "class": "ds-cname" }, [nameCell("color", c)])]);
+      var tr = h("tr", { "class": "ds-row" + (isSel("color", c.name) ? " on" : ""), "data-token": c.name, "data-ds-anchor": "token:color/" + c.name }, [h("td", { "class": "ds-cname" }, [nameCell("color", c)])]);
       (multiTheme() ? S.m.themes : [S.m.themes[0]]).forEach(function (t, i) { tr.appendChild(h("td", {}, [colorCell(c, t, multiTheme() && i > 0)])); });
-      tr.appendChild(h("td", { "class": "ds-act" }, [usageBtn("color", c), rowMenu("color", c)]));
+      tr.appendChild(h("td", { "class": "ds-act" }, [tokenCmt("color", T.colors, c, S.m.resolve(c.name, state.theme) || ownValue(c.raw, S.m.first)), usageBtn("color", c), rowMenu("color", c)]));
       body.appendChild(tr);
       if (state.editing === "token:color:" + c.name) body.appendChild(detailRow(cols.length + 2, tokenEditor("color", c)));
     });
@@ -1039,10 +1093,10 @@
     stemRuns(f.tokens).forEach(function (run) {
       if (run.stem && f.tokens.length > 6) body.appendChild(h("tr", { "class": "ds-stem" }, [h("td", { colspan: String(cols.length + 2), text: run.stem })]));
       run.items.forEach(function (t) {
-        var tr = h("tr", { "class": "ds-row" + (isSel(key, t.name) ? " on" : ""), "data-token": t.name }, [h("td", { "class": "ds-cname" }, [nameCell(key, t)])]);
+        var tr = h("tr", { "class": "ds-row" + (isSel(key, t.name) ? " on" : ""), "data-token": t.name, "data-ds-anchor": "token:" + key + "/" + t.name }, [h("td", { "class": "ds-cname" }, [nameCell(key, t)])]);
         if (shadow) (multiTheme() ? S.m.themes : [S.m.themes[0]]).forEach(function (th, i) { tr.appendChild(h("td", {}, [shadowCell(key, t, th, multiTheme() && i > 0)])); });
         else { tr.appendChild(h("td", {}, [valueCell(key, t)])); tr.appendChild(h("td", {}, [famVis(key, t.value)])); }
-        tr.appendChild(h("td", { "class": "ds-act" }, [usageBtn(key, t), rowMenu(key, t)]));
+        tr.appendChild(h("td", { "class": "ds-act" }, [tokenCmt(key, T.fam[f.key] || f.title, t, t.value), usageBtn(key, t), rowMenu(key, t)]));
         body.appendChild(tr);
         if (state.editing === "token:" + key + ":" + t.name) body.appendChild(detailRow(cols.length + 2, tokenEditor(key, t)));
       });
@@ -1206,10 +1260,10 @@
       var key = "new:style:" + gi, list = g.styles, body = h("tbody");
       list.forEach(function (s) {
         var chip = h("span", { "class": "ds-chip-t", text: familyLabel(s.family) + " · " + String(s.fontSize).replace(/px$/, "") + (s.fontWeight ? " · " + s.fontWeight : "") });
-        body.appendChild(h("tr", { "class": "ds-row" + (isSel("type", s.name) ? " on" : ""), "data-token": s.name }, [
+        body.appendChild(h("tr", { "class": "ds-row" + (isSel("type", s.name) ? " on" : ""), "data-token": s.name, "data-ds-anchor": "style:" + s.name }, [
           h("td", { "class": "ds-cname" }, [nameCell("type", s)]),
           h("td", { "class": "ds-tprev" }, [h("div", { "class": "ds-type-sample", style: styleCss(s), text: s.sample || T.sample }), chip]),
-          h("td", { "class": "ds-act" }, [usageBtn("type", s), rowMenu("type", s)])]));
+          h("td", { "class": "ds-act" }, [tokenCmt("type", T.type, s, chip.textContent), usageBtn("type", s), rowMenu("type", s)])]));
         if (state.editing === "token:type:" + s.name) body.appendChild(detailRow(3, styleEditor(gi, s)));
       });
       kids.push(h("section", { "class": "ds-group" }, [groupHead(g.name, list.length, groupTools("type", g.name, list, key)),
@@ -1379,11 +1433,13 @@
     var name = h("button", { type: "button", "class": "ds-tname", "aria-expanded": String(!!open), onclick: function () {
       state.sel = open ? null : { kind: "component", name: c.name }; state.editing = null; render();
     } }, [h("span", { "class": "ds-caret", html: kit.icon(open ? "caretDown" : "caretRight") }), h("code", { text: c.name })]);
-    return h("tr", { "class": "ds-row" + (open ? " on" : ""), "data-component": c.name }, [
+    // The quote: the subtitle, else the guidelines' first paragraph.
+    var gist = c.marker.subtitle || (/^(?!#|\s*$)(.+)$/m.exec(String(c.readme || "").replace(/^\s*#[^\n]*\n?/, "")) || [])[1] || c.name;
+    return h("tr", { "class": "ds-row" + (open ? " on" : ""), "data-component": c.name, "data-ds-anchor": "component:" + c.name }, [
       h("td", { "class": "ds-cname" }, [name, c.marker.subtitle ? h("div", { "class": "ds-muted ds-sub", text: c.marker.subtitle }) : null,
         c.marker.page ? h("span", { "class": "ds-tag", text: "page" }) : null]),
       h("td", { "class": "ds-cprev" }, [prev, errEl]),
-      h("td", { "class": "ds-act" }, [gb])]);
+      h("td", { "class": "ds-act" }, [cmtBtn("component:" + c.name, c.name + ": " + gist, T.components + " · " + c.name), gb])]);
   }
   function componentDetail(c, dts) {
     var path = "components/" + c.name + "/README.md", editing = state.editing === path, props = propsOf(dts, c.name);
@@ -1451,10 +1507,11 @@
       var body = h("tbody", {}, g.files.map(function (f) {
         var del = S.editable && DELETABLE.test(f.path) ? iconBtn("trash", T.del) : null;
         if (del) del.addEventListener("click", function () { confirmMenu(del, X.delFile, function () { deleteFile(f.path); }); });
-        return h("tr", { "class": "ds-row", "data-asset": f.path }, [h("td", { "class": "ds-cname" }, [h("code", { text: f.name })]),
+        var an = "asset:" + f.path.slice(7);
+        return h("tr", { "class": "ds-row", "data-asset": f.path, "data-ds-anchor": an }, [h("td", { "class": "ds-cname" }, [h("code", { text: f.name })]),
           h("td", {}, [h("div", { "class": "ds-aprev ds-tile-" + g.tile }, [assetVis(f)])]),
           h("td", { "class": "ds-muted ds-nowrap", text: (f.name.split(".").pop() || "").toUpperCase() + " · " + fmtSize(sizeOf(f.path)) }),
-          h("td", { "class": "ds-act" }, [iconBtn("download", T.download, function () { downloadFile(f.path); }), del])]);
+          h("td", { "class": "ds-act" }, [cmtBtn(an, f.path, T.assets + " · " + f.name), iconBtn("download", T.download, function () { downloadFile(f.path); }), del])]);
       }));
       kids.push(h("section", { "class": "ds-group" }, [groupHead(g.name, g.files.length, tools),
         g.readme ? markdown(g.readme, "assets/" + g.name + "/README.md", true) : null,
@@ -1464,7 +1521,7 @@
     if (!groups.length && state.editing !== "new-group") kids.push(askBox("assets"));
     return kids;
   }
-  var DELETABLE = /^(?!README\.md$)([A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md|components\/[A-Za-z_][A-Za-z0-9_]{0,63}\/README\.md|assets\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp)|fonts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(woff2?|ttf|otf))$/;
+  var DELETABLE = /^(?!README\.md$)([A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md|components\/[A-Za-z_][A-Za-z0-9_]{0,63}\/README\.md|assets\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp|svg)|fonts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(woff2?|ttf|otf))$/;
   function deleteFile(p) {
     var files = {}; files[p] = null;
     var am = /^assets\/([^/]+)\/(.+)$/.exec(p), ix = S.index;
@@ -1481,22 +1538,24 @@
     if (state.file === p) state.file = null;
     saveFiles(files, "deleted " + p).then(function () { render(); });
   }
-  var filePick = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp", hidden: true });
+  var filePick = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg", hidden: true });
   document.body.appendChild(filePick);
   var uploadGroup = null;
   function pickUpload(g) { uploadGroup = g; filePick.value = ""; filePick.click(); }
   filePick.addEventListener("change", function () {
     var file = filePick.files && filePick.files[0], g = uploadGroup;
     if (!file || !g) return;
-    if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig); return; }
-    var ext = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" }[file.type];
+    // An SVG goes up as its text (the server keeps it only when static) and shows through <img>.
+    var svg = file.type === "image/svg+xml" || (!file.type && /\.svg$/i.test(file.name));
+    if (svg ? file.size > 2 * 1024 * 1024 : !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig); return; }
+    var ext = svg ? "svg" : { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" }[file.type];
     var base = file.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "image";
     var name = base + "." + ext, n = 2;
     while (C.files["assets/" + g + "/" + name] != null) name = base + "-" + (n++) + "." + ext;
     var rd = new FileReader();
     rd.onload = function () {
       var files = {}, path = "assets/" + g + "/" + name;
-      files[path] = String(rd.result).replace(/^data:image\/jpg;/, "data:image/jpeg;");
+      files[path] = svg ? String(rd.result) : String(rd.result).replace(/^data:image\/jpg;/, "data:image/jpeg;");
       var ix = S.index;
       ix.groups = Array.isArray(ix.groups) ? ix.groups : [];
       if (ix.groups.indexOf(g) < 0) ix.groups.push(g);
@@ -1504,14 +1563,14 @@
       var rec = ix.assetGroups[g] = ix.assetGroups[g] || { name: g, tile: "m", order: [], files: {} };
       rec.order = Array.isArray(rec.order) ? rec.order : []; rec.files = rec.files && typeof rec.files === "object" ? rec.files : {};
       if (rec.order.indexOf(name) < 0) rec.order.push(name);
-      rec.files[name] = { name: name, size: file.size, type: file.type };
+      rec.files[name] = { name: name, size: file.size, type: svg ? "image/svg+xml" : file.type };
       saveFiles(files, "uploaded " + path).then(function (ok) {
         if (!ok) { load(); return; }
         kit.toast(T.uploaded + ": " + name);
         state.section = "assets"; state.editing = null; render();
       });
     };
-    rd.readAsDataURL(file);
+    if (svg) rd.readAsText(file, "utf-8"); else rd.readAsDataURL(file);
   });
 
   // ---- Files: every file by kind, what made it, a preview, download and delete

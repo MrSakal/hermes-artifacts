@@ -7,6 +7,7 @@
  *        no opts: @font-face with the relative file paths (a tokens.css that sits beside fonts/).
  *   dsKit.css(ds) -> string                            compiled tokens, @font-face from ds.fonts
  *        ({path: data URI}) per tokens.json type.fonts, then ds.css (the system's bundle.css).
+ *   dsKit.local(record) -> ds|null                     the copy this artifact carries (ds/<namespace>/)
  *   dsKit.load(id?) -> Promise<ds|null>                hermes.ds.get(id): {id, title, version, tokens,
  *        css, fonts, readme}; no id: the default design system; none: null.
  *   dsKit.themes(ds|tokens) -> [{id, name}]            the color themes, the first is the fallback.
@@ -351,9 +352,25 @@
     return c.css + fontFaces(m, ds.fonts || {}, null) + (ds.css ? "\n" + ds.css : "");
   }
 
-  /** A design system as an artifact wears it: `ref` is its id, or {id, version} (the version it was built
-   *  on); none: the default one. */
+  /** The copy an artifact carries of a system (ds/<namespace>/, put there when it was published), in the
+   *  shape load() gives; null when the record has no copy here. `base` is the copy's folder. */
+  function local(rec) {
+    var k = window.kit, files = k && k.content && k.content.files, ns = rec && typeof rec === "object" && rec.namespace;
+    if (!files || !ns) return null;
+    var base = "ds/" + ns + "/", raw = k.fileText(base + "tokens.json"), tokens = {};
+    if (raw == null) return null;
+    try { tokens = JSON.parse(raw) || {}; } catch (e) {}
+    var fonts = {};
+    Object.keys(files).forEach(function (p) { if (p.indexOf(base + "fonts/") === 0) fonts[p.slice(base.length)] = files[p]; });
+    return { id: rec.artifact, title: rec.title, version: rec.version, base: base, tokens: tokens,
+      css: k.fileText(base + "components/bundle.css") || "", fonts: fonts };
+  }
+
+  /** A design system as an artifact wears it: `ref` is its record (the copy the artifact carries is used,
+   *  with no trip to Hermes), an id, or {id, version} from before the copy; none: the default one. */
   function load(ref, version) {
+    var own = local(ref);
+    if (own) return Promise.resolve(own);
     if (!window.hermes || !window.hermes.ds) return Promise.resolve(null);
     var id = ref && typeof ref === "object" ? ref.id || ref.artifact : ref, v = ref && typeof ref === "object" ? ref.version : version;
     return window.hermes.ds.get(id ? String(id) : null, typeof v === "number" ? v : null).then(function (d) {
@@ -361,5 +378,5 @@
     }, function () { return null; });
   }
 
-  window.dsKit = { compile: compile, css: css, load: load, themes: themes, model: model };
+  window.dsKit = { compile: compile, css: css, load: load, local: local, themes: themes, model: model };
 })();

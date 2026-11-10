@@ -108,3 +108,20 @@ class LayoutRuntimeTests(unittest.TestCase):
         self.assertIn("rowsAt", g)
         s = (render.TYPES_DIR / "slides" / "GUIDE.md").read_text(encoding="utf-8")
         self.assertIn('"layout": "kpis"', s)
+
+    def test_runtime_is_kept_until_one_of_its_files_changes(self):
+        from unittest import mock
+        from hermes_artifacts import bundle
+        render._runtimes.clear()
+        with mock.patch.object(bundle, "bundle", wraps=bundle.bundle) as b:
+            first = render.runtime("doc")
+            self.assertEqual(render.runtime("doc"), first)
+            self.assertEqual(b.call_count, 1)  # the second came from the kept copy
+            css = render.TYPES_DIR / "doc" / "doc.css"
+            st = css.stat()
+            try:
+                os.utime(css, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+                self.assertEqual(render.runtime("doc"), first)  # same files, same result
+                self.assertEqual(b.call_count, 2)  # but made again: a file it came from changed
+            finally:
+                os.utime(css, ns=(st.st_atime_ns, st.st_mtime_ns))

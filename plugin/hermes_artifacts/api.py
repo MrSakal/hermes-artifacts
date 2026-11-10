@@ -98,7 +98,7 @@ _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-
                # Design System: tokens, the brand book, component guidelines, asset uploads.
                "design-system": r"^(design-system\.json|tokens\.json|README\.md|[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.md"
                                 r"|components/[A-Za-z_][A-Za-z0-9_]{0,63}/README\.md"
-                                r"|assets/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp)"
+                                r"|assets/[A-Za-z0-9][A-Za-z0-9_-]{0,63}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(png|jpe?g|gif|webp|svg)"
                                 r"|fonts/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\.(woff2?|ttf|otf))$"}
 _IMG_PATH = re.compile(r"\.(png|jpe?g|gif|webp)$", re.I)
 # An image the slide editor uploads: a data: URI of one of these, stored as the binary file.
@@ -107,6 +107,60 @@ _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)
 _FONT_PATH = re.compile(r"\.(woff2?|ttf|otf)$", re.I)
 _FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x-font-[a-z]+|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+# An SVG the Design System page uploads (Assets): text or a base64 data: URI, kept only when static.
+_SVG_PATH = re.compile(r"\.svg$", re.I)
+_SVG_URI = re.compile(r"^data:image/svg\+xml(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=]+)$", re.I)
+MAX_SVG_BYTES = 2 * 1024 * 1024
+_SVG_BANNED = {"script", "foreignobject", "iframe", "embed", "object"}
+
+
+def _safe_svg(rel: str, val: str) -> str:
+    """The SVG's text when it is a static drawing (no script, handlers, javascript: or outside links), else ValueError."""
+    import base64
+    import binascii
+    import xml.etree.ElementTree as ET
+    bad = f"{rel}: an SVG of at most 2 MB"
+    um = _SVG_URI.match(val)
+    if um:
+        if len(um.group(1)) * 3 // 4 > MAX_SVG_BYTES + 3:
+            raise ValueError(bad)
+        try:
+            raw = base64.b64decode(um.group(1), validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError(bad)
+    elif val.startswith("data:"):
+        raise ValueError(bad)
+    else:
+        raw = val.encode("utf-8")
+    if len(raw) > MAX_SVG_BYTES:
+        raise ValueError(bad)
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise ValueError(f"{rel}: an SVG must be UTF-8 text")
+    low = text.lower()
+    if "<!doctype" in low or "<!entity" in low or "<?xml-stylesheet" in low:
+        raise ValueError(f"{rel}: an SVG may not declare a DOCTYPE, entities or stylesheets")
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        raise ValueError(f"{rel}: not a well-formed SVG")
+    local = lambda n: str(n).rsplit("}", 1)[-1].lower()
+    if local(root.tag) != "svg":
+        raise ValueError(f"{rel}: the root element must be <svg>")
+    for el in root.iter():
+        if local(el.tag) in _SVG_BANNED:
+            raise ValueError(f"{rel}: an SVG may not contain <{local(el.tag)}>")
+        for k, v in el.attrib.items():
+            # Browsers drop whitespace and control characters inside a URL's scheme ("java\tscript:").
+            name, v = local(k), re.sub(r"[\s\x00-\x1f]+", "", str(v)).lower()
+            if name.startswith("on"):
+                raise ValueError(f"{rel}: an SVG may not have event handlers ({name})")
+            if v.startswith("javascript:"):
+                raise ValueError(f"{rel}: an SVG may not link to javascript:")
+            if name == "href" and not (v.startswith("#") or v.startswith("data:image/")):
+                raise ValueError(f"{rel}: an SVG may link only to its own #fragments or data:image/ URIs")
+    return text
 
 
 def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
@@ -153,7 +207,9 @@ def _op(aid: str, op: str, a: dict) -> dict:
         for rel, val in files.items():
             if not re.match(pat, str(rel)) or not (val is None or isinstance(val, str)):
                 raise ValueError(f"can't save {rel!r} here")
-            if _IMG_PATH.search(str(rel)) and val is not None:
+            if _SVG_PATH.search(str(rel)) and val is not None:
+                val = _safe_svg(str(rel), val)  # only design-system assets match .svg in _SAVE_PATHS
+            elif _IMG_PATH.search(str(rel)) and val is not None:
                 im = _IMG_URI.match(val)
                 if not im or len(im.group(2)) * 3 // 4 > MAX_UPLOAD_BYTES:
                     raise ValueError(f"{rel}: an image (png, jpeg, gif or webp) of at most 8 MB")
@@ -269,7 +325,22 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             folders = list(store.settings().get("folders") or [])
             folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
             return {"artifacts": arts, "folders": folders,
-                    "default_design_system": store.settings().get("default_design_system")}
+                    "default_design_system": store.settings().get("default_design_system"),
+                    "design_system_for": store.settings().get("design_system_for") or {}}
+        if parts == ["design-system-for"] and method == "POST":
+            # The system one type builds on (the ••• of a Make something new tile): an id, "none", or null
+            # for the default for everything.
+            kind, dsid = str(body.get("type") or ""), body.get("id")
+            if kind not in store.DS_WEARERS and kind != "dashboard":
+                raise ApiError(400, "this type takes no design system")
+            if dsid not in (None, "none") and _meta(str(dsid)).get("type") != "design-system":
+                raise ApiError(400, "not a design system")
+            per = dict(store.settings().get("design_system_for") or {})
+            per.pop(kind, None)
+            if dsid:
+                per[kind] = str(dsid)
+            store.settings_set("design_system_for", per or None)
+            return {"design_system_for": per}
         if parts == ["folders"] and method == "POST":
             # A gallery folder (Claude's New › Folder, Move to › create).
             name = " ".join(str(body.get("name") or "").split())[:60]

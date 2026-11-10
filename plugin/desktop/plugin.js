@@ -70,7 +70,6 @@ const STRINGS = {
     describeChange: 'Describe the change you want…',
     working: 'Hermes is working…',
     noChat: 'This artifact was not made in a chat. Write here and a new chat starts with it.',
-    startChat: 'Start a chat',
     send: 'Send',
     confirmTitle: 'Send this to Hermes?',
     confirmBody: 'The artifact wants to send this message into its chat.',
@@ -78,17 +77,11 @@ const STRINGS = {
     title: 'Artifacts',
     all: 'All',
     pinned: 'Pinned',
-    openPinned: title => `Open the artifact “${title}”`,
     openBeside: title => `Open “${title}” beside this chat`,
     chatArtifacts: 'Artifacts made in this chat',
     closeBeside: 'Close the artifact',
-    pinNoChat: 'Pinned in the gallery: it was not made in a chat, so there is no chat to pin in the sidebar',
     makeNew: 'Make something new',
-    newBadge: 'New',
     search: 'Search artifacts',
-    sortRecent: 'Recently updated',
-    sortCreated: 'Recently created',
-    sortName: 'Name',
     gridView: 'Grid',
     listView: 'List',
     empty: 'No artifacts yet. Pick something to make above, or ask Hermes to publish one.',
@@ -101,8 +94,6 @@ const STRINGS = {
     sessionFiles: 'Session files and images →',
     sessionFilesTip: 'The built-in view: images and files from your sessions',
     back: 'Back to Artifacts',
-    gallery: 'Artifacts',
-    version: 'Version',
     reload: 'Reload',
     pin: 'Pin',
     unpin: 'Unpin',
@@ -116,7 +107,7 @@ const STRINGS = {
     tileAbout_dashboard: 'Charts, figures and tables of data; every number shows where it came from.',
     tileAbout_motion: 'A short animation that plays in place and exports as video.',
     tileAbout_page: 'Any web page or small tool, written as code.',
-    'tileAbout_design-system': "A brand's colours, type and components that designs, decks and films build on.",
+    'tileAbout_design-system': "A brand's colours, type and components that designs, decks, films and dashboards build on.",
     filterSort: 'Filter and sort',
     sortBy: 'Sort by',
     lastOpened: 'Last opened',
@@ -153,11 +144,10 @@ const STRINGS = {
     dsMake: 'Make default design system',
     dsUnset: 'No longer the default',
     dsDefault: 'Default',
-    dsDefaultTitle: 'New designs, decks and films build on this system',
+    dsDefaultTitle: 'New designs, decks, films and dashboards build on this system',
     dsOn: n => `Designs, decks and films now build on ${n}`,
     dsOff: 'No default design system now',
     download: 'Download',
-    del: 'Delete',
     delConfirm: 'Delete for good?',
     comments: 'Comments',
     addComment: 'Comment',
@@ -178,7 +168,6 @@ const STRINGS = {
     noComments: 'No comments yet. Comment on a part of the page and send it to Hermes to change it.',
     you: 'You',
     hermes: 'Hermes',
-    updated: 'Updated',
     type_page: 'Page',
     type_dashboard: 'Dashboard',
     type_slides: 'Slides',
@@ -254,7 +243,6 @@ const STRINGS = {
     describeChange: 'Írd le, mit változtasson…',
     working: 'A Hermes dolgozik…',
     noChat: 'Ez az artifact nem chatben készült. Írj ide, és új chat indul vele.',
-    startChat: 'Chat indítása',
     send: 'Küldés',
     confirmTitle: 'Elküldöd ezt a Hermesnek?',
     confirmBody: 'Az artifact ezt az üzenetet küldené a chatjébe.',
@@ -262,17 +250,11 @@ const STRINGS = {
     title: 'Artifacts',
     all: 'Összes',
     pinned: 'Kitűzött',
-    openPinned: title => `A(z) „${title}” artifact megnyitása`,
     openBeside: title => `A(z) „${title}” megnyitása a chat mellett`,
     chatArtifacts: 'Ebben a chatben készült artifactok',
     closeBeside: 'Artifact bezárása',
-    pinNoChat: 'Kitűzve a galériában: nem chatben készült, így nincs beszélgetés, amit az oldalsávba tűzhetnék',
     makeNew: 'Készíts valami újat',
-    newBadge: 'Új',
     search: 'Keresés az artifactok közt',
-    sortRecent: 'Legutóbb frissített',
-    sortCreated: 'Legutóbb létrehozott',
-    sortName: 'Név',
     gridView: 'Rács',
     listView: 'Lista',
     empty: 'Még nincs artifact. Válassz fent, mit készítsen, vagy kérd meg a Hermest, hogy publikáljon egyet.',
@@ -285,8 +267,6 @@ const STRINGS = {
     sessionFiles: 'Session-fájlok és képek →',
     sessionFilesTip: 'A beépített nézet: képek és fájlok a sessionökből',
     back: 'Vissza az Artifactsra',
-    gallery: 'Artifacts',
-    version: 'Verzió',
     reload: 'Újratöltés',
     pin: 'Kitűzés',
     unpin: 'Kitűzés levétele',
@@ -300,7 +280,7 @@ const STRINGS = {
     tileAbout_dashboard: 'Diagramok, számok és táblázatok; minden szám mutatja, honnan jön.',
     tileAbout_motion: 'Rövid animáció, ami helyben lejátszódik, és videóként exportálható.',
     tileAbout_page: 'Bármilyen weboldal vagy kis eszköz, kódként megírva.',
-    'tileAbout_design-system': 'Egy márka színei, betűi és komponensei, amelyekre a designok, diasorok és filmek épülnek.',
+    'tileAbout_design-system': 'Egy márka színei, betűi és komponensei, amelyekre a designok, diasorok, filmek és dashboardok épülnek.',
     filterSort: 'Szűrés és rendezés',
     sortBy: 'Rendezés',
     lastOpened: 'Utoljára megnyitva',
@@ -337,11 +317,10 @@ const STRINGS = {
     dsMake: 'Legyen az alapértelmezett design system',
     dsUnset: 'Ne legyen alapértelmezett',
     dsDefault: 'Alapértelmezett',
-    dsDefaultTitle: 'Erre épülnek az új tervek, diasorok és filmek',
+    dsDefaultTitle: 'Erre épülnek az új tervek, diasorok, filmek és dashboardok',
     dsOn: n => `Az új tervek, diasorok és filmek mostantól erre épülnek: ${n}`,
     dsOff: 'Most nincs alapértelmezett design system',
     download: 'Letöltés',
-    del: 'Törlés',
     delConfirm: 'Véglegesen törlöd?',
     comments: 'Kommentek',
     addComment: 'Komment',
@@ -362,7 +341,6 @@ const STRINGS = {
     noComments: 'Még nincs komment. Kommentelj az oldal egy részéhez, és küldd el a Hermesnek, hogy átírja.',
     you: 'Te',
     hermes: 'Hermes',
-    updated: 'Frissítve',
     type_page: 'Oldal',
     type_dashboard: 'Dashboard',
     type_slides: 'Slides',
@@ -383,7 +361,7 @@ const STRINGS = {
 // ---------------------------------------------------------------- state
 
 const $list = atom([])
-const $dsDefault = atom(null) // the design system designs, decks and films build on (store setting)
+const $dsDefault = atom(null) // the design system designs, decks, films and dashboards build on (store setting)
 const $selected = atom(null) // open artifact id; null = gallery
 const $shown = atom(null) // pinned version, null = latest
 const $page = atom(null) // sub-page of a multi-file artifact
@@ -484,45 +462,6 @@ function openBeside(ctx, art) {
   }
   openArtifact(ctx, art.id)
   openSplit(ctx, art)
-}
-
-/** In a chat's composer row: the artifacts this chat made (Claude's artifacts beside the session). */
-function ChatArtifacts({ ctx }) {
-  const t = usePluginI18n(ID)
-  const sid = useValue(host.state?.focusedStoredSessionId || $noSession)
-  const list = useValue($list)
-  const chat = useValue($chat)
-  const sel = useValue($selected)
-  const [menu, setMenu] = useState(false)
-  const arts = sid ? list.filter(a => a.session === sid) : []
-  if (arts.length < 2) return null // one artifact: the titlebar button opens it
-  const one = null
-  const open = chat === 'split' && arts.some(a => a.id === sel)
-  return jsxs('span', {
-    style: { position: 'relative', display: 'inline-flex' },
-    children: [
-      jsx(IconButton, {
-        icon: (TYPE_LOOK[(one || arts[0]).type] || TYPE_LOOK.page).icon,
-        label: one ? null : String(arts.length),
-        title: one ? t('openBeside', one.title) : t('chatArtifacts'),
-        active: open || menu,
-        onClick: () => (one ? openBeside(ctx, one) : setMenu(!menu))
-      }),
-      menu
-        ? jsx(PopMenu, {
-            up: true,
-            align: 'right',
-            width: 280,
-            onClose: () => setMenu(false),
-            items: [
-              { header: t('chatArtifacts') },
-              ...arts.map(a => ({ key: a.id, icon: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, label: a.title,
-                checked: open && a.id === sel, onClick: () => (setMenu(false), openBeside(ctx, a)) }))
-            ]
-          })
-        : null
-    ]
-  })
 }
 
 /** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
@@ -674,6 +613,9 @@ async function refresh(ctx) {
     const r = await ctx.rest('/artifacts')
     const list = r.artifacts || []
     if ((r.default_design_system || null) !== $dsDefault.get()) $dsDefault.set(r.default_design_system || null)
+    const dsFor = r.design_system_for || {}
+    if (JSON.stringify(dsFor) !== JSON.stringify($tileDs.get())) $tileDs.set(dsFor)
+    if (ctx.storage.get('tileDs')) migrateTileDs(ctx, dsFor)
     if (JSON.stringify(r.folders || []) !== JSON.stringify($folders.get())) $folders.set(r.folders || [])
     const prev = current()
     // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
@@ -1103,20 +1045,33 @@ function DsBadge({ art }) {
 
 /** The types a design system applies to (the New tiles offer a system for these). */
 const DS_KINDS = ['slides', 'design', 'dashboard', 'motion']
-/** The design system a New tile starts with: the one picked on its ••• menu, else the default. */
-const $tileDs = atom({}) // {kind: dsId | 'none'}
+/** The design system a type uses when not the general default: the server's pick from its ••• menu. */
+const $tileDs = atom({}) // {kind: dsId | 'none'} (server: design_system_for)
 
-/** A new chat whose message box holds what to make (the type, and the design system when not the default). */
-async function startNew(ctx, kind) {
-  let text = T(`prompt_${kind}`)
-  const pick = $tileDs.get()[kind]
-  if (DS_KINDS.includes(kind) && pick) {
-    const ds = pick === 'none' ? null : $list.get().find(a => a.id === pick)
-    // Words to Hermes stay English (only the person's own words follow their language).
-    // "Make a design artifact (type design, design system "Kiln", id kiln-1) of: " — the person writes on.
-    const note = pick === 'none' ? 'no design system' : ds ? `design system "${ds.title}", id ${ds.id}` : ''
-    if (note) text = text.replace(/\(type ([\w-]+)\)/, `(type $1, ${note})`)
+/** Sets (id) or clears (null → follow the default) the pick of a type on the server. */
+async function setTileDs(ctx, kind, id) {
+  try {
+    const r = await ctx.rest('/design-system-for', { method: 'POST', body: { type: kind, id } })
+    $tileDs.set(r?.design_system_for || {})
+  } catch (err) {
+    toast(String(err?.message || err))
   }
+}
+
+/** One-time move of picks kept in the browser to the server (only where the server has none). */
+let migratingDs = false
+async function migrateTileDs(ctx, server) {
+  const old = ctx.storage.get('tileDs')
+  if (migratingDs || !old || typeof old !== 'object') return
+  migratingDs = true
+  for (const kind of DS_KINDS) if (old[kind] && !server[kind]) await setTileDs(ctx, kind, old[kind])
+  ctx.storage.set('tileDs', null)
+  migratingDs = false
+}
+
+/** A new chat whose message box holds what to make (the guide hands over the design system). */
+async function startNew(ctx, kind) {
+  const text = T(`prompt_${kind}`)
   host.newChat()
   for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 150))
@@ -1129,12 +1084,11 @@ function TileDsMenu({ ctx, kind, onClose }) {
   const t = usePluginI18n(ID)
   const list = useValue($list)
   const def = useValue($dsDefault)
-  const pick = useValue($tileDs)[kind] || def || 'none'
+  const own = useValue($tileDs)[kind] || null // null: follows the general default
   const systems = list.filter(a => a.type === 'design-system').sort((a, b) => (b.id === def) - (a.id === def))
+  const defTitle = systems.find(s => s.id === def)?.title || t('dsNone')
   const choose = id => () => {
-    const next = { ...$tileDs.get(), [kind]: id }
-    $tileDs.set(next)
-    ctx.storage.set('tileDs', next)
+    setTileDs(ctx, kind, id)
     onClose()
   }
   return jsx(PopMenu, {
@@ -1142,8 +1096,9 @@ function TileDsMenu({ ctx, kind, onClose }) {
     width: 280,
     items: [
       { header: t('dsChoice') },
-      ...systems.map(s => ({ key: s.id, icon: 'palette', label: s.title, checked: pick === s.id, right: s.id === def ? t('dsYourDefault') : '', onClick: choose(s.id) })),
-      { key: 'none', label: t('dsNone'), checked: pick === 'none', onClick: choose('none') },
+      { key: 'default', label: t('dsDefault'), checked: !own, right: defTitle, onClick: choose(null) },
+      ...systems.map(s => ({ key: s.id, icon: 'palette', label: s.title, checked: own === s.id, right: s.id === def ? t('dsYourDefault') : '', onClick: choose(s.id) })),
+      { key: 'none', label: t('dsNone'), checked: own === 'none', onClick: choose('none') },
       { sep: true },
       { icon: 'filter', label: t('dsManage'), onClick: () => (onClose(), $types.set(['design-system']), $folder.set(null)) },
       { icon: 'plus', label: t('dsNewFirst'), onClick: () => (onClose(), startNew(ctx, 'design-system')) }
@@ -2917,7 +2872,6 @@ function Viewer({ ctx, docked = false }) {
             children: [
           src
             ? jsx(SandboxedFrame, {
-                key: `${art.id}:${fv}:${nonce}:${page || ''}`,
                 ref,
                 sandbox: SANDBOX,
                 src,
@@ -2925,7 +2879,7 @@ function Viewer({ ctx, docked = false }) {
                 style: presenting
                   ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0, background: '#000' }
                   : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
-              })
+              }, `${art.id}:${fv}:${nonce}:${page || ''}`) // the key as jsx's own argument, not inside the props
             : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
               docked ? null : jsx(CommentPopover, { ctx, art }),
               jsx(ConfirmSend, {}),
@@ -3035,8 +2989,6 @@ export default {
       const v = ctx.storage.get(key)
       if (ok.includes(v)) atomRef.set(v)
     }
-    const td = ctx.storage.get('tileDs')
-    if (td && typeof td === 'object') $tileDs.set(td)
 
     // Floating back button on the built-in view opened from our link, registered only while it shows.
     const saved = ctx.storage.get('backSpot')

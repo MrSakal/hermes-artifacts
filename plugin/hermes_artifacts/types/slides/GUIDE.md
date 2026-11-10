@@ -46,16 +46,17 @@ slides differing in position or size (a title moving to the corner, a number gro
 `"transition": "magic"` on the first.
 
 **Design system first**: `artifact_guide` returns `design_system`: the user's default (build on it
-without asking) or, if none, the systems to name and ask about. Record the one used in deck.json:
-`"designSystem": {"id": "<id>", "version": <its version>}` (version from that answer). Its colors,
-fonts and tokens replace the Hermes look; no `theme` then. The deck keeps that version: system edits or
-another default change nothing until you move it on, only when asked or when changing the deck anyway
-and `artifact_read` reports `design_system_changed`. No `designSystem` = none.
+without asking) or, if none, the systems to name and ask about. Record it in deck.json:
+`"designSystems": ["<id>"]`; publishing copies it into the deck (`ds/<name>/`: tokens, fonts,
+pictures) and fills the record. Its colors, fonts and tokens replace the default look; no `theme`
+then. Several themes: the first, or `[{"artifact": "<id>", "theme": "<theme id>"}]`. The copy never
+changes by itself; `[{"artifact": "<id>", "update": true}]` takes the system's latest, only when asked
+or when changing the deck anyway and `artifact_read` reports `design_system_changed`. None: no key.
 
-**`theme`** (whole deck): leave it out (recommended) for Hermes' own colors and font, following the
-user's theme and skin; set it only for a deck needing its own brand. Keys: `mode` (`dark`|`light`);
-colors `accent`, `accent2`, `bg`, `bg2`, `surface`, `fg`, `muted`, `line`; fonts `font`, `headingFont`.
-Defaults are the Hermes look.
+**`theme`** (whole deck): leave it out for the layouts' default look (dark slate, teal accent), the
+same for everyone: a deck never takes Hermes' app theme (only the editor around it does). Set it for a
+deck needing its own brand. Keys: `mode` (`dark`|`light`); colors `accent`, `accent2`, `bg`, `bg2`,
+`surface`, `fg`, `muted`, `line`; fonts `font`, `headingFont`.
 
 ## A custom slide (rare)
 
@@ -73,8 +74,9 @@ Speaker notes: one `<aside>`, the last child. No scripts, iframes or forms. `dat
 there (a header in the slide rail). On a layout slide in deck.json: `"hidden": true`, `"section": "<name>"`.
 
 A slide's HTML file wins over its layout entry. A user edit to a layout slide becomes that slide's HTML
-file, its elements pinned: each `position:absolute` with `left`, `top`, `width`, and `height` for
-non-text. Keep them pinned when you change that file.
+file with its layout kept: flow children stay in their flex or grid containers (the user reorders,
+sizes and restyles them in place; a card inside a row is selected on its own), and only what the user
+set free or inserted is `position:absolute`. Keep that structure when you change the file.
 
 ## Designing
 
@@ -87,7 +89,8 @@ While the deck is open in Hermes Desktop, the user's messages carry an `<artifac
 - `mode`: `edit`, `grid`, `present` or `presenter`;
 - `slideId`, `slideTitle`, `slideIndex`, `slideCount`: "this slide" is `slideId`;
 - `selection`: selected elements, each with `kind`, `label`, `selector` ("this"/"it" means these;
-  `selector` is a CSS selector in `slides/<slideId>.html`);
+  `selector` is a CSS selector in `slides/<slideId>.html`, a path of `:nth-child()` steps down from
+  the section, so it can name a nested element such as one card of a row);
 - `editingText`: they're typing in one of them;
 - `dirty`: an unsaved edit; it saves within seconds, so re-read the deck before changing it.
 

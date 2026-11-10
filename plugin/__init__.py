@@ -117,10 +117,10 @@ def _publish(args: dict, **kw) -> str:
             # The agent ran these calls in the chat; the dashboard may run them again without a click.
             from .hermes_artifacts import live
             view["live_queries_approved"] = len(live.approve_all(meta["id"], "agent"))
-        if meta.get("type") in DS_TYPES and not args.get("id"):
-            ds = _default_ds(full=False)
-            if ds:  # a reminder on a new one, in case the guide was read before the default was set
-                view["design_system"] = {**ds, "rule": "The default design system: build on it (artifact_guide returns it in full)."}
+        if meta.get("type") in DS_TYPES and not args.get("id") and not _ds_ref(meta["id"], meta["type"], None):
+            ds = _default_ds(meta["type"], full=False)
+            if ds:  # in case the guide was read before the default was set
+                view["design_system"] = {**ds, "rule": "Default design system, not used here: build on it (artifact_guide) unless declined."}
         shown = dict(view)
         if meta.get("type") == "doc":
             from .hermes_artifacts import docs
@@ -174,34 +174,36 @@ def _read(args: dict, **_kw) -> str:
         return _err(str(e))
 
 
-# Where each type records the design system it was built on: (file, how to get {id, version} from it).
+# Where each type records the design system it was built on: {id, version}. A deck, canvas or film carries
+# a copy (designSystems[0], filled in at publish); a dashboard keeps values (look.system).
 def _ds_ref_of(kind: str, doc: dict) -> dict | None:
     if kind == "dashboard":
-        s = (doc.get("look") or {}).get("system") if isinstance(doc.get("look"), dict) else None
-        return {"id": s.get("id"), "version": s.get("version")} if isinstance(s, dict) and s.get("id") else None
-    if kind in ("slides", "motion"):
-        r = doc.get("designSystem")
-        if isinstance(r, dict) and r.get("id"):
-            return {"id": r.get("id"), "version": r.get("version")}
-        return {"id": r, "version": None} if isinstance(r, str) and r else None
-    if kind == "design":
+        r = (doc.get("look") or {}).get("system") if isinstance(doc.get("look"), dict) else None
+    else:
         r = (doc.get("designSystems") or [None])[0] if isinstance(doc.get("designSystems"), list) else None
-        return {"id": r.get("artifact"), "version": r.get("version")} if isinstance(r, dict) and r.get("artifact") else None
-    return None
+        r = r or doc.get("designSystem")  # an index from before the copy
+    if isinstance(r, str) and r:
+        return {"id": r, "version": None}
+    dsid = r.get("artifact") or r.get("id") if isinstance(r, dict) else None
+    return {"id": dsid, "version": r.get("version")} if dsid else None
 
 
 _DS_FILE = {"dashboard": "dashboard.json", "slides": "deck.json", "motion": "modules/scenes.json", "design": "canvas.json"}
 
 
-def _ds_moved_on(aid: str, kind: str, version: int) -> dict | None:
-    """The design system an artifact wears, when it has changed since the artifact was built on it."""
+def _ds_ref(aid: str, kind: str, version: int | None) -> dict | None:
     if kind not in _DS_FILE:
         return None
     try:
         doc = json.loads(store.read_file(aid, _DS_FILE[kind], version).decode("utf-8"))
     except (FileNotFoundError, ValueError, UnicodeDecodeError, OSError):
         return None
-    ref = _ds_ref_of(kind, doc) if isinstance(doc, dict) else None
+    return _ds_ref_of(kind, doc) if isinstance(doc, dict) else None
+
+
+def _ds_moved_on(aid: str, kind: str, version: int) -> dict | None:
+    """The design system an artifact wears, when it has changed since the artifact was built on it."""
+    ref = _ds_ref(aid, kind, version)
     m = store.get_meta(str(ref["id"])) if ref else None
     if not m or m.get("type") != "design-system":
         return None
@@ -210,8 +212,9 @@ def _ds_moved_on(aid: str, kind: str, version: int) -> dict | None:
     if built is not None and built >= latest:
         return None
     return {"id": ref["id"], "title": m.get("title"), "built_on": built, "latest": latest,
-            "rule": "Its design system has a newer version. Leave it unless asked; when changing it anyway, move "
-                    "to the latest in the same change (record it; a dashboard re-derives its look) and say so in a line."}
+            "rule": "Its design system has a newer version. Leave it unless asked; when changing the artifact "
+                    "anyway, move on in the same change (designSystems: [{\"artifact\": id, \"update\": true}]; a "
+                    "dashboard re-derives its look) and say so in a line."}
 
 
 # The plugin's own UI is English; what an artifact says is in the user's language.
@@ -221,25 +224,31 @@ LANG_RULE = ("Language: the artifact's own words (title, text, labels, made-up d
 
 # The types that wear a design system (Claude hands its decks and designs the default one up front).
 DS_TYPES = ("slides", "design", "motion", "dashboard")
-DS_RULE = ("The user's default design system: build on it without asking (a system the user names wins; declined: "
-           "none). Colours, type, spacing, corners, components, voice from it, never made-up ones; your own only where "
-           "it is silent. Record it and this version as the guide says; move to a newer version only when asked, or when "
-           "changing the artifact anyway and artifact_read reports design_system_changed. More: artifact_read "
-           "id=<id> path=api/components/<Comp>.md | api/assets/<Group>.md | manifest.json.")
+DS_RULE = ("The user's default design system: build on it without asking (one the user names wins; declined: none). "
+           "Colours, type, spacing, corners and voice from it, never made-up ones; your own only where it is silent. "
+           "Record its id as the guide says. A card before using a component or asset: artifact_read id=<id> "
+           "path=api/components/<Comp>.md | api/assets/<Group>.md.")
 DS_NONE_RULE = ("No default design system. If `systems` lists some, ask the user whether to use one (no one to ask: "
                 "your own choices). A system the user names: use it and record it.")
 
 
-def _default_ds(full: bool = True, dsid: str | None = None) -> dict | None:
-    """The default design system (or ``dsid``) as an agent needs it: who it is and, in full, its brand
-    book (the author's part), its token card and its catalogue."""
-    dsid = dsid or store.settings().get("default_design_system")
+# What of a system each type is handed up front (Claude reads no more than this per type): a dashboard and a
+# film take values only, a deck cannot run components. The rest is one artifact_read away.
+_DS_PARTS = {"dashboard": ("tokens",), "motion": ("tokens", "assets"), "slides": ("readme", "tokens", "assets"),
+             "design": ("readme", "tokens", "components", "assets")}
+
+
+def _default_ds(kind: str | None = None, full: bool = True, dsid: str | None = None) -> dict | None:
+    """The design system ``kind`` builds on (or ``dsid``) as an agent needs it: who it is and, in full, only
+    the parts that type uses: its brand book (the author's part), its token card, its catalogue."""
+    dsid = dsid or store.default_design_system(kind)
     meta = store.get_meta(dsid) if dsid else None
     if not meta or meta.get("type") != "design-system":
         return None
     out = {"id": dsid, "title": meta.get("title", dsid), "version": meta["versions"][-1]["n"]}
     if not full:
         return out
+    parts = _DS_PARTS.get(kind or "", ("readme", "tokens", "components", "assets", "summaries"))
     from .hermes_artifacts import dsbuild
 
     def text(rel: str, cap: int) -> str | None:
@@ -249,18 +258,24 @@ def _default_ds(full: bool = True, dsid: str | None = None) -> dict | None:
             return None
         return t if len(t) <= cap else t[:cap] + "\n…(cut: artifact_read for the rest)"
 
-    readme = text("README.md", 60_000)
-    readme = (readme or "").replace("\r\n", "\n")
-    if dsbuild.README_MARK in readme:
-        readme = readme.split("\n---\n" + dsbuild.README_MARK)[0].rstrip()
-    out["readme"] = (readme or "")[:5000]
+    if "readme" in parts:
+        readme = (text("README.md", 60_000) or "").replace("\r\n", "\n")
+        if dsbuild.README_MARK in readme:
+            readme = readme.split("\n---\n" + dsbuild.README_MARK)[0].rstrip()
+        out["readme"] = readme[:5000]
     out["tokens"] = text("api/tokens.md", 6000)
     try:
         man = json.loads(store.read_file(dsid, "manifest.json").decode("utf-8"))
-        out["namespace"] = man.get("namespace") or ""
-        out["components"] = [{k: str(c[k])[:100] for k in ("name", "group", "summary") if c.get(k)}
-                             for c in man.get("components", [])][:80]
-        out["asset_groups"] = [g.get("name") for g in man.get("assetGroups", []) if g.get("name")]
+        comps = [c for c in man.get("components", []) if isinstance(c, dict) and c.get("name")][:80]
+        if "summaries" in parts:
+            out["namespace"] = man.get("namespace") or ""
+            out["components"] = [{k: str(c[k])[:100] for k in ("name", "group", "summary") if c.get(k)} for c in comps]
+        elif "components" in parts and comps:
+            out["namespace"] = man.get("namespace") or ""
+            out["components"] = ", ".join(str(c["name"]) for c in comps)  # names; each one's card on demand
+        groups = [g.get("name") for g in man.get("assetGroups", []) if g.get("name")]
+        if "assets" in parts and groups:
+            out["asset_groups"] = groups
     except (FileNotFoundError, ValueError, OSError, AttributeError):
         pass
     out["rule"] = DS_RULE
@@ -280,8 +295,9 @@ def _guide(args: dict, **_kw) -> str:
             return _err(f"no {topic!r} guide for {kind}" + (f" (topics: {', '.join(have)})" if have else ""))
         return _ok(type=kind, topic=topic, language=LANG_RULE, guide=f.read_text(encoding="utf-8"))
     extra = {}
-    if kind in DS_TYPES:
-        ds = _default_ds()
+    per = store.settings().get("design_system_for")
+    if kind in DS_TYPES and not (isinstance(per, dict) and per.get(kind) == "none"):  # "none": this type takes no system
+        ds = _default_ds(kind)
         if not ds:
             systems = [{"id": m["id"], "title": m.get("title", m["id"])} for m in store.list_all() if m.get("type") == "design-system"]
             ds = {"none": True, "systems": systems[:20], "rule": DS_NONE_RULE}

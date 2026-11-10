@@ -258,10 +258,22 @@ class ContentHandler(_Base):
     do_HEAD = do_GET
 
 
+_bridge: tuple = (None, b"")  # (mtime_ns, size) of bridge.js and the tag made from it
+
+
+def _bridge_tag() -> bytes:
+    global _bridge
+    p = ASSETS / "bridge.js"
+    st = p.stat()
+    key = (st.st_mtime_ns, st.st_size)
+    if _bridge[0] != key:
+        _bridge = (key, f"<script>{p.read_text(encoding='utf-8')}</script>".encode())
+    return _bridge[1]
+
+
 def inject_bridge(data: bytes) -> bytes:
     """Insert the window.hermes bridge as the first script of the page."""
-    js = (ASSETS / "bridge.js").read_text(encoding="utf-8")
-    tag = f"<script>{js}</script>".encode()
+    tag = _bridge_tag()
     low = data[:4096].lower()
     i = low.find(b"<head")
     if i != -1:

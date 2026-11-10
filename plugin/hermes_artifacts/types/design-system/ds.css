@@ -222,6 +222,13 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-ib svg { width: 16px; height: 16px; }
 .ds-ib.has { color: var(--color-accent); }
 .ds-ib:focus-visible, .ds-tname:focus-visible, .ds-cin:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* Comment buttons: always in the layout, seen on the row's (heading's) hover or keyboard focus. */
+.ds-cmt { opacity: 0; transition: opacity .12s; }
+.ds-row:hover .ds-cmt, .ds-row:focus-within .ds-cmt, .ds-head:hover .ds-cmt, .ds-head:focus-within .ds-cmt,
+.ds-prose :is(h1, h2, h3, h4):hover .ds-cmt, .ds-cmt:focus-visible { opacity: 1; }
+@media (hover: none) { .ds-cmt { opacity: 1; } }
+.ds-prose .ds-cmt { width: 22px; height: 22px; margin: -4px 0 -4px 4px; font: inherit; }
+.ds-prose .ds-flash, .ds-head.ds-flash { border-radius: 4px; animation: ds-flash 1.4s ease-out; }
 
 /* Colour cells: the swatch (a picker), the value in place, the contrast it reads at */
 .ds-ccell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 150px; }

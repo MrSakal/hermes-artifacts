@@ -47,7 +47,25 @@
     pencil: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
     expand: "M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7",
     caretDown: "M7 10l5 5 5-5",
-    caretRight: "M10 7l5 5-5 5"
+    caretRight: "M10 7l5 5-5 5",
+    pages: "M8 4h9a2 2 0 0 1 2 2v10M5 8h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z",
+    cursor: "M6 3l13 9-6 1.5L10.5 20z",
+    hand: "M8 12V6a1.5 1.5 0 0 1 3 0v5V4.5a1.5 1.5 0 0 1 3 0V11V6a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a5 5 0 0 1-4.2-2.3L4 14.5a1.5 1.5 0 0 1 2.5-1.6z",
+    frame: "M8 3v18M16 3v18M3 8h18M3 16h18",
+    sticky: "M5 5h14v9l-5 5H5zM19 14h-5v5",
+    oval: "M12 5c4.4 0 8 3.1 8 7s-3.6 7-8 7-8-3.1-8-7 3.6-7 8-7z",
+    arrowUR: "M6 18L18 6M9 6h9v9",
+    lineD: "M5 19L19 5",
+    table: "M4 5h16v14H4zM4 10h16M4 14.5h16M10 5v14",
+    sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4",
+    slide: "M5 6h14v12H5z",
+    strip: "M4 5h16v9H4zM4 18h4M10 18h4M16 18h4",
+    chevDown: "M6 9l6 6 6-6",
+    justify: "M4 6h16M4 12h16M4 18h16",
+    volume: "M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12",
+    volumeOff: "M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6",
+    repeat: "M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4",
+    restart: "M6 5v14M19 5l-10 7 10 7z"
   };
 
   function icon(name) {
@@ -91,7 +109,9 @@
     });
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();
-    m.style.top = r.bottom + 4 + "px";
+    // below its opener; above it when there is no room below (a toolbar at the foot of the page)
+    var mh = m.offsetHeight, below = r.bottom + 4 + mh <= innerHeight - 8 || r.top - 4 - mh < 8;
+    m.style.top = (below ? r.bottom + 4 : r.top - 4 - mh) + "px";
     m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + "px";
     function close() {
       m.remove(); openMenu = null; menuAnchor = null;

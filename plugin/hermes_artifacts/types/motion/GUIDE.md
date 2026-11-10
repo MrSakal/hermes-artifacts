@@ -111,10 +111,10 @@ the draft). A good film that arrives beats a perfect one that doesn't.
   typed + "rich" or "plain".
 - `palettes`: every palette offered, picked or not, in shown order, role order; `theirs`: how many from the
   first are the user's. The page re-offers them: keep both keys.
-- `designSystem` (optional): `{"id": "<id>", "version": <its version>}` (`artifact_guide`'s `design_system`:
-  the default, taken without asking, or one the user names); the page injects that version's stylesheet
-  (tokens as CSS variables) under `base.css`. Keep the version until moving it on (asked, or changing the
-  film anyway and `artifact_read` reports `design_system_changed`).
+- `designSystems` (optional): `["<id>"]` (`artifact_guide`'s `design_system`: the default, taken without
+  asking, or one the user names); publishing copies it into the film (`ds/<name>/`) and fills the record;
+  its tokens are CSS variables under `base.css`. `[{"artifact": "<id>", "update": true}]` takes its latest
+  (asked, or changing the film anyway and `artifact_read` reports `design_system_changed`).
 
 ### Fonts
 
@@ -330,9 +330,9 @@ With the film open, user messages carry `time`, `filmTime`, `scene` (`id`, `name
 
 ### Changed by hand: the page's own records
 
-Hand edits (retype a line by double-click on the paused picture; palette/color; font; a scene's length by
-dragging its right edge on the timeline, or Tweaks; its name; one thing's color, size, weight, hidden via
-Tweaks) leave your code alone; the page saves each kind in its own module, as a new version:
+Hand edits (retype a line by double-click on the paused picture or in Tweaks → Words on screen; palette,
+colors, font in Style; a scene's length by dragging its pill's right edge on the scene strip, its … menu or
+Tweaks (Length, or Speed 0.5× / 2×); its name; one thing's color, size, weight, hidden via Tweaks) leave your code alone; the page saves each kind in its own module, as a new version:
 
 | Record | Shape | Effect |
 |---|---|---|
@@ -368,7 +368,8 @@ window.CUT = {
 
 ## Export
 
-Export (host toolbar, or the page's button outside Hermes) renders every frame at film fps exactly as
-played: **MP4** (H.264 + AAC score; video only where the browser can't encode AAC, and says so), **GIF**
-(640 wide, ~14 fps), or **PNG** of the current frame. Web fonts embedded when Google Fonts is reachable.
+Export (the page's Download button opens a dialog; the host toolbar's menu uses the defaults) renders every
+frame exactly as played: **MP4** (H.264 + AAC score; video only where the browser can't encode AAC, and says
+so; the dialog picks 720p/1080p, 60/30/15 fps or the film's own, and quality; defaults: film size and fps,
+high), **GIF** (640 wide, ~14 fps), or **PNG** of the current frame. Web fonts embedded when Google Fonts is reachable.
 Never make video or audio files yourself; a still or check only when asked.

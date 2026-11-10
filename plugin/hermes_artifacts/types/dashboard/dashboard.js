@@ -24,9 +24,9 @@
   var bar = document.getElementById("dash-bar");
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { use: "Use the page", where: "Where numbers come from", refresh: "Refresh", sources: "Sources",
+    en: { refresh: "Refresh", sources: "Sources",
       exp: "Export", csv: "Data as CSV", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
-      rows: "Saved rows", calc: "Calculation", params: "Filters", failed: "Failed to load", none: "Nothing on this dashboard yet.",
+      rows: "Saved rows", calc: "Calculation", failed: "Failed to load", none: "Nothing on this dashboard yet.",
       bad: "dashboard.json is missing or not valid JSON.", stopped: "This page's code stopped", stale: "Out of date",
       updated: "updated", unused: "Not read by the page", preview: "Result", formula: "Formula", desc: "",
       saved: "Downloaded", notmarked: "Nothing on the page links here", value: "a value", rowsN: "rows",
@@ -58,16 +58,14 @@
       testIt: "Test without saving", testResult: "Test result", replaceFile: "Replace with a file…", chooseFile: "Choose a .csv, .tsv or .json file.",
       fileNoRows: "The file has no rows this dashboard can read.", fileReady: "{name}: {n} rows. Save puts it in place of {old}.", saveFile: "Save",
       fileSaved: "File replaced.", fileTooBig: "The file is too large to attach. Choose a smaller one.",
-      design: "Design", look: "Look", lookHint: "Colors, type and corners for the whole dashboard, in light and dark.", defaultLook: "Default look",
-      designSystem: "Design system", customLook: "Custom look", lookSaved: "Look saved.", dsUnreadable: "That design system couldn’t be read.",
-      editPage: "Edit the page", editHint: "Change the page’s words by hand, move or delete cards. Every change saves automatically.",
-      format: "Format", editAsk: "Edit", finishEditing: "Finish editing to see Design", commentsOn: "Turn off comments to see Design",
-      newDraft: "New draft", draftHint: "Pick a format for a new draft. Nothing changes until you save.", draftWaiting: "A draft is waiting: save or cancel it first.",
-      fmt_dashboard: "Dashboard", fmtd_dashboard: "Cards, figures and charts to watch at a glance.",
-      "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "A finding told as you scroll, beside one chart that stays in view.",
-      "fmt_visual-analysis": "Visual analysis", "fmtd_visual-analysis": "A finding read top to bottom, a chart under each heading.",
-      "fmt_visual-short": "Visual short", "fmtd_visual-short": "A minute or two that plays: chapters on one stage, with captions.",
-      draftMsg: "[draft request drafts/{id}] Remake this dashboard as a {format} draft. Read the “Drafts” section of the dashboard guide first (artifact_guide type=dashboard). Write the whole new page as drafts/{id}/index.html, with any .css or .js beside it, with artifact_publish id={aid} base=true files={…}; the draft reads the dashboard’s sources by id, a new or changed source goes whole into drafts/{id}/datasets.json and changed filter defaults into drafts/{id}/params.json. Leave the dashboard’s own files as they are: Save on the page copies the draft over them.",
+      editPage: "Edit the page",
+      look: "Look", lookCustom: "custom", lookDefault: "default", lookChange: "Change",
+      lookMsg: "[dashboard look] The user wants to change this dashboard's look (dashboard.json \"look\"; now: {now}). List the design systems (artifact_list type=design-system), offer them and the default look, ask which, then record the chosen one as artifact_guide type=dashboard topic=look says.",
+      editAsk: "Edit",
+      fmt_dashboard: "Dashboard",
+      "fmt_scrollyteller": "Scrollyteller",
+      "fmt_visual-analysis": "Visual analysis",
+      "fmt_visual-short": "Visual short",
       draftMaking: "Hermes is making your {format} draft. Nothing changes until you save it.", draftShowing: "Showing the draft. Nothing changes until you save.",
       draftAsIs: "The dashboard as it is. Press Redo to see the draft again.", draftUndo: "Undo", draftRedo: "Redo", draftCancel: "Cancel", draftSave: "Save",
       draftSaved: "The draft is now the dashboard.", draftCancelled: "Draft discarded",
@@ -86,9 +84,9 @@
       whyMsg: "These sources on this dashboard didn’t load: {list}. Find out why and fix what you can.", loaderSpent: "The loader ran for fifteen minutes, so no further call is made.",
       back: "Back", close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
       showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
-    hu: { use: "Az oldal használata", where: "Honnan jönnek a számok", refresh: "Frissítés", sources: "Források",
+    hu: { refresh: "Frissítés", sources: "Források",
       exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
-      rows: "Mentett sorok", calc: "Számítás", params: "Szűrők", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
+      rows: "Mentett sorok", calc: "Számítás", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
       bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
       updated: "frissítve", unused: "Az oldal nem olvassa", preview: "Eredmény", formula: "Képlet", desc: "",
       saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor",
@@ -120,16 +118,13 @@
       testIt: "Teszt mentés nélkül", testResult: "A teszt eredménye", replaceFile: "Csere egy fájlra…", chooseFile: "Válassz egy .csv, .tsv vagy .json fájlt.",
       fileNoRows: "A fájlban nincs olyan sor, amit a dashboard el tud olvasni.", fileReady: "{name}: {n} sor. A Mentés a(z) {old} helyére teszi.", saveFile: "Mentés",
       fileSaved: "Fájl lecserélve.", fileTooBig: "A fájl túl nagy a csatoláshoz. Válassz kisebbet.",
-      design: "Design", look: "Megjelenés", lookHint: "Színek, betűk és sarkok az egész dashboardra, világos és sötét témában.", defaultLook: "Alap megjelenés",
-      designSystem: "Design system", customLook: "Egyedi megjelenés", lookSaved: "Megjelenés elmentve.", dsUnreadable: "Ezt a design systemet nem sikerült beolvasni.",
-      editPage: "Az oldal szerkesztése", editHint: "Írd át kézzel az oldal szövegeit, mozgasd vagy töröld a kártyákat. Minden változás magától mentődik.",
-      format: "Formátum", editAsk: "Szerkesztés", finishEditing: "Fejezd be a szerkesztést a Design megnyitásához",
-      commentsOn: "Kapcsold ki a kommentelést a Design megnyitásához",
-      newDraft: "Új vázlat", draftHint: "Válassz formát egy új vázlathoz. Mentésig semmi nem változik.", draftWaiting: "Egy vázlat vár: előbb mentsd vagy vesd el.",
-      fmt_dashboard: "Dashboard", fmtd_dashboard: "Kártyák, számok és diagramok, egy pillantásra.",
-      "fmt_scrollyteller": "Scrollyteller", "fmtd_scrollyteller": "Görgetés közben elmesélt felismerés, egy végig látható diagram mellett.",
-      "fmt_visual-analysis": "Vizuális elemzés", "fmtd_visual-analysis": "Felülről lefelé olvasható felismerés, minden címsor alatt egy diagram.",
-      "fmt_visual-short": "Visual short", "fmtd_visual-short": "Egy-két perc, ami lejátszódik: fejezetek egy színpadon, feliratokkal.",
+      editPage: "Az oldal szerkesztése",
+      look: "Kinézet", lookCustom: "egyedi", lookDefault: "alapértelmezett", lookChange: "Módosítás",
+      editAsk: "Szerkesztés",
+      fmt_dashboard: "Dashboard",
+      "fmt_scrollyteller": "Scrollyteller",
+      "fmt_visual-analysis": "Vizuális elemzés",
+      "fmt_visual-short": "Visual short",
       draftMaking: "A Hermes készíti a(z) {format} vázlatot. Mentésig semmi nem változik.", draftShowing: "A vázlatot látod. Mentésig semmi nem változik.",
       draftAsIs: "A dashboard jelenlegi állapota. Az Újra gombbal visszakapod a vázlatot.", draftUndo: "Visszavonás", draftRedo: "Újra", draftCancel: "Elvetés", draftSave: "Mentés",
       draftSaved: "A vázlat lett a dashboard.", draftCancelled: "Vázlat elvetve",
@@ -472,7 +467,7 @@
   var colors = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5", "--chart-6", "--chart-7", "--chart-8"]
     .map(function (v) { return "var(" + v + ")"; });
   var colorValues = function () {
-    var cs = getComputedStyle(document.documentElement);
+    var cs = getComputedStyle(document.getElementById("dash-main") || document.documentElement); // the look's colours live there
     return colors.map(function (v) { return cs.getPropertyValue(v.slice(4, -1)).trim(); });
   };
 
@@ -677,6 +672,24 @@
   }
 
   function marked(id) { return !!root.querySelector('[data-source~="' + CSS.escape(id) + '"]'); }
+  /** What a source feeds on the page: its own marks and those of every formula built on it. Shown while its
+      row is under the pointer and while it is open; a rule, not a class, so a redraw of the page keeps it. */
+  var fedStyle = null;
+  function showFed(id) {
+    if (!fedStyle) { fedStyle = document.createElement("style"); document.head.appendChild(fedStyle); }
+    if (!id) { fedStyle.textContent = ""; return; }
+    var ids = {}, grew = true;
+    ids[id] = 1;
+    while (grew) {
+      grew = false;
+      Object.keys(calcs).forEach(function (k) {
+        if (!ids[k] && (calcs[k].inputs || []).some(function (i) { return ids[i]; })) { ids[k] = 1; grew = true; }
+      });
+    }
+    var sel = Object.keys(ids).map(function (k) { return '#dash-root [data-source~="' + CSS.escape(k) + '"]'; }).join(", ");
+    fedStyle.textContent = sel + " { outline: 2px solid var(--color-accent) !important; outline-offset: 4px; border-radius: 4px;" +
+      " background: color-mix(in srgb, var(--color-accent) 10%, transparent); text-decoration: none !important; }";
+  }
 
   // Sources panel, the way Claude's reads: a flat list (name + kind icon); a source opens in place
   // with a back arrow, how fresh it is, its description, and one open section at a time (Query /
@@ -885,7 +898,9 @@
       var r = cache[id] ? cache[id].r : null;
       var bad = r && r.status !== "ok" && r.status !== "loading";
       var unused = !calcs[id] && !used[id] && !marked(id);
-      return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(id); } }, [
+      var over = function () { showFed(id); }, away = function () { showFed(picked ? picked.id : null); };
+      return h("button", { "class": "src-li", type: "button", onclick: function () { openSource(id); },
+        onmouseenter: over, onfocus: over, onmouseleave: away, onblur: away }, [
         h("span", { "class": "src-li-t", text: sourceTitle(id) }),
         bad ? h("span", { "class": "src-tag bad", title: r.message || r.status, text: calcs[id] ? T.didntRun : T.didntLoad }) : unused ? h("span", { "class": "src-tag", text: T.unusedTag }) : null,
         h("span", { "class": "src-kind", html: kit.icon(kindIcon(id)) })
@@ -896,7 +911,20 @@
       failedIds.length ? h("div", { "class": "src-actions", style: "margin:0 16px 6px" }, [kit.labelled(kit.button(T.retryAll, "refresh", function () {
         failedIds.forEach(function (id) { loadLive(id, true); }); renderSources();
       }), T.retryAll)]) : null,
-      ids.length ? list : h("p", { "class": "src-empty", text: T.noSources })];
+      ids.length ? list : h("p", { "class": "src-empty", text: T.noSources }),
+      lookRow()];
+  }
+
+  // The design system the dashboard wears (look.system), with a request to Hermes to change it.
+  function lookRow() {
+    if (C.thumb || shownVersion !== latestVersion || showingDraft() || !spec || !window.hermes || !window.hermes.send) return null;
+    var look = spec.look, name = look && look.system && look.system.name ? String(look.system.name) : look ? T.lookCustom : T.lookDefault;
+    return h("div", { "class": "src-look" }, [
+      h("span", { "class": "src-look-t", text: T.look + ": " + name }),
+      kit.labelled(kit.button(T.lookChange, "", function () {
+        window.hermes.send(T.lookMsg.replace("{now}", name), { look: true }).then(function () { kit.toast(T.staged); }, function () {});
+      }), T.lookChange)
+    ]);
   }
 
   function renderDetail(id) {
@@ -974,8 +1002,9 @@
 
   function renderSources() {
     if (!drawer) return;
-    if (panelMode !== "sources") return renderPanel();
+    if (panelMode !== "sources") { showFed(null); return renderPanel(); }
     drawer.replaceChildren.apply(drawer, (picked ? renderDetail(picked.id) : renderList()).filter(Boolean));
+    showFed(picked ? picked.id : null);
   }
   // ------------------------------------------------------------------ History (Claude's, inside the dashboard)
   var panelMode = "sources", histPicked = null, histList = null, histDiff = {}, histOpen = {}, latestVersion = C.version;
@@ -1179,21 +1208,26 @@
     ]), histBox, testOut]);
   }
 
+  function placePanel() {
+    var side = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
+    document.getElementById("dash-main").style.marginRight = side;
+    bar.style.marginRight = side;
+  }
+  window.addEventListener("resize", placePanel);
   function toggleSources(on, keepMode) {
     var want = on === undefined ? !(srcOpen && panelMode === "sources") : on;
     if (!keepMode && want) panelMode = "sources";
     srcOpen = want;
     if (!srcOpen) panelMode = "sources";
     if (srcOpen && !drawer) { drawer = h("aside", { "class": "kit-drawer dash-drawer", "aria-label": T.sources }); document.body.appendChild(drawer); }
-    if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; }
+    if (!srcOpen && drawer) { drawer.remove(); drawer = null; picked = null; showFed(null); }
     document.documentElement.setAttribute("data-dash-mode", srcOpen && panelMode === "sources" ? "data" : "page");
     srcBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "sources"));
     histBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "history"));
     sendView();
     // As Claude's: the panel runs the frame's full height beside the page; the bar stops at its edge.
-    var side = srcOpen && innerWidth > 900 ? "min(420px, 100%)" : "";
-    document.getElementById("dash-main").style.marginRight = side;
-    bar.style.marginRight = side;
+    document.documentElement.toggleAttribute("data-dash-panel", srcOpen);
+    placePanel();
     if (srcOpen) renderSources();
     redraw();
   }

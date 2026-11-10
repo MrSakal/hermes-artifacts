@@ -24,7 +24,6 @@
     time: 1, q: 1, cite: 1, kbd: 1, del: 1, ins: 1 };
 
   // ------------------------------------------------------------------ parse
-  function lower(s) { return String(s).toLowerCase(); }
 
   /** One file: {src, pre, post, tpl (DocumentFragment), names, head:{lang,title,links,scripts}, code, props, propsError, nodes}. */
   function parse(src) {
@@ -366,6 +365,7 @@
     } catch (e) { this.fail(e); return; }
     morphChildren(this.host, frag, this);
     this.afterKids();
+    this.afterX();
     var prevState = this.prevState, prevProps = this.prevProps;
     this.prevState = null; this.prevProps = null;
     var cbs = this.cbs.splice(0);
@@ -419,6 +419,10 @@
       out.appendChild(host);
       return;
     }
+    if (tag === "x-import" && this.opts.xi && this.opts.xi.has(node.getAttribute("component-from-global-scope") || "")) {
+      out.appendChild(this.ximport(node, scope, counts));
+      return;
+    }
     var el = doc.createElementNS(node.namespaceURI || HTML_NS, node.localName);
     this.reg(el, node);
     this.attrs(el, node, scope);
@@ -426,6 +430,58 @@
     for (var k = node.firstChild; k; k = k.nextSibling) this.build(k, scope, el, counts);
     if (tag === "textarea" && el.__dcProps && "value" in el.__dcProps) el.textContent = el.__dcProps.value == null ? "" : String(el.__dcProps.value);
     out.appendChild(el);
+  };
+  /** <x-import component-from-global-scope="Ns.Name"> whose component the frame has (opts.xi): a host that
+   *  keeps its place (display:contents) and carries what to render (__dcX); the frame renders it inside
+   *  after each render, so it is one element to the editor. */
+  Instance.prototype.ximport = function (node, scope, counts) {
+    var el = this.doc.createElement("x-import"), name = node.getAttribute("component-from-global-scope") || "";
+    this.reg(el, node);
+    el.setAttribute("component-from-global-scope", name);
+    el.setAttribute("data-dc-ximport", name);
+    el.setAttribute("style", "display:contents");
+    el.__dcX = this.xspec(node, name, scope, counts);
+    return el;
+  };
+  /** {name, props, children}: attributes as props ("true"/"false" booleans, numbers, class -> className,
+   *  style an object, {{hole}} values as they are); children null, a string when only text, else a list of
+   *  strings, {x: spec} (a nested x-import) and {html} (other markup). */
+  Instance.prototype.xspec = function (node, name, scope, counts) {
+    var props = {}, names = this.parsed.names;
+    for (var i = 0; i < node.attributes.length; i++) {
+      var a = node.attributes[i], key = names[a.name] || a.name, m = ONE.exec(a.value);
+      if (a.name === "component-from-global-scope" || /^hint-/.test(a.name) || a.name === "key" || a.name === "ref") continue;
+      if (/^on[a-z]/i.test(key) && !m) continue; // inline script handlers never run
+      if (a.name === "class" || a.name === "classname") key = "className";
+      else if (a.name === "for" || a.name === "htmlfor") key = "htmlFor";
+      var v = m ? lookup(m[1], scope, this) : xvalue(interp(a.value, scope, this));
+      if (key === "style" && typeof v === "string") v = styleObject(fixUrls(v, this));
+      props[key] = v;
+    }
+    var frag = this.doc.createDocumentFragment(), kids = [], text = true;
+    for (var c = node.firstChild; c; c = c.nextSibling) this.build(c, scope, frag, counts);
+    for (var k = frag.firstChild; k; k = k.nextSibling) {
+      if (k.nodeType === 3) kids.push(k.data);
+      else if (k.nodeType === 1) { text = false; kids.push(k.__dcX ? { x: k.__dcX } : { html: k.outerHTML }); }
+    }
+    var children = text ? kids.join("").trim() || null : kids.filter(function (s) { return typeof s !== "string" || s.trim(); });
+    return { name: name, props: props, children: children };
+  };
+  function xvalue(s) {
+    if (s === "" || s === "true") return true; // a bare attribute (disabled) is on
+    if (s === "false") return false;
+    return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : s;
+  }
+  function styleObject(s) {
+    var o = {};
+    parseStyle(s).forEach(function (d) { o[d[0].indexOf("--") === 0 ? d[0] : d[0].replace(/-([a-z])/g, function (_, ch) { return ch.toUpperCase(); })] = d[1]; });
+    return o;
+  }
+  Instance.prototype.afterX = function () {
+    var xi = this.opts.xi, self = this;
+    if (!xi) return;
+    this.host.querySelectorAll("x-import").forEach(function (el) { if (el.__dcOwner === self && el.__dcX) xi.render(el, el.__dcX); });
+    xi.sweep();
   };
   function lookupAttr(node, name, scope, inst) {
     var v = node.getAttribute(name);
@@ -522,7 +578,7 @@
   function same(o, n) {
     if (o.nodeType !== n.nodeType) return false;
     if (o.nodeType !== 1) return true;
-    return o.localName === n.localName && o.namespaceURI === n.namespaceURI && o.__dcT === n.__dcT &&
+    return o.localName === n.localName && o.namespaceURI === n.namespaceURI && o.__dcT === n.__dcT && !o.__dcX === !n.__dcX &&
       (!n.__dcImport || (o.__dcImport && o.__dcImport.key === n.__dcImport.key && o.__dcImport.file === n.__dcImport.file));
   }
   function morphChildren(oldP, newP, inst) {
@@ -553,9 +609,10 @@
       if (o.getAttribute(a.name) !== a.value) { try { o.setAttribute(a.name, a.value); } catch (e) {} }
     }
     o.__dch = n.__dch; o.__dcProps = n.__dcProps; o.__dcRef = n.__dcRef; o.__dcImport = n.__dcImport; o.__dcOwner = n.__dcOwner; o.__dcT = n.__dcT;
+    o.__dcX = n.__dcX;
     if (inst.map && inst.map.has(n)) inst.map.set(o, inst.map.get(n));
     bind(o, inst); props(o); ref(o);
-    if (o.localName === "dc-import") return; // its own component renders inside
+    if (o.localName === "dc-import" || o.__dcX) return; // its own component renders inside
     morphChildren(o, n, inst);
   }
   function bind(el, inst) {

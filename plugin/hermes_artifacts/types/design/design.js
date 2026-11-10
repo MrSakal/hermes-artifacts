@@ -23,7 +23,12 @@
   var kit = window.kit, h = kit.h, C = kit.content, DC = window.DC;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { fixIt: "Ask Hermes to fix",
+    en: { pages: "Pages", page1: "Page 1", pageN: "Page", newPage: "New page", prototypes: "Prototypes", statics: "Static artboards", zoom: "Zoom",
+      tools: "Tools", tSelect: "Select (V)", tHand: "Hand (H)", tText: "Text (T)", tBoard: "Artboard (A)", tSticky: "Sticky note (S)", tPen: "Pencil (P)",
+      shapes: "Shapes", rect: "Rectangle (R)", oval: "Oval (O)", arrow: "Arrow (Shift+L)", line: "Line (L)", newBoard: "New artboard", phText: "Text",
+      properties: "Properties", outline: "Outline", code: "Code", copyCode: "Copy", copied: "Copied", nothing: "Select an artboard or an element.",
+      noteTitle: "Title", noteSticky: "Note", noteShape: "Shape", noteLink: "Link", noteDraw: "Drawing",
+      fixIt: "Ask Hermes to fix",
       fixMsg: function (path, err) { return "The artboard " + path + " fails with: " + err + ". Fix it (artifact_read the canvas first)."; },
       canvas: "Canvas", fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
       tweaks: "Tweaks", design: "Design", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
@@ -42,7 +47,12 @@
       bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
       noBoard: "No artboard to export", pick: "Pick an artboard first", fonts: "Fonts", imgOnly: "png, jpeg, gif or webp",
       about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { canvas: "Vászon", fit: "Mindent mutat", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", sel: "Kijelölésre nagyít", play: "Lejátszás", stop: "Leállítás",
+    hu: { pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
+      tools: "Eszközök", tSelect: "Kijelölés (V)", tHand: "Kéz (H)", tText: "Szöveg (T)", tBoard: "Rajzlap (A)", tSticky: "Cetli (S)", tPen: "Ceruza (P)",
+      shapes: "Alakzatok", rect: "Téglalap (R)", oval: "Ellipszis (O)", arrow: "Nyíl (Shift+L)", line: "Vonal (L)", newBoard: "Új rajzlap", phText: "Szöveg",
+      properties: "Tulajdonságok", outline: "Szerkezet", code: "Kód", copyCode: "Másolás", copied: "Kimásolva", nothing: "Jelölj ki egy rajzlapot vagy egy elemet.",
+      noteTitle: "Cím", noteSticky: "Cetli", noteShape: "Alakzat", noteLink: "Hivatkozás", noteDraw: "Rajz",
+      canvas: "Vászon", fit: "Mindent mutat", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", sel: "Kijelölésre nagyít", play: "Lejátszás", stop: "Leállítás",
       tweaks: "Hangolás", design: "Tervezés", expand: "Teljes ablak", back: "Vászon", prev: "Előző rajztábla", next: "Következő rajztábla",
       save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", conflict: "Közben megváltozott: betöltöm az új verziót",
       noSave: "Itt nem lehet menteni", editHint: "Kattints a kijelöléshez · dupla katt a szövegre", building: "Készül…",
@@ -148,7 +158,7 @@
   }
   var FRAME_CSS = "html.dc-edit,html.dc-edit *{cursor:default!important}html.dc-edit [contenteditable=true],html.dc-edit [contenteditable=true] *{cursor:text!important;outline:none}" +
     "html.dc-canvas{overflow:hidden;scrollbar-width:none}html.dc-canvas::-webkit-scrollbar{display:none}" +
-    "[data-dc-ximport]:empty{display:inline-block;min-width:24px;min-height:24px;outline:1px dashed #9aa4b2}";
+    "[data-dc-ximport]:empty{display:inline-block!important;min-width:24px;min-height:24px;outline:1px dashed #9aa4b2}";
   var SRCDOC = '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' + FRAME_CSS + "</style><script>" + SRC.kit + "</" + "script><script>" +
     SRC.dc + "</" + "script><script>" + SRC.frame + "</" + "script></head><body></body></html>";
 
@@ -167,7 +177,7 @@
   }
   Frame.prototype.init = function () {
     return { t: "init", id: this.path, file: this.path, sources: cur, urls: urlsFor(this.path), css: cssFiles, props: propsOf(this.path),
-      mode: this.mode, wheel: this.wheel, ds: ds.css, theme: ds.theme };
+      mode: this.mode, wheel: this.wheel, ds: ds.css, theme: ds.theme, scripts: ds.scripts };
   };
   Frame.prototype.send = function (m) {
     m.__dc = 1;
@@ -210,12 +220,26 @@
 
   // ------------------------------------------------------------------ design system
   // Up to four systems (Claude's): the first is the canvas's own (its themes); the others add their colors,
-  // type styles and CSS. Each is loaded at the version recorded, so a later edit of a system changes nothing here.
+  // type styles and CSS. Each is the copy the canvas carries (ds/<namespace>/), so a later edit of a system
+  // changes nothing here.
   var dsRecs = (Array.isArray(canvas.designSystems) ? canvas.designSystems : []).filter(function (r) { return r && r.artifact; }).slice(0, 4);
-  var ds = { rec: dsRecs[0] || null, css: "", themes: [], theme: null, model: null };
+  var ds = { rec: dsRecs[0] || null, css: "", themes: [], theme: null, model: null, scripts: [], ready: Promise.resolve() };
+  /** A system copy's component scripts for the frames: components/lib/*.js (react, then react-dom, then
+   *  the rest) and components/bundle.js; null when it has no bundle. */
+  function dsScripts(d) {
+    var bundle = d && d.base ? kit.fileText(d.base + "components/bundle.js") : null;
+    if (bundle == null) return null;
+    var lib = d.base + "components/lib/";
+    function rank(n) { return /^react-dom([.-]|$)/i.test(n) ? 1 : /^react([.-]|$)/i.test(n) ? 0 : 2; }
+    var libs = Object.keys(C.files).map(function (p) { return p.indexOf(lib) === 0 ? p.slice(lib.length) : null; })
+      .filter(function (n) { return n && /\.js$/i.test(n) && n.indexOf("/") < 0; })
+      .sort(function (a, b) { return rank(a) - rank(b) || (a < b ? -1 : 1); })
+      .map(function (n) { return { name: n, code: kit.fileText(lib + n) || "" }; });
+    return { id: d.base, libs: libs, bundle: bundle };
+  }
   if (dsRecs.length && window.dsKit && editable !== null) {
-    Promise.all(dsRecs.map(function (r) {
-      return window.dsKit.load({ id: String(r.artifact), version: r.version }).catch(function () { return null; });
+    ds.ready = Promise.all(dsRecs.map(function (r) {
+      return window.dsKit.load(r).catch(function () { return null; });
     })).then(function (all) {
       var got = all.filter(Boolean);
       if (!got.length) return;
@@ -232,10 +256,11 @@
           type: { groups: [].concat.apply([], models.map(function (m) { return m.type.groups; })) }
         };
       }
-      broadcast({ t: "ds", css: ds.css });
-      themeBtn.hidden = ds.themes.length < 2;
-      if (sel.path) renderPanel();
-    });
+      ds.scripts = got.map(dsScripts).filter(Boolean);
+      broadcast({ t: "ds", css: ds.css, scripts: ds.scripts });
+      if (themeBtn) themeBtn.hidden = ds.themes.length < 2;
+      if (sel && sel.path) renderPanel();
+    }).catch(function () {});
   }
   function setTheme(id) { ds.theme = id || null; broadcast({ t: "theme", theme: ds.theme }); }
 
@@ -250,10 +275,12 @@
     app.replaceChildren(box);
     var k0 = Math.min(innerWidth / g0.w, innerHeight / g0.h);
     box.style.cssText = "width:" + g0.w + "px;height:" + g0.h + "px;transform:translate(" + (innerWidth - g0.w * k0) / 2 + "px," + (innerHeight - g0.h * k0) / 2 + "px) scale(" + k0 + ")";
-    var tf = new Frame({ path: tp, mode: "view", wheel: "none", parent: box });
     var done = false;
     var finish = function () { if (!done) { done = true; kit.ready(); } };
-    tf.whenReady().then(finish);
+    // The systems first, so the picture has their styles and components.
+    Promise.race([ds.ready, new Promise(function (r) { setTimeout(r, 3000); })]).then(function () {
+      new Frame({ path: tp, mode: "view", wheel: "none", parent: box }).whenReady().then(finish);
+    });
     setTimeout(finish, 8000);
     return;
   }
@@ -517,8 +544,26 @@
       } else if ((n.kind === "rect" || n.kind === "oval") && num(n.w, 0) && num(n.h, 0)) {
         el = h("div", { "class": "dc-note dc-shape" });
         el.style.cssText = "left:" + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;height:" + n.h + "px;border-radius:" + (n.kind === "oval" ? "50%" : "4px") +
-          ";background:" + paint(n.fill, FILLS, "transparent") + ";border-color:" + paint(n.color, COLORS, "#5f5e5a");
+          ";background:" + paint(n.fill, FILLS, "transparent") + ";border-color:" + paint(n.color, COLORS, "var(--color-fg-muted)");
         notesLayer.appendChild(el);
+      } else if (n.kind === "line" || n.kind === "arrow" || n.kind === "pen") {
+        // drawn with a tool: a straight stroke (x,y to x2,y2), or a pen stroke (points from x,y)
+        var pts = n.kind === "pen" ? (Array.isArray(n.points) ? n.points : []).filter(function (q) { return Array.isArray(q) && isFinite(+q[0]) && isFinite(+q[1]); }).slice(0, 4000)
+          : [[0, 0], [num(n.x2, +n.x + 200) - n.x, num(n.y2, +n.y) - n.y]];
+        if (pts.length > 1) {
+          var xs = pts.map(function (q) { return +q[0]; }), ys = pts.map(function (q) { return +q[1]; }), pad = 12;
+          var x0 = Math.min.apply(null, xs) - pad, y0 = Math.min.apply(null, ys) - pad, bw = Math.max.apply(null, xs) - x0 + pad, bh = Math.max.apply(null, ys) - y0 + pad;
+          var path = pts.map(function (q, k) { return (k ? "L" : "M") + (q[0] - x0) + " " + (q[1] - y0); }).join("");
+          if (n.kind === "arrow") { // the head: two short strokes back from the tip
+            var q1 = pts[0], q2 = pts[1], ang = Math.atan2(q2[1] - q1[1], q2[0] - q1[0]), hx = q2[0] - x0, hy = q2[1] - y0;
+            [ang + 2.6, ang - 2.6].forEach(function (t) { path += "M" + hx + " " + hy + "L" + (hx + 16 * Math.cos(t)) + " " + (hy + 16 * Math.sin(t)); });
+          }
+          el = h("div", { "class": "dc-note dc-draw", html: '<svg width="' + bw + '" height="' + bh + '" viewBox="0 0 ' + bw + " " + bh + '" fill="none" stroke="currentColor" stroke-width="' +
+            clamp(num(n.w, 3), 1, 24) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + path + '"/></svg>' });
+          el.style.cssText = "left:" + (+n.x + x0) + "px;top:" + (+n.y + y0) + "px;color:" + paint(n.color, COLORS, "var(--dc-note-fg)");
+          el.__off = { x: x0, y: y0 };
+          notesLayer.appendChild(el);
+        }
       }
       if (!el) return;
       el.setAttribute("data-note", id);
@@ -526,17 +571,20 @@
         el.addEventListener("pointerdown", function (e) { if (e.button === 0 && el.contentEditable !== "true") dragNote(e, el, id); });
         if (n.kind === "title1" || !n.kind) el.addEventListener("dblclick", function () { editNote(el, id); });
       }
+      if (id === selNote) el.classList.add("is-sel");
     });
   }
   function dragNote(e, el, id) {
     e.preventDefault(); e.stopPropagation();
     commitAll();
-    var n = canvas.notes[id], x0 = e.clientX, y0 = e.clientY, nx = +n.x, ny = +n.y, started = false;
+    var n = canvas.notes[id], x0 = e.clientX, y0 = e.clientY, nx = +n.x, ny = +n.y, started = false, off = el.__off || { x: 0, y: 0 };
+    var ex = isFinite(+n.x2) ? +n.x2 - nx : null, ey = isFinite(+n.y2) ? +n.y2 - ny : null;
     capture(el, e.pointerId);
     function move(ev) {
       if (!started) { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return; started = true; checkpoint(); }
       n.x = R(nx + (ev.clientX - x0) / z); n.y = R(ny + (ev.clientY - y0) / z);
-      el.style.left = n.x + "px"; el.style.top = n.y + "px";
+      if (ex != null) { n.x2 = n.x + ex; n.y2 = n.y + ey; }
+      el.style.left = n.x + off.x + "px"; el.style.top = n.y + off.y + "px";
     }
     function up() { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); if (started) changed(); }
     el.addEventListener("pointermove", move); el.addEventListener("pointerup", up);
@@ -955,14 +1003,63 @@
   function renderPanel() {
     if (!editable) return;
     var bp = sel.path || selBoard;
-    panelEl.hidden = panelHidden || !bp || !!focus;
-    panelBtn.setAttribute("aria-pressed", String(!panelEl.hidden));
+    panelEl.hidden = panelHidden || !!focus || (!bp && tab !== "outline");
+    panelBtn.classList.toggle("is-on", !panelHidden);
     if (panelEl.hidden) return;
-    var tabs = h("div", { "class": "dc-tabs kit-seg" }, [
-      h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === "design"), text: T.design, onclick: function () { setTab("design"); } }),
-      h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === "tweaks"), text: T.tweaks, onclick: function () { setTab("tweaks"); } })]);
-    var body = tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
+    var tabBtn = function (k, label) { return h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === k), text: label, onclick: function () { setTab(k); } }); };
+    var tabs = h("div", { "class": "dc-tabs" }, [tabBtn("design", T.properties), tabBtn("outline", T.outline), tabBtn("code", T.code), tabBtn("tweaks", T.tweaks),
+      h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.panel, "aria-label": T.panel, html: kit.icon("close"), onclick: function () { panelHidden = true; renderPanel(); } })]);
+    var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
+      : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
     panelEl.replaceChildren(tabs, body);
+  }
+  /** Outline: the page's notes, then each artboard and (for the open one) its elements; a click selects. */
+  var openOutline = {};
+  function outlinePanel() {
+    var out = h("div", { "class": "dc-pbody dc-outline" });
+    var skip = /^(helmet|style|script|link)$/;
+    var line = function (depth, icon, label, sub, on, click, caret) {
+      var r = h("button", { type: "button", "class": "dc-orow" + (on ? " is-on" : ""), style: "padding-left:" + (6 + depth * 14) + "px", onclick: click },
+        [h("span", { "class": "dc-ocaret", html: caret == null ? "" : kit.icon(caret ? "caretDown" : "caretRight") }), h("span", { "class": "dc-oicon", html: kit.icon(icon) }),
+         h("b", { text: label }), h("span", { text: sub || "" })]);
+      out.appendChild(r);
+      return r;
+    };
+    Object.keys(canvas.notes).forEach(function (id) {
+      var n = canvas.notes[id];
+      if (!n || typeof n !== "object" || pageOf(n) !== page) return;
+      var kind = n.kind === "title1" ? [T.noteTitle, "text"] : !n.kind ? [T.noteSticky, "sticky"] : n.kind === "link" ? [T.noteLink, "sticky"] : /^(rect|oval)$/.test(n.kind) ? [T.noteShape, "shape"] : [T.noteDraw, "pencil"];
+      line(0, kind[1], kind[0], String(n.text || "").slice(0, 28), id === selNote, function () { selectNote(id); renderPanel(); });
+    });
+    var walk = function (p, el, depth) {
+      if (depth > 9) return;
+      Array.prototype.forEach.call(el.children, function (c) {
+        if (skip.test(c.localName)) return;
+        var tid = c.__dcTid, key = p + "#" + tid, kids = Array.prototype.some.call(c.children, function (k) { return !skip.test(k.localName); });
+        var text = Array.prototype.filter.call(c.childNodes, function (t) { return t.nodeType === 3; }).map(function (t) { return t.nodeValue; }).join(" ").replace(/[ \t\n\r]+/g, " ").trim().slice(0, 26);
+        var isText = /^(h[1-6]|p|span|a|li|button|label)$/.test(c.localName), isImg = c.localName === "img";
+        line(depth, isImg ? "image" : isText ? "text" : "frame", tagLabel(c), text, sel.path === p && sel.tids.indexOf(tid) >= 0, function () {
+          if (kids) openOutline[key] = !openOutline[key];
+          if (tid != null) select(p, [tid]); else renderPanel();
+        }, kids ? !!openOutline[key] : null);
+        if (kids && openOutline[key]) walk(p, c, depth + 1);
+      });
+    };
+    pagePaths().forEach(function (p) {
+      var open = openOutline[p] == null ? p === (sel.path || selBoard) : openOutline[p];
+      line(0, "frame", titleOf(p), "", selBoard === p && !sel.path, function () { openOutline[p] = !open; selectBoard(p); renderPanel(); }, open);
+      if (open && files[p]) walk(p, files[p].tpl, 1);
+    });
+    return out;
+  }
+  /** Code: the selected element's markup, else the artboard's whole file, to read and copy. */
+  function codePanel(p) {
+    var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null, text = n ? n.outerHTML : cur[p] || "";
+    var copy = h("button", { type: "button", "class": "kit-btn dc-wide", text: T.copyCode, onclick: function () {
+      var done = function () { copy.textContent = T.copied; setTimeout(function () { copy.textContent = T.copyCode; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+    } });
+    return h("div", { "class": "dc-pbody" }, [h("div", { "class": "dc-ptitle", text: n ? tagLabel(n) : p }), h("pre", { "class": "dc-code", text: text.slice(0, 60000) }), copy]);
   }
   function refreshComputed() {
     if (panelEl.hidden || tab !== "design" || !sel.path) return;
@@ -1158,12 +1255,6 @@
   }
 
   // ------------------------------------------------------------------ pages
-  var pageSeg = h("span", { "class": "kit-seg dc-pages", hidden: pages.length < 2 });
-  function drawPages() {
-    pageSeg.replaceChildren.apply(pageSeg, pages.map(function (pg) {
-      return h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(pg.id === page), text: String(pg.name || pg.id).slice(0, 40), onclick: function () { setPage(pg.id); fitAll(); } });
-    }));
-  }
   function setPage(id) {
     page = id;
     Object.keys(boards).forEach(function (p) { var b = boards[p]; if (b.playing && !onPage(p)) setPlay(b, false); });
@@ -1472,7 +1563,7 @@
     Object.keys(cur).forEach(function (f) { Object.assign(urls, urlsFor(f)); });
     var props = {};
     Object.keys(cur).forEach(function (f) { props[f] = propsOf(f); });
-    var data = { file: p, sources: cur, urls: urls, css: cssFiles, props: props, ds: ds.css, theme: ds.theme };
+    var data = { file: p, sources: cur, urls: urls, css: cssFiles, props: props, ds: ds.css, theme: ds.theme, scripts: ds.scripts };
     var head = files[p].head;
     var doc = '<!doctype html>\n<html lang="' + kit.esc(head.lang || "en") + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       "<title>" + kit.esc(head.title || titleOf(p)) + "</title></head><body>" +
@@ -1487,30 +1578,170 @@
   saveBtn.classList.add("dc-save"); saveBtn.hidden = true;
   var exportList = [{ id: "png", label: T.png, run: exportPng }, { id: "pdf", label: T.pdf, run: function () { exportPdf(false); } },
     { id: "pdf-all", label: T.pdfAll, run: function () { exportPdf(true); } }, { id: "html", label: T.html, run: exportHtml }];
-  var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
-  }), T.exp);
-  expBtn.hidden = true;
-  kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
-  var themeBtn = kit.labelled(kit.button(T.theme, "", function () {
+  kit.exports(exportList); // the host's title menu lists them too
+  // The canvas's chrome, as Claude's: no bar. Pages at the top left, the view's tools at the top right (play, properties,
+  // zoom), and the drawing tools in a row at the bottom (select, hand, text, artboard, sticky, pen, shapes).
+  function cbtn(html, title, fn, cls) {
+    var b = h("button", { type: "button", "class": "kit-btn" + (cls ? " " + cls : ""), title: title, "aria-label": title, html: html });
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function closeMenus() { var m = document.querySelector(".kit-menu"); if (m) m.remove(); }
+  bar.hidden = true;
+
+  // pages (top left)
+  var pagesLabel = h("span");
+  var pagesBtn = cbtn(kit.icon("pages") + kit.icon("caretDown"), T.pages, function () {
+    kit.menu(pagesBtn, (pages.length ? pages : [{ id: null, name: T.page1 }]).map(function (pg) {
+      return { label: (pg.id === page || (!pg.id && !pages.length) ? "✓ " : "   ") + String(pg.name || pg.id).slice(0, 40), onClick: function () { if (pg.id) { setPage(pg.id); fitAll(); } } };
+    }).concat(editable ? [{ label: T.newPage, onClick: newPage }] : []));
+  }, "dc-caret");
+  pagesBtn.insertBefore(pagesLabel, pagesBtn.lastChild);
+  function drawPages() {
+    var pg = pages.filter(function (x) { return x.id === page; })[0];
+    pagesLabel.textContent = pages.length > 1 && pg ? String(pg.name || pg.id).slice(0, 24) : "";
+  }
+  function newPage() {
+    commitAll(); checkpoint();
+    if (!pages.length) { // the canvas had no pages: what is on it becomes page 1
+      canvas.pages = [{ id: "page-1", name: T.page1 }];
+    }
+    var n = canvas.pages.length + 1, id;
+    do { id = "page-" + n++; } while (canvas.pages.some(function (x) { return x.id === id; }));
+    canvas.pages.push({ id: id, name: T.pageN + " " + (canvas.pages.length + 1) });
+    pages = canvas.pages;
+    changed(); setPage(id);
+  }
+  var pagesPill = h("div", { "class": "dc-pill dc-pill-l" }, [pagesBtn]);
+
+  // the view (top right)
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
+  var themeBtn = cbtn(kit.icon("palette"), T.theme, function () {
     kit.menu(themeBtn, [{ label: T.defTheme, onClick: function () { setTheme(null); } }].concat(ds.themes.map(function (t) {
       return { label: t.name, onClick: function () { setTheme(t.id); } };
     })));
-  }, T.theme), T.theme);
-  themeBtn.hidden = true;
-  var panelBtn = kit.button("", "panel", function () { panelHidden = !panelHidden; renderPanel(); }, T.panel);
-  function closeMenus() { var m = document.querySelector(".kit-menu"); if (m) m.remove(); }
-  bar.append(h("span", { "class": "kit-title", text: canvas.title || C.title || "" }), pageSeg,
-    h("span", { "class": "dc-hint-bar", text: T.editHint }),
-    kit.button("", "undo", undo, T.undo), kit.button("", "redo", redo, T.redo), statusEl, saveBtn, themeBtn, expBtn, panelBtn);
-
-  var zoomLabel = h("button", { type: "button", "class": "kit-btn dc-zoomval", title: T.fit });
-  zoomLabel.addEventListener("click", function () {
-    kit.menu(zoomLabel, [{ label: T.fit, onClick: fitAll }, { label: T.sel, onClick: zoomSel }, { label: "25%", onClick: function () { zoomTo(0.25); } },
-      { label: "50%", onClick: function () { zoomTo(0.5); } }, { label: "100%", onClick: function () { zoomTo(1); } }, { label: "200%", onClick: function () { zoomTo(2); } }]);
   });
-  viewEl.appendChild(h("div", { "class": "dc-zoom" }, [kit.button("", "minus", function () { zoomTo(z / 1.25); }, T.zoomOut), zoomLabel,
-    kit.button("", "plus", function () { zoomTo(z * 1.25); }, T.zoomIn)]));
+  themeBtn.hidden = true;
+  var playBtn = cbtn(kit.icon("play"), T.play, function () {
+    var list = pagePaths(), live = list.filter(function (p) { return (entry(p) || {}).is_interactive; }), rest = list.filter(function (p) { return live.indexOf(p) < 0; });
+    var item = function (p) { return { label: titleOf(p), onClick: function () { openFocus(p); } }; };
+    kit.menu(playBtn, (live.length ? [{ hint: T.prototypes }].concat(live.map(item)) : []).concat(rest.length ? [{ hint: T.statics }].concat(rest.map(item)) : []));
+  });
+  var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () { panelHidden = !panelHidden; renderPanel(); });
+  var zoomLabel = h("span");
+  var zoomBtn = cbtn("", T.zoom, function () {
+    kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { zoomTo(z * 1.25); } }, { label: T.zoomOut, onClick: function () { zoomTo(z / 1.25); } },
+      { label: T.fit, onClick: fitAll }, { label: T.sel, onClick: zoomSel }]
+      .concat([0.25, 0.5, 0.75, 1, 1.5, 2].map(function (v) { return { label: v * 100 + "%", onClick: function () { zoomTo(v); } }; }))
+      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+  }, "dc-zoomval");
+  zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
+  var viewPill = h("div", { "class": "dc-pill dc-pill-r" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
+
+  // the tools (bottom)
+  var tool = "select", toolBtns = {}, shapeKind = "rect", penKind = "pen";
+  function setTool(t) {
+    tool = t;
+    Object.keys(toolBtns).forEach(function (k) { toolBtns[k].classList.toggle("is-on", k === t || (k === "shape" && /^(rect|oval|arrow|line)$/.test(t)) || (k === "pen" && t === "pen")); });
+    viewEl.classList.toggle("is-hand", t === "hand");
+    viewEl.classList.toggle("is-draw", t !== "select" && t !== "hand");
+  }
+  function tbtn2(key, icon, title) { return (toolBtns[key] = cbtn(kit.icon(icon), title, function () { setTool(key === "shape" ? shapeKind : key); })); }
+  var shapeCaret = cbtn(kit.icon("caretDown"), T.shapes, function () {
+    kit.menu(shapeCaret, [["rect", T.rect], ["oval", T.oval], ["arrow", T.arrow], ["line", T.line]].map(function (x) {
+      return { label: x[1], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(x[0] === "rect" ? "shape" : x[0] === "oval" ? "oval" : x[0] === "arrow" ? "arrowUR" : "lineD"); setTool(x[0]); } };
+    }));
+  }, "dc-caretonly");
+  var toolPill = h("div", { "class": "dc-pill dc-pill-b", role: "toolbar", "aria-label": T.tools }, [
+    tbtn2("select", "cursor", T.tSelect), tbtn2("hand", "hand", T.tHand), tbtn2("text", "text", T.tText), tbtn2("board", "frame", T.tBoard),
+    tbtn2("sticky", "sticky", T.tSticky), tbtn2("pen", "pencil", T.tPen), tbtn2("shape", "shape", T.shapes), shapeCaret]);
+  viewEl.append(pagesPill, viewPill);
+  if (editable) viewEl.appendChild(toolPill);
+  setTool("select");
+
+  // ------------------------------------------------------------------ making things on the canvas with a tool
+  function worldAt(e) { var r = vrect(); return { x: (e.clientX - r.left - tx) / z, y: (e.clientY - r.top - ty) / z }; }
+  function noteId() { var id; do { id = "n-" + Math.random().toString(36).slice(2, 8); } while (canvas.notes[id]); return id; }
+  function withPage(n) { if (page) n.page = page; return n; }
+  function newBoardAt(x, y, w, hh) {
+    var n = 1, p;
+    do { p = "Board-" + n++ + ".dc.html"; } while (cur[p] != null || files[p]);
+    w = R(clamp(w, 40, 8000)); hh = R(clamp(hh, 40, 8000));
+    var src = '<!doctype html>\n<html lang="' + L + '">\n<head>\n<meta charset="utf-8">\n<title>' + T.newBoard + '</title>\n<script src="./support.js"></' + 'script>\n</head>\n<body>\n<x-dc>\n<helmet>\n<style>\nbody{margin:0}\n</style>\n</helmet>\n' +
+      '<div style="width: ' + w + 'px; height: ' + hh + 'px; box-sizing: border-box; padding: 48px; display: flex; flex-direction: column; gap: 16px; background: #ffffff"></div>\n</x-dc>\n' +
+      '<script type="text/x-dc" data-dc-script data-props=\'{"$preview":{"width":' + w + ',"height":' + hh + '}}\'>\nclass Component extends DCLogic {\n  renderVals() { return {}; }\n}\n</' + 'script>\n</body>\n</html>\n';
+    checkpoint();
+    cur[p] = src; files[p] = DC.parse(src);
+    canvas.boards[p] = withPage({ x: R(x), y: R(y), w: w, h: hh, title: T.newBoard });
+    if (canvas.order.indexOf(p) < 0) canvas.order.push(p);
+    layoutAll(); changed(); selectBoard(p);
+  }
+  if (editable) viewEl.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0 || tool === "select" || focus || e.target.closest(".dc-pill, .kit-menu")) return;
+    if (tool === "hand") { // drag anywhere pans
+      e.preventDefault(); e.stopPropagation();
+      var x0 = e.clientX, y0 = e.clientY, t0 = tx, u0 = ty;
+      capture(viewEl, e.pointerId); viewEl.classList.add("is-panning");
+      var mv = function (ev) { tx = t0 + ev.clientX - x0; ty = u0 + ev.clientY - y0; apply(); };
+      var upH = function () { viewEl.removeEventListener("pointermove", mv); viewEl.removeEventListener("pointerup", upH); viewEl.classList.remove("is-panning"); };
+      viewEl.addEventListener("pointermove", mv); viewEl.addEventListener("pointerup", upH);
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    commitAll(); select(null, []); selectBoard(null);
+    var a = worldAt(e), kind = tool, pts = [[0, 0]], ghost = h("div", { "class": "dc-ghost" });
+    notesLayer.appendChild(ghost);
+    capture(viewEl, e.pointerId);
+    function move(ev) {
+      var b = worldAt(ev);
+      if (kind === "pen") { pts.push([R(b.x - a.x), R(b.y - a.y)]); ghost.style.cssText = "left:" + b.x + "px;top:" + b.y + "px;width:4px;height:4px"; return; }
+      ghost.style.cssText = "left:" + Math.min(a.x, b.x) + "px;top:" + Math.min(a.y, b.y) + "px;width:" + Math.abs(b.x - a.x) + "px;height:" + Math.abs(b.y - a.y) + "px";
+    }
+    function up(ev) {
+      viewEl.removeEventListener("pointermove", move); viewEl.removeEventListener("pointerup", up);
+      ghost.remove();
+      var b = worldAt(ev), w = Math.abs(b.x - a.x), hh = Math.abs(b.y - a.y), x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), id = noteId(), drawn = w > 6 || hh > 6;
+      if (kind === "board") { newBoardAt(drawn ? x : a.x, drawn ? y : a.y, drawn ? w : 880, drawn ? hh : 560); setTool("select"); return; }
+      var n = null;
+      if (kind === "text") n = { x: R(a.x), y: R(a.y), text: T.phText, kind: "title1", size: 40 };
+      else if (kind === "sticky") n = { x: R(a.x), y: R(a.y), text: "", w: 240 };
+      else if (kind === "rect" || kind === "oval") n = { kind: kind, x: R(drawn ? x : a.x), y: R(drawn ? y : a.y), w: R(drawn ? w : 200), h: R(drawn ? hh : 140) };
+      else if (kind === "line" || kind === "arrow") { if (!drawn) { b = { x: a.x + 200, y: a.y }; } n = { kind: kind, x: R(a.x), y: R(a.y), x2: R(b.x), y2: R(b.y) }; }
+      else if (kind === "pen" && pts.length > 2) n = { kind: "pen", x: R(a.x), y: R(a.y), points: pts };
+      if (!n) return;
+      checkpoint();
+      canvas.notes[id] = withPage(n);
+      renderNotes(); changed(); selectNote(id);
+      if (kind !== "pen") setTool("select");
+      if (kind === "text" || kind === "sticky") { var el = notesLayer.querySelector('[data-note="' + id + '"]'); if (el) editNote(el, id); }
+    }
+    viewEl.addEventListener("pointermove", move); viewEl.addEventListener("pointerup", up);
+  }, true);
+
+  // a note is selected by a click; Delete removes it
+  var selNote = null;
+  function selectNote(id) {
+    selNote = id && canvas.notes[id] ? id : null;
+    notesLayer.querySelectorAll("[data-note]").forEach(function (el) { el.classList.toggle("is-sel", el.getAttribute("data-note") === selNote); });
+  }
+  function removeNote() {
+    if (!selNote || !canvas.notes[selNote]) return false;
+    checkpoint(); delete canvas.notes[selNote]; selNote = null;
+    renderNotes(); changed();
+    return true;
+  }
+  if (editable) {
+    notesLayer.addEventListener("pointerdown", function (e) { var el = e.target.closest("[data-note]"); if (el && tool === "select") selectNote(el.getAttribute("data-note")); }, true);
+    viewEl.addEventListener("pointerdown", function (e) { if (!e.target.closest("[data-note]")) selectNote(null); });
+    document.addEventListener("keydown", function (e) {
+      if (/input|textarea|select/i.test(e.target.tagName) || e.target.isContentEditable || focus) return;
+      if ((e.key === "Delete" || e.key === "Backspace") && selNote) { e.preventDefault(); removeNote(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = { v: "select", h: "hand", t: "text", a: "board", s: "sticky", p: "pen", r: "rect", o: "oval", l: "line" }[e.key.toLowerCase()];
+      if (t && !sel.path) { if (t === "line" && e.shiftKey) t = "arrow"; setTool(t); }
+      if (e.key === "Escape" && tool !== "select") setTool("select");
+    });
+  }
 
   if (!paths.length) viewEl.appendChild(h("div", { "class": "kit-empty dc-emptymsg", text: T.empty }));
   drawPages();

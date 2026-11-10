@@ -69,7 +69,8 @@
         out.push({ t: "code", lang: m[2] || "", v: body.join("\n") });
         continue;
       }
-      if ((m = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line))) { out.push({ t: "h", level: m[1].length, c: parseInline(m[2]) }); i++; continue; }
+      // A marker alone on its line is an empty heading or list item (as in CommonMark), so a block just started keeps its kind.
+      if ((m = /^ {0,3}(#{1,6})(?:\s+(.*?))?\s*#*\s*$/.exec(line))) { out.push({ t: "h", level: m[1].length, c: parseInline(m[2] || "") }); i++; continue; }
       if (/^ {0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push({ t: "hr" }); i++; continue; }
       if (/^ {0,3}>/.test(line)) {
         var q = [];
@@ -89,9 +90,9 @@
           var cells = []; for (var k = 0; k < head.length; k++) cells.push(parseInline(r[k] || "")); return cells; }) });
         continue;
       }
-      if ((m = /^( {0,3})([-+*]|\d{1,9}[.)])\s+/.exec(line))) {
+      if ((m = /^( {0,3})([-+*]|\d{1,9}[.)])(\s+|$)/.exec(line))) {
         var ordered = /\d/.test(m[2]), start = ordered ? parseInt(m[2], 10) : 1, items = [];
-        var marker = ordered ? /^( {0,3})(\d{1,9}[.)])(\s+)(.*)$/ : /^( {0,3})([-+*])(\s+)(.*)$/;
+        var marker = ordered ? /^( {0,3})(\d{1,9}[.)])(\s+|$)(.*)$/ : /^( {0,3})([-+*])(\s+|$)(.*)$/;
         while (i < lines.length) {
           var lm = marker.exec(lines[i]);
           if (!lm) break;

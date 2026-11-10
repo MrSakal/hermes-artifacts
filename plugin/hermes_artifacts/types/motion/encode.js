@@ -5,7 +5,6 @@
   "use strict";
 
   // ------------------------------------------------------------------ bytes
-  function u8(n) { return [n & 255]; }
   function u16(n) { return [(n >>> 8) & 255, n & 255]; }
   function u24(n) { return [(n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }
   function u32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }

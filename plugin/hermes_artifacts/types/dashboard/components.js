@@ -253,7 +253,7 @@
   // --- charts ------------------------------------------------------------------------------------
   var tip = null;
   function tooltip(show, x, y, html) {
-    if (!tip) { tip = h("div", { "class": "c-tip" }); document.body.appendChild(tip); }
+    if (!tip) { tip = h("div", { "class": "c-tip" }); (document.getElementById("dash-main") || document.body).appendChild(tip); }
     if (!show) { tip.style.display = "none"; return; }
     tip.replaceChildren.apply(tip, html);
     tip.style.display = "block";

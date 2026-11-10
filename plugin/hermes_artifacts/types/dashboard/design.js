@@ -29,8 +29,6 @@
       dark: { ground: "#0e130e", card: "#192019", text: "#f0efec", muted: "#898781", border: "#272726", good: "#0ca30c", warning: "#db9300", bad: "#ec7e7e",
         charts: ["#488166", "#72d0a2", "#d8e983", "#917356", "#f1b454", "#4ea4a4", "#a3a79e", "#c05c73"] } }
   };
-  var SWATCH = { Default: ["#f9f9f7", "#2a78d6", "#0b0b0b", "#eb6834"], Clay: ["#f6f1e9", "#d97757", "#2b2620", "#3d3929"],
-    Ocean: ["#f0f5fa", "#1d4e89", "#0f2233", "#2a78d6"], Meadow: ["#f2f5ec", "#2d6a4f", "#1e2a1f", "#52b788"] };
 
   var COLOR_FORM = /^(#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|(rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\([^()]{1,80}\))$/i;
   var probe = null;
@@ -125,7 +123,9 @@
   }
   function apply() {
     if (!worn) return;
-    var st = document.documentElement.style, m = mode(), set = worn[m] || worn.light || worn.dark;
+    // The look dresses the dashboard's own area; the bar, the panel and the menus keep the app's theme.
+    var host = (document.getElementById && document.getElementById("dash-main")) || document.documentElement;
+    var st = host.style, m = mode(), set = worn[m] || worn.light || worn.dark;
     var put = function (k, v) { if (v) { st.setProperty(k, v); applied.push(k); } };
     put("--color-bg", set.ground); put("--color-panel", set.card); put("--color-fg", set.text);
     put("--color-fg-secondary", hex(mix(rgb(set.text), rgb(set.muted), 0.45)));
@@ -149,49 +149,6 @@
     return worn;
   }
 
-  /** A design system recorded as a look: its colors by name and usage, per theme, as values. */
-  function lookFromDs(ds) {
-    var st = document.createElement("style");
-    st.textContent = window.dsKit.css(ds);
-    document.head.appendChild(st);
-    var themes = window.dsKit.themes(ds), out = { system: { name: String(ds.name || ds.title || "Design system").slice(0, 60), id: ds.id || null } };
-    var sets = (themes.length ? themes : [{ id: null }]).map(function (th) {
-      var p = document.createElement("div");
-      if (th.id) p.setAttribute("data-theme", th.id);
-      document.body.appendChild(p);
-      var cs = getComputedStyle(p);
-      var toks = ((ds.tokens.color || {}).tokens || []).map(function (t) {
-        var v = cs.getPropertyValue("--" + t.name).trim(), c = rgb(v) || (function () { p.style.color = v; return rgb(getComputedStyle(p).color); })();
-        return c ? { name: t.name, usage: String(t.usage || ""), c: c, L: lum(c), C: (Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)) / 255 } : null;
-      }).filter(Boolean);
-      p.remove();
-      var pick = function (re, ure) { var t = toks.find(function (x) { return re.test(x.name); }) || (ure && toks.find(function (x) { return ure.test(x.usage); })); return t ? hex(t.c) : undefined; };
-      var byL = toks.slice().sort(function (a, b) { return a.L - b.L; });
-      var ground = pick(/^(bg|background|surface-?0|canvas|paper|page|ground)/i, /(page|app)?\s*background|the ground/i);
-      var dark = ground ? lum(rgb(ground)) < 0.3 : /dark|night/i.test(th.id || "");
-      if (!ground && byL.length) ground = hex((dark ? byL[0] : byL[byL.length - 1]).c);
-      var accents = toks.filter(function (t) { return t.C > 0.18; }).sort(function (a, b) { return b.C - a.C; });
-      var brand = pick(/(accent|brand|primary)$/i, /accent|brand colou?r|primary/i);
-      var charts = [brand].concat(accents.map(function (t) { return hex(t.c); })).filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 8);
-      return { dark: dark, set: { ground: ground, card: pick(/^(surface|card|panel|raised)/i, /cards?|surfaces?|panel/i),
-        text: pick(/^(ink|fg|text|foreground|on-?surface)$/i, /^(body )?text/i) || (byL.length ? hex((dark ? byL[byL.length - 1] : byL[0]).c) : undefined),
-        muted: pick(/(muted|secondary|subtle|ink-?2|text-?2)/i, /secondary text|muted/i), border: pick(/(line|border|divider|rule|hairline)/i, /borders?|dividers?|hairlines?/i),
-        good: pick(/(success|positive|good|ok)$/i), warning: pick(/(warning|caution)$/i), bad: pick(/(danger|error|negative|bad|critical)$/i), charts: charts } };
-    });
-    st.remove();
-    var light = sets.filter(function (s) { return !s.dark; })[0], dk = sets.filter(function (s) { return s.dark; })[0];
-    if (light) out.light = light.set;
-    if (dk) out.dark = dk.set;
-    var r = ds.tokens && ds.tokens.radius && ds.tokens.radius.tokens && ds.tokens.radius.tokens[0];
-    if (r && r.value) out.corners = String(r.value);
-    var fam = (ds.tokens.type || {}).families || {}, fk = Object.keys(fam);
-    var font = function (re) { var k = fk.find(function (x) { return re.test(x); }); return k ? fam[k] : undefined; };
-    var text = font(/^(sans|body|text)/i) || font(/./), display = font(/^(display|heading|serif|head)/i);
-    if (text || display) out.fonts = { text: text || display, display: display || text };
-    return out;
-  }
-
-  // ------------------------------------------------------------------ drafts
   var FORMATS = ["dashboard", "scrollyteller", "visual-analysis", "visual-short"];
   /** The newest draft request in this version's files: {id, format, at, page?} or null. */
   function draftOf(files) {
@@ -234,6 +191,6 @@
   }
 
 
-  window.dashDesignKit = { LOOKS: LOOKS, check: check, wear: wear, lookFromDs: lookFromDs, draftOf: draftOf, saveDraftFiles: saveDraftFiles,
+  window.dashDesignKit = { LOOKS: LOOKS, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles,
     draftFiles: draftFiles, FORMATS: FORMATS };
 })();

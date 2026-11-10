@@ -12,13 +12,16 @@ Tell the user what happens on the canvas, never the mechanism.
 
 1. **Design system first.** `artifact_guide` returns `design_system`: the user's default; build on it
    unasked, however small the request, unless the user names another or declines. None set: it lists
-   systems; name them and ask, when someone can answer. `artifact_read` its `tokens.json`, `README.md`;
-   match exact colors, type, spacing, radii, fonts. Record in `canvas.json`:
-   `"designSystems": [{"title": "Ember", "namespace": "ember", "artifact": "<its id>", "version": <its latest version>}]`.
-   ≤4 if the user asks to combine; first = the canvas's own (its themes win clashes), others add
-   colors, type styles, CSS. The canvas injects its CSS (tokens as `var(--name)` per `[data-theme]`,
-   fonts, type style classes, `components/bundle.css`) into every artboard; themes in a Theme menu.
-   No system: one nameable look, stated in one line. Then settle static vs interactive.
+   systems; name them and ask, when someone can answer. Match its exact colors, type, spacing, radii,
+   fonts. Record in `canvas.json`: `"designSystems": ["<id>"]`; publishing copies it onto the canvas
+   (`ds/<name>/`) and fills the record (keep it as read; `[{"artifact": "<id>", "update": true}]`
+   takes its latest, when asked). ≤4 if the user asks to combine; first = the canvas's own (its
+   themes win clashes). Every artboard gets its CSS (tokens as `var(--name)` per `[data-theme]`,
+   fonts, type style classes, `components/bundle.css`) and its components: mount one with
+   `<x-import component-from-global-scope="<Namespace>.<Comp>" variant="primary">Label</x-import>`
+   (attributes = props; read its card first), never a hand-built copy of a control it provides.
+   Themes in a Theme menu. No system: one nameable look, stated in one line. Then settle static vs
+   interactive.
 2. **Index + first artboard in one publish**:
    `artifact_publish type=design title="Spring Menu Poster" files={"canvas.json": {...}, "Main.dc.html": "<!doctype html>..."}`
 3. Each later artboard: `artifact_publish id=<id> base=true files={"Next.dc.html": "..."}` (+ `canvas.json`
@@ -56,6 +59,8 @@ Tell the user what happens on the canvas, never the mechanism.
     `gray`|`red`|`orange`|`green`|`teal`|`blue`|`purple`|`pink`.
   - `link`: card; `url` (http/https) required, `text` = title (else host), `w`.
   - `rect` `oval` `pen` `line` `arrow` `image`: user's, leave.
+- The user draws on the canvas too (tools at its foot): notes, pages, and empty artboards saved as
+  `Board-<n>.dc.html`. Read the current files before editing; fill a `Board-<n>` when asked, never drop one.
 - Existing index: keep every key/entry you don't change, unknown ones too.
 
 Paths: `<path>.dc.html`, ≤4 folders; segments `[A-Za-z0-9_][A-Za-z0-9._-]*`; stems unique.

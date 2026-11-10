@@ -164,14 +164,102 @@ class RenderTests(unittest.TestCase):
             self.assertIn("Kiln", ds["readme"])
             self.assertNotIn("@generated", ds["readme"])
             self.assertIn("--ink", ds["tokens"])
-            self.assertIn("Button", [c["name"] for c in ds["components"]])
+            self.assertIn("Button", ds["components"].split(", "))  # names only: a card is one read away
             self.assertIn("never made-up", ds["rule"])
             self.assertNotIn("design_system", json.loads(plugin._guide({"type": "doc"})))
             out = json.loads(plugin._publish({"type": "slides", "title": "d", "open": False,
                                               "files": {"deck.json": {"title": "d", "slides": []}}}))
             self.assertEqual(out["design_system"]["id"], kiln)
+            # each type is handed only what it uses: a dashboard and a film take values, a deck no components
+            dash = json.loads(plugin._guide({"type": "dashboard"}))["design_system"]
+            self.assertEqual(sorted(dash), ["id", "rule", "title", "tokens", "version"])
+            film = json.loads(plugin._guide({"type": "motion"}))["design_system"]
+            self.assertNotIn("readme", film)
+            deck = json.loads(plugin._guide({"type": "slides"}))["design_system"]
+            self.assertIn("readme", deck)
+            self.assertNotIn("components", deck)
+            self.assertLess(len(json.dumps(dash)), len(json.dumps(deck)))
+            self.assertLess(len(json.dumps(deck)), len(json.dumps(ds)))
+            # a deck that wears a system gets no reminder
+            out = json.loads(plugin._publish({"type": "slides", "title": "d2", "open": False,
+                                              "files": {"deck.json": {"title": "d", "slides": [], "designSystems": [kiln]}}}))
+            self.assertNotIn("design_system", out)
         finally:
             store.settings_set("default_design_system", None)
+
+    def test_the_system_is_copied_into_what_wears_it(self):
+        kiln = store.publish(path=str(EXAMPLE), title="Kiln", type="design-system")["id"]
+        canvas = store.publish(title="C", type="design", files={
+            "canvas.json": {"v": 3, "title": "C", "boards": {}, "order": [], "designSystems": [kiln]},
+            "Main.dc.html": "<!doctype html><p>x</p>"})["id"]
+        rec = json.loads(store.read_file(canvas, "canvas.json").decode("utf-8"))["designSystems"][0]
+        self.assertEqual((rec["artifact"], rec["version"], rec["namespace"], rec["title"]), (kiln, 1, "kiln", "Kiln"))
+        self.assertTrue(rec["copiedAt"])
+        files = store.list_files(canvas)
+        for p in ("ds/kiln/tokens.json", "ds/kiln/tokens.css", "ds/kiln/components/bundle.css",
+                  "ds/kiln/components/bundle.js", "ds/kiln/assets/Marks/kiln-mark.svg"):
+            self.assertIn(p, files)
+        # the system moves on (and is then deleted): the copy stays as it was
+        t = json.loads(store.read_file(kiln, "tokens.json").decode("utf-8"))
+        before = store.read_file(canvas, "ds/kiln/tokens.json")
+        t["color"]["tokens"][0]["value"] = {"light": "#000000", "dark": "#111111"}
+        store.publish(aid=kiln, base=True, files={"tokens.json": t})
+        store.publish(aid=canvas, base=True, files={"Main.dc.html": "<!doctype html><p>y</p>"})
+        self.assertEqual(store.read_file(canvas, "ds/kiln/tokens.json"), before)
+        self.assertEqual(json.loads(store.read_file(canvas, "canvas.json").decode("utf-8"))["designSystems"][0], rec)
+        # named again, by id alone, even in a publish that brings every file anew: the copy and its version stay
+        store.publish(aid=canvas, base=True, files={"canvas.json": {"v": 3, "title": "C", "boards": {}, "order": [], "designSystems": [kiln]}})
+        self.assertEqual(json.loads(store.read_file(canvas, "canvas.json").decode("utf-8"))["designSystems"][0], rec)
+        store.publish(aid=canvas, files={"canvas.json": {"v": 3, "title": "C", "boards": {}, "order": [], "designSystems": [kiln]},
+                                         "Main.dc.html": "<!doctype html><p>z</p>"})
+        self.assertEqual(json.loads(store.read_file(canvas, "canvas.json").decode("utf-8"))["designSystems"][0], rec)
+        self.assertEqual(store.read_file(canvas, "ds/kiln/tokens.json"), before)
+        # asked to update: the latest version
+        store.publish(aid=canvas, base=True, files={"canvas.json": {"v": 3, "title": "C", "boards": {}, "order": [], "designSystems": [{"artifact": kiln, "update": True}]}})
+        self.assertEqual(json.loads(store.read_file(canvas, "canvas.json").decode("utf-8"))["designSystems"][0]["version"], 2)
+        self.assertNotEqual(store.read_file(canvas, "ds/kiln/tokens.json"), before)
+        # a deck: no component bundle (slides cannot run one); an older index is brought over
+        deck = store.publish(title="D", type="slides", files={"deck.json": {"title": "D", "slides": [], "designSystem": {"id": kiln, "version": 1, "theme": "dark"}}})["id"]
+        d = json.loads(store.read_file(deck, "deck.json").decode("utf-8"))
+        self.assertNotIn("designSystem", d)
+        self.assertEqual((d["designSystems"][0]["version"], d["designSystems"][0]["theme"]), (1, "dark"))
+        self.assertNotIn("ds/kiln/components/bundle.js", store.list_files(deck))
+        self.assertIn("ds/kiln/tokens.json", store.list_files(deck))
+        store.delete(kiln)
+        store.publish(aid=deck, base=True, files={"notes.txt": "x"})
+        self.assertIn("ds/kiln/tokens.json", store.list_files(deck))
+        # dropping the record drops the copy
+        store.publish(aid=deck, base=True, files={"deck.json": {"title": "D", "slides": []}})
+        self.assertFalse([f for f in store.list_files(deck) if f.startswith("ds/")])
+
+    def test_a_type_may_have_its_own_default_or_none(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        try:
+            a = store.publish(path=str(EXAMPLE), title="Kiln", type="design-system")["id"]
+            b = store.publish(path=str(EXAMPLE), title="Other", type="design-system")["id"]
+            store.settings_set("default_design_system", a)
+            r = api.handle("POST", "design-system-for", {}, {"type": "slides", "id": b})
+            self.assertEqual(r["design_system_for"], {"slides": b})
+            self.assertEqual(json.loads(plugin._guide({"type": "slides"}))["design_system"]["id"], b)
+            self.assertEqual(json.loads(plugin._guide({"type": "design"}))["design_system"]["id"], a)
+            api.handle("POST", "design-system-for", {}, {"type": "motion", "id": "none"})
+            self.assertNotIn("design_system", json.loads(plugin._guide({"type": "motion"})))  # nothing to read, nothing offered
+            with self.assertRaises(api.ApiError):
+                api.handle("POST", "design-system-for", {}, {"type": "doc", "id": a})
+            store.delete(b)
+            self.assertEqual(store.default_design_system("slides"), a)
+            api.handle("POST", "design-system-for", {}, {"type": "motion", "id": None})
+            self.assertEqual(store.default_design_system("motion"), a)
+        finally:
+            store.settings_set("default_design_system", None)
+            store.settings_set("design_system_for", None)
 
 
 class SaveTests(unittest.TestCase):
@@ -210,6 +298,71 @@ class SaveTests(unittest.TestCase):
                       {"assets/Photo shoots/a.png": "data:image/png;base64," + PNG}):  # no spaces in stored paths
             with self.assertRaises(api.ApiError, msg=files):
                 op(self.aid, "save", files=files)
+
+    SVG = ('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10">'
+           '<defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs>'
+           '<rect width="10" height="10" fill="url(#g)"/><use xlink:href="#g"/>'
+           '<image href="data:image/png;base64,' + PNG + '"/></svg>')
+
+    def test_a_static_svg_saves_as_text(self):
+        uri = "data:image/svg+xml;base64," + base64.b64encode(self.SVG.encode()).decode()
+        r = op(self.aid, "save", base_version=1, files={"assets/Logos/mark.svg": uri, "assets/Logos/plain.svg": self.SVG,
+                                                         "assets/Logos/mark.png": "data:image/png;base64," + PNG})
+        self.assertTrue(r["ok"], r)
+        vdir = store.version_dir(self.aid)
+        self.assertEqual((vdir / "assets" / "Logos" / "mark.svg").read_text("utf-8"), self.SVG)
+        self.assertEqual((vdir / "assets" / "Logos" / "plain.svg").read_text("utf-8"), self.SVG)
+        self.assertEqual((vdir / "assets" / "Logos" / "mark.png").read_bytes()[:4], b"\x89PNG")
+        c = render.content_json(vdir)
+        self.assertIn("assets/Logos/mark.svg", c)
+        self.assertIn("<svg", c["assets/Logos/mark.svg"] if not c["assets/Logos/mark.svg"].startswith("data:")
+                      else base64.b64decode(c["assets/Logos/mark.svg"].split(",", 1)[1]).decode())
+
+    def test_an_unsafe_svg_is_refused(self):
+        ns = 'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"'
+        bad = [f'<svg {ns}><script>alert(1)</script></svg>',
+               f'<svg {ns}><foreignObject><div/></foreignObject></svg>',
+               f'<svg {ns}><iframe src="x"/></svg>', f'<svg {ns}><embed src="x"/></svg>', f'<svg {ns}><object data="x"/></svg>',
+               f'<svg {ns} onload="alert(1)"/>', f'<svg {ns}><rect onClick="alert(1)"/></svg>',
+               f'<svg {ns}><a href="javascript:alert(1)"><rect/></a></svg>',
+               f'<svg {ns}><a xlink:href="  JaVaScRiPt:alert(1)"><rect/></a></svg>',
+               f'<svg {ns}><a href="java&#9;script:alert(1)"><rect/></a></svg>',
+               f'<svg {ns}><use href="https://evil.example/x.svg#a"/></svg>',
+               f'<svg {ns}><image href="data:text/html;base64,PGI+"/></svg>',
+               f'<svg {ns}><set attributeName="href" to="javascript:alert(1)"/></svg>',
+               '<!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>',
+               '<?xml-stylesheet href="https://evil.example/a.css"?><svg xmlns="http://www.w3.org/2000/svg"/>',
+               '<html xmlns="http://www.w3.org/1999/xhtml"/>', '<svg><rect></svg>', "not xml",
+               "data:image/svg+xml;base64,!!!", "data:text/html;base64,PGI+"]
+        for svg in bad:
+            with self.assertRaises(api.ApiError, msg=svg):
+                op(self.aid, "save", files={"assets/Logos/x.svg": svg})
+        self.assertEqual(len(store.get_meta(self.aid)["versions"]), 1)
+
+    def test_an_svg_over_the_cap_is_refused(self):
+        big = '<svg xmlns="http://www.w3.org/2000/svg"><desc>' + "x" * (2 * 1024 * 1024) + "</desc></svg>"
+        with self.assertRaises(api.ApiError):
+            op(self.aid, "save", files={"assets/Logos/big.svg": big})
+        with self.assertRaises(api.ApiError):
+            op(self.aid, "save", files={"assets/Logos/big.svg": "data:image/svg+xml;base64," + base64.b64encode(big.encode()).decode()})
+
+    def test_only_design_system_assets_take_svg(self):
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+        for path in ("fonts/a.svg", "a.svg", "components/Button/a.svg"):
+            with self.assertRaises(api.ApiError, msg=path):
+                op(self.aid, "save", files={path: svg})
+        import re
+        for typ, pat in api._SAVE_PATHS.items():  # no other type's save paths take an SVG
+            if typ != "design-system":
+                for path in ("img/a.svg", "uploads/a.svg", "a.svg", "assets/Logos/a.svg"):
+                    self.assertIsNone(re.match(pat, path), (typ, path))
+
+    def test_the_page_comments_through_the_host(self):
+        js = (PLUGIN / "hermes_artifacts" / "types" / "design-system" / "ds-page.js").read_text("utf-8")
+        self.assertIn("window.hermes.comment({ selector: anchor", js)
+        self.assertIn('window.hermes.on("flash"', js)
+        for kind in ("token:", "style:", "component:", "asset:", "section:"):
+            self.assertIn('"' + kind, js)
 
     def test_stale_base_is_a_conflict(self):
         op(self.aid, "save", base_version=1, files={"README.md": "# a\n"})

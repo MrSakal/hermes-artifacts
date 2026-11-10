@@ -33,12 +33,39 @@ def content_json(vdir: Path) -> dict:
     return out
 
 
+_runtimes: dict = {}  # kind -> (stamp of every file that went in, html)
+
+
+def _stamp(paths) -> tuple:
+    out = []
+    for p in paths:
+        st = p.stat()
+        out.append((str(p), st.st_mtime_ns, st.st_size))
+    return tuple(out)
+
+
 def runtime(kind: str) -> str:
-    """types/<kind>/runtime.html with its local scripts and styles inlined."""
+    """types/<kind>/runtime.html with its local scripts and styles inlined.
+
+    Bundling a runtime costs tens of milliseconds and every view and thumbnail needs one, so the
+    result is kept until one of the files it was made from changes (a plugin update, an edit)."""
     if not (TYPES_DIR / kind / "runtime.html").is_file():
         raise ValueError(f"no viewer for type {kind!r} in this plugin version")
+    hit = _runtimes.get(kind)
+    if hit:
+        try:
+            if _stamp(Path(name) for name, _, _ in hit[0]) == hit[0]:
+                return hit[1]
+        except OSError:
+            pass
+    seen: set = set()
     # Rooted at types/ so every runtime can share types/_kit/.
-    return bundle.bundle(TYPES_DIR, f"{kind}/runtime.html")
+    html = bundle.bundle(TYPES_DIR, f"{kind}/runtime.html", seen=seen)
+    try:
+        _runtimes[kind] = (_stamp(sorted(seen)), html)
+    except OSError:
+        _runtimes.pop(kind, None)
+    return html
 
 
 def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:

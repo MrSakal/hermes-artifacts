@@ -781,12 +781,3 @@ def build(files: dict, index: Optional[dict] = None) -> dict:
         out["README.md"] = own + "\n" + readme_tail(index, m, comps, groups_order)
     out["_stale"] = [p for p in files if p.startswith("api/") and p not in out]
     return out
-
-
-def strip_project(files: dict) -> dict:
-    """A system brought over from Claude keeps everything under project/: the same files here sit at
-    the root. Only when every path is under project/ (or is one of the type's own files)."""
-    keys = [k for k in files if not k.startswith(("artifact-type/",)) and k not in ("SKILL.md", "index.html")]
-    if keys and all(k.startswith("project/") for k in keys):
-        return {k[len("project/"):]: v for k, v in files.items() if k.startswith("project/")}
-    return files

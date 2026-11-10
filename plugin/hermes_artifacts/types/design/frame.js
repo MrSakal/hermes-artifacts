@@ -46,6 +46,132 @@
     return (st.parsed[path] = DC.parse(st.sources[path]));
   }
 
+  // ------------------------------------------------------------------ design-system components (<x-import>)
+  // A system may carry components/bundle.js: one classic script that sets window.<Namespace> = {Button, …}.
+  // With React in its own components/lib/ its components are React components, mounted in a root per
+  // <x-import>; without, they are plain functions props -> Node. Nothing is fetched: the scripts are the
+  // artifact's files, sent by the canvas once per frame.
+  var X = { sys: [], ran: {}, roots: new Map(), running: false, err: null, errs: [] };
+  function runCode(code) {
+    var s = document.createElement("script");
+    s.textContent = code;
+    X.running = true; X.err = null;
+    try { (document.head || document.documentElement).appendChild(s); } catch (e) { X.err = e; }
+    X.running = false;
+    s.remove();
+    return !X.err;
+  }
+  /** Run each system's scripts once: [{id, libs: [{name, code}], bundle}] (libs react first). True when one was new. */
+  function installSystems(list) {
+    var added = false;
+    (Array.isArray(list) ? list : []).forEach(function (sys) {
+      if (!sys || !sys.id || X.ran[sys.id] || typeof sys.bundle !== "string") return;
+      X.ran[sys.id] = 1; added = true;
+      var libs = Array.isArray(sys.libs) ? sys.libs : [], react = libs.length > 0;
+      libs.forEach(function (l) {
+        // One React per frame: a second system's copy would split hooks.
+        if (/^react[.-]/i.test(l.name) && !/^react-dom/i.test(l.name) && window.React) return;
+        if (/^react-dom/i.test(l.name) && window.ReactDOM) return;
+        if (!runCode(String(l.code || ""))) X.errs.push(new Error(l.name + ": " + (X.err && X.err.message || X.err)));
+      });
+      if (react && !(window.React && window.ReactDOM)) return; // React the copy doesn't carry: no mount
+      var head = /^\s*\/\*\s*@ds-bundle:\s*(\{[^\n]*\})\s*\*\//.exec(sys.bundle), ns = null, before = {};
+      try { ns = head && JSON.parse(head[1]).namespace; } catch (e) {}
+      Object.keys(window).forEach(function (k) { before[k] = 1; });
+      if (!runCode(sys.bundle)) X.errs.push(new Error("bundle.js: " + (X.err && X.err.message || X.err)));
+      if (!ns || !own(window, ns)) ns = Object.keys(window).filter(function (k) { return !before[k] && window[k] && typeof window[k] === "object"; })[0] || null;
+      if (ns && window[ns]) X.sys.push({ ns: ns, react: react });
+    });
+    return added;
+  }
+  function own(o, k) { return o != null && Object.prototype.hasOwnProperty.call(o, k); }
+  /** "Ns.Name" in that system, or a bare "Name" in each system in order: {C, sys} or null. */
+  function xFind(name) {
+    var parts = String(name || "").split("."), first = X.sys.filter(function (s) { return s.ns === parts[0]; })[0];
+    var tries = first && parts.length > 1 ? [[first, parts.slice(1)]] : X.sys.map(function (s) { return [s, parts]; });
+    for (var i = 0; i < tries.length; i++) {
+      var v = window[tries[i][0].ns], path = tries[i][1];
+      for (var j = 0; j < path.length && v != null; j++) v = own(v, path[j]) ? v[path[j]] : null;
+      if (typeof v === "function" || (tries[i][0].react && v && typeof v === "object" && v.$$typeof)) return { C: v, sys: tries[i][0] };
+    }
+    return null;
+  }
+  function xSig(spec) {
+    try { return JSON.stringify(spec, function (k, v) { return typeof v === "function" ? "ƒ" + (v.name || "") : v; }); } catch (e) { return String(Math.random()); }
+  }
+  function xDrop(el) {
+    var root = X.roots.get(el);
+    if (!root) return;
+    X.roots.delete(el);
+    try { root.unmount(); } catch (e) {}
+  }
+  /** A plain-function component as a Node (null when it can't be one). */
+  function xDom(spec) {
+    var f = xFind(spec.name);
+    if (!f || f.sys.react) return null;
+    var p = Object.assign({}, spec.props), ch = spec.children;
+    if (ch != null) p.children = typeof ch === "string" ? ch : ch.map(function (k) {
+      if (typeof k === "string") return document.createTextNode(k);
+      if (k.x) return xDom(k.x);
+      var t = document.createElement("template"); t.innerHTML = k.html; return t.content.firstChild;
+    }).filter(Boolean);
+    try { var n = f.C(p); return n && n.nodeType ? n : null; } catch (e) { fail(new Error(spec.name + ": " + (e && e.message || e))); return null; }
+  }
+  var RX = null; // React helpers, made once React is there
+  function rx() {
+    var R = window.React;
+    if (RX && RX.R === R) return RX;
+    function Boundary(p) { R.Component.call(this, p); this.state = { bad: false, sig: p.sig }; }
+    Boundary.prototype = Object.create(R.Component.prototype);
+    Boundary.prototype.constructor = Boundary;
+    Boundary.getDerivedStateFromError = function () { return { bad: true }; };
+    Boundary.getDerivedStateFromProps = function (p, s) { return p.sig !== s.sig ? { bad: false, sig: p.sig } : null; };
+    Boundary.prototype.componentDidCatch = function (e) { fail(new Error(this.props.name + ": " + (e && e.message || e))); };
+    Boundary.prototype.render = function () { return this.state.bad ? null : this.props.children; };
+    function Raw(p) { return R.createElement("span", { style: { display: "contents" }, dangerouslySetInnerHTML: { __html: p.html } }); }
+    return (RX = { R: R, Boundary: Boundary, Raw: Raw });
+  }
+  function xElement(spec, key) {
+    var h = rx(), R = h.R, f = xFind(spec.name);
+    if (!f) return R.createElement("x-import", { key: key, "data-dc-ximport": spec.name });
+    if (!f.sys.react) { // a plain one inside a React one
+      return R.createElement("span", { key: key, style: { display: "contents" }, ref: function (n) {
+        if (n) { var d = xDom(spec); n.replaceChildren(); if (d) n.appendChild(d); }
+      } });
+    }
+    var p = Object.assign({ key: key }, spec.props), ch = spec.children;
+    if (ch == null) return R.createElement(f.C, p);
+    if (typeof ch === "string") return R.createElement(f.C, p, ch);
+    return R.createElement.apply(null, [f.C, p].concat(ch.map(function (k) {
+      return typeof k === "string" ? k : k.x ? xElement(k.x) : R.createElement(h.Raw, { html: k.html });
+    })));
+  }
+  /** Render an <x-import> host (dc.js calls this after each render of its artboard). */
+  function xRender(el, spec) {
+    var f = xFind(spec.name), sig = xSig(spec);
+    if (f && f.sys.react && window.React && window.ReactDOM) {
+      var D = window.ReactDOM, root = X.roots.get(el);
+      if (!root) {
+        el.replaceChildren(); el.__dcXSig = null;
+        root = D.createRoot ? D.createRoot(el) : { render: function (t) { D.render(t, el); }, unmount: function () { D.unmountComponentAtNode(el); } };
+        X.roots.set(el, root);
+      }
+      var h = rx(), tree = h.R.createElement(h.Boundary, { name: spec.name, sig: sig }, xElement(spec));
+      try { if (D.flushSync) D.flushSync(function () { root.render(tree); }); else root.render(tree); }
+      catch (e) { fail(new Error(spec.name + ": " + (e && e.message || e))); xDrop(el); el.replaceChildren(); }
+      return;
+    }
+    xDrop(el);
+    // A plain function is called again only when what it gets changes.
+    if (el.__dcXSig === sig) return;
+    el.__dcXSig = sig;
+    var n = f ? xDom(spec) : null;
+    el.replaceChildren();
+    if (n) el.appendChild(n);
+  }
+  function xSweep() { X.roots.forEach(function (r, el) { if (!el.isConnected) xDrop(el); }); }
+  var XI = { has: function (name) { return !!xFind(name); }, render: xRender, sweep: xSweep };
+
   // ------------------------------------------------------------------ render
   function live() { return st.mode !== "edit" && st.mode !== "export"; }
   function fail(err) {
@@ -83,8 +209,9 @@
     headLinks(parsed);
     if (parsed.missing) fail(new Error("no <x-dc> in " + st.file));
     if (parsed.propsError) fail(new Error(parsed.propsError));
+    X.errs.forEach(fail);
     st.inst = DC.mount({ doc: document, host: document.body, file: st.file, parsed: parsed, get: get, props: st.props, url: url, css: css,
-      live: live, map: st.map, onError: fail, onRender: rendered });
+      live: live, map: st.map, onError: fail, onRender: rendered, xi: XI });
     if (!st.errors.length) post({ t: "error", errors: [] });
     if (!st.ready) settle().then(function () { st.ready = true; post({ t: "ready" }); size(); });
   }
@@ -310,7 +437,10 @@
     fr.onload = function () { post({ t: "drop", tid: infoOf(el).tpl.__dcTid, url: fr.result, name: f.name, type: f.type, size: f.size }); };
     fr.readAsDataURL(f);
   });
-  window.addEventListener("error", function (e) { fail(e.error || e.message); });
+  window.addEventListener("error", function (e) {
+    if (X.running) { X.err = e.error || e.message || "error"; e.preventDefault(); return; } // a system's script: noted, the frame goes on
+    fail(e.error || e.message);
+  });
   window.addEventListener("unhandledrejection", function (e) { fail(e.reason); });
   if (window.ResizeObserver) new ResizeObserver(function () { rendered(); }).observe(document.documentElement);
 
@@ -458,7 +588,7 @@
         st.id = m.id; st.file = m.file; st.sources = m.sources || {}; st.parsed = {}; st.urls = m.urls || {}; st.css = m.css || {};
         st.props = m.props || {};
         setMode(m.mode || "edit", m.wheel || "forward");
-        setDs(m.ds); setTheme(m.theme);
+        setDs(m.ds); setTheme(m.theme); installSystems(m.scripts);
         mount();
         break;
       case "src":
@@ -484,7 +614,7 @@
       case "edit": var els = elementsOf(m.tid); if (els[0] && DC.textEditable(infoOf(els[0]).tpl)) startEdit(els[0]); break;
       case "commit": commit(); break;
       case "space": st.space = !!m.on; break;
-      case "ds": setDs(m.css); break;
+      case "ds": setDs(m.css); if (installSystems(m.scripts) && st.inst) mount(); break;
       case "theme": setTheme(m.theme); break;
       case "raster":
         raster(m).then(function (r) { r.t = "raster"; r.req = m.req; post(r); }, function (err) { post({ t: "raster", req: m.req, error: String(err && err.message || err) }); });
@@ -497,7 +627,7 @@
     var data = JSON.parse(standalone.textContent);
     st.sources = data.sources || {}; st.urls = data.urls || {}; st.css = data.css || {}; st.propsAll = data.props || {};
     st.file = data.file; st.props = st.propsAll[st.file] || {};
-    setMode("play", "native"); setDs(data.ds); setTheme(data.theme);
+    setMode("play", "native"); setDs(data.ds); setTheme(data.theme); installSystems(data.scripts);
     mount();
   } else {
     post({ t: "hello" });

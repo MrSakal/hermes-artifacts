@@ -39,7 +39,21 @@
       phSection: "Section", phQuote: "A sentence worth repeating.", phBy: "Someone", phMetric: "Metric", phClosing: "Thank you",
       phHeading: "Heading", phKicker: "Kicker",
       lTitle: "Title", lSection: "Section", lBullets: "Bullets", lKpis: "Big numbers", lTwo: "Two columns", lQuote: "Quote",
-      lClosing: "Closing", lBlank: "Blank",
+      lClosing: "Closing", lBlank: "Blank", lTable: "Table",
+      table: "Table", shapes: "Shapes", rounded: "Rounded rectangle", diamond: "Diamond", arrowR: "Arrow right", arrowL: "Arrow left",
+      arrowU: "Arrow up", arrowD: "Arrow down", line: "Line", props: "Properties", zoom: "Zoom", zoomIn: "Zoom in", zoomOut: "Zoom out",
+      fitSlide: "Fit the slide", presentNotes: "Present with speaker notes", showNotes: "Speaker notes", showThumbs: "Slide thumbnails",
+      hideThumbs: "Hide thumbnails", oneSlide: "One slide", prev: "Previous slide", nextSlide: "Next slide", more: "More",
+      pSlide: "Slide", pTransition: "Transition", trNone: "None", trFade: "Fade", trPush: "Push", trMagic: "Magic move",
+      pAppearance: "Appearance", pBackground: "Background", pSize: "Size", pX: "X", pY: "Y", pWidth: "Width", pHeight: "Height",
+      pText: "Text", pStyle: "Text style", pCustom: "Custom", pFontSize: "Size", pWeight: "Weight", pLine: "Line height", pTrack: "Spacing",
+      pColor: "Color", pAlign: "Align", pOpacity: "Opacity", pRadius: "Radius", pBorder: "Border", pShadow: "Shadow", pEffects: "Effects",
+      none: "None", wRegular: "Regular", wMedium: "Medium", wSemi: "Semibold", wBold: "Bold", wLight: "Light",
+      bSolid: "Solid", bDashed: "Dashed", bDotted: "Dotted", cut: "Cut", copy: "Copy", paste: "Paste", addAfter: "Add slide after",
+      skip: "Skip slide", unskip: "Don't skip slide", moveLeft: "Move left", moveRight: "Move right", delSlide: "Delete slide", dupSlide: "Duplicate slide",
+      cols: "Columns", rows: "Rows", th1: "Column", cell: "Cell",
+      pSizing: "Sizing", szFill: "Fill", szHug: "Hug contents", szFixed: "Fixed", pLayout: "Layout", pDirection: "Direction", dirRow: "Row",
+      dirCol: "Column", pGap: "Gap", pPadding: "Padding", detach: "Free position",
       about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } },
     hu: { color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hide: "Dia elrejtése", unhide: "Dia megjelenítése", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
       delSection: "Szakasz törlése", sectionPh: "Szakasz neve", newSection: "Szakasz",
@@ -58,14 +72,30 @@
       phSection: "Fejezet", phQuote: "Egy mondat, amit érdemes megismételni.", phBy: "Valaki", phMetric: "Mutató", phClosing: "Köszönöm",
       phHeading: "Alcím", phKicker: "Felcím",
       lTitle: "Címdia", lSection: "Fejezet", lBullets: "Felsorolás", lKpis: "Nagy számok", lTwo: "Két hasáb", lQuote: "Idézet",
-      lClosing: "Zárás", lBlank: "Üres",}
+      lClosing: "Zárás", lBlank: "Üres", lTable: "Táblázat",
+      table: "Táblázat", shapes: "Alakzatok", rounded: "Lekerekített téglalap", diamond: "Rombusz", arrowR: "Nyíl jobbra", arrowL: "Nyíl balra",
+      arrowU: "Nyíl fel", arrowD: "Nyíl le", line: "Vonal", props: "Tulajdonságok", zoom: "Nagyítás", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés",
+      fitSlide: "Dia illesztése", presentNotes: "Vetítés előadói jegyzetekkel", showNotes: "Előadói jegyzetek", showThumbs: "Diák bélyegképei",
+      hideThumbs: "Bélyegképek elrejtése", oneSlide: "Egy dia", prev: "Előző dia", nextSlide: "Következő dia", more: "Továbbiak",
+      pSlide: "Dia", pTransition: "Áttűnés", trNone: "Nincs", trFade: "Áttűnés", trPush: "Betolás", trMagic: "Varázsmozgás",
+      pAppearance: "Megjelenés", pBackground: "Háttér", pSize: "Méret", pX: "X", pY: "Y", pWidth: "Szélesség", pHeight: "Magasság",
+      pText: "Szöveg", pStyle: "Szövegstílus", pCustom: "Egyéni", pFontSize: "Méret", pWeight: "Vastagság", pLine: "Sorköz", pTrack: "Betűköz",
+      pColor: "Szín", pAlign: "Igazítás", pOpacity: "Átlátszatlanság", pRadius: "Lekerekítés", pBorder: "Keret", pShadow: "Árnyék", pEffects: "Effektek",
+      none: "Nincs", wRegular: "Normál", wMedium: "Közepes", wSemi: "Félkövér", wBold: "Kövér", wLight: "Vékony",
+      bSolid: "Folytonos", bDashed: "Szaggatott", bDotted: "Pontozott", cut: "Kivágás", copy: "Másolás", paste: "Beillesztés", addAfter: "Új dia utána",
+      skip: "Dia kihagyása", unskip: "Dia ne maradjon ki", moveLeft: "Balra", moveRight: "Jobbra", delSlide: "Dia törlése", dupSlide: "Dia másolata",
+      cols: "Oszlopok", rows: "Sorok", th1: "Oszlop", cell: "Cella",
+      pSizing: "Méretezés", szFill: "Kitöltés", szHug: "Tartalomhoz igazodik", szFixed: "Fix", pLayout: "Elrendezés", pDirection: "Irány", dirRow: "Vízszintes",
+      dirCol: "Függőleges", pGap: "Térköz", pPadding: "Belső margó", detach: "Szabad elhelyezés" }
   }, L);
 
   var deck = kit.json("deck.json", null);
   var bar = document.getElementById("sl-bar"), rail = document.getElementById("sl-rail");
   var stageWrap = document.getElementById("sl-stage-wrap"), stage = document.getElementById("sl-stage");
   var notesEl = document.getElementById("sl-notes");
-  bar.className = "kit-bar";
+  bar.hidden = true; // Claude's deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
+  var mainEl = document.getElementById("sl-main"), strip = document.getElementById("sl-strip"), stripHead = document.getElementById("sl-striphead"),
+    propsEl = document.getElementById("sl-props");
   if (!deck) { document.body.appendChild(h("div", { "class": "kit-empty", text: T.bad })); return; }
   var editable = !C.thumb;
 
@@ -103,16 +133,14 @@
   // A slide is its own HTML file, or a layout described in deck.json "slides" (drawn by layouts.js).
   // An edit of a layout slide saves it as its HTML file, which then takes precedence.
   var defs = {};
-  /** The deck's theme; without one, Hermes' own colors and font (once the host sends them). */
+  /** The deck's theme: its own, else its design system's, else the layouts' fixed default look. Never Hermes' theme: the app's
+   *  colours are for the editor around the slides; a deck looks the same whoever opens it, in whatever theme. */
   var dsColors = [], dsStyles = []; // the deck's design system: its colors and text styles, for the menus
-  var dsTheme = null; // the deck's design system (deck.designSystem, else the user's default), as a theme
+  var dsTheme = null; // the deck's design system (the copy deck.designSystems[0] records), as a theme
+  var dsRec = (Array.isArray(deck.designSystems) && deck.designSystems[0]) || deck.designSystem || null;
   function deckTheme() {
     if (deck.theme) return deck.theme;
-    if (dsTheme) return dsTheme;
-    var t = kit.hostTheme && kit.hostTheme();
-    if (!t) return null;
-    return { mode: t.mode, bg: t.bg, surface: t.panel, fg: t.fg, muted: t.muted, line: t.line, accent: t.accent,
-      font: t.font, headingFont: t.font };
+    return dsTheme; // null: the layouts' own defaults
   }
   (Array.isArray(deck.slides) ? deck.slides : []).forEach(function (d) {
     if (d && ID.test(d.id || "")) { defs[d.id] = d; if (order.indexOf(d.id) < 0) order.push(d.id); }
@@ -167,12 +195,17 @@
   // ------------------------------------------------------------------ main view
   var clip = h("div", { "class": "sl-clip" }), ov = h("div", { id: "sl-ov" });
   stage.append(clip, ov);
-  var SC = 1;
-  function fit() {
+  var SC = 1, zoom = 0, zoomLabel = null; // zoom 0 = the slide fits its space
+  function fitScale() {
     var r = stageWrap.getBoundingClientRect(), pad = C.thumb ? 0 : 48;
-    var sc = Math.min((r.width - pad) / W, (r.height - pad) / H);
-    if (!(sc > 0)) sc = 0.3;
+    var sc = Math.min((r.width - pad) / W, (r.height - pad - (C.thumb ? 0 : 56)) / H); // the pills keep clear of the slide
+    return sc > 0 ? sc : 0.3;
+  }
+  function fit() {
+    var sc = zoom || fitScale();
     SC = sc;
+    stageWrap.classList.toggle("is-zoomed", !!zoom);
+    if (zoomLabel) zoomLabel.textContent = Math.round(sc * 100) + "%";
     stage.style.width = W * sc + "px"; stage.style.height = H * sc + "px";
     var cv = clip.firstChild;
     if (cv) cv.style.transform = "scale(" + sc + ")";
@@ -189,10 +222,10 @@
     fit();
     rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
     var on = rail.querySelectorAll(".sl-thumb")[cur];
-    if (on) on.scrollIntoView({ block: "nearest" });
+    if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
     counter.textContent = (cur + 1) + " " + T.of + " " + slides.length;
     if (notesTa) notesTa.value = notesOf(slides[cur]); else notesEl.textContent = notesOf(slides[cur]) || T.nonotes;
-    drawTools();
+    drawTools(); drawProps();
     sendView();
     if (C.thumb) {
       // A card's preview: the bands around the 16:9 slide take the slide's own colour, not white.
@@ -242,8 +275,6 @@
     });
     return b;
   }
-  var addBtn = h("button", { "class": "sl-add", type: "button", title: T.newSlide, "aria-label": T.newSlide, html: kit.icon("plus"),
-    onclick: function () { layoutMenu(addBtn, cur); } });
   function sectionHead(s, i) {
     var name = sectionOf(s);
     if (name == null) return null;
@@ -260,7 +291,7 @@
   function buildRail() {
     var items = [];
     slides.forEach(function (s, i) { var hd = sectionHead(s, i); if (hd) items.push(hd); items.push(thumb(s, i, false)); });
-    rail.replaceChildren.apply(rail, items.concat(editable ? [addBtn, dropLine] : []));
+    rail.replaceChildren.apply(rail, items.concat(editable ? [dropLine] : []));
     rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
   }
   var thumbTimer = null;
@@ -274,9 +305,9 @@
       b.title = titleOf(s);
     }, 250);
   }
-  function dropIndex(y) {
+  function dropIndex(x) { // the thumbnails run left to right
     var th = rail.querySelectorAll(".sl-thumb");
-    for (var k = 0; k < th.length; k++) { var r = th[k].getBoundingClientRect(); if (y < r.top + r.height / 2) return k; }
+    for (var k = 0; k < th.length; k++) { var r = th[k].getBoundingClientRect(); if (x < r.left + r.width / 2) return k; }
     return th.length;
   }
   rail.addEventListener("keydown", function (e) {
@@ -286,15 +317,15 @@
   rail.addEventListener("dragover", function (e) {
     if (dragFrom == null) return;
     e.preventDefault();
-    var th = rail.querySelectorAll(".sl-thumb"), at = dropIndex(e.clientY), ref = th[Math.min(at, th.length - 1)];
+    var th = rail.querySelectorAll(".sl-thumb"), at = dropIndex(e.clientX), ref = th[Math.min(at, th.length - 1)];
     var rr = rail.getBoundingClientRect(), r = ref.getBoundingClientRect();
     dropLine.hidden = false;
-    dropLine.style.top = (at < th.length ? r.top - 6 : r.bottom + 2) - rr.top + rail.scrollTop + "px";
+    dropLine.style.left = (at < th.length ? r.left - 6 : r.right + 3) - rr.left + rail.scrollLeft + "px";
   });
   rail.addEventListener("drop", function (e) {
     if (dragFrom == null) return;
     e.preventDefault();
-    moveSlide(dragFrom, dropIndex(e.clientY));
+    moveSlide(dragFrom, dropIndex(e.clientX));
     dragFrom = null; dropLine.hidden = true;
   });
 
@@ -302,15 +333,28 @@
   function openGrid() {
     if (gridEl) return closeGrid();
     select([]);
-    gridEl = h("div", { id: "sl-grid" }, slides.map(function (s, i) { return thumb(s, i, true); }));
-    document.body.appendChild(gridEl);
-    sendView();
+    var kids = [];
+    slides.forEach(function (s, i) {
+      var name = sectionOf(s);
+      if (name != null) kids.push(h("div", { "class": "sl-gsec", text: name || T.newSection }));
+      var cell = h("div", { "class": "sl-gcell" }, [thumb(s, i, true)]), n = notesOf(s);
+      if (n) cell.appendChild(h("div", { "class": "sl-gnote", text: n }));
+      kids.push(cell);
+    });
+    gridEl = h("div", { id: "sl-grid" }, kids);
+    mainEl.appendChild(gridEl);
+    drawChrome(); drawProps(); sendView();
   }
-  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; } }
+  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; drawChrome(); } }
 
   // ------------------------------------------------------------------ view context (with the next chat message)
   function itemIndex(el) { var sec = el.parentElement; return sec ? Array.prototype.indexOf.call(sec.children, el) : -1; }
-  function selectorOf(el) { return el ? "#" + el.parentElement.id + " > :nth-child(" + (itemIndex(el) + 1) + ")" : null; }
+  function selectorOf(el) { // "#slide > :nth-child(2) > :nth-child(1)": the way down from the slide's section
+    if (!el) return null;
+    var sec = el.closest("section"), path = "";
+    for (var n = el; n && n !== sec; n = n.parentElement) path = " > :nth-child(" + (itemIndex(n) + 1) + ")" + path;
+    return sec ? "#" + sec.id + path : null;
+  }
   function labelOf(el) {
     var t = el.textContent.replace(/\s+/g, " ").trim().slice(0, 60);
     if (t) return t;
@@ -411,17 +455,37 @@
     return id;
   }
   var LAYOUTS = [
+    { label: T.lBlank, def: function () { return { layout: "blank" }; } },
     { label: T.lTitle, def: function () { return { layout: "title", kicker: T.phKicker, title: T.phTitle, subtitle: T.phSub }; } },
     { label: T.lSection, def: function () { return { layout: "section", number: ("0" + (cur + 2)).slice(-2), title: T.phSection }; } },
     { label: T.lBullets, def: function () { return { layout: "bullets", title: T.phTitle, bullets: T.phPoints.slice() }; } },
     { label: T.lKpis, def: function () { return { layout: "kpis", title: T.phTitle, items: [1, 2, 3].map(function (n) { return { label: T.phMetric + " " + n, value: String(n * 12), delta: "+" + n * 4 + "%" }; }) }; } },
     { label: T.lTwo, def: function () { return { layout: "two-col", title: T.phTitle, left: { heading: T.phHeading, accent: true, bullets: T.phPoints.slice(0, 2) }, right: { heading: T.phHeading, text: T.phText } }; } },
     { label: T.lQuote, def: function () { return { layout: "quote", quote: T.phQuote, by: T.phBy }; } },
-    { label: T.lClosing, def: function () { return { layout: "closing", title: T.phClosing }; } },
-    { label: T.lBlank, def: function () { return { layout: "blank" }; } }
+    { label: T.lTable, def: function () { return { layout: "table", title: T.phTitle, columns: [1, 2, 3].map(function (n) { return T.th1 + " " + n; }),
+      rows: [1, 2, 3].map(function () { return ["", "", ""]; }) }; } },
+    { label: T.lClosing, def: function () { return { layout: "closing", title: T.phClosing }; } }
   ];
+  /** New slide: a dialog of the layouts, each drawn as it will look in this deck's theme (Claude's). */
+  var layoutDlg = null;
+  function closeLayouts() { if (layoutDlg) { layoutDlg.remove(); layoutDlg = null; } }
   function layoutMenu(anchor, after) {
-    kit.menu(anchor, LAYOUTS.map(function (x) { return { label: x.label, onClick: function () { addSlide(x.def(), after); } }; }));
+    closeLayouts();
+    var grid = h("div", { "class": "sl-newgrid" }, LAYOUTS.map(function (x) {
+      var box = h("div", { "class": "sl-box" });
+      var b = h("button", { type: "button", "class": "sl-newitem", onclick: function () { closeLayouts(); addSlide(x.def(), after); } }, [box, h("span", { text: x.label })]);
+      requestAnimationFrame(function () {
+        var def = x.def(); def.id = "preview";
+        box.appendChild(canvasFor({ sec: clean(window.slideLayout(def, deckTheme()), "preview") }, (box.clientWidth || 200) / W, false));
+      });
+      return b;
+    }));
+    var x0 = h("button", { type: "button", "class": "kit-btn", title: T.exitP, "aria-label": T.exitP, html: kit.icon("close"), onclick: closeLayouts });
+    layoutDlg = h("div", { "class": "sl-modal", onmousedown: function (e) { if (e.target === layoutDlg) closeLayouts(); } },
+      [h("div", { "class": "sl-dialog", role: "dialog", "aria-label": T.newSlide }, [h("div", { "class": "sl-dhead" }, [h("b", { text: T.newSlide }), x0]), grid])]);
+    layoutDlg.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Escape") closeLayouts(); });
+    document.body.appendChild(layoutDlg);
+    var first = grid.querySelector("button"); if (first) first.focus();
   }
   function addSlide(def, after) {
     checkpoint();
@@ -454,14 +518,14 @@
   }
   function slideMenu(anchor, i) {
     kit.menu(anchor, [
-      { label: T.newSlide, onClick: function () { layoutMenu(anchor, i); } },
-      { label: T.dup, onClick: function () { dupSlide(i); } },
-      { label: T.up, onClick: function () { moveSlide(i, i - 1); } },
-      { label: T.down, onClick: function () { moveSlide(i, i + 2); } },
-      { label: isHidden(slides[i]) ? T.unhide : T.hide, onClick: function () { toggleHidden(i); } },
+      { label: T.dupSlide, onClick: function () { dupSlide(i); } },
+      { label: isHidden(slides[i]) ? T.unskip : T.skip, onClick: function () { toggleHidden(i); } },
       sectionOf(slides[i]) == null ? { label: T.addSection, onClick: function () { setSection(i, T.newSection); } }
         : { label: T.delSection, onClick: function () { setSection(i, null); } },
-      { label: T.del, onClick: function () { delSlide(i); } }
+      { label: T.addAfter, onClick: function () { layoutMenu(anchor, i); } },
+      { label: T.moveLeft, onClick: function () { moveSlide(i, i - 1); } },
+      { label: T.moveRight, onClick: function () { moveSlide(i, i + 2); } },
+      { label: T.delSlide, onClick: function () { delSlide(i); } }
     ]);
   }
   function toggleHidden(i) {
@@ -488,10 +552,68 @@
   function itemsOf(sec) {
     return Array.prototype.filter.call(sec ? sec.children : [], function (el) { return el.tagName !== "ASIDE" && !el.hasAttribute("data-deco"); });
   }
+  /** What a click selects (as in Claude's deck): the innermost thing with a look of its own under the pointer: a text block,
+   *  a picture, a shape, a painted box (a card). A bare container is passed through; at the slide's top level anything counts. */
+  function painted(el) {
+    var cs = getComputedStyle(el);
+    return !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor) || cs.backgroundImage !== "none" || cs.boxShadow !== "none" ||
+      (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== "none");
+  }
+  function selectable(el, sec) {
+    if (/^(H[1-6]|P|UL|OL|TABLE|IMG|BLOCKQUOTE)$/.test(el.tagName) || el.hasAttribute("data-shape")) return true;
+    if (el.tagName.toLowerCase() === "svg") return true;
+    if (el.tagName === "DIV") return el.parentElement === sec || painted(el) || (hasOwnText(el) && !el.children.length);
+    return el.parentElement === sec;
+  }
   function itemOf(t) {
     var sec = curSec();
-    while (t && t !== sec && t.parentElement !== sec) t = t.parentElement;
-    return t && t !== sec && t.tagName !== "ASIDE" && !t.hasAttribute("data-deco") ? t : null;
+    if (!t || !sec || t === sec || !sec.contains(t)) return null;
+    if (t.closest("aside, [data-deco]")) return null;
+    var svg = t.closest("svg"); // a drawing is one thing
+    while (svg && svg.parentElement && svg.parentElement.closest("svg")) svg = svg.parentElement.closest("svg");
+    for (var n = svg || t; n && n !== sec; n = n.parentElement) if (selectable(n, sec)) return n;
+    return null;
+  }
+  /** Pinned to its place (position:absolute), as against a flow child laid out by its container. */
+  function isFree(el) { return getComputedStyle(el).position === "absolute"; }
+  /** A pinned element's place written out in px (left, top, width as drawn), so moving and sizing it is plain arithmetic. */
+  function freeze(el) {
+    var cs = getComputedStyle(el), st = el.style, l = parseFloat(cs.left), t = parseFloat(cs.top);
+    st.boxSizing = "border-box";
+    st.width = R(el.offsetWidth) + "px";
+    if (!isTextBox(el)) st.height = R(el.offsetHeight) + "px";
+    st.left = R(isFinite(l) ? l : 0) + "px"; st.top = R(isFinite(t) ? t : 0) + "px";
+    st.right = st.bottom = "auto";
+  }
+  /** Take a flow child out of its container: pinned on the slide where it is drawn now, with the look it had there. */
+  function detach() {
+    var sec = curSec(), aside = sec.querySelector(":scope > aside");
+    var list = sel.filter(function (el) { return !isFree(el); }).map(function (el) { var cs = getComputedStyle(el); return { el: el, b: rectOf(el), color: cs.color, font: cs.fontFamily, size: cs.fontSize, weight: cs.fontWeight, align: cs.textAlign }; });
+    if (!list.length) return;
+    checkpoint();
+    list.forEach(function (x) {
+      var st = x.el.style;
+      sec.insertBefore(x.el, aside);
+      st.position = "absolute"; st.left = R(x.b.x) + "px"; st.top = R(x.b.y) + "px"; st.width = R(x.b.w) + "px";
+      if (!isTextBox(x.el)) st.height = R(x.b.h) + "px";
+      st.right = st.bottom = "auto"; st.margin = "0"; st.boxSizing = "border-box"; st.flex = "none";
+      if (x.el.textContent.trim()) { st.color = x.color; st.fontFamily = x.font; st.fontSize = x.size; st.fontWeight = x.weight; st.textAlign = x.align; }
+    });
+    drawSel(); drawTools(); drawProps(); changed();
+  }
+  /** Dragging a flow child moves it among its siblings (the container lays them out again). */
+  function reorder(el, ev) {
+    var par = el.parentElement, sibs = Array.prototype.filter.call(par.children, function (x) { return x !== el && x.tagName !== "ASIDE" && !x.hasAttribute("data-deco") && !isFree(x); });
+    var pcs = getComputedStyle(par), row = pcs.display === "grid" || (/flex/.test(pcs.display) && /^row/.test(pcs.flexDirection));
+    for (var k = 0; k < sibs.length; k++) {
+      var r = sibs[k].getBoundingClientRect();
+      if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) continue;
+      var before = row ? ev.clientX < r.left + r.width / 2 : ev.clientY < r.top + r.height / 2, ref = before ? sibs[k] : sibs[k].nextSibling;
+      if (ref === el || el.nextSibling === ref) return false;
+      par.insertBefore(el, ref);
+      return true;
+    }
+    return false;
   }
   function rectOf(el) {
     var o = curSec().getBoundingClientRect(), r = el.getBoundingClientRect();
@@ -502,28 +624,15 @@
     return { x: x, y: y, w: Math.max.apply(null, bs.map(function (b) { return b.x + b.w; })) - x, h: Math.max.apply(null, bs.map(function (b) { return b.y + b.h; })) - y };
   }
   var R = Math.round;
-  /** Free layout: every element of the slide gets its own position and size (as drawn now), so moving
-   *  one doesn't reflow the others. Done once per slide, on its first move. */
-  function pin(sec) {
-    var items = itemsOf(sec).filter(function (el) { return !(el.style.position === "absolute" && el.style.left && el.style.top); });
-    if (!items.length) return;
-    var boxes = items.map(rectOf);
-    items.forEach(function (el, k) {
-      var b = boxes[k], st = el.style;
-      st.position = "absolute"; st.left = R(b.x) + "px"; st.top = R(b.y) + "px"; st.width = R(b.w) + "px";
-      st.right = st.bottom = "auto"; st.margin = "0"; st.boxSizing = "border-box"; st.flex = "none";
-      if (!isTextBox(el)) st.height = R(b.h) + "px";
-    });
-  }
   function select(list) {
     sel = list.filter(Boolean);
-    drawSel(); drawTools(); sendView();
+    drawSel(); drawTools(); drawProps(); sendView();
   }
   var HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
   function drawSel(lines) {
     ov.replaceChildren();
     if (!editable || pres) return;
-    sel = sel.filter(function (el) { return el.isConnected && el.parentElement === curSec(); });
+    sel = sel.filter(function (el) { return el.isConnected && curSec().contains(el); });
     sel.forEach(function (el) {
       var b = rectOf(el);
       ov.appendChild(h("div", { "class": "sl-selbox" + (el === editing || (editing && el.contains(editing)) ? " is-editing" : ""),
@@ -558,14 +667,22 @@
   }
 
   function startDrag(e, mode, hd) {
-    var x0 = e.clientX, y0 = e.clientY, started = false, items = sel.slice(), boxes, u0, tg;
+    var x0 = e.clientX, y0 = e.clientY, started = false, items = sel.slice(), boxes, u0, tg, at;
     var img = items.length === 1 && /^(IMG|SVG)$/i.test(items[0].tagName);
+    var free = items.every(isFree), moved = false;
     function move(ev) {
       var dx = (ev.clientX - x0) / SC, dy = (ev.clientY - y0) / SC;
       if (!started) {
         if (Math.abs(ev.clientX - x0) < 3 && Math.abs(ev.clientY - y0) < 3) return;
-        started = true; checkpoint(); pin(curSec());
+        started = true; checkpoint();
+        if (free) items.forEach(freeze);
         boxes = items.map(rectOf); u0 = union(boxes); tg = targets(items);
+        at = items.map(function (el) { return { l: parseFloat(el.style.left) || 0, t: parseFloat(el.style.top) || 0 }; });
+      }
+      if (mode === "move" && !free) { // a flow child: its place among its siblings
+        if (items.length === 1 && reorder(items[0], ev)) moved = true;
+        drawSel();
+        return;
       }
       var tol = 6 / SC, lines = [], snapOn = !ev.altKey;
       if (mode === "move") {
@@ -576,7 +693,8 @@
           if (sx) { dx += sx.d; lines.push({ x: sx.at }); }
           if (sy) { dy += sy.d; lines.push({ y: sy.at }); }
         }
-        items.forEach(function (el, k) { el.style.left = R(boxes[k].x + dx) + "px"; el.style.top = R(boxes[k].y + dy) + "px"; });
+        items.forEach(function (el, k) { el.style.left = R(at[k].l + dx) + "px"; el.style.top = R(at[k].t + dy) + "px"; });
+        moved = true;
       } else {
         var b = boxes[0], x1 = b.x, y1 = b.y, x2 = b.x + b.w, y2 = b.y + b.h;
         if (/w/.test(hd)) x1 += dx; if (/e/.test(hd)) x2 += dx; if (/n/.test(hd)) y1 += dy; if (/s/.test(hd)) y2 += dy;
@@ -594,15 +712,22 @@
         }
         var nx = /w/.test(hd) ? b.x + b.w - w : b.x, ny = /n/.test(hd) ? b.y + b.h - hh : b.y;
         var st = items[0].style;
-        st.left = R(nx) + "px"; st.top = R(ny) + "px"; st.width = R(w) + "px";
-        if (/[ns]/.test(hd) || !isTextBox(items[0])) st.height = R(hh) + "px";
+        moved = true;
+        if (free) {
+          st.left = R(at[0].l + nx - b.x) + "px"; st.top = R(at[0].t + ny - b.y) + "px"; st.width = R(w) + "px";
+          if (/[ns]/.test(hd) || !isTextBox(items[0])) st.height = R(hh) + "px";
+        } else { // a flow child takes a size of its own; its container lays the rest out around it
+          st.flex = "none"; st.boxSizing = "border-box";
+          if (/[ew]/.test(hd)) st.width = R(w) + "px";
+          if (/[ns]/.test(hd)) st.height = R(hh) + "px";
+        }
       }
       drawSel(lines);
     }
     function up() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      if (started) { drawSel(); changed(); }
+      if (started) { drawSel(); drawProps(); if (moved) changed(); else undos.pop(); }
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -692,19 +817,25 @@
         tbtn("underline", T.underline, function () { document.execCommand("underline"); }), sep());
     }
     if (texty) {
-      var al = (sel[0].style.textAlign || getComputedStyle(sel[0]).textAlign);
-      kids.push(tbtn("fontDown", T.smaller, function () { fontScale(1 / 1.12); }), tbtn("fontUp", T.bigger, function () { fontScale(1.12); }),
-        tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign));
-      var colB = tbtn("palette", T.color, function () { colorMenu(colB); });
-      kids.push(colB);
-      if (dsStyles.length) { var tsB = tbtn("text", T.textStyle, function () { styleMenu(tsB); }); kids.push(tsB); }
-      kids.push(sep());
+      // Claude's order: the face and size, the colour, then the marks and the alignment.
+      var cs0 = getComputedStyle(sel[0]), al = (sel[0].style.textAlign || cs0.textAlign);
+      var face = (cs0.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
+      var tsB = tbtn("text", T.textStyle, function () { styleMenu(tsB); });
+      tsB.classList.add("sl-tface");
+      tsB.appendChild(h("span", { text: (face ? face + " · " : "") + R(parseFloat(cs0.fontSize)) }));
+      tsB.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
+      var colB = h("button", { type: "button", "class": "kit-btn sl-tcolor", title: T.color, "aria-label": T.color }, [h("i", { style: "background:" + cs0.color })]);
+      colB.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      colB.addEventListener("click", function () { colorMenu(colB); });
+      kids.push(tsB, colB);
+      if (!editing) {
+        kids.push(tbtn("bold", T.bold, function () { toggleMark("fontWeight", parseInt(cs0.fontWeight, 10) >= 600 ? "400" : "700"); }, parseInt(cs0.fontWeight, 10) >= 600),
+          tbtn("italic", T.italic, function () { toggleMark("fontStyle", cs0.fontStyle === "italic" ? "normal" : "italic"); }, cs0.fontStyle === "italic"),
+          tbtn("underline", T.underline, function () { toggleMark("textDecoration", /underline/.test(cs0.textDecorationLine) ? "none" : "underline"); }, /underline/.test(cs0.textDecorationLine)));
+      }
+      kids.push(tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
     }
-    kids.push(tbtn("front", T.front, function () { restack(true); }), tbtn("back", T.back, function () { restack(false); }),
-      tbtn("copy", T.dup, duplicate), tbtn("trash", T.del, removeSel), sep());
-    var askB = tbtn("sparkle", T.ask, askAbout);
-    askB.appendChild(h("span", { text: T.ask }));
-    kids.push(askB);
+    kids.push(tbtn("sparkle", T.ask, askAbout));
     if (window.hermes && window.hermes.comment && sel.length === 1) {
       // A comment on this element (Claude's): the host opens its comment form there; the thread names the slide.
       kids.push(tbtn("comment", T.comment, function () {
@@ -713,9 +844,20 @@
           label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) });
       }));
     }
+    var moreB = tbtn("more", T.more, function () {
+      var flow = sel.some(function (el) { return !isFree(el); });
+      kit.menu(moreB, (flow ? [{ label: T.detach, onClick: detach }] : [{ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } }])
+        .concat([{ label: T.dup, onClick: duplicate }, { label: T.del, onClick: removeSel }]));
+    });
+    kids.push(moreB);
     tools.replaceChildren.apply(tools, kids);
     tools.hidden = false;
     placeTools();
+  }
+  function toggleMark(prop, value) {
+    checkpoint();
+    sel.forEach(function (el) { el.style[prop] = value; });
+    drawSel(); drawTools(); drawProps(); changed();
   }
   function placeTools() {
     if (tools.hidden || !sel.length) return;
@@ -741,7 +883,10 @@
   function px(v) { var m = /^(-?[\d.]+)(px|rem|em|%)?$/.exec(String(v)); if (!m) return null; var n = +m[1]; return m[2] === "rem" || m[2] === "em" ? n * 16 : m[2] === "%" ? n * 0.16 : n; }
   /** Text style: one of the design system's styles (size, weight, line height, tracking, face). */
   function styleMenu(anchor) {
-    kit.menu(anchor, dsStyles.slice(0, 40).map(function (x) {
+    var sizes = [24, 28, 32, 36, 44, 56, 72, 96, 120].map(function (n) {
+      return { label: n + " px", onClick: function () { checkpoint(); sel.forEach(function (el) { el.style.fontSize = n + "px"; }); drawSel(); drawTools(); drawProps(); changed(); } };
+    });
+    kit.menu(anchor, (dsStyles.length ? [{ hint: T.pStyle }] : []).concat(dsStyles.slice(0, 40).map(function (x) {
       var st = x.st;
       // A system's sizes are for screens; a slide is a 1920px canvas seen from across a room: twice the size.
       var f = px(st.fontSize), onSlide = f ? Math.max(24, R(f * SLIDE_SCALE)) : null;
@@ -755,9 +900,9 @@
           if (st.fontStyle) el.style.fontStyle = st.fontStyle;
           if (x.stack) el.style.fontFamily = x.stack;
         });
-        drawSel(); changed();
+        drawSel(); drawTools(); drawProps(); changed();
       } };
-    }));
+    })).concat([{ hint: T.pFontSize }], sizes));
   }
   function fontScale(f) {
     checkpoint();
@@ -776,20 +921,23 @@
     drawTools(); changed();
   }
   function restack(front) {
-    checkpoint(); pin(curSec());
-    var sec = curSec(), aside = sec.querySelector(":scope > aside");
-    var decos = sec.querySelectorAll(":scope > [data-deco]"), after = decos.length ? decos[decos.length - 1].nextSibling : sec.firstChild;
-    sel.forEach(function (el) { if (front) sec.insertBefore(el, aside); else sec.insertBefore(el, after); });
+    checkpoint();
+    sel.forEach(function (el) { // within its own container: later paints on top; a flow child keeps its place in the layout
+      if (!isFree(el)) return;
+      var par = el.parentElement, aside = par.querySelector(":scope > aside");
+      var decos = par.querySelectorAll(":scope > [data-deco]"), after = decos.length ? decos[decos.length - 1].nextSibling : par.firstChild;
+      if (front) par.insertBefore(el, aside); else par.insertBefore(el, after);
+    });
     drawSel(); changed();
   }
   function duplicate() {
     if (!sel.length) return;
-    checkpoint(); pin(curSec());
-    var sec = curSec(), aside = sec.querySelector(":scope > aside");
+    checkpoint();
     var copies = sel.map(function (el) {
       var c = el.cloneNode(true);
-      c.style.left = R(parseFloat(el.style.left) + 24) + "px"; c.style.top = R(parseFloat(el.style.top) + 24) + "px";
-      sec.insertBefore(c, aside); return c;
+      if (isFree(el)) { freeze(el); c = el.cloneNode(true); c.style.left = R(parseFloat(el.style.left) + 24) + "px"; c.style.top = R(parseFloat(el.style.top) + 24) + "px"; }
+      el.after(c); // a flow child's copy sits right after it, in the same container
+      return c;
     });
     select(copies); changed();
   }
@@ -800,11 +948,12 @@
     select([]); changed();
   }
   function nudge(key, n) {
+    var list = sel.filter(isFree); // a flow child has no place of its own to nudge
+    if (!list.length) return;
     if (Date.now() - (nudge.at || 0) > 800) checkpoint();
     nudge.at = Date.now();
-    pin(curSec());
     var dx = key === "ArrowLeft" ? -n : key === "ArrowRight" ? n : 0, dy = key === "ArrowUp" ? -n : key === "ArrowDown" ? n : 0;
-    sel.forEach(function (el) { el.style.left = R(parseFloat(el.style.left) + dx) + "px"; el.style.top = R(parseFloat(el.style.top) + dy) + "px"; });
+    list.forEach(function (el) { freeze(el); el.style.left = R(parseFloat(el.style.left) + dx) + "px"; el.style.top = R(parseFloat(el.style.top) + dy) + "px"; });
     drawSel(); changed();
   }
   function askAbout() {
@@ -837,10 +986,30 @@
     select([el]); changed();
     if (!text) startEdit(el, null, true);
   }
+  var SHAPES = { // each fills its box; the arrows' heads are the last 40% of their length
+    rect: "", rounded: "border-radius:24px", ellipse: "border-radius:50%",
+    diamond: "clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)",
+    "arrow-right": "clip-path:polygon(0 25%,60% 25%,60% 0,100% 50%,60% 100%,60% 75%,0 75%)",
+    "arrow-left": "clip-path:polygon(100% 25%,40% 25%,40% 0,0 50%,40% 100%,40% 75%,100% 75%)",
+    "arrow-up": "clip-path:polygon(25% 100%,25% 40%,0 40%,50% 0,100% 40%,75% 40%,75% 100%)",
+    "arrow-down": "clip-path:polygon(25% 0,25% 60%,0 60%,50% 100%,100% 60%,75% 60%,75% 0)",
+    line: "" };
   function insertShape(kind) {
     checkpoint();
-    var el = place(h("div", { "data-shape": kind, style: "position:absolute;left:760px;top:390px;width:400px;height:300px;margin:0;box-sizing:border-box;border-radius:" +
-      (kind === "ellipse" ? "50%" : "24px") + ";background:" + accent() }));
+    var wide = /^arrow-(right|left)$/.test(kind), tall = /^arrow-(up|down)$/.test(kind), line = kind === "line";
+    var w = line ? 480 : wide ? 400 : tall ? 200 : 400, hh = line ? 6 : wide ? 200 : tall ? 400 : 300;
+    var el = place(h("div", { "data-shape": kind, style: "position:absolute;left:" + R((W - w) / 2) + "px;top:" + R((H - hh) / 2) + "px;width:" + w + "px;height:" + hh +
+      "px;margin:0;box-sizing:border-box;" + (SHAPES[kind] || "") + ";background:" + accent() }));
+    select([el]); changed();
+  }
+  function insertTable() {
+    checkpoint();
+    var th = window.slideTheme ? window.slideTheme(deckTheme()) : {}, line = th.line || "rgba(0,0,0,.15)";
+    var row = function (tag, text) { return "<tr>" + [1, 2, 3].map(function (n) { return "<" + tag + ' style="width:33.3%;text-align:left">' + (text ? text + " " + n : "") + "</" + tag + ">"; }).join("") + "</tr>"; };
+    var tpl = document.createElement("template");
+    tpl.innerHTML = '<table style="position:absolute;left:260px;top:360px;width:1400px;margin:0;box-sizing:border-box;font-size:32px;border-collapse:collapse;border-top:1px solid ' + line + '">' +
+      row("th", T.th1) + row("td") + row("td") + row("td") + "</table>";
+    var el = place(tpl.content.firstChild);
     select([el]); changed();
   }
   function readImage(file) {
@@ -1290,7 +1459,9 @@
           var bw = parseFloat(st.borderTopWidth) || 0, line = bw && st.borderTopStyle !== "none" ? rgba(st.borderTopColor) : null;
           if (fill || line) {
             var rad = parseFloat(st.borderTopLeftRadius) || 0;
-            slide.addShape(rad ? pptx.ShapeType.roundRect : pptx.ShapeType.rect, {
+            var own = { ellipse: "ellipse", diamond: "diamond", "arrow-right": "rightArrow", "arrow-left": "leftArrow", "arrow-up": "upArrow", "arrow-down": "downArrow" }[el.getAttribute("data-shape")];
+            if (own) rad = 0;
+            slide.addShape(own ? pptx.ShapeType[own] : rad ? pptx.ShapeType.roundRect : pptx.ShapeType.rect, {
               x: b.x, y: b.y, w: b.w, h: b.h,
               fill: fill ? { color: fill.hex, transparency: fill.transparency } : { type: "none" },
               line: line ? { color: line.hex, width: bw * 0.5 } : { type: "none" },
@@ -1487,29 +1658,251 @@
   }), T.exp);
   expBtn.hidden = true;
   kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
-  var notesBtn = kit.button("", "notes", function () {
-    notesEl.hidden = !notesEl.hidden; notesBtn.setAttribute("aria-pressed", String(!notesEl.hidden)); fit();
-  }, T.notes);
-  var insBtn = kit.labelled(kit.button(T.insert, "plus", function () {
-    kit.menu(insBtn, [
-      { label: T.text, onClick: function () { insertText(); } },
-      { label: T.image, onClick: function () { filePick.click(); } },
-      { label: T.rect, onClick: function () { insertShape("rect"); } },
-      { label: T.ellipse, onClick: function () { insertShape("ellipse"); } },
-      { label: T.newSlide, onClick: function () { layoutMenu(insBtn, cur); } }
-    ]);
-  }), T.insert);
-  var edit = editable ? [insBtn, kit.button("", "undo", undo, T.undo), kit.button("", "redo", redo, T.redo)] : [];
-  bar.append.apply(bar, [h("span", { "class": "kit-title", style: "font-weight:400;font-size:12px;color:var(--color-fg-muted)", text: editable ? T.editHint : "" })]
-    .concat(edit, [statusEl, saveBtn, counter, kit.button("", "grid", openGrid, T.grid), notesBtn, expBtn,
-      kit.button("", "presenter", function () { present(true); }, T.presenter),
-      kit.labelled(kit.button(T.present, "play", function () { present(false); }, T.present), T.present)]));
+  // The deck's chrome, as Claude's: no bar. Insert tools and view tools float over the stage as two pills,
+  // the thumbnails run in a strip below (or a small pill of arrows when the strip is put away), and the
+  // properties of what is selected (the slide itself when nothing is) open at the right.
+  function cbtn(html, title, fn, cls) {
+    var b = h("button", { type: "button", "class": "kit-btn" + (cls ? " " + cls : ""), title: title, "aria-label": title, html: html });
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function pref(key, fallback) { try { var v = localStorage.getItem("sl-" + key); return v == null ? fallback : v === "1"; } catch (e) { return fallback; } }
+  function keep(key, on) { try { localStorage.setItem("sl-" + key, on ? "1" : "0"); } catch (e) {} }
+  var stripOn = pref("strip", true), propsOn = pref("props", false);
+  function toggleNotes() { notesEl.hidden = !notesEl.hidden; drawChrome(); fit(); }
+  function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); }
+  function setProps(on) { propsOn = on; keep("props", on); drawChrome(); drawProps(); fit(); }
+  function setZoom(z) { zoom = z; fit(); }
+
+  var shapesBtn = cbtn(kit.icon("shape") + kit.icon("caretDown"), T.shapes, function () {
+    kit.menu(shapesBtn, [["rect", T.rect], ["rounded", T.rounded], ["ellipse", T.ellipse], ["diamond", T.diamond], ["arrow-right", T.arrowR],
+      ["arrow-left", T.arrowL], ["arrow-up", T.arrowU], ["arrow-down", T.arrowD], ["line", T.line]].map(function (x) {
+      return { label: x[1], onClick: function () { insertShape(x[0]); } };
+    }));
+  }, "sl-caret");
+  var insertPill = h("div", { "class": "sl-pill sl-pill-l", role: "toolbar", "aria-label": T.insert }, [
+    cbtn(kit.icon("text"), T.text, function () { insertText(); }), cbtn(kit.icon("image"), T.image, function () { filePick.click(); }),
+    cbtn(kit.icon("table"), T.table, function () { insertTable(); }), shapesBtn]);
+
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () {
+    kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+  });
+  var playBtn = cbtn(kit.icon("play"), T.present, function () {
+    kit.menu(playBtn, [{ label: T.present, onClick: function () { present(false); } }, { label: T.presentNotes, onClick: function () { present(true); } }]);
+  });
+  var propsBtn = cbtn(kit.icon("sliders"), T.props, function () { setProps(!propsOn); });
+  zoomLabel = h("span");
+  var zoomBtn = cbtn("", T.zoom, function () {
+    var step = function (f) { setZoom(Math.max(0.1, Math.min(3, SC * f))); };
+    kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { step(1.25); } }, { label: T.zoomOut, onClick: function () { step(0.8); } },
+      { label: T.fitSlide, onClick: function () { setZoom(0); } }]
+      .concat([0.5, 0.75, 1, 1.5, 2].map(function (z) { return { label: z * 100 + "%", onClick: function () { setZoom(z); } }; }))
+      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+  }, "sl-zoom");
+  zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
+  var viewPill = h("div", { "class": "sl-pill sl-pill-r", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+
+  var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);
+  var navPill = h("div", { "class": "sl-pill sl-pill-b", role: "toolbar" }, [
+    cbtn(kit.icon("prev"), T.prev, function () { show(cur - 1); }), counter, cbtn(kit.icon("next"), T.nextSlide, function () { show(cur + 1); }),
+    h("span", { "class": "sl-sep" }), notesBtn2, cbtn(kit.icon("strip"), T.showThumbs, function () { setStrip(true); })]);
+  var oneBtn = cbtn(kit.icon("slide"), T.oneSlide, function () { closeGrid(); });
+  var gridBtn = cbtn(kit.icon("grid"), T.grid, function () { if (!gridEl) openGrid(); });
+  stripHead.append.apply(stripHead, (editable ? [cbtn(kit.icon("plus"), T.newSlide, function () { layoutMenu(null, cur); })] : []).concat(
+    [notesBtn, h("span", { "class": "sl-gap" }), oneBtn, gridBtn, cbtn(kit.icon("chevDown"), T.hideThumbs, function () { setStrip(false); })]));
+  mainEl.insertBefore(navPill, notesEl);
+  mainEl.append(insertPill, viewPill);
+
+  function drawChrome() {
+    var thumbOnly = !!C.thumb;
+    strip.hidden = thumbOnly || !stripOn;
+    navPill.hidden = thumbOnly || stripOn;
+    viewPill.hidden = thumbOnly;
+    insertPill.hidden = thumbOnly || !editable || !!gridEl;
+    rail.hidden = !!gridEl;
+    [notesBtn, notesBtn2].forEach(function (b) { b.classList.toggle("is-on", !notesEl.hidden); });
+    oneBtn.classList.toggle("is-on", !gridEl); gridBtn.classList.toggle("is-on", !!gridEl);
+    propsBtn.classList.toggle("is-on", propsOn);
+    propsEl.hidden = thumbOnly || !editable || !propsOn;
+  }
+
+  // ------------------------------------------------------------------ properties (Claude's panel at the right)
+  function cssHex(v) { var c = v ? rgba(v) : null; return c ? "#" + c.hex.toLowerCase() : ""; }
+  function themeColors() {
+    var th = deckTheme() || {};
+    return (dsColors.length ? dsColors : ["fg", "muted", "accent", "accent2", "surface", "bg"].filter(function (k) { return th[k]; }).map(function (k) { return { name: k, v: th[k] }; })).slice(0, 24);
+  }
+  /** A change made in the panel: one undo step per run of edits, the slide redrawn, the panel left as it is (the caret stays). */
+  var panelRun = 0;
+  function panelEdit(fn) {
+    if (Date.now() - panelRun > 900) checkpoint();
+    panelRun = Date.now();
+    fn();
+    drawSel(); placeTools(); changed();
+  }
+  function prow(label, control) { return h("label", { "class": "sl-prow" }, [h("span", { text: label }), control]); }
+  function pnum(value, set, o) {
+    o = o || {};
+    var i = h("input", { type: "number", value: value == null || isNaN(value) ? "" : String(value), step: String(o.step || 1), min: o.min == null ? null : String(o.min), max: o.max == null ? null : String(o.max) });
+    i.addEventListener("keydown", function (e) { e.stopPropagation(); });
+    i.addEventListener("change", function () { var v = parseFloat(i.value); if (isFinite(v)) panelEdit(function () { set(v); }); });
+    return i;
+  }
+  function ppick(value, options, set) {
+    var sl = h("select", {}, options.map(function (o) { var op = h("option", { value: o[0], text: o[1] }); if (String(o[0]) === String(value)) op.selected = true; return op; }));
+    sl.addEventListener("change", function () { panelEdit(function () { set(sl.value); }); });
+    return sl;
+  }
+  function pcolor(value, set, allowNone) {
+    var hex = cssHex(value);
+    var c = h("input", { type: "color", value: hex || "#000000" }), t = h("input", { type: "text", value: hex, placeholder: T.none, spellcheck: "false" });
+    var put = function (v) { panelEdit(function () { set(v); }); };
+    c.addEventListener("input", function () { t.value = c.value; put(c.value); });
+    t.addEventListener("keydown", function (e) { e.stopPropagation(); });
+    t.addEventListener("change", function () {
+      var v = t.value.trim();
+      if (!v && allowNone) return put("");
+      if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) { v = v[0] === "#" ? v : "#" + v; if (v.length === 7) c.value = v; put(v); } else t.value = cssHex(value);
+    });
+    var sw = h("div", { "class": "sl-pswatches" }, themeColors().map(function (k) {
+      return h("button", { type: "button", title: k.name, "aria-label": k.name, style: "background:" + k.v, onclick: function () { var x = cssHex(k.v); if (x) { c.value = x; t.value = x; } put(k.v); } });
+    }));
+    return h("div", { "class": "sl-pcolorbox" }, [h("div", { "class": "sl-pcolor" }, [c, t]), sw]);
+  }
+  function psec(title, rows) { return h("div", { "class": "sl-psec" }, [h("b", { text: title })].concat(rows.filter(Boolean))); }
+  function textEls(el) { // the elements that carry the words: the element itself, else what is inside it
+    if (hasOwnText(el) || /^(UL|OL|TABLE|P|H[1-6])$/.test(el.tagName)) return [el];
+    return Array.prototype.filter.call(el.querySelectorAll("*"), function (n) { return hasOwnText(n) && !n.closest("svg"); });
+  }
+  function drawProps() {
+    if (!propsEl || propsEl.hidden) return;
+    var sec = curSec();
+    if (!sec || gridEl) { propsEl.replaceChildren(); return; }
+    if (!sel.length) { // nothing selected: the slide itself
+      propsEl.replaceChildren(
+        psec(T.pSlide, [prow(T.pTransition, ppick(sec.getAttribute("data-transition") || "", [["", T.trNone], ["fade", T.trFade], ["push", T.trPush], ["magic", T.trMagic]],
+          function (v) { if (v) sec.setAttribute("data-transition", v); else sec.removeAttribute("data-transition"); }))]),
+        psec(T.pAppearance, [prow(T.pBackground, pcolor(getComputedStyle(sec).backgroundColor, function (v) { sec.style.background = v; }))]));
+      return;
+    }
+    var el = sel[0], cs = getComputedStyle(el), b = rectOf(el), all = function (fn) { sel.forEach(fn); };
+    var free = isFree(el);
+    var shift = function (prop, v) { // X and Y are the slide's; the element's own offset moves by the difference
+      var d = v - rectOf(el)[prop === "left" ? "x" : "y"];
+      all(function (x) { if (!isFree(x)) return; freeze(x); x.style[prop] = R(parseFloat(x.style[prop]) + d) + "px"; });
+    };
+    var size = function (prop, v) { all(function (x) { if (isFree(x)) freeze(x); else { x.style.flex = "none"; x.style.boxSizing = "border-box"; } x.style[prop] = R(v) + "px"; }); };
+    var sizing = parseFloat(cs.flexGrow) > 0 ? "fill" : /px$/.test(el.style.width) || /px$/.test(el.style.height) ? "fixed" : "hug";
+    var out = [psec(T.pSize, [
+      free ? h("div", { "class": "sl-p2" }, [prow(T.pX, pnum(R(b.x), function (v) { shift("left", v); })), prow(T.pY, pnum(R(b.y), function (v) { shift("top", v); }))]) : null,
+      h("div", { "class": "sl-p2" }, [prow(T.pWidth, pnum(R(b.w), function (v) { size("width", Math.max(8, v)); }, { min: 8 })),
+        prow(T.pHeight, pnum(R(b.h), function (v) { size("height", Math.max(4, v)); }, { min: 4 }))]),
+      free ? null : prow(T.pSizing, ppick(sizing, [["fill", T.szFill], ["hug", T.szHug], ["fixed", T.szFixed]], function (v) {
+        all(function (x) {
+          if (isFree(x)) return;
+          var st = x.style, r = rectOf(x);
+          if (v === "fill") { st.flex = "1 1 0"; st.width = ""; st.height = ""; }
+          else if (v === "hug") { st.flex = "none"; st.width = ""; st.height = ""; }
+          else { st.flex = "none"; st.boxSizing = "border-box"; st.width = R(r.w) + "px"; if (!isTextBox(x)) st.height = R(r.h) + "px"; }
+        });
+        setTimeout(drawProps, 0);
+      }))])];
+    if (el.tagName === "DIV" && el.children.length && !el.hasAttribute("data-shape")) { // a container: how it lays its children out
+      var grid = cs.display === "grid", rowNow = /flex/.test(cs.display) && /^row/.test(cs.flexDirection);
+      out.push(psec(T.pLayout, [
+        grid ? null : prow(T.pDirection, ppick(rowNow ? "row" : "column", [["row", T.dirRow], ["column", T.dirCol]], function (v) {
+          all(function (x) { x.style.display = "flex"; x.style.flexDirection = v; });
+        })),
+        prow(T.pGap, pnum(parseFloat(cs.rowGap) || parseFloat(cs.columnGap) || 0, function (v) {
+          all(function (x) { if (getComputedStyle(x).display === "block") { x.style.display = "flex"; x.style.flexDirection = "column"; } x.style.gap = Math.max(0, Math.min(512, v)) + "px"; });
+        }, { min: 0, max: 512 })),
+        prow(T.pPadding, pnum(parseFloat(cs.paddingTop) || 0, function (v) { all(function (x) { x.style.padding = Math.max(0, Math.min(256, v)) + "px"; x.style.boxSizing = "border-box"; }); }, { min: 0, max: 256 }))]));
+    }
+    if (el.textContent.trim()) {
+      var te = textEls(el)[0] || el, ts = getComputedStyle(te), words = function (fn) { all(function (x) { textEls(x).forEach(fn); }); };
+      var fsz = parseFloat(ts.fontSize), alignNow = ts.textAlign === "start" ? "left" : ts.textAlign === "end" ? "right" : ts.textAlign;
+      var seg = h("div", { "class": "sl-pseg" }, [["left", kit.icon("alignL")], ["center", kit.icon("alignC")], ["right", kit.icon("alignR")], ["justify", kit.icon("justify")]].map(function (a) {
+        var bt = cbtn(a[1], T.pAlign + ": " + a[0], function () {
+          panelEdit(function () { all(function (x) { x.style.textAlign = a[0]; }); });
+          seg.querySelectorAll("button").forEach(function (o) { o.classList.toggle("is-on", o === bt); });
+          drawTools();
+        });
+        if (a[0] === alignNow) bt.classList.add("is-on");
+        return bt;
+      }));
+      out.push(psec(T.pText, [
+        dsStyles.length ? prow(T.pStyle, ppick("", [["", T.pCustom]].concat(dsStyles.slice(0, 40).map(function (x, k) { return [String(k), x.st.name]; })), function (k) {
+          var x = dsStyles[+k]; if (!x) return;
+          var f = px(x.st.fontSize), onSlide = f ? Math.max(24, R(f * SLIDE_SCALE)) : null;
+          words(function (n) {
+            if (onSlide) n.style.fontSize = onSlide + "px";
+            if (x.st.fontWeight) n.style.fontWeight = x.st.fontWeight;
+            if (x.st.lineHeight) n.style.lineHeight = x.st.lineHeight;
+            if (x.st.letterSpacing) n.style.letterSpacing = x.st.letterSpacing;
+            if (x.stack) n.style.fontFamily = x.stack;
+          });
+          setTimeout(drawProps, 0);
+        })) : null,
+        prow(T.pFontSize, pnum(R(fsz), function (v) { words(function (n) { n.style.fontSize = Math.max(8, Math.min(400, v)) + "px"; }); drawTools(); }, { min: 8, max: 400 })),
+        prow(T.pWeight, ppick(String(Math.round((parseInt(ts.fontWeight, 10) || 400) / 100) * 100), [["300", T.wLight], ["400", T.wRegular], ["500", T.wMedium], ["600", T.wSemi], ["700", T.wBold]],
+          function (v) { words(function (n) { n.style.fontWeight = v; }); drawTools(); })),
+        h("div", { "class": "sl-p2" }, [
+          prow(T.pLine, pnum(Math.round(parseFloat(ts.lineHeight) / fsz * 100) / 100 || 1.2, function (v) { words(function (n) { n.style.lineHeight = String(Math.max(0.5, Math.min(4, v))); }); }, { step: 0.05, min: 0.5, max: 4 })),
+          prow(T.pTrack, pnum(parseFloat(ts.letterSpacing) || 0, function (v) { words(function (n) { n.style.letterSpacing = v + "px"; }); }, { step: 0.5 }))]),
+        prow(T.pColor, pcolor(ts.color, function (v) { words(function (n) { n.style.color = v; }); drawTools(); })),
+        prow(T.pAlign, seg)]));
+    }
+    var bw = parseFloat(cs.borderTopWidth) || 0, bstyle = bw && cs.borderTopStyle !== "none" ? cs.borderTopStyle : "none";
+    var border = function (style, width, color) {
+      all(function (x) { x.style.border = style === "none" ? "none" : Math.max(1, width) + "px " + style + " " + color; });
+    };
+    var isImg = el.tagName === "IMG", bg = cs.backgroundColor;
+    out.push(psec(T.pAppearance, [
+      isImg ? null : prow(T.pBackground, pcolor(/^(transparent|rgba\(0, 0, 0, 0\))$/.test(bg) ? "" : bg, function (v) { all(function (x) { x.style.background = v || "none"; }); }, true)),
+      prow(T.pOpacity, pnum(Math.round(parseFloat(cs.opacity) * 100) / 100, function (v) { all(function (x) { x.style.opacity = String(Math.max(0, Math.min(1, v))); }); }, { step: 0.05, min: 0, max: 1 })),
+      /clip-path/.test(el.getAttribute("style") || "") ? null : prow(T.pRadius, pnum(parseFloat(cs.borderTopLeftRadius) || 0, function (v) { all(function (x) { x.style.borderRadius = Math.max(0, v) + "px"; }); }, { min: 0 })),
+      prow(T.pBorder, ppick(bstyle, [["none", T.none], ["solid", T.bSolid], ["dashed", T.bDashed], ["dotted", T.bDotted]], function (v) {
+        border(v, bw || 2, cssHex(cs.borderTopColor) || "#000000"); setTimeout(drawProps, 0);
+      })),
+      bstyle === "none" ? null : prow(T.pWidth, pnum(bw, function (v) { border(bstyle, Math.min(32, v), cssHex(cs.borderTopColor) || "#000000"); }, { min: 1, max: 32 })),
+      bstyle === "none" ? null : prow(T.pColor, pcolor(cs.borderTopColor, function (v) { border(bstyle, bw, v); }))]));
+    var shadow = cs.boxShadow && cs.boxShadow !== "none";
+    out.push(psec(T.pEffects, [prow(T.pShadow, ppick(shadow ? "1" : "", [["", T.none], ["1", T.pShadow]], function (v) {
+      all(function (x) { x.style.boxShadow = v ? "0 16px 48px rgba(0,0,0,.18)" : "none"; });
+    }))]));
+    propsEl.replaceChildren.apply(propsEl, out);
+  }
+
+  // Right-click on an element: Claude's menu (cut, copy, paste, duplicate, order, delete).
+  if (editable) clip.addEventListener("contextmenu", function (e) {
+    if (editing) return;
+    var it = itemOf(e.target);
+    if (!it && !clipboard) return;
+    e.preventDefault();
+    if (it && sel.indexOf(it) < 0) select([it]);
+    var items = it ? [{ label: T.cut, onClick: function () { copySel(); removeSel(); } }, { label: T.copy, onClick: copySel }] : [];
+    if (clipboard) items.push({ label: T.paste, onClick: pasteClip });
+    if (it) items.push({ label: T.dup, onClick: duplicate });
+    if (it && isFree(it)) items.push({ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } });
+    else if (it) items.push({ label: T.detach, onClick: detach });
+    if (it) items.push({ label: T.del, onClick: removeSel });
+    var a = h("span", { style: "position:fixed;width:1px;height:1px;left:" + e.clientX + "px;top:" + (e.clientY - 4) + "px" });
+    document.body.appendChild(a);
+    kit.menu(a, items);
+    var m = document.querySelector(".kit-menu");
+    if (m) m.style.left = Math.max(8, Math.min(e.clientX, innerWidth - m.offsetWidth - 8)) + "px";
+    setTimeout(function () { a.remove(); }, 0);
+  });
+
+  // A click beside the slide lets go of the selection: the panel then shows the slide's own properties.
+  if (editable) stageWrap.addEventListener("pointerdown", function (e) { if (e.target === stageWrap || e.target === stage) { stopEdit(); select([]); } });
 
   if (!slides.length) { stage.replaceWith(h("div", { "class": "kit-empty", text: T.empty })); return; }
   buildRail();
   show(cur);
+  drawChrome(); drawProps();
   function relayout() {
-    // Layout slides nobody changed follow the theme (the design system's, else Hermes' own).
+    // Layout slides nobody changed follow the theme (the design system's, else the layouts' default look).
     slides.forEach(function (s) {
       if (!s.layout || fileIds[s.id] || serialize(s) !== saved.html[s.id]) return;
       s.sec = clean(window.slideLayout(defs[s.id], deckTheme()), s.id);
@@ -1518,13 +1911,12 @@
     buildRail();
     if (!pres) show(cur);
   }
-  if (!deck.theme && kit.hostTheme) kit.hostTheme(function () { if (!dsTheme) relayout(); });
   /** A design system's tokens as a slide theme: its colors by role (found by name), its fonts. */
   function themeFromDs(ds) {
     var st = h("style", { text: window.dsKit.css(ds) });
     document.head.appendChild(st);
-    var themes = window.dsKit.themes(ds), host = kit.hostTheme && kit.hostTheme();
-    var mode = host && themes.some(function (t) { return t.id === host.mode; }) ? host.mode : themes[0] ? themes[0].id : null;
+    var themes = window.dsKit.themes(ds), want = dsRec && dsRec.theme;
+    var mode = want && themes.some(function (t) { return t.id === want; }) ? want : themes[0] ? themes[0].id : null; // the system's first theme, not the app's mode
     if (mode) document.documentElement.setAttribute("data-ds-theme", mode);
     var probe = h("div", mode ? { "data-theme": mode } : {});
     document.body.appendChild(probe);
@@ -1560,8 +1952,8 @@
     if (th.mode === undefined) th.mode = dark ? "dark" : "light"; // themeOf only needs light/dark for its own defaults
     return th;
   }
-  if (!deck.theme && deck.designSystem && window.dsKit && window.hermes && window.hermes.ds) {
-    window.dsKit.load(deck.designSystem).then(function (ds) {
+  if (!deck.theme && dsRec && window.dsKit) {
+    window.dsKit.load(dsRec).then(function (ds) {
       if (!ds || !ds.tokens) return;
       dsTheme = themeFromDs(ds);
       relayout();

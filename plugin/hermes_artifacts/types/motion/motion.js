@@ -9,9 +9,16 @@
   var kit = window.kit, h = kit.h, C = kit.content, FK = window.FilmKit, SND = window.MotionSound, ENC = window.MotionEncode;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)", back: "Previous frame (←)",
-      fwd: "Next frame (→)", present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
-      comment: "Comment (C)", commentAt: "Comment on this moment", commentRange: "Comment on this stretch", tweaks: "Tweaks", rough: "Rough cut",
+    en: { retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)",
+      restart: "Restart (Home)", stepHint: "← → one frame · Shift + ← → one second",
+      present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
+      style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long",
+      prevScene: "Previous scene", nextScene: "Next scene", words: "Words on screen", pickWords: "Click words on the picture to change them.",
+      placesOne: "Changes 1 place in the animation", places: "Changes {n} places in the animation", elsewhere: "Elsewhere in this scene", palette: "Palette",
+      format: "Format", resolution: "Resolution", frameRate: "Frame rate", quality: "Quality", high: "High", medium: "Medium", low: "Low",
+      mp4Opt: "MP4 video", pngOpt: "PNG frame", gifNote: "640 px wide, about 14 fps, no sound", pngNote: "The frame on show, at full size",
+      about: "about",
+      comment: "Comment (C)", commentAt: "Comment on this moment", commentRange: "Comment on this stretch", tweaks: "Tweaks", volume: "Volume", rough: "Rough cut",
       cont: "Continue", fin: "Finalize", contMsg: "Continue the animation.", left: "Scenes left: ", finMsg: "Finalize the animation.",
       scene: "Scene", of: "of", soon: "Still to come", failed: "This scene didn't run", bad: "modules/scenes.json is missing or not valid.",
       badScenes: "scenes.json: ", noFilm: "This film has no scenes yet.", saving: "Saving…", saved: "Saved", notSaved: "Not saved", retry: "Save",
@@ -21,11 +28,18 @@
       pickHint: "Pause, then click a thing on the picture to change its look.", resetAll: "Reset all changes", byHand: "Changes made by hand are saved as part of the film.",
       building: "Exporting", cancel: "Cancel", frames: "frames", noCodec: "This browser can't encode video (WebCodecs H.264 missing)",
       noAudio: "Exported without sound: this browser can't encode AAC", fontsOff: "Web fonts couldn't be embedded: the export uses fallback fonts",
-      done: "Exported", cancelled: "Export cancelled", scrollHint: "", s: "s", mixed: "Mixed", rangeMark: "Stretch" },
-    hu: { retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)", back: "Előző képkocka (←)",
-      fwd: "Következő képkocka (→)", present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
-      comment: "Komment (C)", commentAt: "Komment erre a pillanatra", commentRange: "Komment erre a szakaszra", tweaks: "Hangolás", rough: "Nyers vágás",
-      cont: "Folytatás", fin: "Véglegesítés", left: "Scenes left: ",
+      done: "Exported", cancelled: "Export cancelled", s: "s" },
+    hu: { retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)",
+      restart: "Újrakezdés (Home)", stepHint: "← → egy képkocka · Shift + ← → egy másodperc",
+      present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
+      style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú",
+      prevScene: "Előző jelenet", nextScene: "Következő jelenet", words: "Szöveg a képen", pickWords: "Kattints a képen egy szövegre, hogy átírd.",
+      placesOne: "Az animációban 1 helyen változik", places: "Az animációban {n} helyen változik", elsewhere: "Máshol ebben a jelenetben", palette: "Paletta",
+      format: "Formátum", resolution: "Felbontás", frameRate: "Képkockasebesség", quality: "Minőség", high: "Magas", medium: "Közepes", low: "Alacsony",
+      mp4Opt: "MP4 videó", pngOpt: "PNG képkocka", gifNote: "640 px széles, kb. 14 kép/mp, hang nélkül", pngNote: "A látható képkocka, teljes méretben",
+      about: "kb.",
+      comment: "Komment (C)", commentAt: "Komment erre a pillanatra", commentRange: "Komment erre a szakaszra", tweaks: "Hangolás", volume: "Hangerő", rough: "Nyers vágás",
+      cont: "Folytatás", fin: "Véglegesítés",
       scene: "Jelenet", of: "/", soon: "Még készül", failed: "Ez a jelenet nem futott le", bad: "A modules/scenes.json hiányzik vagy nem érvényes.",
       badScenes: "scenes.json: ", noFilm: "Ebben a filmben még nincs jelenet.", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", retry: "Mentés",
       conflict: "Közben megváltozott: betöltöm az új verziót", noSave: "Itt nem lehet menteni", rangeHint: "Shift + húzás az idővonalon: szakasz kijelölése · I / O: a két vége",
@@ -34,14 +48,15 @@
       pickHint: "Állítsd meg, és kattints a képen egy elemre, hogy megváltoztasd.", resetAll: "Minden kézi módosítás visszaállítása", byHand: "A kézi módosítások a film részeként mentődnek.",
       building: "Exportálás", cancel: "Mégse", frames: "képkocka", noCodec: "Ez a böngésző nem tud videót kódolni (nincs WebCodecs H.264)",
       noAudio: "Hang nélkül exportálva: ez a böngésző nem tud AAC-t kódolni", fontsOff: "A webes betűk nem ágyazhatók be: az export tartalék betűkkel készül",
-      done: "Exportálva", cancelled: "Export megszakítva", scrollHint: "", s: "mp", mixed: "Vegyes", rangeMark: "Szakasz" }
+      done: "Exportálva", cancelled: "Export megszakítva", s: "mp" }
   }, L);
 
   var realNow = performance.now.bind(performance);
   var EPOCH = Date.UTC(2026, 0, 1);
   var bar = document.getElementById("mo-bar"), view = document.getElementById("mo-view"), frame = document.getElementById("mo-frame");
   var stage = document.getElementById("stage"), fxCanvas = document.getElementById("mo-fx"), controls = document.getElementById("mo-controls");
-  bar.className = "kit-bar";
+  var app = document.getElementById("mo-app");
+  bar.hidden = true; // Claude's Motion has no top bar: what it held floats over the picture (floatEl)
   var fx = fxCanvas.getContext("2d");
   var editable = !C.thumb;
   function parse(html) { var tp = document.createElement("template"); tp.innerHTML = html; return tp.content.firstElementChild; }
@@ -204,13 +219,17 @@
     return s;
   }
   var DETERMINISM = "#stage *,#stage *::before,#stage *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}";
+  // The film never wears the host's theme: its own text colour and face and a light colour scheme, under
+  // whatever the film sets (motion.css says the same for the page). Size and line height are left alone.
+  var STAGE_FONT = '"Inter", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
+  var STAGE_DEFAULTS = "#stage{color:#0f1720;font:400 14px/1.5 " + STAGE_FONT + ";font-feature-settings:'cv11','ss01';color-scheme:light}";
   var STAGE_BASE = ".mo-scene{position:absolute;left:0;top:0;overflow:hidden}.mo-scene[hidden]{display:none!important}" +
     ".mo-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 160px;background:#f4f2ee;color:#1c1c1c;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}" +
     ".mo-card .n{font-size:30px;letter-spacing:.14em;text-transform:uppercase;opacity:.55}.mo-card .t{font-size:120px;font-weight:700;line-height:1.05;margin:18px 0 26px}" +
     ".mo-card .d{font-size:38px;line-height:1.35;max-width:1300px;opacity:.75}.mo-card .s{position:absolute;left:160px;bottom:90px;font-size:26px;letter-spacing:.1em;text-transform:uppercase;opacity:.45}" +
     ".mo-rough{filter:grayscale(1) contrast(1.15)}";
   function filmCssText() {
-    return ["ds", "fonts", "base", "recolor", "retouch", "stage", "det"].map(function (k) { return styles[k] ? styles[k].textContent : ""; }).join("\n") + STAGE_BASE;
+    return STAGE_DEFAULTS + ["ds", "fonts", "base", "recolor", "retouch", "stage", "det"].map(function (k) { return styles[k] ? styles[k].textContent : ""; }).join("\n") + STAGE_BASE;
   }
 
   // ------------------------------------------------------------------ boot
@@ -273,11 +292,12 @@
     stage.style.background = stageBackground();
     frame.style.width = W + "px"; frame.style.height = H + "px";
     fxCanvas.width = W; fxCanvas.height = H; fxCanvas.style.width = W + "px"; fxCanvas.style.height = H + "px";
-    // A design system the film names (scenes.json designSystem: {id, version} it was built on; an id, or true
-    // for the default one, from older films).
-    if (SJ && SJ.designSystem && window.dsKit && !styles.ds) {
+    // The design system the film was built on: the copy it carries (scenes.json designSystems[0], ds/<namespace>/),
+    // its tokens as CSS variables under base.css. A film from before the copy asks Hermes, briefly.
+    var dsRec = SJ && ((Array.isArray(SJ.designSystems) && SJ.designSystems[0]) || SJ.designSystem);
+    if (dsRec && window.dsKit && !styles.ds) {
       try {
-        var ds = await Promise.race([window.dsKit.load(SJ.designSystem === true ? null : SJ.designSystem), new Promise(function (r) { setTimeout(function () { r(null); }, 3000); })]);
+        var ds = window.dsKit.local(dsRec) || await Promise.race([window.dsKit.load(dsRec === true ? null : dsRec), new Promise(function (r) { setTimeout(function () { r(null); }, 3000); })]);
         styleEl("ds", ds ? window.dsKit.css(ds) : "");
       } catch (e) { styleEl("ds", ""); }
     }
@@ -622,7 +642,7 @@
     ui();
   }
   function toggle() { if (playing) pause(); else play(); }
-  function startSound() { if (live && !muted && playing) live.start(cur, clock); }
+  function startSound() { if (live && !muted && playing) { live.start(cur, clock); live.setVolume(volume); } }
   function tick() {
     if (!playing) return;
     var t = clock();
@@ -643,45 +663,69 @@
   function stepFrame(n) { pause(); seek((Math.round(cur * FPS) + n) / FPS); }
 
   // ------------------------------------------------------------------ chrome
-  function fmt(t) {
-    t = Math.max(0, t || 0);
-    var m = Math.floor(t / 60), s = t - m * 60;
-    return m + ":" + (s < 10 ? "0" : "") + s.toFixed(2);
-  }
   function fmtShort(t) { var s = Math.floor(t); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+  function secLabel(d) { return (Math.round(d * 10) / 10).toLocaleString(L) + " " + T.s; }
+  // Claude's Motion layout: the stage, one transport row under it, the scene strip under that, and the
+  // Tweaks / Style panel beside them (under them on a narrow page). No top bar: the rough-cut badge,
+  // Continue, Finalize and the save state float over the picture's top-left corner when they have something to say.
   var statusEl = h("span", { "class": "mo-status", "aria-live": "polite" });
   var retryBtn = kit.labelled(kit.button(T.retry, "", function () { if (pendingSave) doSave(pendingSave); }, T.retry), T.retry);
   retryBtn.hidden = true;
   var roughBadge = h("span", { "class": "mo-badge", text: T.rough });
   var contBtn = kit.labelled(kit.button(T.cont, "next", function () { sendToChat(continueMsg()); }, T.cont), T.cont);
   var finBtn = kit.labelled(kit.button(T.fin, "sparkle", function () { sendToChat(T.finMsg); }, T.fin), T.fin);
-  var tweaksBtn = kit.labelled(kit.button(T.tweaks, "panel", function () { toggleTweaks(); }, T.tweaks), T.tweaks);
-  var commentBtn = kit.button("", "comment", function () { commentHere(); }, T.comment);
+  var floatEl = h("div", { "class": "mo-float" }, [roughBadge, contBtn, finBtn, statusEl, retryBtn]);
+  view.appendChild(floatEl);
+  function floatSync() {
+    floatEl.hidden = !(statusEl.textContent || [roughBadge, contBtn, finBtn, retryBtn].some(function (n) { return !n.hidden; }));
+  }
   var exportList = [{ id: "mp4", label: T.mp4, run: exportMp4 }, { id: "gif", label: T.gif, run: exportGif }, { id: "png", label: T.png, run: exportPng }];
-  var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
-  }), T.exp);
-  expBtn.hidden = true;
-  var titleEl = h("span", { "class": "kit-title", style: "visibility:hidden" }); // the host's toolbar shows the title
 
   var playBtn = kit.button("", "play", toggle, T.play);
-  var backBtn = kit.button("", "prev", function () { stepFrame(-1); }, T.back);
-  var fwdBtn = kit.button("", "next", function () { stepFrame(1); }, T.fwd);
-  var timeEl = h("span", { "class": "mo-time" });
+  var restartBtn = kit.button("", "restart", function () { seek(0); }, T.restart);
+  var loopBtn = kit.button("", "repeat", function () { loop = !loop; ui(); }, T.loop);
+  var timeEl = h("span", { "class": "mo-time", title: T.stepHint });
+  var muteBtn = kit.button("", "volumeOff", function () { setMuted(!muted); }, T.mute);
+  var commentBtn = kit.button("", "comment", function () { commentHere(); }, T.comment);
+  var expBtn = kit.button("", "download", function () { exportDialog(); }, T.exp);
+  var presentBtn = kit.button("", "expand", function () { present(!presenting); }, T.present);
+  var tweaksBtn = kit.button("", "sliders", function () { toggleTweaks(); }, T.tweaks);
+  tweaksBtn.appendChild(h("span", { "class": "mo-lbl", text: T.tweaks }));
+  var volume = 1;
+  var volEl = h("input", { "class": "mo-vol", type: "range", min: "0", max: "1", step: "0.05", value: "1", "aria-label": T.volume });
+  // the slider lives in a small box that opens upward from the speaker on hover or focus
+  var volNum = h("b", { text: "100" });
+  var volWrap = h("span", { "class": "mo-volwrap" }, [h("div", { "class": "mo-volpop" }, [h("div", { "class": "mo-volbox" }, [volNum, volEl])]), muteBtn]);
+  function volShow() {
+    var v = Math.round(+volEl.value * 100);
+    volEl.style.setProperty("--v", v + "%");
+    volNum.textContent = String(v);
+  }
+  volEl.addEventListener("input", function () {
+    volume = +volEl.value;
+    volShow();
+    if (volume <= 0) { volume = 1; if (!muted) setMuted(true); return; }
+    if (muted) setMuted(false);
+    if (live) live.setVolume(volume);
+  });
+  var trans = h("div", { "class": "mo-trans" }, [playBtn, restartBtn, loopBtn, timeEl, h("span", { "class": "mo-spacer" }),
+    volWrap, commentBtn, expBtn, presentBtn, tweaksBtn]);
   var tl = h("div", { "class": "mo-tl", role: "slider", tabindex: "0", "aria-label": "Timeline" });
   var segsEl = h("div", { "class": "mo-segs" }), headEl = h("div", { "class": "mo-head" }), rangeEl = h("div", { "class": "mo-range", hidden: true });
   tl.append(segsEl, rangeEl, headEl);
-  var loopBtn = kit.button("", "refresh", function () { loop = !loop; ui(); }, T.loop);
-  var muteBtn = h("button", { "class": "kit-btn", type: "button", title: T.mute, onclick: function () { setMuted(!muted); } });
-  var SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/>';
-  function muteIcon() { muteBtn.innerHTML = SPK + (muted ? '<path d="M17 9l5 6M22 9l-5 6"/>' : '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>') + "</svg>"; muteBtn.title = muted ? T.mute : T.unmute; }
+  function muteIcon() {
+    muteBtn.innerHTML = kit.icon(muted ? "volumeOff" : "volume");
+    muteBtn.title = muted ? T.mute : T.unmute;
+    muteBtn.classList.toggle("is-on", muted);
+    volEl.value = String(muted ? 0 : volume || 1);
+    volShow();
+  }
   function setMuted(m) {
     muted = m; muteIcon();
     if (muted) { if (live) live.stop(); }
     else if (live && live.ready()) startSound();
   }
-  controls.append(tl, playBtn, backBtn, fwdBtn, timeEl, h("span", { "class": "mo-spacer" }), commentBtn, loopBtn, muteBtn,
-    kit.button("", "presenter", function () { present(!presenting); }, T.present));
+  controls.append(trans, tl);
 
   function continueMsg() {
     var left = timeline.filter(function (s) { return s.state !== "ok"; }).map(function (s) { return s.index + 1; });
@@ -691,16 +735,80 @@
     if (window.hermes && window.hermes.send) window.hermes.send(text, null, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(text); }, function () {});
   }
 
+  /** A small picture of each scene for its card in the strip, as Claude's: the scene past its entrance. It is
+      drawn and copied in one go and the film on show is put back before the page paints, so it never moves;
+      the copies become pictures one at a time afterwards. */
+  var thumbs = {}, thumbRun = 0, THUMB_H = 96;
+  function makeThumbs() {
+    if (custom || !timeline.length || C.thumb) return;
+    var run = ++thumbRun, jobs = [], defs = stage.querySelector(":scope > svg"), fw = Math.max(1, Math.round(THUMB_H * W / H));
+    timeline.forEach(function (sc) {
+      if (sc.state !== "ok" || !sc.def || !sc.def.render) return;
+      var n = 1, roots = [];
+      try {
+        for (var i = 0; i < n; i++) {
+          var at = (i + 0.6) / (n + 0.2);
+          frozen(sc.pstart + sc.pdur * at, function () { sc.def.render.call(sc.def, sc.dur * at, sc.kit); });
+          var root = stage.cloneNode(false);
+          root.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+          root.style.background = stage.style.background;
+          if (defs) root.appendChild(defs.cloneNode(true));
+          var c = sc.el.cloneNode(true);
+          c.hidden = false; c.style.filter = "";
+          Array.prototype.forEach.call(c.querySelectorAll("video,canvas,audio"), function (x) { x.remove(); });
+          root.appendChild(c);
+          roots.push(root);
+        }
+      } catch (e) {}
+      if (roots.length) jobs.push({ sc: sc, roots: roots });
+    });
+    renderAt(cur);
+    var css = filmCssText();
+    inlineFonts().then(function (f) { return f && f.css || ""; }, function () { return ""; }).then(function (fontCss) {
+      return jobs.reduce(function (before, j) {
+        var cv = document.createElement("canvas");
+        cv.width = fw * j.roots.length; cv.height = THUMB_H;
+        var g = cv.getContext("2d");
+        return j.roots.reduce(function (p, root, i) {
+          return p.then(function () {
+            if (run !== thumbRun) return;
+            return svgImage(root, W, H, css + fontCss).then(function (img) { g.drawImage(img, i * fw, 0, fw, THUMB_H); }, function () {});
+          });
+        }, before).then(function () {
+          if (run !== thumbRun) return;
+          thumbs[j.sc.id] = cv.toDataURL("image/webp", 0.8);
+          if (j.sc.thumbEl) j.sc.thumbEl.style.backgroundImage = 'url("' + thumbs[j.sc.id] + '")';
+        });
+      }, Promise.resolve());
+    });
+  }
+  /** Cards with pictures, or plain pills when the panel shares a narrow page with the film. */
+  function stripMode() {
+    tl.classList.toggle("thumbs", !custom && timeline.length > 0 && !(tweaksOpen && window.matchMedia("(max-width: 900px)").matches));
+    tl.style.setProperty("--mo-ar", String(W / H));
+  }
+  window.addEventListener("resize", stripMode);
   function refreshSegs() {
     segsEl.textContent = "";
     var segs = custom ? chapters() : timeline;
-    segs.forEach(function (s, i) {
+    segs.forEach(function (s) {
       var el = h("div", { "class": "mo-seg" + (s.state === "failed" ? " failed" : s.state === "missing" ? " missing" : "") + (s.recut && (s.recut.dur || s.recut.name) ? " recut" : ""),
-        title: s.name + " · " + fmt(s.pdur) });
+        title: s.name + " · " + secLabel(s.pdur) + (s.state === "failed" ? " · " + T.failed : s.state === "missing" ? " · " + T.soon : "") });
       el.style.flex = s.pdur + " 1 0";
-      el.appendChild(h("div", { "class": "fill" }));
-      el.appendChild(h("span", { text: s.name }));
+      // One pill per scene, "Name · 3.5 s"; the current one shows a … button for its name, length and speed.
+      var row = h("div", { "class": "mo-seg-row" }, [h("span", { "class": "mo-seg-t" }, [h("b", { text: s.name }), h("i", { text: secLabel(s.pdur) })])]);
+      if (!custom) {
+        s.thumbEl = h("div", { "class": "mo-thumb" });
+        if (thumbs[s.id]) s.thumbEl.style.backgroundImage = 'url("' + thumbs[s.id] + '")';
+        el.appendChild(s.thumbEl);
+      }
+      el.appendChild(row);
       if (!custom && editable) {
+        var more = h("button", { "class": "mo-more", type: "button", title: T.more, "aria-label": T.more, html: kit.icon("more") });
+        more.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+        more.addEventListener("click", function (e) { e.stopPropagation(); scenePop(s, more); });
+        s.moreEl = more;
+        row.appendChild(more);
         var grip = h("div", { "class": "grip", title: T.length });
         grip.addEventListener("pointerdown", function (e) { e.stopPropagation(); trimStart(e, s, grip); });
         el.appendChild(grip);
@@ -708,11 +816,13 @@
       s.segEl = el;
       segsEl.appendChild(el);
     });
+    stripMode();
     var anyBad = timeline.some(function (s) { return s.state !== "ok"; });
     var rough = SJ && SJ.stage === "rough";
     roughBadge.hidden = !rough;
     contBtn.hidden = !(anyBad && !custom);
     finBtn.hidden = !(rough && !anyBad && timeline.length);
+    floatSync();
     pinsDraw();
   }
   function chapters() {
@@ -726,18 +836,21 @@
   function ui() {
     var pct = total ? cur / total * 100 : 0;
     headEl.style.left = pct + "%";
-    timeEl.textContent = fmt(cur) + " / " + fmt(total);
-    playBtn.innerHTML = kit.icon(playing ? "pause" : "play");
+    timeEl.replaceChildren(fmtShort(cur) + " ", h("i", { text: "/ " + fmtShort(total) }));
+    var icon = playing ? "pause" : "play";
+    if (playBtn.getAttribute("data-icon") !== icon) { playBtn.innerHTML = kit.icon(icon); playBtn.setAttribute("data-icon", icon); }
     playBtn.title = playing ? T.pause : T.play;
+    loopBtn.classList.toggle("is-on", loop);
     loopBtn.setAttribute("aria-pressed", String(loop));
+    tweaksBtn.classList.toggle("is-on", tweaksOpen);
+    stripMode();
+    tweaksBtn.setAttribute("aria-pressed", String(tweaksOpen));
+    presentBtn.title = presenting ? T.exitP : T.present;
     var segs = custom ? chapters() : timeline;
     segs.forEach(function (s, i) {
       var el = custom ? segsEl.children[i] : s.segEl;
       if (!el) return;
-      var on = cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1));
-      el.classList.toggle("on", on);
-      var f = el.querySelector(".fill");
-      if (f) f.style.width = (on ? Math.min(100, (cur - s.pstart) / s.pdur * 100) : cur >= s.pstart + s.pdur ? 100 : 0) + "%";
+      el.classList.toggle("on", cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1)));
     });
     if (range) { rangeEl.hidden = false; rangeEl.style.left = range[0] / total * 100 + "%"; rangeEl.style.width = (range[1] - range[0]) / total * 100 + "%"; }
     else rangeEl.hidden = true;
@@ -781,6 +894,60 @@
       else ui();
     }
     grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up);
+  }
+
+  // A scene's name, length and speed: the … popover on its pill and the Tweaks tab both write them into
+  // modules/recut.json (setRecut), within the half-to-three-times limits recutOf enforces.
+  function onEnter(inp) { inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); inp.blur(); } }); return inp; }
+  function resetLink(fn) { return h("button", { "class": "reset", type: "button", text: T.reset, onclick: fn }); }
+  function row(label, kids) { return h("div", { "class": "mo-row" }, [h("label", { text: label })].concat(kids)); }
+  function sceneName(sc) {
+    var inp = onEnter(h("input", { type: "text", value: sc.name, maxlength: "48", "aria-label": T.name }));
+    inp.addEventListener("change", function () { setRecut(sc.id, { name: inp.value }); });
+    return [inp].concat(sc.recut.name ? [resetLink(function () { setRecut(sc.id, { name: null }); })] : []);
+  }
+  function lenClamp(sc, v) { v = Math.round(v * 100) / 100; return Math.max(sc.dur / 2, Math.min(sc.dur * 3, v)); }
+  function sceneLength(sc) {
+    var inp = onEnter(h("input", { type: "number", step: "0.1", min: String(sc.dur / 2), max: String(sc.dur * 3), value: String(Math.round(sc.pdur * 100) / 100), "aria-label": T.length }));
+    inp.addEventListener("change", function () { var v = parseFloat(inp.value); if (v > 0) setRecut(sc.id, { dur: lenClamp(sc, v) }); });
+    return [inp].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : []);
+  }
+  function sceneSpeed(sc) {
+    // 0.5× plays the scene twice as long, 2× half as long; a button that can't go further is off.
+    var slow = h("button", { "class": "kit-btn", type: "button", text: "0.5×", title: T.slower, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur * 2) }); } });
+    var fast = h("button", { "class": "kit-btn", type: "button", text: "2×", title: T.faster, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur / 2) }); } });
+    slow.disabled = sc.pdur >= sc.dur * 3 - 1e-6;
+    fast.disabled = sc.pdur <= sc.dur / 2 + 1e-6;
+    return [h("div", { "class": "mo-choice" }, [slow, fast])];
+  }
+  var pop = null;
+  function closePop() {
+    if (!pop) return;
+    pop.el.remove(); document.removeEventListener("mousedown", pop.out, true);
+    pop = null;
+  }
+  function scenePop(s, anchor) {
+    if (pop && pop.id === s.id) { closePop(); return; }
+    closePop(); pause();
+    var el = h("div", { "class": "mo-pop", role: "dialog", "aria-label": s.name });
+    var name = sceneName(s);
+    [h("div", { "class": "mo-pop-name" }, name),
+      h("div", { "class": "mo-muted", text: (s.index + 1) + " " + T.of + " " + timeline.length }),
+      s.desc ? h("div", { "class": "mo-muted mo-desc", text: s.desc }) : null,
+      row(T.length + " (" + T.s + ")", sceneLength(s)), row(T.speed, sceneSpeed(s))].forEach(function (n) { if (n) el.appendChild(n); });
+    el.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); closePop(); } });
+    document.body.appendChild(el);
+    var p = pop = { id: s.id, el: el, anchor: anchor, out: function (e) { if (!el.contains(e.target) && !anchor.contains(e.target)) closePop(); } };
+    placePop();
+    setTimeout(function () { if (pop === p) document.addEventListener("mousedown", p.out, true); }, 0);
+  }
+  function placePop() {
+    if (!pop) return;
+    var r = pop.anchor.getBoundingClientRect(), el = pop.el, mh = el.offsetHeight, mw = el.offsetWidth;
+    if (!r.width) { closePop(); return; }
+    var below = r.bottom + 6 + mh <= innerHeight - 8 || r.top - 6 - mh < 8;
+    el.style.top = Math.max(8, below ? r.bottom + 6 : r.top - 6 - mh) + "px";
+    el.style.left = Math.max(8, Math.min(r.right - mw, innerWidth - mw - 8)) + "px";
   }
 
   // ------------------------------------------------------------------ comments on moments and stretches
@@ -866,7 +1033,8 @@
   function status(kind) {
     statusEl.textContent = kind === "saving" ? T.saving : kind === "saved" ? T.saved : kind === "failed" ? T.notSaved : "";
     retryBtn.hidden = kind !== "failed";
-    if (kind === "saved") setTimeout(function () { if (statusEl.textContent === T.saved) statusEl.textContent = ""; }, 2000);
+    floatSync();
+    if (kind === "saved") setTimeout(function () { if (statusEl.textContent === T.saved) { statusEl.textContent = ""; floatSync(); } }, 2000);
   }
   /** Save records: {name: object | null}. Applies them at once, then writes them as a new version. */
   function saveRecords(map) {
@@ -896,11 +1064,18 @@
   function reload() {
     var was = playing;
     pause(); // first: it brings cur to where the film is now
-    var keep = cur;
-    selected = null; selBox.hidden = true;
+    var keep = cur, popId = pop && pop.id;
+    // A selected line stays selected through the reload, found again by its (new) words.
+    var again = reselect || (selected && isLine(selected) ? norm(selected.getAttribute("data-mo-text") || selected.textContent) : null);
+    reselect = null;
+    selected = null; selBox.hidden = true; closePop();
     reloading = boot().then(function () {
-      refreshSegs(); renderAt(Math.min(keep, total)); ui();
+      refreshSegs(); renderAt(Math.min(keep, total)); ui(); makeThumbs();
+      if (again && !custom) selected = linesIn(sceneAt(cur)).filter(function (n) { return lineText(n) === again; })[0] || null;
       if (tweaksOpen) buildTweaks();
+      if (selected) drawSel();
+      var ps = popId && timeline.filter(function (s) { return s.id === popId; })[0];
+      if (ps && ps.moreEl) scenePop(ps, ps.moreEl);
       if (was) play();
     });
     return reloading;
@@ -943,11 +1118,28 @@
     pause();
     startRetype(line);
   });
+  function lineText(n) { return norm(n.getAttribute("data-mo-text") || n.textContent); }
+  function linesIn(sc) { return sc ? Array.prototype.filter.call(sc.el.querySelectorAll("*"), isLine) : []; }
+  /** Retype a line: one entry in modules/retyped.json, from the words the code says (was) to v. */
+  var reselect = null;
+  function retype(line, value) {
+    var shown = lineText(line), v = norm(value);
+    if (!v || v === shown) return;
+    var rec = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && norm(x.v) === shown; })[0];
+    var was = rec ? rec.was : shown, sc = custom ? null : sceneAt(cur);
+    var rt = JSON.parse(JSON.stringify(REC.retyped || { v: 1, lines: [] }));
+    rt.v = 1; rt.lines = (rt.lines || []).filter(function (x) { return x && norm(x.was) !== norm(was); });
+    if (v !== norm(was)) rt.lines.push({ scene: sc ? sc.id : "film", was: was, v: v });
+    if (selected === line) reselect = v;
+    saveRecords({ retyped: rt.lines.length ? rt : null });
+  }
+  /** How many lines on the whole stage show these words (a retype changes them all). */
+  function placesOf(text) {
+    return Math.max(1, Array.prototype.filter.call(stage.querySelectorAll("*"), function (n) { return isLine(n) && lineText(n) === text; }).length);
+  }
   function startRetype(line) {
     stopRetype();
-    var shown = norm(line.getAttribute("data-mo-text") || line.textContent);
-    var rec = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && norm(x.v) === shown; })[0];
-    var was = rec ? rec.was : shown;
+    var shown = lineText(line);
     var r = line.getBoundingClientRect(), vr = view.getBoundingClientRect(), cs = getComputedStyle(line), k = frameScale();
     var ta = h("textarea", { "class": "mo-edit", spellcheck: "true" });
     ta.value = shown;
@@ -959,15 +1151,10 @@
     ta.focus(); ta.select();
     function fit() { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
     fit(); ta.addEventListener("input", fit);
-    var sc = custom ? null : sceneAt(cur);
     editor = { ta: ta, commit: function () {
-      var v = norm(ta.value);
+      var v = ta.value;
       stopRetype();
-      if (!v || v === shown) return;
-      var rt = JSON.parse(JSON.stringify(REC.retyped || { v: 1, lines: [] }));
-      rt.v = 1; rt.lines = (rt.lines || []).filter(function (x) { return x && norm(x.was) !== norm(was); });
-      if (v !== norm(was)) rt.lines.push({ scene: sc ? sc.id : "film", was: was, v: v });
-      saveRecords({ retyped: rt.lines.length ? rt : null });
+      retype(line, v);
     } };
     ta.addEventListener("keydown", function (e) {
       e.stopPropagation();
@@ -978,78 +1165,84 @@
   }
   function stopRetype() { if (editor) { var t = editor.ta; editor = null; t.remove(); } }
 
-  // ------------------------------------------------------------------ Tweaks: scene name and length, colors, font, one thing's look
-  var drawer = null, tweaksOpen = false, selected = null;
+  // ------------------------------------------------------------------ the panel: Tweaks (the scene, words, one thing's look, what changed) and Style (palette, colours, fonts)
+  var panel = null, tweaksOpen = false, selected = null, panelTab = "tweaks", focusWords = false;
   var selBox = h("div", { "class": "mo-sel", hidden: true });
   view.appendChild(selBox);
   function toggleTweaks() {
     tweaksOpen = !tweaksOpen;
-    tweaksBtn.setAttribute("aria-pressed", String(tweaksOpen));
-    if (!tweaksOpen) { if (drawer) drawer.remove(); drawer = null; selected = null; selBox.hidden = true; fit(); return; }
+    if (!tweaksOpen) { if (panel) panel.remove(); panel = null; selected = null; selBox.hidden = true; ui(); fit(); return; }
     pause();
     buildTweaks();
+    ui();
   }
-  function row(label, kids) { return h("div", { "class": "mo-row" }, [h("label", { text: label })].concat(kids)); }
-  function resetLink(fn) { return h("button", { "class": "reset", type: "button", text: T.reset, onclick: fn }); }
+  function sec(box, title, count) {
+    box.appendChild(h("h3", {}, [title].concat(count != null ? [h("span", { "class": "mo-count", text: String(count) })] : [])));
+  }
   var tweakSceneId = null;
   function buildTweaks() {
-    if (drawer) drawer.remove();
-    drawer = h("div", { "class": "kit-drawer mo-drawer" });
+    var scroll = panel ? panel.querySelector(".mo-pbody").scrollTop : 0;
+    if (panel) panel.remove();
+    panel = h("aside", { "class": "mo-panel", "aria-label": T.tweaks });
+    var tabs = h("div", { "class": "mo-tabs", role: "tablist" });
+    [["tweaks", T.tweaks], ["style", T.style]].forEach(function (p) {
+      tabs.appendChild(h("button", { type: "button", role: "tab", "class": "mo-tab" + (panelTab === p[0] ? " on" : ""), "aria-selected": String(panelTab === p[0]), text: p[1],
+        onclick: function () { if (panelTab !== p[0]) { panelTab = p[0]; buildTweaks(); } } }));
+    });
+    var body = h("div", { "class": "mo-pbody" });
+    panel.append(h("div", { "class": "mo-phead" }, [tabs, kit.button("", "close", function () { toggleTweaks(); }, T.close)]), body);
     var sc = custom ? null : sceneAt(cur);
     tweakSceneId = sc ? sc.id : null;
+    if (panelTab === "style") styleTab(body); else tweaksTab(body, sc);
+    app.appendChild(panel);
+    body.scrollTop = scroll;
+    fit();
+    if (focusWords) { focusWords = false; var wi = panel.querySelector(".mo-words"); if (wi) { wi.focus(); wi.select(); } }
+  }
+  function tweaksTab(box, sc) {
     if (sc) {
-      drawer.appendChild(h("h3", { text: T.scene + " " + (sc.index + 1) + " · " + sc.codeName }));
-      var nameIn = h("input", { type: "text", value: sc.name, maxlength: "48" });
-      nameIn.addEventListener("change", function () { setRecut(sc.id, { name: nameIn.value }); });
-      nameIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); nameIn.blur(); } });
-      drawer.appendChild(row(T.name, [nameIn].concat(sc.recut.name ? [resetLink(function () { setRecut(sc.id, { name: null }); })] : [])));
-      var lenIn = h("input", { type: "number", step: "0.1", min: String(sc.dur / 2), max: String(sc.dur * 3), value: String(sc.pdur) });
-      lenIn.addEventListener("change", function () { var v = parseFloat(lenIn.value); if (v > 0) setRecut(sc.id, { dur: Math.max(sc.dur / 2, Math.min(sc.dur * 3, v)) }); });
-      lenIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); lenIn.blur(); } });
-      drawer.appendChild(row(T.length + " (" + T.s + ")", [lenIn].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : [])));
+      var prev = kit.button("", "prev", function () { goScene(sc.index - 1); }, T.prevScene), next = kit.button("", "next", function () { goScene(sc.index + 1); }, T.nextScene);
+      prev.disabled = sc.index === 0; next.disabled = sc.index === timeline.length - 1;
+      box.appendChild(h("div", { "class": "mo-pnav" }, [h("b", { text: T.scene + " " + (sc.index + 1) + " " + T.of + " " + timeline.length }), h("span", { "class": "mo-spacer" }), prev, next]));
+      if (sc.desc) box.appendChild(h("div", { "class": "mo-note", text: sc.desc }));
+      box.appendChild(row(T.name, sceneName(sc)));
+      box.appendChild(row(T.length + " (" + T.s + ")", sceneLength(sc)));
+      box.appendChild(row(T.speed, sceneSpeed(sc)));
     }
-    // Colors: the film's palettes on base.css's four variables.
-    var cols = colorNow();
-    if (cols.length) {
-      drawer.appendChild(h("h3", { text: T.colors }));
-      var pals = h("div", { "class": "mo-pals" });
-      var palList = [cols.map(function (c) { return c.base; })].concat(Array.isArray(SJ && SJ.palettes) ? SJ.palettes : []);
-      var picked = REC.recolored && typeof REC.recolored.palette === "number" ? REC.recolored.palette : null, marked = false;
-      palList.forEach(function (p, i) {
-        if (!Array.isArray(p) || p.length < cols.length || !p.every(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); })) return;
-        var same = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
-        var on = same && !marked && (picked == null || picked === i);
-        if (on) marked = true;
-        var b = h("button", { "class": "mo-pal" + (on ? " on" : ""), type: "button", title: p.join(" ") }, [
-          h("i", { style: "background:linear-gradient(90deg," + p.slice(0, 4).map(function (c, j) { return c + " " + j * 25 + "% " + (j + 1) * 25 + "%"; }).join(",") + ")" }),
-          h("span", { text: i === 0 ? T.original : (i <= ((SJ && SJ.theirs) | 0) ? "★ " : "") + "#" + i })]);
-        b.addEventListener("click", function () { setColors(p, i); });
-        pals.appendChild(b);
-      });
-      drawer.appendChild(pals);
-      cols.forEach(function (c, j) {
-        var inp = h("input", { type: "color", value: c.v.toLowerCase() });
-        inp.addEventListener("change", function () { var p = colorNow().map(function (x) { return x.v; }); p[j] = inp.value; setColors(p, null); });
-        drawer.appendChild(row(c.name.replace(/^--/, ""), [inp, h("code", { text: c.v, style: "font-size:11px;color:var(--color-fg-muted)" })]));
-      });
+    // Words on screen: the selected line, retyped through modules/retyped.json like a double-click on it.
+    sec(box, T.words);
+    var line = selected && selected.isConnected && isLine(selected) ? selected : null;
+    if (line) {
+      var words = onEnter(h("input", { type: "text", "class": "mo-words", value: lineText(line), "aria-label": T.words }));
+      words.addEventListener("change", function () { retype(line, words.value); });
+      box.appendChild(words);
+      var nPl = placesOf(lineText(line));
+      box.appendChild(h("div", { "class": "mo-note", text: nPl === 1 ? T.placesOne : T.places.replace("{n}", nPl) }));
+    } else box.appendChild(h("div", { "class": "mo-note", text: T.pickWords + " " + T.editHint + "." }));
+    if (sc) {
+      var seen = {}, mine = line ? lineText(line) : null;
+      var others = linesIn(sc).filter(function (n) { var k = lineText(n); if (k === mine || seen[k]) return false; seen[k] = 1; return true; });
+      if (others.length) {
+        sec(box, T.elsewhere, others.length);
+        var list = h("div", { "class": "mo-lines" });
+        others.slice(0, 40).forEach(function (n) {
+          list.appendChild(h("button", { type: "button", "class": "mo-line", text: lineText(n), title: lineText(n),
+            onclick: function () { selected = n; focusWords = true; drawSel(); buildTweaks(); } }));
+        });
+        box.appendChild(list);
+      }
     }
-    // Font: the headline and text slots, one of the ten or the film's own.
-    drawer.appendChild(h("h3", { text: T.font }));
-    [["display", T.headlines], ["sans", T.text]].forEach(function (pair) {
-      var sel = h("select", {}), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
-      sel.appendChild(h("option", { value: "", text: T.original }));
-      Object.keys(TEN).forEach(function (id) { sel.appendChild(h("option", { value: id, text: id })); });
-      sel.value = rf && rf.v && TEN[rf.v] ? rf.v : "";
-      sel.addEventListener("change", function () { setFace(pair[0], sel.value || null); });
-      drawer.appendChild(row(pair[1], [sel]));
-    });
+    // The look of one thing on the picture.
+    sec(box, T.look);
+    if (selected && selected.isConnected) box.appendChild(lookControls(selected));
+    else box.appendChild(h("div", { "class": "mo-note", text: T.pickHint }));
     // What was changed by hand in this scene, each with its own Reset (Claude's per-line Reset).
     var here = function (id) { return sc ? id === sc.id : true; };
     var lines = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && here(x.scene || "film"); });
     if (lines.length) {
-      drawer.appendChild(h("h3", { text: T.retypedH }));
+      sec(box, T.retypedH, lines.length);
       lines.forEach(function (x) {
-        drawer.appendChild(h("div", { "class": "mo-chg" }, [
+        box.appendChild(h("div", { "class": "mo-chg" }, [
           h("span", { "class": "mo-chg-t", title: x.was + " → " + x.v, text: String(x.v).slice(0, 60) }),
           resetLink(function () {
             var rt = JSON.parse(JSON.stringify(REC.retyped));
@@ -1063,13 +1256,13 @@
       return m && here(m[1]);
     });
     if (layers.length) {
-      drawer.appendChild(h("h3", { text: T.layersH }));
+      sec(box, T.layersH, layers.length);
       layers.forEach(function (e) {
         // The names the Selected rows use (px is the Size row, svgfill and svgstroke the Color one).
         var LBL = { ink: T.ink, px: T.size, weight: T.weight, hidden: T.hidden, svgfill: T.ink, svgstroke: T.ink };
         var what = Object.keys(RT_KEYS).filter(function (k) { return e[k]; }).map(function (k) { return LBL[k] || k; })
           .filter(function (x, i, a) { return a.indexOf(x) === i; }).join(", ");
-        drawer.appendChild(h("div", { "class": "mo-chg" }, [
+        box.appendChild(h("div", { "class": "mo-chg" }, [
           h("span", { "class": "mo-chg-t", title: what, text: (e.label || e.id.split("/")[1]).slice(0, 40) + (what ? " · " + what : "") }),
           resetLink(function () {
             var all = ((REC.retouched && REC.retouched.layers) || []).filter(function (x) { return x && x.id !== e.id; });
@@ -1077,20 +1270,59 @@
           })]));
       });
     }
-    // The look of one thing on the picture.
-    drawer.appendChild(h("h3", { text: T.look }));
-    if (selected && selected.isConnected) drawer.appendChild(lookControls(selected));
-    else drawer.appendChild(h("div", { "class": "mo-note", text: T.pickHint }));
-    drawer.appendChild(h("div", { "class": "mo-note", text: T.editHint + " · " + T.rangeHint }));
+    box.appendChild(h("div", { "class": "mo-note", text: T.rangeHint }));
     var any = ["retyped", "recolored", "refaced", "recut", "retouched"].some(function (k) { return C.files["modules/" + k + ".json"] != null; });
     if (any) {
       var ra = kit.labelled(kit.button(T.resetAll, "undo", function () { saveRecords({ retyped: null, recolored: null, refaced: null, recut: null, retouched: null }); }), T.resetAll);
       ra.classList.add("mo-wide");
-      drawer.appendChild(ra);
-      drawer.appendChild(h("div", { "class": "mo-note", text: T.byHand }));
+      box.appendChild(ra);
+      box.appendChild(h("div", { "class": "mo-note", text: T.byHand }));
     }
-    document.body.appendChild(drawer);
-    fit();
+  }
+  function styleTab(box) {
+    // Palette: the film's palettes on base.css's four variables, one swatch strip each.
+    var cols = colorNow();
+    if (cols.length) {
+      sec(box, T.palette);
+      var pals = h("div", { "class": "mo-pals" });
+      var palList = [cols.map(function (c) { return c.base; })].concat(Array.isArray(SJ && SJ.palettes) ? SJ.palettes : []);
+      var picked = REC.recolored && typeof REC.recolored.palette === "number" ? REC.recolored.palette : null, marked = false;
+      palList.forEach(function (p, i) {
+        if (!Array.isArray(p) || p.length < cols.length || !p.every(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); })) return;
+        var same = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
+        var on = same && !marked && (picked == null || picked === i);
+        if (on) marked = true;
+        var label = i === 0 ? T.original : (i <= ((SJ && SJ.theirs) | 0) ? "★ " : "") + "#" + i;
+        var b = h("button", { "class": "mo-pal" + (on ? " on" : ""), type: "button", title: label + " · " + p.join(" "), "aria-pressed": String(on) }, [
+          h("span", { "class": "mo-sw" }, p.slice(0, 4).map(function (c) { return h("i", { style: "background:" + c }); })),
+          h("span", { "class": "mo-pal-n", text: label })]);
+        b.addEventListener("click", function () { setColors(p, i); });
+        pals.appendChild(b);
+      });
+      box.appendChild(pals);
+      sec(box, T.colors);
+      cols.forEach(function (c, j) {
+        var inp = h("input", { type: "color", value: c.v.toLowerCase() });
+        inp.addEventListener("change", function () { var p = colorNow().map(function (x) { return x.v; }); p[j] = inp.value; setColors(p, null); });
+        box.appendChild(row(c.name.replace(/^--/, ""), [inp, h("code", { text: c.v })]));
+      });
+    }
+    // Font: the headline and text slots, one of the ten or the film's own.
+    sec(box, T.font);
+    [["display", T.headlines], ["sans", T.text]].forEach(function (pair) {
+      var sel = h("select", {}), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
+      sel.appendChild(h("option", { value: "", text: T.original }));
+      Object.keys(TEN).forEach(function (id) { sel.appendChild(h("option", { value: id, text: id })); });
+      sel.value = rf && rf.v && TEN[rf.v] ? rf.v : "";
+      sel.addEventListener("change", function () { setFace(pair[0], sel.value || null); });
+      box.appendChild(row(pair[1], [sel]));
+    });
+  }
+  function goScene(i) {
+    var s = timeline[i];
+    if (!s) return;
+    pause(); selected = null; selBox.hidden = true;
+    seek(s.pstart);
   }
   function tweaksSync() { var sc = custom ? null : sceneAt(cur); if ((sc ? sc.id : null) !== tweakSceneId) { selected = null; selBox.hidden = true; buildTweaks(); } }
 
@@ -1127,6 +1359,8 @@
     if (!sc || !sc.el.contains(n) || n === sc.el) return;
     selected = lineAt(n) || (n.namespaceURI === "http://www.w3.org/2000/svg" && n.tagName !== "svg" ? n : n.closest("div,p,h1,h2,h3,h4,span,img") || n);
     if (selected.classList && selected.classList.contains("mo-word")) selected = selected.parentElement;
+    // A line goes to Words on screen, its field ready to type in.
+    panelTab = "tweaks"; focusWords = isLine(selected);
     drawSel();
     buildTweaks();
   });
@@ -1205,6 +1439,8 @@
     else if (presenting && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {});
     else if (!presenting && document.fullscreenElement) document.exitFullscreen().catch(function () {});
     if (tweaksOpen && presenting) toggleTweaks();
+    closePop();
+    ui();
     setTimeout(fit, 30);
   }
   document.addEventListener("mousemove", function () {
@@ -1216,7 +1452,7 @@
   // ------------------------------------------------------------------ keyboard
   document.addEventListener("keydown", function (e) {
     var tg = e.target;
-    if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable)) return;
+    if (dialog || (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable))) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     var k = e.key;
     if (k === " " || k === "k" || k === "K") { e.preventDefault(); toggle(); }
@@ -1231,7 +1467,7 @@
     else if (k === "i" || k === "I") { range = [cur, range ? Math.max(cur, range[1]) : Math.min(total, cur + 1)]; ui(); }
     else if (k === "o" || k === "O") { range = [range ? Math.min(range[0], cur) : Math.max(0, cur - 1), cur]; if (range[1] - range[0] < 0.05) range = null; ui(); }
     else if (k === "c" || k === "C") commentHere();
-    else if (k === "Escape") { if (presenting) present(false); else if (range) { range = null; ui(); } else if (selected) { selected = null; selBox.hidden = true; if (tweaksOpen) buildTweaks(); } }
+    else if (k === "Escape") { if (pop) closePop(); else if (presenting) present(false); else if (range) { range = null; ui(); } else if (selected) { selected = null; selBox.hidden = true; if (tweaksOpen) buildTweaks(); } }
   });
 
   // ------------------------------------------------------------------ export
@@ -1251,10 +1487,20 @@
     if (!f.ok) kit.toast(T.fontsOff);
   }
 
-  async function pickVideoConfig(w, hh) {
+  // MP4 settings the Export dialog offers, each one changing the file: the short side in pixels (0: the
+  // film's own size), frames per second, and bits per pixel per frame for the quality.
+  var QUALITY = { high: 0.12, medium: 0.06, low: 0.03 };
+  function mp4Opts(o) {
+    o = o || {};
+    var k = o.res > 0 ? o.res / Math.min(W, H) : 1, even = function (x) { return Math.max(2, Math.round(x / 2) * 2); };
+    var fps = o.fps > 0 && o.fps <= 60 ? Math.round(o.fps) : FPS, w = o.res > 0 ? even(W * k) : W - (W % 2), hh = o.res > 0 ? even(H * k) : H - (H % 2);
+    var bpp = QUALITY[o.q] || QUALITY.high;
+    return { w: w, h: hh, fps: fps, bitrate: Math.round(Math.min(16e6, w * hh * fps * bpp)) };
+  }
+  async function pickVideoConfig(w, hh, fps, bitrate) {
     var codecs = ["avc1.640033", "avc1.64002a", "avc1.640028", "avc1.4d0033", "avc1.4d002a", "avc1.42e033", "avc1.42e02a"];
     for (var i = 0; i < codecs.length; i++) {
-      var cfg = { codec: codecs[i], width: w, height: hh, bitrate: Math.round(Math.min(16e6, w * hh * FPS * 0.12)), framerate: FPS, avc: { format: "avc" } };
+      var cfg = { codec: codecs[i], width: w, height: hh, bitrate: bitrate, framerate: fps, avc: { format: "avc" } };
       try { var s = await VideoEncoder.isConfigSupported(cfg); if (s && s.supported) return cfg; } catch (e) {}
     }
     return null;
@@ -1287,13 +1533,16 @@
   }
 
   var exporting = false;
-  async function exportMp4() {
+  /** MP4 of the whole film. o: {res, fps, q} from the Export dialog; none (the host's toolbar) is the
+   *  film's own size and fps at high quality. */
+  async function exportMp4(o) {
     if (exporting) return;
     if (!window.VideoEncoder || !window.VideoFrame) { kit.toast(T.noCodec); return; }
     exporting = true; pause();
-    var keep = cur, w = W - (W % 2), hh = H - (H % 2), n = Math.max(1, Math.round(total * FPS)), bx = busyBox("MP4");
+    var mo = mp4Opts(o), FPS = mo.fps; // this export's frame rate, not the film's
+    var keep = cur, w = mo.w, hh = mo.h, n = Math.max(1, Math.round(total * FPS)), bx = busyBox("MP4 · " + w + "×" + hh + " · " + FPS + " fps");
     try {
-      var cfg = await pickVideoConfig(w, hh);
+      var cfg = await pickVideoConfig(w, hh, FPS, mo.bitrate);
       if (!cfg) { kit.toast(T.noCodec); return; }
       await withFonts();
       var samples = [], avcC = null, err = null, TS = 90000, delta = Math.round(TS / FPS);
@@ -1372,30 +1621,105 @@
     finally { exporting = false; renderAt(keep); ui(); }
   }
 
-  // ------------------------------------------------------------------ layout
-  function fit() {
-    var r = view.getBoundingClientRect(), pad = presenting || C.thumb ? 0 : 24;
-    // Tweaks lies over the right side: the film fits in what is left beside it.
-    var dw = !presenting && drawer && drawer.isConnected ? Math.min(drawer.offsetWidth, r.width * 0.7) : 0;
-    // Tweaks ends above the player row, so play, loop and sound stay clickable while it is open.
-    if (drawer) drawer.style.bottom = (controls.offsetHeight || 0) + "px";
-    r = { width: r.width - dw, height: r.height };
-    var k = Math.min((r.width - pad * 2) / W, (r.height - pad * 2) / H);
-    if (!(k > 0)) return;
-    frame.style.transform = "scale(" + k + ")";
-    frame.style.left = (r.width - W * k) / 2 + "px";
-    frame.style.top = (r.height - H * k) / 2 + "px";
-    if (selected) drawSel();
+  // The Export dialog (Claude's): a format, and for MP4 the resolution, frame rate and quality the
+  // encoder is really given. GIF and PNG have fixed settings, so they show a line saying what they make.
+  var canMp4 = !!(window.VideoEncoder && window.VideoFrame);
+  var expOpts = null, dialog = null;
+  function closeDialog() { if (dialog) { dialog.remove(); dialog = null; document.removeEventListener("keydown", dialogKey, true); } }
+  function dialogKey(e) {
+    if (!dialog) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDialog(); }
   }
-  new ResizeObserver(fit).observe(view);
+  function exportDialog() {
+    if (exporting) return;
+    if (dialog) { closeDialog(); return; }
+    pause(); closePop();
+    // First open: the film's own frame rate, and its own size where it is 720p or 1080p already.
+    if (!expOpts) expOpts = { fmt: canMp4 ? "mp4" : "gif", res: Math.min(W, H) >= 1080 ? 1080 : 720, fps: FPS, q: "high" };
+    dialog = h("div", { "class": "mo-modal" });
+    var dlg = h("div", { "class": "mo-dialog", role: "dialog", "aria-modal": "true", "aria-label": T.exp });
+    dialog.appendChild(dlg);
+    dialog.addEventListener("mousedown", function (e) { if (e.target === dialog) closeDialog(); });
+    document.addEventListener("keydown", dialogKey, true);
+    function choice(label, key, opts) {
+      var seg = h("div", { "class": "mo-choice", role: "radiogroup", "aria-label": label });
+      opts.forEach(function (op) {
+        var on = expOpts[key] === op[0];
+        var b = h("button", { "class": "kit-btn" + (on ? " is-on" : ""), type: "button", role: "radio", "aria-checked": String(on), text: op[1],
+          onclick: function () { expOpts[key] = op[0]; draw(); } });
+        if (op[2]) { b.disabled = true; b.title = op[2]; }
+        seg.appendChild(b);
+      });
+      return h("div", { "class": "mo-drow" }, [h("span", { text: label }), seg]);
+    }
+    function mb(bytes) { return (Math.round(bytes / 1e5) / 10).toLocaleString(L) + " MB"; }
+    function draw() {
+      dlg.textContent = "";
+      dlg.appendChild(h("div", { "class": "mo-dhead" }, [h("b", { text: T.exp }), kit.button("", "close", closeDialog, T.close)]));
+      dlg.appendChild(choice(T.format, "fmt", [["mp4", T.mp4Opt, canMp4 ? null : T.noCodec], ["gif", "GIF"], ["png", T.pngOpt]]));
+      var est;
+      if (expOpts.fmt === "mp4") {
+        var rates = [60, 30, 15].concat([FPS]).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(function (a, b) { return b - a; });
+        dlg.appendChild(choice(T.resolution, "res", [[720, "720p"], [1080, "1080p"]]));
+        dlg.appendChild(choice(T.frameRate, "fps", rates.map(function (r) { return [r, r + " fps"]; })));
+        dlg.appendChild(choice(T.quality, "q", [["high", T.high], ["medium", T.medium], ["low", T.low]]));
+        var mo = mp4Opts(expOpts), nf = Math.max(1, Math.round(total * mo.fps));
+        est = mo.w + "×" + mo.h + " · " + nf + " " + T.frames + " · " + T.about + " " + mb((mo.bitrate + (score && score.events.length ? 160000 : 0)) * total / 8);
+      } else if (expOpts.fmt === "gif") {
+        var gw = Math.min(640, W);
+        est = T.gifNote + " · " + gw + "×" + Math.round(H * gw / W) + " · " + Math.max(1, Math.round(total * 100 / 7)) + " " + T.frames;
+      } else est = T.pngNote + " · " + W + "×" + H + " · " + fmtShort(cur);
+      dlg.appendChild(h("div", { "class": "mo-muted mo-est", text: est }));
+      var go = h("button", { "class": "kit-btn mo-primary", type: "button", text: T.exp, onclick: function () {
+        var f = expOpts.fmt, o = { res: expOpts.res, fps: expOpts.fps, q: expOpts.q };
+        closeDialog();
+        if (f === "mp4") exportMp4(o); else if (f === "gif") exportGif(); else exportPng();
+      } });
+      dlg.appendChild(h("div", { "class": "mo-dfoot" }, [h("button", { "class": "kit-btn", type: "button", text: T.cancel, onclick: closeDialog }), go]));
+      go.focus();
+    }
+    document.body.appendChild(dialog);
+    draw();
+  }
+
+  // ------------------------------------------------------------------ layout
+  // The stage sits at the top, centred, as large as fits; the transport row and the scene strip follow it
+  // directly. On a narrow page the open panel takes the room under them (the stage shrinks to leave it);
+  // on a wide one it is a column at the right. Present and thumbnails: the stage alone, centred.
+  var NARROW = window.matchMedia("(max-width: 900px)");
+  function fit() {
+    var full = presenting || C.thumb, pad = full ? 0 : 16, vw, avail;
+    if (full) {
+      view.style.height = "";
+      var r = view.getBoundingClientRect();
+      vw = r.width; avail = r.height;
+    } else {
+      var ah = app.getBoundingClientRect().height;
+      var reserve = panel && NARROW.matches ? Math.max(220, ah * 0.42) : 0;
+      vw = view.clientWidth; avail = ah - controls.offsetHeight - reserve;
+    }
+    var k = Math.min((vw - pad * 2) / W, (avail - pad * 2) / H);
+    if (!(k > 0)) return;
+    var mid = full || !(panel && NARROW.matches);
+    if (!full) view.style.height = (mid ? Math.floor(avail) : Math.ceil(H * k + pad * 2)) + "px";
+    frame.style.setProperty("--mo-k", String(k));
+    frame.style.transform = "scale(" + k + ")";
+    frame.style.left = (vw - W * k) / 2 + "px";
+    frame.style.top = (mid ? (avail - H * k) / 2 : pad) + "px";
+    if (selected) drawSel();
+    placePop();
+  }
+  var ro = new ResizeObserver(function () { fit(); });
+  ro.observe(app); ro.observe(view); ro.observe(controls);
 
   // ------------------------------------------------------------------ start
-  bar.append(titleEl, roughBadge, contBtn, finBtn, statusEl, retryBtn, tweaksBtn, expBtn);
-  titleEl.textContent = TITLE;
   if (!editable) tweaksBtn.hidden = true;
   if (!(window.hermes && window.hermes.comment)) commentBtn.hidden = true;
-  kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
+  // The host's toolbar may list the exports too (its own menu runs them at their defaults); the
+  // transport's Download button opens the dialog with the MP4 settings either way.
+  kit.exports(exportList);
   muteIcon();
+  floatSync();
 
   boot().then(function () {
     if (bootErr && !timeline.length && !custom) {
@@ -1405,7 +1729,8 @@
     renderAt(0);
     fit();
     ui();
-    if (!live) muteBtn.hidden = true;
+    makeThumbs();
+    if (!live) { volWrap.hidden = true; }
     kit.ready();
   }).catch(function (e) { console.error(e); kit.ready(); });
 

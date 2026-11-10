@@ -161,6 +161,132 @@ def _ds_build(vdir: Path) -> None:
         dest.write_text(text, encoding="utf-8")
 
 
+# The types that carry a copy of the design system they were built on, and the index that records it.
+DS_WEARERS = {"slides": "deck.json", "design": "canvas.json", "motion": "modules/scenes.json"}
+DS_COPY_ASSETS_MAX = 4 * 1024 * 1024  # a system's pictures come along up to this much
+
+
+def _ds_folder(name: str, taken: set) -> str:
+    base = re.sub(r"[^a-z0-9_-]+", "-", str(name or "").lower()).strip("-")[:48] or "system"
+    out, i = base, 2
+    while out in taken:
+        out, i = f"{base}-{i}", i + 1
+    return out
+
+
+def _ds_install(vdir: Path, kind: str, prev: Optional[Path] = None) -> None:
+    """Copy the design systems an artifact names into it (Claude's install: the copy travels with the deck,
+    canvas or film, so a later edit or the deletion of the system changes nothing here).
+
+    The author writes only ids: ``"designSystems": ["<id>"]`` in the index. Each becomes a record
+    ``{title, namespace, artifact, version, copiedAt}`` and its files land under ``ds/<namespace>/``:
+    tokens.json, tokens.css, components/bundle.css, fonts/, assets/ (while small) and, on a canvas, the
+    component bundle with its libraries. A system the artifact already wears keeps its copy and version,
+    however the author names it again (``prev``: the version before this one); only
+    ``{"artifact": "<id>", "update": true}`` installs the system's latest. Older indexes (``designSystem``)
+    are brought over."""
+    idx = vdir / DS_WEARERS[kind]
+    try:
+        doc = json.loads(idx.read_text("utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(doc, dict):
+        return
+    raw = doc.get("designSystems")
+    raw = list(raw) if isinstance(raw, list) else []
+    old = doc.get("designSystem")
+    if old and not raw:
+        raw = [old]
+    dsroot = vdir / "ds"
+    if not raw and "designSystem" not in doc and not dsroot.is_dir():
+        return
+    worn = {}  # what the version before wore: {system id: its record}, where the copy is still there
+    try:
+        was = json.loads((prev / DS_WEARERS[kind]).read_text("utf-8")).get("designSystems") if prev else None
+    except (OSError, ValueError, AttributeError):
+        was = None
+    for w in was if isinstance(was, list) else []:
+        if isinstance(w, dict) and w.get("artifact") and w.get("copiedAt") \
+                and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", str(w.get("namespace") or "")) \
+                and (prev / "ds" / w["namespace"] / "tokens.json").is_file():
+            worn.setdefault(str(w["artifact"]), w)
+    recs, taken = [], set()
+    for r in raw[:4]:
+        if r is True:
+            r = default_design_system(kind)
+        if isinstance(r, str):
+            r = {"artifact": r}
+        if not isinstance(r, dict):
+            continue
+        dsid = str(r.get("artifact") or r.get("id") or "")
+        ns = str(r.get("namespace") or "")
+        have = bool(r.get("copiedAt")) and bool(re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", ns)) \
+            and ns not in taken and (dsroot / ns / "tokens.json").is_file()
+        if have:
+            taken.add(ns)
+            recs.append(r)
+            continue
+        w = worn.get(dsid)
+        if w and not r.get("update") and r.get("version") in (None, w.get("version")) and w["namespace"] not in taken:
+            # named again without asking for an update: the copy and the version it has stay
+            ns = w["namespace"]
+            taken.add(ns)
+            if not (dsroot / ns / "tokens.json").is_file():
+                shutil.copytree(prev / "ds" / ns, dsroot / ns, dirs_exist_ok=True, copy_function=_copy_fresh)
+            recs.append({**w, **({"theme": r["theme"]} if isinstance(r.get("theme"), str) else {})})
+            continue
+        try:
+            meta = get_meta(dsid) if dsid else None
+        except (ValueError, OSError):
+            meta = None
+        if not meta or meta.get("type") != "design-system" or not meta.get("versions"):
+            continue  # nothing to copy from: the artifact keeps its own look
+        kept = [v["n"] for v in meta["versions"]]
+        want = None if r.get("update") else r.get("version")
+        n = want if isinstance(want, int) and not isinstance(want, bool) and want in kept else kept[-1]
+        src = _dir(dsid) / f"v{n}"
+        try:
+            name = json.loads((src / "design-system.json").read_text("utf-8")).get("namespace")
+        except (OSError, ValueError, AttributeError):
+            name = None
+        ns = _ds_folder(name or meta.get("title") or dsid, taken)
+        taken.add(ns)
+        dest = dsroot / ns
+        shutil.rmtree(dest, ignore_errors=True)
+        want_files = ["tokens.json", "tokens.css", "components/bundle.css"]
+        if kind == "design":
+            want_files.append("components/bundle.js")
+            want_files += sorted(p.relative_to(src).as_posix() for p in (src / "components" / "lib").glob("*.js"))
+        want_files += sorted(p.relative_to(src).as_posix() for p in (src / "fonts").rglob("*") if p.is_file())
+        assets = sorted(p for p in (src / "assets").rglob("*") if p.is_file())
+        rec = {"title": meta.get("title", dsid), "namespace": ns, "artifact": dsid, "version": n,
+               "copiedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        if assets and sum(p.stat().st_size for p in assets) <= DS_COPY_ASSETS_MAX:
+            want_files += [p.relative_to(src).as_posix() for p in assets]
+        elif assets:
+            rec["assets"] = False  # too large to carry: read them from the system when one is needed
+        for rel in want_files:
+            f = src / rel
+            if f.is_file():
+                (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest / rel)
+        if isinstance(r.get("theme"), str):
+            rec["theme"] = r["theme"]
+        recs.append(rec)
+    if dsroot.is_dir():
+        for d in dsroot.iterdir():
+            if d.is_dir() and d.name not in taken:
+                shutil.rmtree(d, ignore_errors=True)
+        if not any(dsroot.iterdir()):
+            dsroot.rmdir()
+    if doc.get("designSystems") == recs and "designSystem" not in doc:
+        return
+    doc.pop("designSystem", None)
+    doc["designSystems"] = recs
+    _fresh(idx)
+    idx.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+
+
 def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Optional[dict] = None,
             title: str = "", aid: Optional[str] = None, description: str = "",
             type: Optional[str] = None, base: bool = False,
@@ -219,6 +345,8 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 (vdir / "index.html").write_text(html, encoding="utf-8")
             if kind == "design-system":
                 _ds_build(vdir)
+            elif kind in DS_WEARERS:
+                _ds_install(vdir, kind, d / f"v{meta['versions'][-1]['n']}" if meta["versions"] else None)
             if not (vdir / TYPE_ENTRY[kind]).is_file():
                 raise ValueError(f"a {kind} needs {TYPE_ENTRY[kind]}")
             all_files = [f for f in vdir.rglob("*") if f.is_file()]
@@ -292,6 +420,9 @@ def delete(aid: str) -> None:
             raise OSError(f"could not delete {aid}")
         if settings().get("default_design_system") == aid:
             settings_set("default_design_system", None)
+        per = settings().get("design_system_for")
+        if isinstance(per, dict) and aid in per.values():
+            settings_set("design_system_for", {k: v for k, v in per.items() if v != aid} or None)
 
 
 def empty_trash() -> list[str]:
@@ -368,6 +499,17 @@ def settings() -> dict:
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def default_design_system(kind: Optional[str] = None) -> Optional[str]:
+    """The design system new artifacts of ``kind`` build on: the user's choice for that type (Claude keeps a
+    default per type; "none" = this type takes none), else the default for everything."""
+    s = settings()
+    per = s.get("design_system_for")
+    own = per.get(kind) if kind and isinstance(per, dict) else None
+    if own == "none":
+        return None
+    return own or s.get("default_design_system") or None
 
 
 def settings_set(key: str, value: Any) -> None:

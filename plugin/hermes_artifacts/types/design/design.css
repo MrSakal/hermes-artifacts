@@ -1,7 +1,4 @@
 body { overflow: hidden; }
-:root { --dc-canvas: #ecebe7; --dc-dots: rgba(20, 20, 19, 0.10); --dc-sel: #2f6fed; --dc-play: #2f6fed; --dc-note-fg: #26251f; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --dc-canvas: #15181d; --dc-dots: rgba(230, 237, 245, 0.08); --dc-sel: #5b8dff; --dc-play: #5b8dff; --dc-note-fg: #e9e7e0; } }
-:root[data-theme="dark"] { --dc-canvas: #15181d; --dc-dots: rgba(230, 237, 245, 0.08); --dc-sel: #5b8dff; --dc-play: #5b8dff; --dc-note-fg: #e9e7e0; }
 
 #dc-app { position: relative; display: flex; height: calc(100vh - 44px); }
 #dc-view { position: relative; flex: 1; min-width: 0; overflow: hidden; background-color: var(--dc-canvas);
@@ -140,7 +137,60 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-err .dc-fix:hover { background: rgba(255,255,255,.12); }
 
 .dc-link { box-sizing: border-box; padding: 12px 14px; border: 1px solid rgba(0,0,0,.12); border-radius: 8px;
-  background: #fff; color: #2b2a26; box-shadow: 0 1px 3px rgba(0,0,0,.18); font-size: 15px; line-height: 1.35; }
+  background: var(--color-elevated, var(--color-panel)); color: var(--color-fg); border: 1px solid var(--color-border-line); font-size: 15px; line-height: 1.35; }
 .dc-link-t { display: block; font-weight: 600; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
 .dc-link-t:hover { text-decoration: underline; }
-.dc-link-u { display: block; margin-top: 4px; font-size: 12px; color: #75746f; overflow-wrap: anywhere; }
+.dc-link-u { display: block; margin-top: 4px; font-size: 12px; color: var(--color-fg-muted); overflow-wrap: anywhere; }
+
+/* The canvas's chrome, as Claude's and in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
+   the panel has four tabs. Its colours, radii and shadows are the app's and follow it; the artboards keep their own look. */
+#dc-bar { display: none; }
+#dc-app { height: 100vh; }
+:root, :root[data-theme="dark"], :root[data-theme="light"] { --dc-canvas: color-mix(in srgb, var(--color-bg) 92%, var(--color-fg)); --dc-dots: color-mix(in srgb, var(--color-fg) 12%, transparent);
+  --dc-sel: var(--color-accent); --dc-play: var(--color-accent); --dc-note-fg: var(--color-fg); }
+.dc-pill { position: absolute; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg, 8px);
+  background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
+  border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
+.dc-pill[hidden] { display: none; }
+.dc-pill-l { left: 12px; top: 10px; }
+.dc-pill-r { right: 12px; top: 10px; }
+.dc-pill-b { left: 50%; bottom: 14px; transform: translateX(-50%); }
+.dc-pill .kit-btn { min-width: 30px; height: 30px; padding: 0 6px; justify-content: center; gap: 4px; font-size: 12.5px; }
+.dc-pill .kit-btn.is-on { background: var(--color-hover); color: var(--color-accent); }
+.dc-pill .kit-btn svg + svg, .dc-pill .dc-zoomval svg, .dc-pill .dc-caretonly svg { width: 12px; height: 12px; opacity: .6; }
+.dc-pill .dc-caretonly { min-width: 16px; padding: 0 2px; }
+.dc-pill .dc-zoomval { min-width: 0; padding: 0 8px; font-variant-numeric: tabular-nums; }
+.dc-pill .dc-status { margin: 0 4px 0 8px; }
+.dc-zoom { display: none; }
+#dc-view.is-hand { cursor: grab; }
+#dc-view.is-draw, #dc-view.is-draw * { cursor: crosshair !important; }
+#dc-view.is-hand iframe, #dc-view.is-draw iframe { pointer-events: none; }
+#dc-view.is-draw .dc-pill, #dc-view.is-draw .dc-pill * { cursor: default !important; }
+.dc-ghost { position: absolute; box-sizing: border-box; border: calc(1.5px * var(--inv, 1)) dashed var(--color-accent); pointer-events: none; }
+.dc-note.is-sel { outline: calc(2px * var(--inv, 1)) solid var(--color-accent); outline-offset: calc(3px * var(--inv, 1)); }
+.dc-draw { line-height: 0; }
+.dc-draw svg { display: block; overflow: visible; }
+.dc-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
+.dc-tabs .kit-btn { flex: none; padding: 0 8px; height: 28px; font-size: 12.5px; justify-content: center; }
+.dc-tabs .kit-btn[aria-pressed="true"] { background: var(--color-hover); color: var(--color-fg); }
+.dc-tabs .dc-gap { flex: 1; }
+.dc-pnote { color: var(--color-fg-muted); line-height: 1.5; padding: 8px 2px; }
+.dc-outline { display: flex; flex-direction: column; gap: 1px; }
+.dc-orow { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 6px; border: 0; border-radius: var(--kit-r-sm, 6px); background: none;
+  color: var(--color-fg-secondary); font: inherit; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; flex: none; }
+.dc-orow:hover { background: var(--color-hover); }
+.dc-orow.is-on { background: var(--color-hover); color: var(--color-accent); }
+.dc-orow b { font-weight: 500; flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+.dc-orow > span:last-child { color: var(--color-fg-muted); overflow: hidden; text-overflow: ellipsis; }
+.dc-ocaret, .dc-oicon { flex: none; width: 14px; height: 14px; display: inline-flex; }
+.dc-ocaret svg, .dc-oicon svg { width: 14px; height: 14px; }
+.dc-oicon { color: var(--color-fg-muted); }
+.dc-code { margin: 0 0 8px; padding: 8px; max-height: 60vh; overflow: auto; border-radius: var(--kit-r-sm, 6px); border: 1px solid var(--color-border-line);
+  background: var(--color-bg); color: var(--color-fg-secondary); font: 11.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dc-save { color: var(--color-accent-fg, var(--color-bg)) !important; }
+html[data-thumb] .dc-pill { display: none; }
+.dc-pill .dc-status:empty { display: none; }
+/* the view's pill stays over the panel's top; the panel starts below it, its tabs fit its width */
+#dc-panel { padding-top: 58px; overflow-x: hidden; }
+.dc-tabs .kit-btn { flex: 0 1 auto; min-width: 0; padding: 0 6px; overflow: hidden; }
+.dc-tabs .kit-btn:last-child { flex: none; }

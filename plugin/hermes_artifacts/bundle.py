@@ -36,6 +36,7 @@ class _Ctx:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.total = 0
+        self.seen: set[Path] = set()  # every local file the document pulled in
 
     def resolve(self, base_rel: str, ref: str) -> Path | None:
         ref = ref.split("#", 1)[0].split("?", 1)[0].strip()
@@ -45,6 +46,7 @@ class _Ctx:
         p = (self.root / rel).resolve()
         if not str(p).startswith(str(self.root)) or not p.is_file():
             return None
+        self.seen.add(p)
         return p
 
     def data_uri(self, p: Path) -> str:
@@ -74,9 +76,14 @@ class _Ctx:
         return _CSS_URL.sub(url, _CSS_IMPORT.sub(imp, text))
 
 
-def bundle(root: Path, entry: str = "index.html") -> str:
-    """Return ``entry`` with every local reference under ``root`` inlined."""
+def bundle(root: Path, entry: str = "index.html", seen: set | None = None) -> str:
+    """Return ``entry`` with every local reference under ``root`` inlined.
+
+    ``seen``, when given, receives the path of every file that went into the result (the entry too)."""
     ctx = _Ctx(root)
+    if seen is not None:
+        ctx.seen = seen
+        seen.add((ctx.root / entry).resolve())
     html = (root / entry).read_text("utf-8", "replace")
 
     def script(m):
