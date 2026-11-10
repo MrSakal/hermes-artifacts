@@ -72,7 +72,7 @@ class RenderTests(unittest.TestCase):
             plugin = importlib.util.module_from_spec(spec)
             sys.modules["hermes_artifacts_plugin"] = plugin
             spec.loader.exec_module(plugin)
-        for kind in ("page", "dashboard", "slides", "doc", "design", "motion", "design-system"):
+        for kind in ("page", "dashboard", "slides", "doc", "sheet", "design", "motion", "design-system"):
             out = json.loads(plugin._guide({"type": kind}))
             self.assertIn("language the user asked in", out["language"], kind)
         pub = [t for t in plugin.TOOLS if t[0] == "artifact_publish"][0][1]
@@ -186,6 +186,26 @@ class RenderTests(unittest.TestCase):
             self.assertNotIn("design_system", out)
         finally:
             store.settings_set("default_design_system", None)
+
+    def test_a_publish_shown_in_the_desktop_hands_over_its_chat_card(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        real = plugin._broadcast
+        try:
+            plugin._broadcast = lambda event, payload: True
+            out = json.loads(plugin._publish({"title": "Card", "html": "<p>x</p>"}))
+            self.assertIn(f'::artifact{{id="{out["id"]}"}}', out["card"])
+            plugin._broadcast = lambda event, payload: False  # no desktop: no card line to print raw
+            self.assertNotIn("card", json.loads(plugin._publish({"title": "Card 2", "html": "<p>x</p>"})))
+            self.assertNotIn("card", json.loads(plugin._publish({"title": "Card 3", "html": "<p>x</p>", "open": False})))
+        finally:
+            plugin._broadcast = real
 
     def test_the_system_is_copied_into_what_wears_it(self):
         kiln = store.publish(path=str(EXAMPLE), title="Kiln", type="design-system")["id"]

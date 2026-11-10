@@ -14,7 +14,7 @@ sys.path.insert(0, str(PLUGIN))
 
 # Keys whose text is a message to Hermes, per file.
 AGENT = {
-    "desktop/plugin.js": ["prompt_page", "prompt_dashboard", "prompt_slides", "prompt_doc", "prompt_design", "prompt_motion", "prompt_design-system", "commentMsg", "askMsg", "sendMsg", "docAskMsg", "docEditMsg"],
+    "desktop/plugin.js": ["prompt_page", "prompt_dashboard", "prompt_slides", "prompt_doc", "prompt_design", "prompt_motion", "prompt_design-system", "commentMsg", "askMsg", "sendMsg", "docAskMsg", "docEditMsg", "prompt_sheet", "sheetAskMsg", "sheetCommentMsg"],
     "hermes_artifacts/types/dashboard/dashboard.js": ["aboutSel", "editAskMsg", "fixMsg", "lookMsg", "whyMsg"],
     "hermes_artifacts/types/design/design.js": ["about"],
     "hermes_artifacts/types/design-system/ds-page.js": ["ask"],

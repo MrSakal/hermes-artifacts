@@ -216,6 +216,16 @@
       upload: function (dataUrl) { return call("doc.upload", { data: dataUrl }); },
       file: function (name) { return call("doc.file", { name: name }); }
     }),
+    /** Sheets: the live workbook on the server (read a sheet, edit it with ops, hand back computed values). */
+    sheet: Object.freeze({
+      read: function (sheet, sinceRev) { return call("sheet.read", { sheet: sheet || null, since_rev: sinceRev == null ? null : sinceRev }); },
+      edit: function (sheet, ops, baseRev) { return call("sheet.edit", { sheet: sheet || null, ops: ops, base_rev: baseRev == null ? null : baseRev }); },
+      vals: function (sheet, rev, vals) { return call("sheet.vals", { sheet: sheet || null, rev: rev, vals: vals || {} }); },
+      history: function (sheet) { return call("sheet.history", { sheet: sheet || null }); },
+      at: function (sheet, rev) { return call("sheet.at", { sheet: sheet || null, rev: rev }); },
+      restore: function (sheet, rev) { return call("sheet.restore", { sheet: sheet || null, rev: rev }); },
+      ask: function (a) { return call("sheet.ask", a || {}); }
+    }),
     /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
      *  version in place (null = the latest). */
     history: Object.freeze({

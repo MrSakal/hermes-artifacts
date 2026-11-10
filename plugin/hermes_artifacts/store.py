@@ -65,10 +65,10 @@ def get_meta(aid: str) -> Optional[dict]:
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
 
 
-TYPES = ("page", "dashboard", "slides", "doc", "design", "motion", "design-system")
+TYPES = ("page", "dashboard", "slides", "doc", "sheet", "design", "motion", "design-system")
 # The file a type's content starts from (validated at publish).
 TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md",
-              "design": "canvas.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
+              "sheet": "sheet.json", "design": "canvas.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
 _REL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){0,7}$")
 MAX_FILES = 512
 
@@ -324,6 +324,12 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 src = Path(path)
                 if src.is_dir():
                     shutil.copytree(src, vdir, dirs_exist_ok=True, copy_function=_copy_fresh)
+                elif src.is_file() and kind == "sheet" and src.suffix.lower() in (".xlsx", ".csv", ".tsv"):
+                    # A spreadsheet file becomes the sheet's sheet.json (the original is not kept).
+                    from . import xlsx_in
+                    vdir.mkdir(exist_ok=True)
+                    spec = xlsx_in.to_sheet_json(src)
+                    (vdir / "sheet.json").write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
                 elif src.is_file():
                     vdir.mkdir(exist_ok=True)
                     _copy_fresh(str(src), str(vdir / TYPE_ENTRY[kind] if kind != "page" else vdir / "index.html"))
@@ -345,6 +351,9 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 (vdir / "index.html").write_text(html, encoding="utf-8")
             if kind == "design-system":
                 _ds_build(vdir)
+            elif kind == "sheet":
+                from . import sheets
+                sheets.check_file(vdir / "sheet.json")
             elif kind in DS_WEARERS:
                 _ds_install(vdir, kind, d / f"v{meta['versions'][-1]['n']}" if meta["versions"] else None)
             if not (vdir / TYPE_ENTRY[kind]).is_file():

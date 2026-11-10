@@ -90,6 +90,16 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
                            "suggestions": [x for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
         except Exception:
             pass
+    if kind == "sheet" and data["version"] == meta["versions"][-1]["n"]:
+        # The live workbook, for the first paint and thumbnails; an open sheet then follows it
+        # through sheet.read.
+        try:
+            from . import sheets
+            st = sheets.load(meta["id"])
+            data["sheet"] = {"sheets": [{k: v for k, v in s.items() if k != "vals_at"} for s in st["sheets"]],
+                             "hermes_active": not thumb and sheets.time.time() - st.get("hermes_at", 0) < sheets.ACTIVE_SECS}
+        except Exception:
+            pass
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'

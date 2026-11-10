@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from . import docs, history, live, render, store
+from . import docs, history, live, render, sheets, store
 from .server import inject_bridge
 
 
@@ -310,8 +310,45 @@ def _op(aid: str, op: str, a: dict) -> dict:
                 "selection": str(a.get("selection") or "")[:2000]}
         item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="doc-" + kind)
         return {"ok": True, "id": item["id"]}
+    if op.startswith("sheet."):
+        return _sheet_op(aid, op, a)
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
+    raise ApiError(400, f"op {op!r} not allowed here")
+
+
+def _sheet_op(aid: str, op: str, a: dict) -> dict:
+    """The sheet page's own ops (the user editing). Hermes edits through artifact_doc_edit."""
+    sheet = a.get("sheet") or None
+    try:
+        if op == "sheet.read":
+            return sheets.read(aid, sheet, a.get("range") or None, since_rev=_int(a.get("since_rev")))
+        if op == "sheet.edit":
+            try:
+                return sheets.apply(aid, a.get("ops") or [], by="user", sheet=sheet, base_rev=_int(a.get("base_rev")))
+            except sheets.SheetError as e:
+                if e.code == "conflict":
+                    return {"ok": False, "conflict": True, **e.extra}
+                raise
+        if op == "sheet.vals":
+            return sheets.set_vals(aid, sheet, _int(a.get("rev")), a.get("vals"))
+        if op == "sheet.history":
+            return sheets.history(aid, sheet)
+        if op == "sheet.at":
+            return sheets.at_rev(aid, sheet, _int(a.get("rev")) or 0)
+        if op == "sheet.restore":
+            return sheets.restore(aid, sheet, _int(a.get("rev")) or 0)
+    except sheets.SheetError as e:
+        if e.code == "absent":
+            raise FileNotFoundError(e.message)
+        raise ValueError(e.message)
+    if op == "sheet.ask":
+        # "Ask Hermes" about a selection: into the chat (the host words the message), kept in the inbox.
+        _meta(aid)
+        data = {"sheet": str(a.get("sheet") or "")[:40], "range": str(a.get("range") or "")[:40],
+                "selection": str(a.get("selection") or "")[:4000]}
+        item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="sheet-ask")
+        return {"ok": True, "id": item["id"]}
     raise ApiError(400, f"op {op!r} not allowed here")
 
 
