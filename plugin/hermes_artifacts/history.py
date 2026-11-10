@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import difflib
 import json
+from pathlib import Path
 from typing import Optional
 
 from . import store
@@ -14,9 +15,10 @@ PAGE_EXT = (".html", ".css", ".js")
 MAX_DIFF_LINES = 400
 
 
-def _files(aid: str, n: int) -> dict[str, bytes]:
-    vdir = store.version_dir(aid, n)
-    return {f.relative_to(vdir).as_posix(): f.read_bytes() for f in vdir.rglob("*") if f.is_file()}
+def _files(vdir: Path) -> dict[str, bytes]:
+    if not vdir.is_dir():
+        raise FileNotFoundError(f"{vdir.parent.name} {vdir.name}")
+    return {rel: (vdir / rel).read_bytes() for rel, _ in store.walk_files(vdir)}
 
 
 def _text(b: Optional[bytes]) -> Optional[str]:
@@ -123,10 +125,11 @@ def versions(aid: str) -> list[dict]:
         raise FileNotFoundError(aid)
     kind = m.get("type", "page")
     vs = m["versions"]
+    base = store._dir(aid)
     out, prev = [], None
-    for i, v in enumerate(vs):
+    for v in vs:
         try:
-            docs = _docs(_files(aid, v["n"]), kind)
+            docs = _docs(_files(base / f"v{v['n']}"), kind)
         except FileNotFoundError:
             continue
         ch = _changes(prev, docs)
@@ -149,8 +152,9 @@ def diff(aid: str, n: int) -> dict:
     if n not in ns:
         raise FileNotFoundError(f"v{n}")
     i = ns.index(n)
-    now = _docs(_files(aid, n), kind)
-    before = _docs(_files(aid, ns[i - 1]), kind) if i > 0 else None
+    base = store._dir(aid)
+    now = _docs(_files(base / f"v{n}"), kind)
+    before = _docs(_files(base / f"v{ns[i - 1]}"), kind) if i > 0 else None
     out = []
     for c in _changes(before, now):
         a = (before or {}).get(c["key"], {}).get("text")

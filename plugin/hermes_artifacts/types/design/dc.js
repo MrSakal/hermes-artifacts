@@ -98,7 +98,7 @@
       if (n.nodeType === 3) out += raw ? n.data : escText(n.data);
       else if (n.nodeType === 8) out += "<!--" + n.data + "-->";
       else if (n.nodeType === 1) {
-        var tag = n.namespaceURI === HTML_NS ? n.localName : n.localName;
+        var tag = n.localName;
         out += "<" + tag;
         for (var i = 0; i < n.attributes.length; i++) {
           var a = n.attributes[i], name = names[a.name] || a.name;
@@ -114,7 +114,6 @@
   }
   /** The whole file again: the source around the template unchanged, the template as edited. */
   function serialize(res) { return res.pre + serNodes(res.tpl, res.names, false) + res.post; }
-  function fragHtml(node, names) { return serNodes(node, names || {}, false); }
 
   // ------------------------------------------------------------------ template queries and edits
   function topHelmet(res) {
@@ -317,7 +316,6 @@
     }
     if (this.paused) this.pending = true; else this.render();
   };
-  Instance.prototype.reload = function (parsed) { this.load(parsed); if (this.paused) this.pending = true; else this.render(true); };
   Instance.prototype.resume = function () { this.paused = false; if (this.pending) { this.pending = false; this.render(); } };
   Instance.prototype.helmet = function () {
     var doc = this.doc, head = doc.head, file = this.file, self = this;
@@ -383,9 +381,8 @@
   Instance.prototype.build = function (node, scope, out, counts) {
     var doc = this.doc, self = this;
     if (node.nodeType === 3) {
-      var p = node.parentNode;
       out.appendChild(doc.createTextNode(interp(node.data, scope, this)));
-      return p;
+      return;
     }
     if (node.nodeType !== 1) return;
     var tag = node.localName;
@@ -649,7 +646,6 @@
     return inst;
   }
 
-  window.DC = { parse: parse, index: index, serialize: serialize, fragHtml: fragHtml, textEditable: textEditable, applyText: applyText,
-    parseStyle: parseStyle, styleText: styleText, styleGet: styleGet, styleSet: styleSet, topHelmet: topHelmet, inHelmet: inHelmet,
-    mount: mount, DCLogic: DCLogic, lookup: lookup, sibling: sibling, HOLE: HOLE };
+  window.DC = { parse: parse, index: index, serialize: serialize, textEditable: textEditable, applyText: applyText,
+    styleGet: styleGet, styleSet: styleSet, mount: mount, DCLogic: DCLogic, sibling: sibling };
 })();

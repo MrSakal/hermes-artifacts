@@ -58,7 +58,7 @@
   // Drops what XML 1.0 cannot carry: C0 controls but tab/LF/CR, lone surrogates, U+FFFE/FFFF
   function clean(s) {
     s = String(s);
-    if (!/[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF￾￿]/.test(s)) return s;
+    if (!/[\x00-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF\ufffe\uffff]/.test(s)) return s;
     var out = "";
     for (var i = 0; i < s.length; i++) {
       var c = s.charCodeAt(i);

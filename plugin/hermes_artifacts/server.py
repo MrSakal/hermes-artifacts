@@ -307,9 +307,6 @@ class ArtifactServer:
             s.shutdown()
             s.server_close()
 
-    def url(self, aid: str | None = None) -> str:
-        return f"{self.cfg.shell_origin}/a/{aid}" if aid else f"{self.cfg.shell_origin}/"
-
 
 def is_running(shell_port: int = 8797) -> bool:
     import urllib.request

@@ -6,8 +6,8 @@ stretch, hand retype/recolor/refont/retime, export MP4 (with sound)/GIF/PNG. 10�
 
 ## Rules that always hold
 
-- **On screen:** nothing blinks, flashes or cuts more than three times a second (harmful). No scene under
-  1 s. Names and data fictional or the user's own.
+- Nothing blinks, flashes or cuts more than three times a second (harmful). No scene under 1 s. Names and
+  data fictional or the user's own.
 - **No existing song, theme or jingle as score; no known character, logo (a company's, unless theirs) or
   scene from a film, show or game.** Make an original, say so. Theirs or public domain is fine.
 - **No other company's proprietary design** (screens, logo) unless the user works there; ask "Do you work
@@ -24,25 +24,10 @@ stretch, hand retype/recolor/refont/retime, export MP4 (with sound)/GIF/PNG. 10�
 - Voiceover / their own audio file: impossible; say "I can't add a voiceover." as its own sentence.
   Otherwise a wordless score and effects.
 
-## A new film: three questions, then the film
+## A new film
 
-No subject: ask for one in a plain line, stop. Else ask **Style, Colors and Length** (never story) in ONE
-`clarify` question if you have the tool:
-
-- **Style:** 3–4 looks invented for this film: 1–3-word name + ≤12-word picturable line (what's on screen,
-  made of / lit by, how it moves). No stock list ("Modern", "Playful"), color names, studio or artist
-  names. First = what you'd make unasked.
-- **Colors:** ≤4 palettes, theirs first (given colors or their design system), then yours: four `#rrggbb`
-  in role order `ground, main, second, accent`; one dark and one light ground in the row; no two mains of
-  one family. `second` = word ink, 4.5:1 on `ground`.
-- **Length:** three fitting lengths, ≤30 s, and Other.
-
-No clarify tool, "just make it", or nobody to answer: ask nothing; decide, write one line before the first
-write, go on in the same turn:
-
-> Going with paper harbor (a drawn fishing harbor at blue hour), deep navy and lamp gold, 15 seconds. Tell me if you'd like any of that changed.
-
-Whatever comes back is the answer; never ask again. A row left open takes its first option.
+No subject: ask for one in a plain line, stop. Else, before any write: `artifact_guide type=motion
+topic=questions` (ask Style, Colors and Length, or decide them when nobody can answer).
 
 ## The files
 
@@ -57,12 +42,11 @@ Whatever comes back is the answer; never ask again. A row left open takes its fi
 | `modules/*.css/.html/.json/.txt` | read via `kit.module(name)` / `kit.json(name)` (SVG logo as `logo.txt`) |
 | `assets/<file>` | images (png, jpg, webp, gif, svg), fonts (woff2, woff, ttf, otf; face = file stem), clips (mp4, webm, muted) |
 
-Script is implicit: `window.CUT = kit.scenes();` (else `modules/script.js`, see "A film with no list of
-scenes"). `scenes.json`, `base.css`, `shared.js`, `score.js` and names starting `scene-`/`layer-` are the
-player's; name no other module so. Assets only from the film's own files: no external URL, `<iframe>` or fetch.
-
-`modules/{retyped,recolored,refaced,recut,retouched}.json` are **the page's own records** of hand changes:
-never write or delete them (see "Changed by hand").
+`scenes.json`, `base.css`, `shared.js`, `score.js`, `script.js` and names starting `scene-` are the player's;
+name no other module so. Assets only from the film's own files: no external URL, `<iframe>` or fetch.
+`modules/retyped.json`, `recolored.json`, `refaced.json`, `recut.json`, `retouched.json` are **the page's own
+records** of hand changes: never write or delete them. A film defined by `modules/script.js` instead of a scene list:
+`artifact_guide type=motion topic=script` before changing it.
 
 ## Making it: the user watches it arrive
 
@@ -75,9 +59,10 @@ the draft). A good film that arrives beats a perfect one that doesn't.
 2. **World, one publish:** `artifact_publish id=<id> base=true files={"modules/base.css":…, "modules/shared.js":…}`
    (`base.css` whole: variables and stacks unchanged, then type sizes/weights as classes).
 3. **Each scene its own publish, in film order:** `artifact_publish id=<id> base=true files={"modules/scene-<id>.js":…}`,
-   finished first time, sent once written; replaces its name card.
-4. **Last publish:** `modules/score.js` (none if silence asked) + `modules/scenes.json` whole with
-   `"stage":"final"`, nothing else changed.
+   finished first time, sent once written; replaces its name card. Showing a product's UI (screens, cursor,
+   callouts): `artifact_guide type=motion topic=product` first.
+4. **Last publish:** `modules/score.js` (none if silence asked; write it by `artifact_guide type=motion
+   topic=score`) + `modules/scenes.json` whole with `"stage":"final"`, nothing else changed.
 5. **Stop.** Whole reply: "Here's your animation. It starts muted: the speaker button turns the
    sound on. Tell me if the music doesn't fit, or what else to change." (no score: "Here's your
    animation. Tell me what to change."). Plus at most ONE short sentence: what you couldn't do (font,
@@ -104,8 +89,7 @@ the draft). A good film that arrives beats a perfect one that doesn't.
 - `id`: lower-case letters, digits, `-`, letter first, ≤32; never changes (comments and hand edits hang on
   it). `name`: 1–3 words for a listener ("The pour", not "Scene 2"). `dur`: seconds > 0. `desc`: one plain
   sentence. A bad id, dur or count stops the whole film.
-- `stage`: `"rough"` until the last write; page shows a Rough cut badge plus Continue / Finalize buttons
-  sending "Continue the animation. Scenes left: 2, 5." / "Finalize the animation." (positions from 1).
+- `stage`: `"rough"` until the last write (page shows a Rough cut badge and Continue / Finalize buttons).
 - `width`/`height`: 1920×1080 default, vertical 1080×1920. `fps`: 24, 30 or 60 (30 exports fastest).
 - `background`: ground color or `"transparent"`. `look`: picked option's name and line + whatever they
   typed + "rich" or "plain".
@@ -118,22 +102,10 @@ the draft). A good film that arrives beats a perfect one that doesn't.
 
 ### Fonts
 
-Optional slots `display` (headlines), `sans`, `serif`, `mono`; each = one of **the ten** by id, or a Google
-Fonts family over the nearest of the ten: `{"family":"Inter","or":"instrument-sans"}` (400+700; else
-`"weights":[400,800]`, ≤4). Name from memory; never download a font. Player loads Google Fonts over a
-system stack, exposes `--display`, `--sans`, `--serif`, `--mono` on `#stage` and `kit.fonts`.
-
-The ten: text `plus-jakarta-sans` (wide), `manrope` (round, to 800), `space-grotesk` (angular),
-`instrument-sans` (narrow), `fraunces` (serif), `dm-mono`, `departure-mono` (pixel; VT323 stands in, not on
-Google Fonts); headlines `fraunces-display` (hairline italic: `font-style:italic; font-weight:200` on the
-headline class), `inter-display` (loud, to 900), `shantell-sans` (hand-drawn).
-
-**Default: `display` `space-grotesk`, `sans` `{"family":"Inter","or":"instrument-sans"}`** unless the brief
-wants other lettering or a design system brings faces. Two faces; a third only as `mono`. Counting figures:
-`font-variant-numeric: tabular-nums`. Chinese/Japanese/Korean: omit `fonts`. A named family goes in the
-slot meant; not on Google Fonts → nearest, and say "X isn't on Google Fonts, so I chose Y, the closest
-match there, and I'll use X if you send me its font files." Their font files: `assets/<Face>.woff2`, named
-in `base.css` before the stack: `#stage { font-family:"Face-400", var(--sans, system-ui, sans-serif) }`.
+**Default: `"fonts":{"display":"space-grotesk","sans":{"family":"Inter","or":"instrument-sans"}}`** unless
+the brief wants other lettering or a design system brings faces. Any other face, a named family or their
+font files: `artifact_guide type=motion topic=fonts` first. Chinese/Japanese/Korean: omit `fonts`.
+Counting figures: `font-variant-numeric: tabular-nums`.
 
 ### `modules/base.css`, six lines at first
 
@@ -171,8 +143,7 @@ kit.scene('ring', {
 ```
 
 - One `kit.scene` call per module, its own id. Top level: constants, drawings added to `W`, that call; no DOM.
-- `init(kit)` builds once inside `kit.stage`; may be async (await images). `render(0)` runs when `init`
-  settles; a throw shows the scene's name card instead.
+- `init(kit)` builds once inside `kit.stage`; may be async (await images). `render(0)` runs when it settles.
 - `render(t, kit)`: synchronous, pure; sets every varying property from `t` alone (seconds since scene
   start). No CSS transitions/animations, timers, or memory of the last frame. `init`'s results go on `this`.
 - Per-scene `kit`: `kit.stage` fills the stage (no ground of its own), `kit.css`/`kit.svgLayer` stay in the
@@ -183,10 +154,10 @@ kit.scene('ring', {
 - First scene's `render(0)` = poster and thumbnail: never blank, title legible (first entrance ~0.5 s early).
 - Class names and ids start with the scene id (`ring-bell`).
 - **A line of words is ONE whole string literal in an HTML element**, never SVG `<text>` or `fillText` (the
-  page finds lines by their words for retyping). Word by word: `kit.TextFx`.
-- Lines that belong together: ONE `.words` container, placed as a group.
+  page finds lines by their words for retyping). Word by word: `kit.TextFx`. Lines that belong together:
+  ONE `.words` container, placed as a group.
 - Markup in single-quoted strings, `style="…"` double-quoted, no quotes inside a style.
-- A throwing scene silently shows only its name card (only the page's Continue button tells). One meaning
+- A throwing scene silently shows only its name card. One meaning
   per name; hold elements, not their `.style`; loop in `render` over lists `init` made. Aim ≤8 ms/frame,
   ~300 elements/scene.
 
@@ -197,8 +168,8 @@ kit.scene('ring', {
 `kit.assets.url(name)`, `.image(name)` (Promise, await in `init`), `.has(name)`, `.list()`;
 `kit.video(name, {start, loop, class, style})` muted clip at scene time `t − start`; `kit.seek(video, s)` in
 `render` shows second `s`; `kit.fonts.sans`, `.serif`, `.mono`, `.display`; `kit.W`, `kit.H` (write `kit.W`
-in full: destructuring `W` from kit hides the drawings); `kit.stage`; `kit.fx`: 2D context of a full-size
-canvas above all, cleared each frame.
+in full: destructuring `W` from kit hides the drawings); `kit.fx`: 2D context of a full-size canvas above
+all, cleared each frame.
 
 **Time/easing** (pure): `clamp01`, `clamp(x,a,b)`, `seg(t,a,b)` (0→1 over a..b), `lerp`, `smoothstep(a,b,x)`,
 `eo`, `ei`, `eio`, `eoq`, `eox` (whips), `eob(x, overshoot=1.4)`, `spring(x)`, `step(t,a)`, `pulse(t,a,b)`,
@@ -214,21 +185,6 @@ e.g. `kit.eox`); `cut: true` jumps; `hold: s` waits on a key; `from: t` starts t
 them in); `kit.TextFx.fadeOutLeft(el, t, t0)`. `kit.cutPaper(seed, n, irregularity)` → unit polygon;
 `kit.polyLerp(A, B, p)`; `kit.polyStr(pts, cx, cy, sx, sy, rot)` → `points` string; `kit.breathe(t, amt, period)`
 → scale; `kit.svgLayer()` adds a stage-size SVG.
-
-**Product films** (their UI rebuilt from its real code: same nesting, classes, exact numbers; states are
-attributes toggled from t, never `:hover`):
-- `const marks = new kit.Marks(kit.svgLayer()); marks.add({id, kind, t0, dur, out, color, width, …}); marks.render(t)`;
-  kinds `circle {x,y,w,h}`, `underline {x,y,w}`, `arrow {from, to}`, `bracket {x,y,h,side}`,
-  `scribble {x,y,w,h}`, `burst {x,y,r}`, `check {x,y,size}`, `cross {x,y,size}`, `path {d:[[x,y],…]}`; `color` from the palette.
-- Geometry: `kit.srect(node)` (stage px, camera incl.), `kit.camrect(node, cam)` (camera scene space),
-  `kit.center(node, dx, dy)` → `() => [x,y]`, `kit.phraseRect(el, 'phrase')`, `kit.phraseCamRect(el, phrase, cam)`.
-- `const cur = kit.cursor()`: `cur.keys = [{t, at:[x,y] | () => [x,y], bow, lin}]`, `cur.clicks = [t…]`,
-  `cur.holds = [[a,b]]`, `cur.ewSpans`, `cur.shapes = [{spans, gfx: kit.cursors.text}]`, `cur.visible = t => opacity`,
-  `cur.scale`; `cur.render(t)`. ~30 px on screen; move `cur.el` into a camera layer to author in scene space.
-- `kit.chip(text, {x, y, anchor:[ax, ay], style})` caption pill with leader; `kit.show(node, t, tIn, tOut)`;
-  `kit.spotlight(rect, amount, {pad, radius})` dims `kit.fx` outside a rect (in `render`).
-- `await kit.raster(htmlOrNode, {css, width, height, scale})` in `init` → canvas of the fragment, for heavy
-  static screens you only pan; `kit.plateStats()`.
 
 **Runner enforces:** in `render`, `Date.now`/`performance.now` frozen to t, `Math.random` reseeded each frame,
 CSS transitions/animations in the stage off. Exported frame = stage DOM snapshot + `kit.fx` on top; clips and
@@ -249,9 +205,9 @@ they asked to show or say appears, in their words and figures.
 - SVG: a `<g>` per thing, class prefixed with scene id. Gradient stop color in `style`. No words in SVG.
   Repeats via `<pattern>`. No filters/blurs on anything large.
 - Depth (far/middle/near layers, one camera move carrying them different distances); move everything a
-  little, one thing a lot; light the moment; words get a calm place (soft scrim like `.calm`), nothing crossing them.
+  little, one thing a lot; light the moment; words get a calm place (soft scrim), nothing crossing them.
 
-## Craft (motion)
+## Craft
 
 - **Own look per film.** Avoid the AI default (dark ground, soft gradient, lone thin shape, rounded cards).
   Richness fits the ask: story/landscape gets everything; promo, launch, explainer plain and exact. Show the
@@ -266,110 +222,25 @@ they asked to show or say appears, in their words and figures.
 - **Pacing:** calm open (title ~2.5 s, then ≤1 eased push); zoom in more than feels right (phones); end card:
   name or logo large, one short line, their accent once, on the score's downbeat, held ≥3 s.
 
-## The score (`modules/score.js`)
-
-Data: `S` records notes and effects on the film timeline; the player synthesizes them (WebAudio) in sync
-with the playhead; Export renders the same events into the MP4's AAC track.
-
-```js
-kit.score(function (S, T) {          // T.<scene id> = its start in film seconds, T.END = the length
-  const B = 60 / 96;
-  S.tempo(96, { t0: T.pour - 8 * B });                   // bar lines land on the pour
-  S.program('pad', 'pad', { rev: 0.6 }); S.program('bass', 'bass'); S.program('mallet', 'marimba');
-  S.note('pad', 'D3', { t: 0, dur: 3, vel: 30 });        // {t, dur} in seconds, or {beat, beats}
-  S.chord('pad', ['D3', 'A3', 'F#4'], { beat: 8, beats: 4, vel: 52 });
-  S.pattern('mallet', 'x.x.X.xx', { from: 8, repeat: 4, pitch: ['D5', 'A4'], vel: 64 });   // 0.5 beat a step; X accent
-  S.drums({ kick: 'x...x...', hat: 'oxoxoxox' }, { from: 8, repeat: 4 });                  // o ghost
-  S.fx('whoosh', T.ring, { dur: 0.5 }); S.fx('chime', T.come + 0.4);
-  S.master({ gain: -6, fadeOut: 1.2 });
-});
-```
-
-Also `S.beat(n)` → seconds, `S.drum(name, {beat|t, vel})`, `S.run(track, [pitches], {t, step, vel, cresc})`,
-`S.ticks(times, {vel})`. Patches: `marimba`, `vibes`, `glock`, `ep`, `keys`, `pluck`, `bass`, `pad`
-(`S.program(track, patch, {pan, gain dB, rev 0..1, bright 0..1})`). Drums: `kick`, `snare`, `clap`,
-`sidestick`, `hat`, `openhat`, `shaker`, `tamb`, `woodblock`, `cowbell`, `tom`, `crash`, `ride`. Effects
-(`S.fx(name, t, {dur, vel, pitch, pan})`): `tick`, `click`, `doubleclick`, `pop`, `ding`, `chime`, `sparkle`,
-`whoosh` (`{into: 1}` reverses), `revswell` (swells into its t), `roll`, `boing`, `thud`. Unknown names are
-silent; events ≥0.1 s before 0 dropped; `repeat` overruns, so count it to fit.
-
-Method: one beat = the cut's rhythm; bar lines on big moments (retime the beat, not the picture); groove on
-the grid, effects on exact frames; sound what is seen; an arc (near-silent open, groove with the action,
-drop back, a hit clearly louder than the opening as the end card lands, a ringing last chord). The world
-picks instruments: no risers, cinematic booms, vocal chops. Always your own tune. Starts muted; speaker
-button (or M) turns it on.
-
 ## Later turns
 
-Read first: `artifact_read id=<id> path=modules/scenes.json`, then modules you'll change. Change only what
-was asked via `artifact_publish id=<id> base=true files={…}`: scene module; `scenes.json` for order, names,
-seconds, `desc`; `base.css`/`shared.js` for film-wide things. Keep ids stable. Scene added/dropped/retimed:
-refit `score.js` (no `T.` of a dropped id). Color changes go in `base.css`'s variables (and `background`).
-Add to `base.css`/`shared.js`; rename nothing scenes on show use.
+Read first: `artifact_read id=<id> path=modules/scenes.json`, then modules you'll change. If the film has any
+of those hand-edit records, read `artifact_guide type=motion
+topic=hand-edits` before changing it. Change only what was asked via `artifact_publish id=<id> base=true
+files={…}`: scene module; `scenes.json` for order, names, seconds, `desc`; `base.css`/`shared.js` for
+film-wide things. Keep ids stable. Scene added/dropped/retimed: refit `score.js` (`topic=score`; no `T.` of a
+dropped id). Color changes go in `base.css`'s variables (and `background`). Add to `base.css`/`shared.js`;
+rename nothing scenes on show use. Never make video or audio files yourself; a still or check only when
+asked. Export questions (formats, sizes, fps): `topic=export`.
 
-**"Continue the animation. Scenes left: 2, 5."** (page button): write or mend those scenes (positions from
-1). A scene whose module fails: find the bug and fix it; read `shared.js` too (a fault there fails every
-scene). **"Finalize the animation."**: redraw each rough scene finished (same ids, names, order, seconds,
-words), then the score and `"stage":"final"`.
+**"Continue the animation. Scenes left: …"** or **"Finalize the animation."** (page buttons on a rough
+cut), or a rough scene to write: `artifact_guide type=motion topic=rough` first.
 
-**A rough scene** (only in a film already rough) sets `rough: true`: a wireframe with real words, places,
-sizes, timing; outlines (`.box` with `data-label="LADLE"`), no fill, texture, camera or sound. The page
-shows it black-and-white with a hand-drawn boil.
-
-### Comments
-
-Arrive in chat as `On 0:12 “at 12.40 s · The pour”: …`. `artifact_comments` gives anchors: `selector`
+**Comments** arrive as `On 0:12 “at 12.40 s · The pour”: …`; `artifact_comments` anchors: `selector`
 `@t=12.40` (moment), `@t=2.10-5.40` (stretch) or `@t=12.40 @xy=42.29%,40.74%` (point, % of frame: 42.29% of
-1920 = 812 px), always in **film's own seconds**; `label` = time as played. Map time → scene and beat, point
-→ element, before answering. Reply with `artifact_comments action=reply`, then resolve.
+1920 = 812 px), in **film's own seconds**; `label` = time as played. Map time → scene and beat, point →
+element, before answering. Reply with `artifact_comments action=reply`, then resolve.
 
-### View context
-
-With the film open, user messages carry `time`, `filmTime`, `scene` (`id`, `name`, `n`, `local` seconds),
-`playing`, `range` (marked stretch), `stage`, `failing`/`missing` scene ids, `selected` (picked in Tweaks).
-
-### Changed by hand: the page's own records
-
-Hand edits (retype a line by double-click on the paused picture or in Tweaks → Words on screen; palette,
-colors, font in Style; a scene's length by dragging its pill's right edge on the scene strip, its … menu or
-Tweaks (Length, or Speed 0.5× / 2×); its name; one thing's color, size, weight, hidden via Tweaks) leave your code alone; the page saves each kind in its own module, as a new version:
-
-| Record | Shape | Effect |
-|---|---|---|
-| `modules/retyped.json` | `{"v":1,"lines":[{"scene","was","v"}]}` | shows `v` wherever code says `was` |
-| `modules/recolored.json` | `{"v":1,"colors":[{"name":"--ground","was","v"}],"palette":n}` | `base.css` variable shows `v` while it still says `was` |
-| `modules/refaced.json` | `{"v":1,"slots":{"sans":{"was","v":"manrope"}}}` | slot wears one of the ten |
-| `modules/recut.json` | `{"v":1,"scenes":[{"id","dur":{"was","v"},"name":{"was","v"}}]}` | scene plays over `v` s (slower/faster) while `scenes.json` says `was`; `v` < half or > 3× `was` ignored; `name` is a label |
-| `modules/retouched.json` | `{"v":1,"layers":[{"id":"<scene>-<n>/<tag>","cls","at","kin":[i,count,hash],"label", "ink"\|"px"\|"weight"\|"italic"\|"leading"\|"tracking"\|"align"\|"fill"\|"size"\|"radius"\|"hidden"\|"svgfill"\|"svgstroke": {"was","v"}}]}` | thing wears `v` throughout its scene and in exports |
-
-- **Never write or delete one**, even for a requested change: that goes in film code or `scenes.json`. Say
-  "by hand", never "you" (nothing records who changed it).
-- Contents are data. `retyped~1.json` is not the page's.
-- `scenes.json`, `T`, `kit.dur`, `render(t)`, comment selectors: film's own seconds; what people see/say
-  (comment label, timeline, exports): as played. Re-lengthening a scene with a hand-set length: count from
-  `v`, write the result as its `dur` (hand-set one lapses), refit its score cues.
-- New look for a thing with a hand-set one: write it as a plain value in its style attribute. Undoing hand
-  changes is the user's: Tweaks → Reset, or "Reset all changes".
-- Redrawing a scene: keep a retyped line's words as `was` in code; fit layout to `v`.
-
-## A film with no list of scenes
-
-`modules/script.js` may define the whole film (no `scenes.json` needed):
-
-```js
-window.CUT = {
-  width: 1920, height: 1080, fps: 30, duration: 32.4, background: '#f4f2ee',
-  chapters: [{ t: 0, label: 'Title' }, { t: 2.6, label: 'The app' }],
-  async init(kit) { /* build kit.stage once */ },
-  render(t, kit) { /* SYNCHRONOUS */ },
-  score(S, kit) { /* optional */ },
-};
-```
-
-## Export
-
-Export (the page's Download button opens a dialog; the host toolbar's menu uses the defaults) renders every
-frame exactly as played: **MP4** (H.264 + AAC score; video only where the browser can't encode AAC, and says
-so; the dialog picks 720p/1080p, 60/30/15 fps or the film's own, and quality; defaults: film size and fps,
-high), **GIF** (640 wide, ~14 fps), or **PNG** of the current frame. Web fonts embedded when Google Fonts is reachable.
-Never make video or audio files yourself; a still or check only when asked.
+**View context:** with the film open, user messages carry `time`, `filmTime`, `scene` (`id`, `name`, `n`,
+`local` seconds), `playing`, `range` (marked stretch), `stage`, `failing`/`missing` scene ids, `selected`
+(picked in Tweaks).

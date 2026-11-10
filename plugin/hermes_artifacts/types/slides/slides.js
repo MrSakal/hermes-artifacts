@@ -22,16 +22,16 @@
   var W = 1920, H = 1080;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { color: "Text color", textStyle: "Text style", comment: "Comment", hide: "Hide slide", unhide: "Show slide", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
+    en: { color: "Text color", textStyle: "Text style", comment: "Comment", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
       delSection: "Remove section", sectionPh: "Section name", newSection: "Section",
-      present: "Present", presenter: "Presenter view", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
+      present: "Present", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "This slide (PNG)", html: "Web page (HTML)", save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved",
-      conflict: "Changed meanwhile: the new version loads", noSave: "Can't save here", editHint: "Click to select · double-click text to edit",
+      conflict: "Changed meanwhile: the new version loads", noSave: "Can't save here",
       building: "Building…", bad: "deck.json is missing or not valid JSON.", empty: "This deck has no slides yet.",
       noLib: "The export library didn't load (open the deck in Hermes Desktop)", of: "of", nonotes: "No notes for this slide.",
       insert: "Insert", text: "Text box", image: "Image…", rect: "Rectangle", ellipse: "Ellipse", newSlide: "New slide",
-      dup: "Duplicate", del: "Delete", up: "Move up", down: "Move down", front: "Bring to front", back: "Send to back",
-      bigger: "Larger text", smaller: "Smaller text", align: "Align", bold: "Bold", italic: "Italic", underline: "Underline",
+      dup: "Duplicate", del: "Delete", front: "Bring to front", back: "Send to back",
+      align: "Align", bold: "Bold", italic: "Italic", underline: "Underline",
       ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat", undo: "Undo", redo: "Redo",
       next: "Next", end: "End of the deck", pause: "Pause", reset: "Reset timer", exitP: "Exit", notesPh: "Speaker notes…",
       tooBig: "Images up to 8 MB", lastSlide: "A deck keeps at least one slide", textSize: "Notes text size",
@@ -51,20 +51,20 @@
       none: "None", wRegular: "Regular", wMedium: "Medium", wSemi: "Semibold", wBold: "Bold", wLight: "Light",
       bSolid: "Solid", bDashed: "Dashed", bDotted: "Dotted", cut: "Cut", copy: "Copy", paste: "Paste", addAfter: "Add slide after",
       skip: "Skip slide", unskip: "Don't skip slide", moveLeft: "Move left", moveRight: "Move right", delSlide: "Delete slide", dupSlide: "Duplicate slide",
-      cols: "Columns", rows: "Rows", th1: "Column", cell: "Cell",
+      th1: "Column",
       pSizing: "Sizing", szFill: "Fill", szHug: "Hug contents", szFixed: "Fixed", pLayout: "Layout", pDirection: "Direction", dirRow: "Row",
       dirCol: "Column", pGap: "Gap", pPadding: "Padding", detach: "Free position",
       about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hide: "Dia elrejtése", unhide: "Dia megjelenítése", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
+    hu: { color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
       delSection: "Szakasz törlése", sectionPh: "Szakasz neve", newSection: "Szakasz",
-      present: "Vetítés", presenter: "Előadói nézet", grid: "Összes dia", notes: "Jegyzetek", exp: "Exportálás", pdf: "PDF", pptx: "PowerPoint (.pptx)",
+      present: "Vetítés", grid: "Összes dia", notes: "Jegyzetek", exp: "Exportálás", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "Ez a dia (PNG)", html: "Weboldal (HTML)", save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve",
-      conflict: "Közben megváltozott: betöltöm az új verziót", noSave: "Itt nem lehet menteni", editHint: "Kattints a kijelöléshez · dupla katt a szövegre",
+      conflict: "Közben megváltozott: betöltöm az új verziót", noSave: "Itt nem lehet menteni",
       building: "Készül…", bad: "A deck.json hiányzik, vagy nem érvényes JSON.", empty: "Ebben a diasorban még nincs dia.",
       noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", of: "/", nonotes: "Ehhez a diához nincs jegyzet.",
       insert: "Beszúrás", text: "Szövegdoboz", image: "Kép…", rect: "Téglalap", ellipse: "Ellipszis", newSlide: "Új dia",
-      dup: "Másolat", del: "Törlés", up: "Feljebb", down: "Lejjebb", front: "Előre hozás", back: "Hátra küldés",
-      bigger: "Nagyobb betű", smaller: "Kisebb betű", align: "Igazítás", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
+      dup: "Másolat", del: "Törlés", front: "Előre hozás", back: "Hátra küldés",
+      align: "Igazítás", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
       ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe", undo: "Visszavonás", redo: "Mégis",
       next: "Következő", end: "A diasor vége", pause: "Szünet", reset: "Időmérő nullázása", exitP: "Kilépés", notesPh: "Előadói jegyzet…",
       tooBig: "Legfeljebb 8 MB-os kép", lastSlide: "Legalább egy dia marad", textSize: "Jegyzet betűmérete",
@@ -84,7 +84,7 @@
       none: "Nincs", wRegular: "Normál", wMedium: "Közepes", wSemi: "Félkövér", wBold: "Kövér", wLight: "Vékony",
       bSolid: "Folytonos", bDashed: "Szaggatott", bDotted: "Pontozott", cut: "Kivágás", copy: "Másolás", paste: "Beillesztés", addAfter: "Új dia utána",
       skip: "Dia kihagyása", unskip: "Dia ne maradjon ki", moveLeft: "Balra", moveRight: "Jobbra", delSlide: "Dia törlése", dupSlide: "Dia másolata",
-      cols: "Oszlopok", rows: "Sorok", th1: "Oszlop", cell: "Cella",
+      th1: "Oszlop",
       pSizing: "Méretezés", szFill: "Kitöltés", szHug: "Tartalomhoz igazodik", szFixed: "Fix", pLayout: "Elrendezés", pDirection: "Irány", dirRow: "Vízszintes",
       dirCol: "Függőleges", pGap: "Térköz", pPadding: "Belső margó", detach: "Szabad elhelyezés" }
   }, L);
@@ -220,8 +220,9 @@
     cur = Math.max(0, Math.min(slides.length - 1, i));
     clip.replaceChildren(canvasFor(slides[cur], 1, true));
     fit();
-    rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
-    var on = rail.querySelectorAll(".sl-thumb")[cur];
+    var thumbs = rail.querySelectorAll(".sl-thumb");
+    thumbs.forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+    var on = thumbs[cur];
     if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
     counter.textContent = (cur + 1) + " " + T.of + " " + slides.length;
     if (notesTa) notesTa.value = notesOf(slides[cur]); else notesEl.textContent = notesOf(slides[cur]) || T.nonotes;
@@ -269,11 +270,19 @@
       b.addEventListener("dragend", function () { dragFrom = null; dropLine.hidden = true; });
       b.addEventListener("contextmenu", function (e) { e.preventDefault(); if (i !== cur) show(i); slideMenu(b, i); });
     }
-    requestAnimationFrame(function () {
-      var w = box.clientWidth || 160;
-      box.appendChild(canvasFor(s, w / W, false));
-    });
+    queueThumb(box, function (w) { return canvasFor(s, (w || 160) / W, false); });
     return b;
+  }
+  // Thumbnails are drawn a frame later, every box measured before any is filled: one layout for the
+  // whole rail instead of one per slide.
+  var thumbQ = [];
+  function queueThumb(box, make) {
+    if (thumbQ.push([box, make]) > 1) return;
+    requestAnimationFrame(function () {
+      var q = thumbQ; thumbQ = [];
+      var ws = q.map(function (x) { return x[0].clientWidth; });
+      q.forEach(function (x, k) { x[0].appendChild(x[1](ws[k])); });
+    });
   }
   function sectionHead(s, i) {
     var name = sectionOf(s);
@@ -474,9 +483,9 @@
     var grid = h("div", { "class": "sl-newgrid" }, LAYOUTS.map(function (x) {
       var box = h("div", { "class": "sl-box" });
       var b = h("button", { type: "button", "class": "sl-newitem", onclick: function () { closeLayouts(); addSlide(x.def(), after); } }, [box, h("span", { text: x.label })]);
-      requestAnimationFrame(function () {
+      queueThumb(box, function (w) {
         var def = x.def(); def.id = "preview";
-        box.appendChild(canvasFor({ sec: clean(window.slideLayout(def, deckTheme()), "preview") }, (box.clientWidth || 200) / W, false));
+        return canvasFor({ sec: clean(window.slideLayout(def, deckTheme()), "preview") }, (w || 200) / W, false);
       });
       return b;
     }));
@@ -633,13 +642,14 @@
     ov.replaceChildren();
     if (!editable || pres) return;
     sel = sel.filter(function (el) { return el.isConnected && curSec().contains(el); });
-    sel.forEach(function (el) {
-      var b = rectOf(el);
+    var rects = sel.map(rectOf); // measured before the overlay changes: one layout, not one per box
+    sel.forEach(function (el, k) {
+      var b = rects[k];
       ov.appendChild(h("div", { "class": "sl-selbox" + (el === editing || (editing && el.contains(editing)) ? " is-editing" : ""),
         style: "left:" + b.x * SC + "px;top:" + b.y * SC + "px;width:" + b.w * SC + "px;height:" + b.h * SC + "px" }));
     });
     if (sel.length === 1 && !editing) {
-      var b = rectOf(sel[0]);
+      var b = rects[0];
       HANDLES.forEach(function (hd) {
         var x = /w/.test(hd) ? b.x : /e/.test(hd) ? b.x + b.w : b.x + b.w / 2, y = /n/.test(hd) ? b.y : /s/.test(hd) ? b.y + b.h : b.y + b.h / 2;
         ov.appendChild(h("div", { "class": "sl-handle", "data-h": hd, style: "left:" + x * SC + "px;top:" + y * SC + "px;cursor:" + hd + "-resize" }));
@@ -903,16 +913,6 @@
         drawSel(); drawTools(); drawProps(); changed();
       } };
     })).concat([{ hint: T.pFontSize }], sizes));
-  }
-  function fontScale(f) {
-    checkpoint();
-    sel.forEach(function (item) {
-      [item].concat(Array.prototype.slice.call(item.querySelectorAll("*"))).forEach(function (el) {
-        if (!hasOwnText(el) || el.closest("svg")) return;
-        el.style.fontSize = Math.max(12, R(parseFloat(getComputedStyle(el).fontSize) * f)) + "px";
-      });
-    });
-    drawSel(); changed();
   }
   function cycleAlign() {
     checkpoint();
@@ -1435,9 +1435,6 @@
     return runs.filter(function (r) { return r.text || r.options.breakLine; });
   }
 
-  function hasOwnText(el) {
-    return Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); });
-  }
   var TEXT_BLOCK = /^(H1|H2|H3|H4|H5|H6|P|BLOCKQUOTE|FIGCAPTION|LABEL)$/;
 
   /** One slide as PPTX shapes: native text, boxes, tables; images and SVG as pictures. */

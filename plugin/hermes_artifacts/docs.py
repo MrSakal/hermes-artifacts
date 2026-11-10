@@ -398,9 +398,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         st["log"].append({"tab": t["id"], "rev": t["rev"], "by": by, "blocks": changed, "at": time.time()})
         st["log"] = st["log"][-MAX_LOG:]
         _save(aid, st)
-        if not any(x["id"] == t["id"] for x in st["tabs"]):
-            pass  # the tab was deleted: nothing to keep
-        else:
+        if any(x["id"] == t["id"] for x in st["tabs"]):  # a deleted tab keeps no history
             _record(aid, st, t, by, before)
         out = {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
                "new_tab": new_tab["id"] if new_tab else None}
@@ -412,14 +410,18 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
 
 def pending(t: dict) -> list[dict]:
     """A tab's sections still to write: [{block, intent}]."""
-    return [{"block": b["id"], "intent": pending_intent(b["md"])} for b in t["blocks"] if pending_intent(b["md"])]
+    return [{"block": b["id"], "intent": i} for b in t["blocks"] if (i := pending_intent(b["md"]))]
 
 
 def outline(aid: str) -> dict:
     """What a just-published doc hands Hermes: each tab's id, rev and pending sections."""
-    st = load(aid)
-    return {"tabs": [dict({"id": t["id"], "title": t["title"], "rev": t["rev"]},
-                          **({"pending": pending(t)} if pending(t) else {})) for t in st["tabs"]]}
+    tabs = []
+    for t in load(aid)["tabs"]:
+        tab, left = {"id": t["id"], "title": t["title"], "rev": t["rev"]}, pending(t)
+        if left:
+            tab["pending"] = left
+        tabs.append(tab)
+    return {"tabs": tabs}
 
 
 # ----------------------------------------------------------------------------- suggestions
@@ -532,21 +534,27 @@ def _hist_path(aid: str) -> Path:
     return store._dir(aid) / "doc" / "history.json"
 
 
+_HIST_CACHE: dict = {}  # history.json path -> (stamp, parsed): every edit reads it
+
+
 def _hist(aid: str, version: int) -> list:
-    p = _hist_path(aid)
+    """The snapshots (a new list; the snapshots in it are shared: never change one in place)."""
     try:
-        h = json.loads(p.read_text(encoding="utf-8"))
+        h = store.json_cached(_hist_path(aid), _HIST_CACHE, 8)
     except (FileNotFoundError, ValueError):
         return []
-    return h.get("snaps", []) if h.get("version") == version else []  # a republish starts it again
+    return list(h.get("snaps", [])) if h.get("version") == version else []  # a republish starts it again
 
 
 def _hist_save(aid: str, version: int, snaps: list) -> None:
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": version, "snaps": snaps[-MAX_SNAPS:]}, ensure_ascii=False), encoding="utf-8")
+    h = {"version": version, "snaps": snaps[-MAX_SNAPS:]}
+    tmp.write_text(json.dumps(h, ensure_ascii=False), encoding="utf-8")
+    st = tmp.stat()
     tmp.replace(p)
+    store.json_remember(p, _HIST_CACHE, h, st, 8)
 
 
 def _snap(t: dict, by: str) -> dict:

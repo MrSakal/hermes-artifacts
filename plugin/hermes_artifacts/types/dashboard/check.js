@@ -44,6 +44,15 @@
     return o;
   }
 
+  function first(rows, wh) {
+    var keys = Object.keys(wh);
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (keys.every(function (k) { return String(r[k]) === wh[k]; })) return r;
+    }
+    return undefined;
+  }
+
   function label(el) {
     var cur = el;
     for (var i = 0; cur && i < 6; i++, cur = cur.parentElement) {
@@ -81,17 +90,19 @@
         var host = svg.closest("[data-source]");
         var ids = host ? (host.getAttribute("data-source") || "").split(/\s+/).filter(Boolean) : [];
         var hasData = ids.some(function (id) { var s = o.statusOf(id); return s.status === "ok" && s.rows > 0; });
-        var marksDrawn = svg.querySelectorAll("rect, path, circle, polyline, line, polygon, ellipse");
-        // Axes, ticks and gridlines are not data: a chart showing only those is empty.
-        var visible = Array.prototype.filter.call(marksDrawn, function (m) {
+        // Axes, ticks and gridlines are not data: a chart showing only those is empty. One mark drawn is enough.
+        var drawn = hasData && Array.prototype.some.call(svg.querySelectorAll("rect, path, circle, polyline, line, polygon, ellipse"), function (m) {
           if (m.closest(".tick, .c-axis, .c-grid") || m.classList.contains("domain") || m.classList.contains("c-ref")) return false;
           if (m.getAttribute("fill") === "transparent") return false;
           var r = m.getBoundingClientRect(); return r.width > 0.5 || r.height > 0.5;
         });
-        if (hasData && visible.length === 0) page.push({ kind: "output", what: "empty_chart", at: label(svg) });
-        var box = svg.getBoundingClientRect();
-        var texts = Array.prototype.filter.call(svg.querySelectorAll("text"), function (t) { return t.textContent.trim() && t.getBoundingClientRect().width > 0; });
-        var rects = texts.map(function (t) { return t.getBoundingClientRect(); });
+        if (hasData && !drawn) page.push({ kind: "output", what: "empty_chart", at: label(svg) });
+        var box = svg.getBoundingClientRect(), rects = [];
+        Array.prototype.forEach.call(svg.querySelectorAll("text"), function (t) {
+          if (!t.textContent.trim()) return;
+          var r = t.getBoundingClientRect();
+          if (r.width > 0) rects.push(r);
+        });
         var over = 0, cut = 0;
         for (var i = 0; i < rects.length && over < 3; i++) {
           for (var j = i + 1; j < rects.length; j++) if (overlaps(rects[i], rects[j])) { over++; break; }
@@ -112,7 +123,7 @@
         var field = el.getAttribute("data-field"), wh = where(el.getAttribute("data-where")), rowAttr = el.getAttribute("data-row");
         var rows = o.rowsOf(ids[0]);
         if (!rows) return;
-        var row = rowAttr != null ? rows[+rowAttr] : wh ? rows.filter(function (r) { return Object.keys(wh).every(function (k) { return String(r[k]) === wh[k]; }); })[0] : rows[0];
+        var row = rowAttr != null ? rows[+rowAttr] : wh ? first(rows, wh) : rows[0];
         var shownText = (el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild.textContent : el.textContent).trim();
         if (!row) {
           if (shownText && shownText !== "—") { flagged++; if (marks.length < 20) marks.push({ mark: label(el), source: ids[0], field: field, where: wh, row: rowAttr, reason: "matches no row" }); }

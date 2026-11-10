@@ -53,10 +53,9 @@
 
   var realNow = performance.now.bind(performance);
   var EPOCH = Date.UTC(2026, 0, 1);
-  var bar = document.getElementById("mo-bar"), view = document.getElementById("mo-view"), frame = document.getElementById("mo-frame");
+  var view = document.getElementById("mo-view"), frame = document.getElementById("mo-frame");
   var stage = document.getElementById("stage"), fxCanvas = document.getElementById("mo-fx"), controls = document.getElementById("mo-controls");
   var app = document.getElementById("mo-app");
-  bar.hidden = true; // Claude's Motion has no top bar: what it held floats over the picture (floatEl)
   var fx = fxCanvas.getContext("2d");
   var editable = !C.thumb;
   function parse(html) { var tp = document.createElement("template"); tp.innerHTML = html; return tp.content.firstElementChild; }
@@ -212,7 +211,7 @@
 
   // ------------------------------------------------------------------ styles the film wears
   var styles = {};
-  function styleEl(key, css, before) {
+  function styleEl(key, css) {
     var s = styles[key];
     if (!s) { s = styles[key] = document.createElement("style"); s.setAttribute("data-mo", key); document.head.appendChild(s); }
     s.textContent = css || "";
@@ -547,15 +546,20 @@
       return c;
     });
   }
+  // The head of the picture (its size and the film's CSS, with the export's inlined fonts hundreds of KB) is the
+  // same frame after frame: it is URI-encoded once and kept.
+  var svgHead = { w: 0, hh: 0, css: null, enc: "" };
   function svgImage(node, w, hh, css) {
     return new Promise(function (resolve, reject) {
+      if (svgHead.w !== w || svgHead.hh !== hh || svgHead.css !== css) {
+        svgHead = { w: w, hh: hh, css: css, enc: encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + hh + '"><foreignObject width="100%" height="100%">' +
+          '<style xmlns="http://www.w3.org/1999/xhtml"><![CDATA[' + css.replace(/]]>/g, "") + "]]></style>") };
+      }
       var xhtml = new XMLSerializer().serializeToString(node);
-      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + hh + '"><foreignObject width="100%" height="100%">' +
-        '<style xmlns="http://www.w3.org/1999/xhtml"><![CDATA[' + css.replace(/]]>/g, "") + "]]></style>" + xhtml + "</foreignObject></svg>";
       var img = new Image();
       img.onload = function () { resolve(img); };
       img.onerror = function () { reject(new Error("frame picture failed")); };
-      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      img.src = "data:image/svg+xml;charset=utf-8," + svgHead.enc + encodeURIComponent(xhtml + "</foreignObject></svg>");
     });
   }
   /** The current frame of the stage (only the scene on show) as an image. */
@@ -744,37 +748,30 @@
     var run = ++thumbRun, jobs = [], defs = stage.querySelector(":scope > svg"), fw = Math.max(1, Math.round(THUMB_H * W / H));
     timeline.forEach(function (sc) {
       if (sc.state !== "ok" || !sc.def || !sc.def.render) return;
-      var n = 1, roots = [];
       try {
-        for (var i = 0; i < n; i++) {
-          var at = (i + 0.6) / (n + 0.2);
-          frozen(sc.pstart + sc.pdur * at, function () { sc.def.render.call(sc.def, sc.dur * at, sc.kit); });
-          var root = stage.cloneNode(false);
-          root.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-          root.style.background = stage.style.background;
-          if (defs) root.appendChild(defs.cloneNode(true));
-          var c = sc.el.cloneNode(true);
-          c.hidden = false; c.style.filter = "";
-          Array.prototype.forEach.call(c.querySelectorAll("video,canvas,audio"), function (x) { x.remove(); });
-          root.appendChild(c);
-          roots.push(root);
-        }
+        frozen(sc.pstart + sc.pdur * 0.5, function () { sc.def.render.call(sc.def, sc.dur * 0.5, sc.kit); });
+        var root = stage.cloneNode(false);
+        root.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+        root.style.background = stage.style.background;
+        if (defs) root.appendChild(defs.cloneNode(true));
+        var c = sc.el.cloneNode(true);
+        c.hidden = false; c.style.filter = "";
+        Array.prototype.forEach.call(c.querySelectorAll("video,canvas,audio"), function (x) { x.remove(); });
+        root.appendChild(c);
+        jobs.push({ sc: sc, root: root });
       } catch (e) {}
-      if (roots.length) jobs.push({ sc: sc, roots: roots });
     });
     renderAt(cur);
     var css = filmCssText();
     inlineFonts().then(function (f) { return f && f.css || ""; }, function () { return ""; }).then(function (fontCss) {
       return jobs.reduce(function (before, j) {
         var cv = document.createElement("canvas");
-        cv.width = fw * j.roots.length; cv.height = THUMB_H;
+        cv.width = fw; cv.height = THUMB_H;
         var g = cv.getContext("2d");
-        return j.roots.reduce(function (p, root, i) {
-          return p.then(function () {
-            if (run !== thumbRun) return;
-            return svgImage(root, W, H, css + fontCss).then(function (img) { g.drawImage(img, i * fw, 0, fw, THUMB_H); }, function () {});
-          });
-        }, before).then(function () {
+        return before.then(function () {
+          if (run !== thumbRun) return;
+          return svgImage(j.root, W, H, css + fontCss).then(function (img) { g.drawImage(img, 0, 0, fw, THUMB_H); }, function () {});
+        }).then(function () {
           if (run !== thumbRun) return;
           thumbs[j.sc.id] = cv.toDataURL("image/webp", 0.8);
           if (j.sc.thumbEl) j.sc.thumbEl.style.backgroundImage = 'url("' + thumbs[j.sc.id] + '")';
@@ -784,7 +781,7 @@
   }
   /** Cards with pictures, or plain pills when the panel shares a narrow page with the film. */
   function stripMode() {
-    tl.classList.toggle("thumbs", !custom && timeline.length > 0 && !(tweaksOpen && window.matchMedia("(max-width: 900px)").matches));
+    tl.classList.toggle("thumbs", !custom && timeline.length > 0 && !(tweaksOpen && NARROW.matches));
     tl.style.setProperty("--mo-ar", String(W / H));
   }
   window.addEventListener("resize", stripMode);
@@ -836,7 +833,9 @@
   function ui() {
     var pct = total ? cur / total * 100 : 0;
     headEl.style.left = pct + "%";
-    timeEl.replaceChildren(fmtShort(cur) + " ", h("i", { text: "/ " + fmtShort(total) }));
+    // The label only changes once a second; trimStart writes over it, so the check is on what is there.
+    var tm = fmtShort(cur) + " ", tt = "/ " + fmtShort(total);
+    if (timeEl.textContent !== tm + tt) timeEl.replaceChildren(tm, h("i", { text: tt }));
     var icon = playing ? "pause" : "play";
     if (playBtn.getAttribute("data-icon") !== icon) { playBtn.innerHTML = kit.icon(icon); playBtn.setAttribute("data-icon", icon); }
     playBtn.title = playing ? T.pause : T.play;
@@ -1060,7 +1059,6 @@
       pendingSave = null; status("saved");
     }).catch(function (e) { status("failed"); kit.toast(String(e && e.message || e)); });
   }
-  var reloading = null;
   function reload() {
     var was = playing;
     pause(); // first: it brings cur to where the film is now
@@ -1069,7 +1067,7 @@
     var again = reselect || (selected && isLine(selected) ? norm(selected.getAttribute("data-mo-text") || selected.textContent) : null);
     reselect = null;
     selected = null; selBox.hidden = true; closePop();
-    reloading = boot().then(function () {
+    return boot().then(function () {
       refreshSegs(); renderAt(Math.min(keep, total)); ui(); makeThumbs();
       if (again && !custom) selected = linesIn(sceneAt(cur)).filter(function (n) { return lineText(n) === again; })[0] || null;
       if (tweaksOpen) buildTweaks();
@@ -1078,7 +1076,6 @@
       if (ps && ps.moreEl) scenePop(ps, ps.moreEl);
       if (was) play();
     });
-    return reloading;
   }
 
   function setRecut(id, ch) {
@@ -1729,7 +1726,12 @@
     renderAt(0);
     fit();
     ui();
-    makeThumbs();
+    // The strip's pictures once the film's first frame is on screen (or shortly after, where no frame is
+    // drawn: a pane in the background).
+    var thumbsDue = true;
+    var firstThumbs = function () { if (thumbsDue) { thumbsDue = false; makeThumbs(); } };
+    requestAnimationFrame(function () { setTimeout(firstThumbs, 0); });
+    setTimeout(firstThumbs, 500);
     if (!live) { volWrap.hidden = true; }
     kit.ready();
   }).catch(function (e) { console.error(e); kit.ready(); });

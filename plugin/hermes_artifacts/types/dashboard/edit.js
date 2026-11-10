@@ -169,5 +169,5 @@
     }
     return { start: start, stop: stop, editing: function () { return on; } };
   }
-  window.dashEditKit = { init: init, annotate: annotate, clean: clean };
+  window.dashEditKit = { init: init };
 })();

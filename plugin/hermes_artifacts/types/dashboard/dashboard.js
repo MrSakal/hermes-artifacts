@@ -24,16 +24,16 @@
   var bar = document.getElementById("dash-bar");
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { refresh: "Refresh", sources: "Sources",
-      exp: "Export", csv: "Data as CSV", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
-      rows: "Saved rows", calc: "Calculation", failed: "Failed to load", none: "Nothing on this dashboard yet.",
+    en: { sources: "Sources",
+      exp: "Export", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
+      failed: "Failed to load", none: "Nothing on this dashboard yet.",
       bad: "dashboard.json is missing or not valid JSON.", stopped: "This page's code stopped", stale: "Out of date",
-      updated: "updated", unused: "Not read by the page", preview: "Result", formula: "Formula", desc: "",
-      saved: "Downloaded", notmarked: "Nothing on the page links here", value: "a value", rowsN: "rows",
-      live: "Live", ago: "refreshed", cached: "from cache", noBridge: "Live data needs Hermes Desktop",
+      preview: "Result", formula: "Formula",
+      saved: "Downloaded", notmarked: "Nothing on the page links here", rowsN: "rows",
+      noBridge: "Live data needs Hermes Desktop",
       askTitle: "This dashboard gets its numbers live", askBody: "It runs these queries through Hermes each time it opens or refreshes:",
       allow: "Allow", decline: "Not now", declined: "Live data was not allowed", waiting: "Waiting for approval",
-      query: "Query", refreshSrc: "Refresh this source", took: "took",
+      query: "Query", refreshSrc: "Refresh this source",
       refreshAll: "Run every live query again", updatedAgo: "Updated", now: "now", refreshing: "Refreshing…", csvOf: "CSV",
       reauthTitle: "Sign in to {s} again", reauthBody: "Its login has expired, so these numbers can't be fetched until you sign in.",
       absentTitle: "{s} is not connected", absentBody: "Connect it in Hermes to fetch these numbers.",
@@ -44,7 +44,7 @@
       test: "Test", testing: "Running the test…", testOk: "Test ran: {n} rows in {ms} ms. Nothing is saved until you press Save.",
       testStale: "Edited since the test: test again before saving.", history: "History", historyHint: "Pick one to put it in the editor. Nothing changes until you save.",
       historyNone: "No earlier versions yet.", restored: "Earlier version in the editor. Nothing changes until you save.", you: "You", current: "current", cut: "Rows missing: the answer stopped short of all its rows.",
-      history: "History", hAuto: "Versions are saved automatically as the dashboard is edited.", hNone: "Earlier versions of this dashboard will appear here.",
+      hAuto: "Versions are saved automatically as the dashboard is edited.", hNone: "Earlier versions of this dashboard will appear here.",
       hCantRead: "History can’t be read right now. Try again.", loading: "Loading…", hCurrent: "current version", hCreated: "Created the page",
       hRestored: "Restored the {when} version", hNoChange: "No changes", hAdded: "Added {name}", hRemoved: "Removed {name}", hEditedX: "Edited {name}",
       hEditedPage: "Edited the page", hEditedFilters: "Edited the filters", hEditedTitle: "Edited the title", hEditedLook: "Edited the look",
@@ -82,18 +82,18 @@
       backTo: "Back to {s}", hint: "Click a number or a chart to see its source.", nothingUses: "Nothing on this dashboard uses this source.",
       fixMsg: "This dashboard's source “{t}” ({id}) didn’t load. What it said: {m}. Find out why and fix it.",
       whyMsg: "These sources on this dashboard didn’t load: {list}. Find out why and fix what you can.", loaderSpent: "The loader ran for fifteen minutes, so no further call is made.",
-      back: "Back", close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
+      close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
       showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
-    hu: { refresh: "Frissítés", sources: "Források",
-      exp: "Exportálás", csv: "Adatok CSV-ben", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
-      rows: "Mentett sorok", calc: "Számítás", failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
+    hu: { sources: "Források",
+      exp: "Exportálás", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
+      failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
       bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
-      updated: "frissítve", unused: "Az oldal nem olvassa", preview: "Eredmény", formula: "Képlet", desc: "",
-      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", value: "egy érték", rowsN: "sor",
-      live: "Élő", ago: "frissítve", cached: "gyorsítótárból", noBridge: "Az élő adathoz a Hermes Desktop kell",
+      preview: "Eredmény", formula: "Képlet",
+      saved: "Letöltve", notmarked: "Az oldalon semmi nem hivatkozik rá", rowsN: "sor",
+      noBridge: "Az élő adathoz a Hermes Desktop kell",
       askTitle: "Ez a dashboard élőben kéri le a számait", askBody: "Megnyitáskor és frissítéskor ezeket a lekérdezéseket futtatja a Hermesen keresztül:",
       allow: "Engedélyezés", decline: "Most nem", declined: "Az élő adat nincs engedélyezve", waiting: "Jóváhagyásra vár",
-      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése", took: "időtartam",
+      query: "Lekérdezés", refreshSrc: "Ennek a forrásnak a frissítése",
       refreshAll: "Minden élő lekérdezés újrafuttatása", updatedAgo: "Frissítve", now: "most", refreshing: "Frissítés…", csvOf: "CSV",
       reauthTitle: "Jelentkezz be újra: {s}", reauthBody: "Lejárt a bejelentkezés, ezért amíg újra be nem lépsz, ezeket a számokat nem tudja lekérni.",
       absentTitle: "{s} nincs csatlakoztatva", absentBody: "Csatlakoztasd a Hermesben, hogy le tudja kérni ezeket a számokat.",
@@ -104,7 +104,7 @@
       test: "Teszt", testing: "Teszt fut…", testOk: "A teszt lefutott: {n} sor, {ms} ms. Mentésig semmi nem változik.",
       testStale: "A teszt óta módosítottad: mentés előtt teszteld újra.", history: "Előzmények", historyHint: "Válassz egyet, és bekerül a szerkesztőbe. Mentésig semmi nem változik.",
       historyNone: "Még nincs korábbi változat.", restored: "Korábbi változat a szerkesztőben. Mentésig semmi nem változik.", you: "Te", current: "jelenlegi", cut: "Hiányzó sorok: a válasz nem adta vissza az összes sort.",
-      history: "Előzmények", hAuto: "A verziók maguktól mentődnek, ahogy a dashboard változik.", hNone: "A dashboard korábbi verziói itt jelennek meg.",
+      hAuto: "A verziók maguktól mentődnek, ahogy a dashboard változik.", hNone: "A dashboard korábbi verziói itt jelennek meg.",
       hCantRead: "Az előzmények most nem olvashatók. Próbáld újra.", loading: "Betöltés…", hCurrent: "jelenlegi verzió", hCreated: "Létrehozta az oldalt",
       hRestored: "Visszaállította a(z) {when} verziót", hNoChange: "Nincs változás", hAdded: "Hozzáadta: {name}", hRemoved: "Eltávolította: {name}", hEditedX: "Módosította: {name}",
       hEditedPage: "Módosította az oldalt", hEditedFilters: "Módosította a szűrőket", hEditedTitle: "Módosította a címet", hEditedLook: "Módosította a megjelenést",
@@ -138,7 +138,7 @@
       errorSaid: "Amit a hiba mondott", copyError: "A hiba másolása", askFix: "Kérd meg a Hermest, hogy javítsa", retryAll: "Mind újra",
       someFailed: "Néhány forrás nem töltött be.", someStale: "Néhány mentett szám elavult.", seeSources: "Források", askWhy: "Kérdezd meg a Hermest, miért",
       backTo: "Vissza ide: {s}", hint: "Kattints egy számra vagy diagramra, hogy lásd a forrását.", nothingUses: "Ezen a dashboardon semmi nem használja ezt a forrást.",
-      back: "Vissza", close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
+      close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
       showMore: "Több", showLess: "Kevesebb", transform: "Átalakítás", row1: "sor", noSources: "Ennek a dashboardnak nincs forrása.", noArgs: "Nincs argumentum." }
   }, L);
 
@@ -208,10 +208,10 @@
   }
   /** mode "live": run the query (open, refresh, filter change). mode "cached": the last answer if
    *  there is one (thumbnails, and the instant paint on open), else a live run. */
-  function loadLive(id, force, mode) {
+  function loadLive(id, mode) {
     var st = live[id] || (live[id] = { status: "loading" });
     if (!window.hermes || !window.hermes.dataset) { st.status = "error"; st.message = T.noBridge; return; }
-    if (st.running) { st.again = st.again || true; return; }
+    if (st.running) { st.again = true; return; }
     st.running = true;
     if (st.status === "ok") st.refreshing = true; else if (st.status !== "approval") st.status = "loading";
     liveQueue.push(function () {
@@ -225,26 +225,26 @@
       }).then(function () {
         st.running = false; st.refreshing = false;
         gen++; redraw(); banner();
-        if (st.again) { st.again = false; loadLive(id, true); return; }
+        if (st.again) { st.again = false; loadLive(id); return; }
         // Opened from the last answer: now the live run, keeping those numbers on screen meanwhile.
-        if (st.cached && st.status === "ok" && !C.thumb && !st.revalidated) { st.revalidated = true; loadLive(id, true); }
+        if (st.cached && st.status === "ok" && !C.thumb && !st.revalidated) { st.revalidated = true; loadLive(id); }
       });
     });
     pump();
   }
   function liveIds() { return Object.keys(datasets).filter(function (id) { return isLive(datasets[id]); }); }
-  function refreshLive(force, changed) {
+  function refreshLive(changed) {
     liveIds().forEach(function (id) {
       if (changed) {
         var ns = paramNames(datasets[id].source.args || {});
         if (!changed.some(function (k) { return ns[k]; })) return;
       }
-      loadLive(id, force);
+      loadLive(id);
     });
   }
   function liveResult(id) {
     var st = live[id];
-    if (!st) { loadLive(id, false, "cached"); st = live[id]; } // instant paint; live follows (thumbnails stop there)
+    if (!st) { loadLive(id, "cached"); st = live[id]; } // instant paint; live follows (thumbnails stop there)
     if (st.status === "ok") {
       var t = st.rows ? { columns: st.columns || [], rows: st.rows } : asTable(st.answer);
       return Object.assign({ status: "ok", meta: st.meta || [] }, t);
@@ -280,6 +280,7 @@
     }
   }
 
+  var still = {}; // id -> {input, d, path, format, r}: a static source as last read
   function compute(id) {
     if (calcs[id]) {
       var c = calcs[id], args = [];
@@ -294,12 +295,19 @@
         return Object.assign({ status: "ok", calc: true }, t);
       } catch (e) { return { status: "error", message: String(e && e.message || e) }; }
     }
+    // A file or inline source gives the same rows until its text changes: read and reshaped once, not
+    // on every redraw. (Consumers copy rows before handing them to page code.)
+    var d = datasets[id], s = (d && d.source) || {};
+    var input = d && !isLive(d) && !loaders[id] ? (s.kind === "file" ? kit.fileText(s.path) : s.kind === "rows" ? s.rows : undefined) : undefined;
+    var memo = still[id];
+    if (input !== undefined && memo && memo.input === input && memo.d === d && memo.path === s.path && memo.format === s.format) return memo.r;
     var raw = loadRaw(id);
-    if (raw.status === "ok" && datasets[id] && (datasets[id].rowsAt || datasets[id].fields || datasets[id].types)) {
-      try { raw = reshape(datasets[id], raw, live[id] && live[id].answer); }
+    if (raw.status === "ok" && d && (d.rowsAt || d.fields || d.types)) {
+      try { raw = reshape(d, raw, live[id] && live[id].answer); }
       catch (e) { raw = { status: "error", message: String(e && e.message || e) }; }
     }
     if (raw.status === "ok" && loaders[id]) raw = loaded(id, raw);
+    if (input !== undefined) still[id] = { input: input, d: d, path: s.path, format: s.format, r: raw };
     return raw;
   }
 
@@ -320,7 +328,6 @@
       if (Array.isArray(out.columns) && out.columns.length) t.columns = out.columns.map(String);
       return Object.assign({ status: "ok", meta: Array.isArray(out.meta) ? out.meta : [], cut: !!out.cut }, t);
     }
-    if (Array.isArray(out)) return Object.assign({ status: "ok", meta: [] }, asTable(out));
     return Object.assign({ status: "ok", meta: [] }, asTable(out));
   }
   function loaded(id, raw) {
@@ -421,6 +428,12 @@
       columns: (r.columns || []).slice(), message: r.message || null, refreshing: !!(live[id] && live[id].refreshing), meta: r.meta || [],
       value: r.value, cut: !!r.cut };
   }
+  /** view() without its copy of every row, for the layout's blocks, which only read them. */
+  function peek(id) {
+    var r = get(id), rows = r.rows || [];
+    return { status: r.status, data: r.value !== undefined && !rows.length ? r.value : rows, rows: rows,
+      columns: r.columns || [], message: r.message || null, value: r.value };
+  }
 
   var scheduled = false;
   var drawFns = {};
@@ -487,7 +500,7 @@
       gen++; redraw();
     },
     loader: function (id, o) { loaders[id] = { fn: o.fn, description: o.description || "" }; gen++; redraw(); },
-    refresh: function (id) { if (id && live[id]) loadLive(id, true); else refreshLive(true); gen++; redraw(); },
+    refresh: function (id) { if (id && live[id]) loadLive(id); else refreshLive(); gen++; redraw(); },
     params: function () { return JSON.parse(JSON.stringify(params)); },
     setParams: function (p) {
       for (var k in p) {
@@ -496,9 +509,9 @@
         else if (["string", "number", "boolean"].indexOf(typeof v) >= 0 || Array.isArray(v)) params[k] = v;
       }
       saveParams(); gen++; redraw();
-      refreshLive(false, Object.keys(p || {}));
+      refreshLive(Object.keys(p || {}));
     },
-    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); refreshLive(false); },
+    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); refreshLive(); },
     setLink: function (name) { try { history.replaceState(null, "", "#" + encodeURIComponent(name || "")); } catch (e) {} },
     // The Visual short engine (short.js): plays the page's chapters with these scene functions.
     short: function (scenes, o) { return window.dashShort ? window.dashShort(dash, scenes || {}, o) : null; },
@@ -566,7 +579,7 @@
     var pagePath = (spec && spec.page) || "index.html";
     var html = kit.fileText(pagePath);
     if (spec && Array.isArray(spec.layout) && window.dashLayout) {
-      try { window.dashLayout(spec.layout, root); } catch (e) { pageError(e, "layout"); }
+      try { window.dashLayout(spec.layout, root, peek); } catch (e) { pageError(e, "layout"); }
       if (html == null) { stamp(); return; }
       var extra = h("div", { "class": "c-page c-custom" });
       root.appendChild(extra);
@@ -677,7 +690,7 @@
   var fedStyle = null;
   function showFed(id) {
     if (!fedStyle) { fedStyle = document.createElement("style"); document.head.appendChild(fedStyle); }
-    if (!id) { fedStyle.textContent = ""; return; }
+    if (!id) { if (fedStyle.textContent) fedStyle.textContent = ""; return; }
     var ids = {}, grew = true;
     ids[id] = 1;
     while (grew) {
@@ -687,8 +700,9 @@
       });
     }
     var sel = Object.keys(ids).map(function (k) { return '#dash-root [data-source~="' + CSS.escape(k) + '"]'; }).join(", ");
-    fedStyle.textContent = sel + " { outline: 2px solid var(--color-accent) !important; outline-offset: 4px; border-radius: 4px;" +
+    var css = sel + " { outline: 2px solid var(--color-accent) !important; outline-offset: 4px; border-radius: 4px;" +
       " background: color-mix(in srgb, var(--color-accent) 10%, transparent); text-decoration: none !important; }";
+    if (fedStyle.textContent !== css) fedStyle.textContent = css; // an unchanged rule: no restyle of the page
   }
 
   // Sources panel, the way Claude's reads: a flat list (name + kind icon); a source opens in place
@@ -881,7 +895,7 @@
     window.hermes.dataset.edit(id, args, C.version).then(function (r) {
       if (r && r.conflict) { kit.toast(T.conflict); return; }
       C.version = r.version; d.source.args = args; delete argDraft[id]; delete live[id];
-      loadLive(id, true); kit.toast(T.querySaved); renderSources();
+      loadLive(id); kit.toast(T.querySaved); renderSources();
     }).catch(function (e) { kit.toast(String(e && e.message || e)); });
   }
   function transformOf(id, d) {
@@ -909,7 +923,7 @@
     var failedIds = ids.filter(function (id) { var r = cache[id] && cache[id].r; return r && /^(error|failed|refused|missing)$/.test(r.status) && isLive(datasets[id] || {}); });
     return [head, ids.length ? h("p", { "class": "src-hint", text: T.hint }) : null,
       failedIds.length ? h("div", { "class": "src-actions", style: "margin:0 16px 6px" }, [kit.labelled(kit.button(T.retryAll, "refresh", function () {
-        failedIds.forEach(function (id) { loadLive(id, true); }); renderSources();
+        failedIds.forEach(function (id) { loadLive(id); }); renderSources();
       }), T.retryAll)]) : null,
       ids.length ? list : h("p", { "class": "src-empty", text: T.noSources }),
       lookRow()];
@@ -942,7 +956,7 @@
       }),
       h("span", { style: "flex:1" }),
       h("span", { "class": "src-fresh", text: freshOf(id) }),
-      lv ? iconBtn("refresh", T.refreshSrc, function () { loadLive(id, true); renderSources(); }) : null,
+      lv ? iconBtn("refresh", T.refreshSrc, function () { loadLive(id); renderSources(); }) : null,
       iconBtn("close", T.close, function () { toggleSources(false); })
     ]);
     var desc = d.description || "";
@@ -966,7 +980,7 @@
             if (window.hermes && window.hermes.send) window.hermes.send(T.fixMsg.replace("{t}", sourceTitle(id)).replace("{id}", id).replace("{m}", said.slice(0, 600)), { dataset: id, failed: true }).catch(function () {});
           }), T.askFix),
           kit.labelled(kit.button(T.copyError, "copy", function () { copyText(said); }), T.copyError),
-          lv ? kit.labelled(kit.button(T.retry, "refresh", function () { loadLive(id, true); renderSources(); }), T.retry) : null
+          lv ? kit.labelled(kit.button(T.retry, "refresh", function () { loadLive(id); renderSources(); }), T.retry) : null
         ].filter(Boolean))
       ]));
     }
@@ -1194,7 +1208,7 @@
         d.source.args = args;
         editing = null;
         delete live[id];
-        loadLive(id, true); // saved by the user, so already approved (unless approval is required)
+        loadLive(id); // saved by the user, so already approved (unless approval is required)
         kit.toast(T.querySaved);
         renderSources();
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
@@ -1304,7 +1318,7 @@
     fullBtn.setAttribute("aria-pressed", String(full)); fullBtn.title = full ? T.exitFull : T.fullScreen;
   }, T.fullScreen);
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
-  bar.append(kit.button("", "refresh", function () { refreshLive(true); gen++; redraw(); }, T.refreshAll), freshEl,
+  bar.append(kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll), freshEl,
     h("span", { style: "flex:1" }), histBtn, fullBtn, srcBtn);
   kit.exports(exportList).then(function (hosted) {
     if (hosted) return;
@@ -1338,7 +1352,7 @@
     lastRetry = Date.now();
     liveIds().forEach(function (id) {
       var st = live[id];
-      if (st && !st.running && /^(error|failed|reauth|absent|off)$/.test(st.status)) loadLive(id, false);
+      if (st && !st.running && /^(error|failed|reauth|absent|off)$/.test(st.status)) loadLive(id);
     });
   }
   window.addEventListener("focus", retryFailed);
@@ -1419,15 +1433,10 @@
       rows: (r.rows || []).length, ms: lv.ms, at: lv.at, cached: lv.cached };
   }
   function rowsForCheck(id) {
-    var v = view(id);
+    var v = peek(id); // the check only reads them: no copy
     if (v.rows.length) return v.rows;
     return v.value && typeof v.value === "object" && !Array.isArray(v.value) ? [v.value] : v.rows; // a calc's one value
   }
-  /** The check as it stands, without sending it (for debugging a page). */
-  window.dashCheckNow = function () {
-    return window.dashCheck.run({ root: root, datasets: datasets, version: C.version, params: params,
-      errors: Object.keys(errorLog).map(function (k) { return errorLog[k]; }), statusOf: statusOf, rowsOf: rowsForCheck });
-  };
   function scheduleCheck() {
     if (C.thumb || !window.dashCheck || !window.hermes || !window.hermes.report) return;
     clearTimeout(checkTimer);
@@ -1472,7 +1481,7 @@
         kit.labelled(kit.button(c.status === "reauth" ? T.signIn : T.openConnectors, "data", function () {
           if (window.hermes && window.hermes.connectors) window.hermes.connectors(c.server || "").catch(function () {});
         }), c.status === "reauth" ? T.signIn : T.openConnectors),
-        kit.labelled(kit.button(T.retry, "refresh", function () { c.ids.forEach(function (id) { loadLive(id, true); }); }), T.retry)
+        kit.labelled(kit.button(T.retry, "refresh", function () { c.ids.forEach(function (id) { loadLive(id); }); }), T.retry)
       ]);
     }));
     if (connEl) connEl.replaceWith(box); else root.parentNode.insertBefore(box, root);
@@ -1515,7 +1524,7 @@
       h("div", { "class": "src-actions" }, [
         kit.labelled(kit.button(T.allow, "data", function () {
           Promise.all(pending.map(function (id) { return window.hermes.dataset.approve(id, C.version); }))
-            .then(function () { pending.forEach(function (id) { loadLive(id, true); }); })
+            .then(function () { pending.forEach(function (id) { loadLive(id); }); })
             .catch(function (e) { kit.toast(String(e && e.message || e)); });
         }), T.allow),
         kit.labelled(kit.button(T.decline, "", function () {

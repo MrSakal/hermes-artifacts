@@ -30,10 +30,10 @@
       noteTitle: "Title", noteSticky: "Note", noteShape: "Shape", noteLink: "Link", noteDraw: "Drawing",
       fixIt: "Ask Hermes to fix",
       fixMsg: function (path, err) { return "The artboard " + path + " fails with: " + err + ". Fix it (artifact_read the canvas first)."; },
-      canvas: "Canvas", fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
-      tweaks: "Tweaks", design: "Design", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
+      fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
+      tweaks: "Tweaks", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
       save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved", conflict: "Changed meanwhile: the new version loads",
-      noSave: "Can't save here", editHint: "Click to select · double-click text to edit", building: "Building…",
+      noSave: "Can't save here", building: "Building…",
       bad: "canvas.json is missing or not valid JSON.", empty: "This canvas has no artboards yet.", missing: "Missing file",
       error: "Error", noLib: "The export library didn't load (open the canvas in Hermes Desktop)", tooBig: "Images up to 8 MB",
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
@@ -45,17 +45,17 @@
       direction: "Direction", columns: "Columns", rows: "Rows", justify: "Justify", items: "Align items", wrap: "Wrap", style: "Text style",
       artboard: "Artboard", title: "Title", fillPage: "Page (fills the window)", interactive: "Interactive (Play)", reset: "Reset",
       bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
-      noBoard: "No artboard to export", pick: "Pick an artboard first", fonts: "Fonts", imgOnly: "png, jpeg, gif or webp",
+      noBoard: "No artboard to export", imgOnly: "png, jpeg, gif or webp",
       about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
     hu: { pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
       tools: "Eszközök", tSelect: "Kijelölés (V)", tHand: "Kéz (H)", tText: "Szöveg (T)", tBoard: "Rajzlap (A)", tSticky: "Cetli (S)", tPen: "Ceruza (P)",
       shapes: "Alakzatok", rect: "Téglalap (R)", oval: "Ellipszis (O)", arrow: "Nyíl (Shift+L)", line: "Vonal (L)", newBoard: "Új rajzlap", phText: "Szöveg",
       properties: "Tulajdonságok", outline: "Szerkezet", code: "Kód", copyCode: "Másolás", copied: "Kimásolva", nothing: "Jelölj ki egy rajzlapot vagy egy elemet.",
       noteTitle: "Cím", noteSticky: "Cetli", noteShape: "Alakzat", noteLink: "Hivatkozás", noteDraw: "Rajz",
-      canvas: "Vászon", fit: "Mindent mutat", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", sel: "Kijelölésre nagyít", play: "Lejátszás", stop: "Leállítás",
-      tweaks: "Hangolás", design: "Tervezés", expand: "Teljes ablak", back: "Vászon", prev: "Előző rajztábla", next: "Következő rajztábla",
+      fit: "Mindent mutat", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", sel: "Kijelölésre nagyít", play: "Lejátszás", stop: "Leállítás",
+      tweaks: "Hangolás", expand: "Teljes ablak", back: "Vászon", prev: "Előző rajztábla", next: "Következő rajztábla",
       save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve", conflict: "Közben megváltozott: betöltöm az új verziót",
-      noSave: "Itt nem lehet menteni", editHint: "Kattints a kijelöléshez · dupla katt a szövegre", building: "Készül…",
+      noSave: "Itt nem lehet menteni", building: "Készül…",
       bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
       error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
@@ -68,12 +68,11 @@
       direction: "Irány", columns: "Oszlopok", rows: "Sorok", justify: "Igazítás (fő)", items: "Igazítás (kereszt)", wrap: "Tördelés", style: "Szövegstílus",
       artboard: "Rajztábla", title: "Cím", fillPage: "Oldal (kitölti az ablakot)", interactive: "Interaktív (lejátszható)", reset: "Alaphelyzet",
       bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", none: "Jelölj ki egy elemet vagy rajztáblát.",
-      noBoard: "Nincs exportálható rajztábla", pick: "Előbb válassz rajztáblát", fonts: "Betűk", imgOnly: "png, jpeg, gif vagy webp",}
+      noBoard: "Nincs exportálható rajztábla", imgOnly: "png, jpeg, gif vagy webp",}
   }, L);
 
   var bar = document.getElementById("dc-bar"), app = document.getElementById("dc-app");
   var viewEl = document.getElementById("dc-view"), world = document.getElementById("dc-world"), panelEl = document.getElementById("dc-panel");
-  bar.className = "kit-bar";
   var canvas = kit.json("canvas.json", null);
   if (!canvas || typeof canvas !== "object" || Array.isArray(canvas)) { app.replaceChildren(h("div", { "class": "kit-empty", text: T.bad })); kit.ready(); return; }
   var editable = !C.thumb;
@@ -181,7 +180,8 @@
   };
   Frame.prototype.send = function (m) {
     m.__dc = 1;
-    if (!this.loaded) { this.queue.push(m); return; }
+    // Not loaded yet: queued for its hello, except the systems, which init() carries as they are then.
+    if (!this.loaded) { if (m.t !== "ds") this.queue.push(m); return; }
     try { this.iframe.contentWindow.postMessage(m, "*"); } catch (e) {}
   };
   Frame.prototype.request = function (m) {
@@ -237,7 +237,7 @@
       .map(function (n) { return { name: n, code: kit.fileText(lib + n) || "" }; });
     return { id: d.base, libs: libs, bundle: bundle };
   }
-  if (dsRecs.length && window.dsKit && editable !== null) {
+  if (dsRecs.length && window.dsKit) {
     ds.ready = Promise.all(dsRecs.map(function (r) {
       return window.dsKit.load(r).catch(function () { return null; });
     })).then(function (all) {
@@ -395,7 +395,6 @@
   }
   var ICON = {
     sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6"/></svg>',
-    expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>',
     stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
   };
   function layoutBoard(b) {
@@ -1421,7 +1420,7 @@
     if (e.shift && (k === "@" || k === "\"" || e.code === "Digit2")) { zoomSel(); return; }
     if (k === "Escape") {
       var playing = Object.keys(boards).filter(function (p) { return boards[p].playing; });
-      if (sel.path) { var n = nodeOf(sel.path, sel.tids[0]), up = n && ancestors(n).slice(-2)[0]; if (up && up !== n) select(sel.path, [up.__dcTid]); else { select(null, []); } }
+      if (sel.path) { var n = nodeOf(sel.path, sel.tids[0]), up = n && ancestors(n).slice(-2)[0]; if (up && up !== n) select(sel.path, [up.__dcTid]); else select(null, []); }
       else if (selBoard) selectBoard(null);
       else playing.forEach(function (p) { setPlay(boards[p], false); });
       return;
@@ -1586,7 +1585,7 @@
     b.addEventListener("click", fn);
     return b;
   }
-  function closeMenus() { var m = document.querySelector(".kit-menu"); if (m) m.remove(); }
+  function closeMenus() { var m = document.querySelector(".kit-menu"); if (m) m.close(); }
   bar.hidden = true;
 
   // pages (top left)
@@ -1639,7 +1638,7 @@
   var viewPill = h("div", { "class": "dc-pill dc-pill-r" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
 
   // the tools (bottom)
-  var tool = "select", toolBtns = {}, shapeKind = "rect", penKind = "pen";
+  var tool = "select", toolBtns = {}, shapeKind = "rect";
   function setTool(t) {
     tool = t;
     Object.keys(toolBtns).forEach(function (k) { toolBtns[k].classList.toggle("is-on", k === t || (k === "shape" && /^(rect|oval|arrow|line)$/.test(t)) || (k === "pen" && t === "pen")); });

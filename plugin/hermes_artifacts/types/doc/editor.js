@@ -10,7 +10,7 @@
       .replace(/~~/g, "\\~\\~").replace(/==/g, "\\=\\=").replace(/\{\{/g, "\\{\\{")
       .replace(/(^|[^\w\\])_/g, "$1\\_");
     if (inTable) s = s.replace(/\|/g, "\\|");
-    return s.replace(/ /g, " ");
+    return s.replace(/\u00a0/g, " ");
   }
   // Markers hug their words: "**bold **" would not parse, so edge spaces go outside them.
   function wrap(inner, open, close) {
@@ -116,7 +116,6 @@
       if (n.nodeType === 3) { para += escText(n.nodeValue); return; }
       if (n.nodeType !== 1 || n.hasAttribute("data-ui") || /^(BUTTON|TEXTAREA|SELECT)$/.test(n.tagName)) return;
       var tag = n.tagName;
-      if (n.hasAttribute("data-md") && n.hasAttribute("data-block-md")) { flush(); out.push(n.getAttribute("data-md")); return; } // a widget
       if (!BLOCK.test(tag)) { para += n.hasAttribute("data-md") ? n.getAttribute("data-md") : inlineMd({ childNodes: [n] }); return; }
       flush();
       var m;
@@ -156,7 +155,7 @@
     var probe = document.createRange();
     probe.selectNodeContents(el);
     if (end) probe.setStart(r.endContainer, r.endOffset); else probe.setEnd(r.startContainer, r.startOffset);
-    return probe.toString().replace(/​/g, "") === "" && !probe.cloneContents().querySelector("img,[data-md]");
+    return probe.toString().replace(/\u200b/g, "") === "" && !probe.cloneContents().querySelector("img,[data-md]");
   }
   /** The caret's line: first or last line of el (for moving between blocks with the arrows). */
   function caretLine(el, last) {
@@ -165,7 +164,7 @@
     var rects = r.getClientRects(), box = el.getBoundingClientRect();
     var rc = rects.length ? rects[0] : null;
     if (!rc) { // an empty line: use a temporary marker
-      var span = document.createElement("span"); span.textContent = "​";
+      var span = document.createElement("span"); span.textContent = "\u200b";
       r.insertNode(span); rc = span.getBoundingClientRect(); span.remove();
     }
     var lh = parseFloat(getComputedStyle(el).lineHeight) || 24;
@@ -182,6 +181,6 @@
     return tail.extractContents();
   }
 
-  window.docEdit = { toMd: blocksMd, inlineMd: inlineMd, listMd: listMd, tableMd: tableMd, escText: escText,
+  window.docEdit = { toMd: blocksMd, inlineMd: inlineMd,
     caretRange: caretRange, placeCaret: placeCaret, caretAt: caretAt, caretLine: caretLine, splitAtCaret: splitAtCaret };
 })();

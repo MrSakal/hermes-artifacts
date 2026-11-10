@@ -368,11 +368,11 @@
 
   /** A design system as an artifact wears it: `ref` is its record (the copy the artifact carries is used,
    *  with no trip to Hermes), an id, or {id, version} from before the copy; none: the default one. */
-  function load(ref, version) {
+  function load(ref) {
     var own = local(ref);
     if (own) return Promise.resolve(own);
     if (!window.hermes || !window.hermes.ds) return Promise.resolve(null);
-    var id = ref && typeof ref === "object" ? ref.id || ref.artifact : ref, v = ref && typeof ref === "object" ? ref.version : version;
+    var id = ref && typeof ref === "object" ? ref.id || ref.artifact : ref, v = ref && typeof ref === "object" ? ref.version : null;
     return window.hermes.ds.get(id ? String(id) : null, typeof v === "number" ? v : null).then(function (d) {
       return d && !d.none && d.id ? d : null;
     }, function () { return null; });

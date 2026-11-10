@@ -40,10 +40,10 @@
   var RE_CELL = /^(\$?)([A-Za-z]{1,3})(\$?)([0-9]+)(?::(\$?)([A-Za-z]{1,3})(\$?)([0-9]+))?/;
   var RE_COLS = /^(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})/;
   var RE_ROWS = /^(\$?)([0-9]+):(\$?)([0-9]+)/;
-  var RE_WORD = /^[A-Za-z_\\À-￿][A-Za-z0-9_.À-￿]*/;
+  var RE_WORD = /^[A-Za-z_\\À-\uffff][A-Za-z0-9_.À-\uffff]*/;
   var RE_NUM = /^(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/;
   var RE_ERR = /^#(?:DIV\/0!|N\/A|NAME\?|REF!|VALUE!|NUM!|NULL!|CYCLE!)/i;
-  var RE_BOUND = /[A-Za-z0-9_.(!$À-￿]/;
+  var RE_BOUND = /[A-Za-z0-9_.(!$À-\uffff]/;
 
   function bound(src, j) { var ch = src.charAt(j); return !ch || !RE_BOUND.test(ch); }
   function cpart(ca, c, ra, r) {
@@ -120,7 +120,7 @@
   }
 
   // ---------- lexer
-  function isWordStart(ch) { return /[A-Za-z_\\À-￿]/.test(ch); }
+  function isWordStart(ch) { return /[A-Za-z_\\À-\uffff]/.test(ch); }
   function refTok(sheet, s, rs, r) {
     return { k: 'ref', sheet: sheet, s: s, rs: rs, e: rs + r.n, kind: r.kind, a: r.a, b: r.b };
   }
@@ -128,7 +128,7 @@
     var toks = [], i = 0, n = src.length, m, ch, j, r, s, c2;
     while (i < n) {
       ch = src.charAt(i); s = i;
-      if (ch === ' ' || ch === '\n' || ch === '\r' || ch === '\t' || ch === ' ') { i++; continue; }
+      if (ch === ' ' || ch === '\n' || ch === '\r' || ch === '\t' || ch === '\u00a0') { i++; continue; }
       if (ch === '"') {
         var v = ''; j = i + 1;
         for (;;) {
@@ -547,6 +547,7 @@
       case 'f':
         var d = F[n.v];
         if (!d) return E['#NAME?'];
+        if (d.vol) cx.W.volatile();
         if (n.a.length < d.min || n.a.length > d.max) return E['#VALUE!'];
         try {
           var r;
@@ -584,10 +585,20 @@
     if (extent && typeof extent === 'object') { opts = extent; extent = null; }
     var L = opts && opts.locale === 'hu' ? 'hu' : 'en';
     var cache, mats, exts, names, busy, depth = 0, gen = 0;
+    // What each computed formula read, so that changing a few cells recomputes only what follows
+    // from them (invalidateCells): readers['S!A1'] = {formula id: 1}; ranges[S]['r1,c1,r2,c2'] =
+    // {r1, c1, r2, c2, by}; extReaders: formulas that read a sheet's extent (whole rows / columns);
+    // vol: formulas that are recomputed every time (NOW, RAND, a cycle); at[id] = [sheet, key, r, c].
+    // reading: the formula being computed now (null while a range is read on its behalf).
+    var readers, ranges, extReaders, vol, at, reading;
     function reset() {
       cache = Object.create(null); mats = Object.create(null); exts = Object.create(null);
       names = null; busy = Object.create(null); depth = 0; gen++;
+      readers = Object.create(null); ranges = Object.create(null); extReaders = Object.create(null);
+      vol = Object.create(null); at = Object.create(null); reading = [];
     }
+    function reader() { return reading.length ? reading[reading.length - 1] : null; }
+    function note(map, k, f) { (map[k] || (map[k] = Object.create(null)))[f] = 1; }
     reset();
     function resolve(name) {
       if (!names) {
@@ -598,6 +609,8 @@
       return names[String(name).toLowerCase()] || null;
     }
     function ext(sh) {
+      var f = reader();
+      if (f) note(extReaders, sh, f);
       var x = exts[sh];
       if (x) return x;
       var e = extent ? extent(sh) : null;
@@ -607,6 +620,8 @@
       return x;
     }
     function get(sh, key, r, c) {
+      var f = reader();
+      if (f) note(readers, sh + '!' + key, f);
       var m = cache[sh];
       if (m) { var hit = m[key]; if (hit !== undefined) return hit; }
       var v = getCell(sh, key);
@@ -618,54 +633,101 @@
       if (busy[id]) return E['#CYCLE!'];
       if (depth >= DEEP) throw new Deep(sh, key, r, c);
       busy[id] = 1; depth++;
+      at[id] = [sh, key, r, c]; reading.push(id);
       var v;
       try { v = finish(ev(parse(text), { W: W, sheet: sh, r: r, c: c, L: L }), { W: W }); }
-      finally { busy[id] = 0; depth--; }
+      finally { busy[id] = 0; depth--; reading.pop(); }
       (cache[sh] || (cache[sh] = Object.create(null)))[key] = v;
       return v;
     }
     function cell(sh, r, c) { return get(sh, colName(c) + (r + 1), r, c); }
     function mat(g) {
-      var k = g.sheet + '|' + g.r1 + ',' + g.c1 + ',' + g.r2 + ',' + g.c2, out = mats[k];
+      var rk = g.r1 + ',' + g.c1 + ',' + g.r2 + ',' + g.c2, k = g.sheet + '|' + rk, out = mats[k], f = reader();
+      var rs = ranges[g.sheet] || (ranges[g.sheet] = Object.create(null));
+      var dep = rs[rk] || (rs[rk] = { r1: g.r1, c1: g.c1, r2: g.r2, c2: g.c2, by: Object.create(null) });
+      if (f) dep.by[f] = 1;
       if (out) return out;
       out = [];
-      for (var r = g.r1; r <= g.r2; r++) {
-        var row = new Array(g.w);
-        for (var c = g.c1; c <= g.c2; c++) row[c - g.c1] = cell(g.sheet, r, c);
-        out.push(row);
-      }
+      reading.push(null);  // the range is noted once above, not cell by cell
+      try {
+        for (var r = g.r1; r <= g.r2; r++) {
+          var row = new Array(g.w);
+          for (var c = g.c1; c <= g.c2; c++) row[c - g.c1] = cell(g.sheet, r, c);
+          out.push(row);
+        }
+      } finally { reading.pop(); }
       if (g.h * g.w > 1) mats[k] = out;
       return out;
+    }
+    // Forget the values that follow from these cells of one sheet (typed values or formulas
+    // changed there); everything when that would be most of the workbook.
+    function invalidateCells(sheet, keys) {
+      var sh = resolve(sheet);
+      if (!sh || !keys) return reset();
+      var todo = [], seen = Object.create(null), n = 0, f, x;
+      function add(s, key, r, c) { var id = s + '!' + key; if (!seen[id]) { seen[id] = 1; todo.push([s, key, r, c, id]); } }
+      function addF(id) { var a = at[id]; if (a) add(a[0], a[1], a[2], a[3]); }
+      for (var i = 0; i < keys.length; i++) {
+        var key = String(keys[i]).toUpperCase().replace(/\$/g, ''), m = /^([A-Z]{1,3})([0-9]+)$/.exec(key);
+        if (m) add(sh, key, +m[2] - 1, colIndex(m[1]));
+      }
+      exts = Object.create(null);  // a sheet's extent may have changed
+      for (x in extReaders) for (f in extReaders[x]) addF(f);
+      for (f in vol) addF(f);
+      while (todo.length) {
+        if (++n > 20000) return reset();
+        var t = todo.pop(), s = t[0], r = t[2], c = t[3], rs = ranges[s];
+        if (cache[s]) delete cache[s][t[1]];
+        if (readers[t[4]]) for (f in readers[t[4]]) addF(f);
+        if (rs) for (x in rs) {
+          var g = rs[x];
+          if (r >= g.r1 && r <= g.r2 && c >= g.c1 && c <= g.c2) { delete mats[s + '|' + x]; for (f in g.by) addF(f); }
+        }
+      }
     }
     // Deep dependency chains are resolved bottom-up from an explicit stack instead of the JS stack
     function value(sheet, key) {
       var sh = resolve(sheet);
       if (!sh) return E['#REF!'];
+      var m0 = cache[sh], hit = m0 && m0[key];  // a formula already computed, asked by its plain key
+      if (hit !== undefined) return hit;
       key = String(key).toUpperCase().replace(/\$/g, '');
       var m = /^([A-Z]{1,3})([0-9]+)$/.exec(key);
       if (!m) return E['#REF!'];
-      var stack = [new Deep(sh, key, +m[2] - 1, colIndex(m[1]))], on = Object.create(null);
+      var r = +m[2] - 1, c = colIndex(m[1]), deep;
+      // Most chains fit the JS stack: the explicit one is built only when one does not.
+      try { return get(sh, key, r, c); } catch (e) { if (!(e instanceof Deep)) throw e; deep = e; }
+      var stack = [new Deep(sh, key, r, c)], on = Object.create(null);
       on[sh + '!' + key] = 1;
       for (;;) {
+        if (deep) {
+          depth = 0;
+          var id = deep.s + '!' + deep.key;
+          if (on[id]) {
+            (cache[deep.s] || (cache[deep.s] = Object.create(null)))[deep.key] = E['#CYCLE!'];
+            at[id] = [deep.s, deep.key, deep.r, deep.c]; vol[id] = 1;
+          }
+          else { on[id] = 1; stack.push(deep); }
+          deep = null;
+        }
         var t = stack[stack.length - 1];
         try {
           var v = get(t.s, t.key, t.r, t.c);
           stack.pop();
-          delete on[t.s + '!' + t.key];
+          on[t.s + '!' + t.key] = 0;  // not delete: that turns the map slow
           if (!stack.length) return v;
         } catch (e) {
           if (!(e instanceof Deep)) throw e;
-          depth = 0;
-          var id = e.s + '!' + e.key;
-          if (on[id]) (cache[e.s] || (cache[e.s] = Object.create(null)))[e.key] = E['#CYCLE!'];
-          else { on[id] = 1; stack.push(e); }
+          deep = e;
         }
       }
     }
-    var W = { cell: cell, mat: mat, resolve: resolve, ext: ext, L: L };
+    function volatile() { var f = reader(); if (f) vol[f] = 1; }
+    var W = { cell: cell, mat: mat, resolve: resolve, ext: ext, volatile: volatile, L: L };
     return {
       value: value,
       invalidate: reset,
+      invalidateCells: invalidateCells,
       generation: function () { return gen; },
       locale: L
     };
@@ -1362,7 +1424,7 @@
     var m, dec = 0, grouped = false, x;
     if (/^\d+(\.\d+)?e[+-]?\d+$/i.test(body)) return { n: parseFloat(body), dec: 0, grouped: false };
     if (hu) {
-      var b = body.replace(/ /g, ' ');
+      var b = body.replace(/\u00a0/g, ' ');
       if ((m = /^(\d{1,3}(?: \d{3})+|\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?$/.exec(b))) {
         grouped = m[1].length > 3 && /[ .]/.test(m[1]);
         x = parseFloat(m[1].replace(/[ .]/g, '') + (m[2] ? '.' + m[2] : ''));
@@ -1410,7 +1472,7 @@
     if ((m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(t)) && +m[1] < 24 && +m[2] < 60 && (!m[3] || +m[3] < 60))
       return { value: (+m[1] * 3600 + +m[2] * 60 + (+m[3] || 0)) / 86400, num: m[3] ? 'hh:mm:ss' : 'hh:mm' };
     // numbers, percent, currency
-    m = /^([-+]?)\s*(\$|€)?\s*([-+]?)\s*([\d\s .,]*\d[\d\s .,]*|[.,]\d+)\s*(Ft|HUF|€|EUR|\$|USD|%)?$/i.exec(t);
+    m = /^([-+]?)\s*(\$|€)?\s*([-+]?)\s*([\d\s\u00a0.,]*\d[\d\s\u00a0.,]*|[.,]\d+)\s*(Ft|HUF|€|EUR|\$|USD|%)?$/i.exec(t);
     if (m && !(m[1] && m[3])) {
       var cur = m[2] || m[5] || '', body = m[4].replace(/\s+$/, ''), p = plainNum(body, hu);
       if (!hu && /\s/.test(body)) p = null;
@@ -1428,7 +1490,7 @@
   }
 
   // ---------- normalize: Hungarian names, ';' separators and decimal commas -> canonical English
-  var RE_NWORD = /^[A-Za-z_$\\À-￿][A-Za-z0-9_.$À-￿]*/;
+  var RE_NWORD = /^[A-Za-z_$\\À-\uffff][A-Za-z0-9_.$À-\uffff]*/;
   function quoted(src, i, q) {
     var j = i + 1, n = src.length;
     while (j < n) { if (src.charAt(j) === q) { if (src.charAt(j + 1) === q) { j += 2; continue; } break; } j++; }
@@ -1513,6 +1575,9 @@
     });
     return out;
   }
+
+  // Their value changes without any cell changing: recomputed on every invalidation.
+  ['RAND', 'RANDBETWEEN', 'TODAY', 'NOW'].forEach(function (n) { F[n].vol = true; });
 
   var api = {
     workbook: workbook,

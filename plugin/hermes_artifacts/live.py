@@ -210,22 +210,39 @@ def guard(args: Any) -> None:
 
 # ----------------------------------------------------------------------------- running it
 
+# MCP discovery and status have no public plugin API yet (tools.registry, hermes_constants and ctx.*
+# cover the rest). Both are reached through this one seam, imported lazily, so a Hermes release that
+# moves them degrades to a readable message, never an ImportError at plugin load.
+MCP_SEAM_MISSING = ("this Hermes no longer exposes MCP server status to plugins "
+                    "(tools.mcp_tool_discovery.{name}); update hermes-artifacts")
+
+
+def _mcp_core(name: str):
+    """``tools.mcp_tool_discovery.<name>``, or None when this Hermes moved it."""
+    try:
+        from tools import mcp_tool_discovery
+    except ImportError:
+        return None
+    fn = getattr(mcp_tool_discovery, name, None)
+    return fn if callable(fn) else None
+
+
 def _registry_entry(tool: str):
     from tools.registry import registry
     scope = None
-    try:
-        from hermes_cli.plugins import get_plugin_manager
-        scope = get_plugin_manager().scope_key
+    try:  # the active profile's key: what the plugin manager scopes its registrations under
+        scope = registry.current_scope_key()
     except Exception:
         pass
     entry = registry.get_entry(tool, scope=scope) if scope else None
     entry = entry or registry.get_entry(tool)
     if entry is None:  # MCP servers connect on first use in a fresh process
-        try:
-            from tools.mcp_tool_discovery import discover_mcp_tools
-            discover_mcp_tools()
-        except Exception:
-            pass
+        discover = _mcp_core("discover_mcp_tools")
+        if discover is not None:
+            try:
+                discover()
+            except Exception:
+                pass
         entry = (registry.get_entry(tool, scope=scope) if scope else None) or registry.get_entry(tool)
     return registry, entry, scope
 
@@ -245,9 +262,9 @@ def server_of(tool: str) -> Optional[str]:
         pass
     norm = lambda n: n.replace("-", "_").lower()
     names = []
+    status = _mcp_core("get_mcp_status")
     try:  # names are normalized in tool names (dashes to underscores): match a configured server
-        from tools.mcp_tool_discovery import get_mcp_status
-        names = [s.get("name", "") for s in get_mcp_status(include_runtime=False)]
+        names = [s.get("name", "") for s in status(include_runtime=False)] if status else []
     except Exception:
         pass
     if tool.startswith("mcp__") and "__" in tool[5:]:
@@ -267,8 +284,10 @@ def server_state(server: Optional[str]) -> dict:
     """{state: ok|reauth|off|absent, error?} of an MCP server, from Hermes' own status."""
     if not server:
         return {"state": "absent"}
+    get_mcp_status = _mcp_core("get_mcp_status")
+    if get_mcp_status is None:
+        return {"state": "absent", "error": MCP_SEAM_MISSING.format(name="get_mcp_status")}
     try:
-        from tools.mcp_tool_discovery import get_mcp_status
         for s in get_mcp_status():
             if s.get("name") == server:
                 if s.get("needs_auth"):
@@ -460,12 +479,11 @@ def cache_put(aid: str, key: str, payload: dict) -> float:
     return at
 
 
-def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, version: Optional[int] = None,
-                mode: str = "live") -> dict:
+def run_dataset(aid: str, dsid: str, params: dict, *, version: Optional[int] = None, mode: str = "live") -> dict:
     """Run one live dataset. ``mode="live"`` (open, refresh, filter change) always runs the call;
     a call already running with the same arguments is shared, not repeated. ``mode="cached"`` returns
     the last answer when there is one (a thumbnail, or the instant first paint before the live call),
-    and runs the call only when there is none. ``force`` is the old name for live."""
+    and runs the call only when there is none."""
     d = dataset(aid, dsid, version)
     cid = call_id(d["tool"], d["args"], d["rules"])
     info = {"tool": d["tool"], "call": cid}
@@ -479,7 +497,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, force: bool = False, versi
     except LiveError as e:
         return {"status": e.status if e.status in ("refused",) else "error", "message": e.message, **info, **e.extra}
     key = hashlib.sha256(json.dumps([aid, cid, args], sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
-    if mode == "cached" and not force:
+    if mode == "cached":
         hit = cache_get(aid, key)
         if hit:
             return {**hit["payload"], "cached": True, "at": hit["at"]}

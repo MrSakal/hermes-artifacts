@@ -20,10 +20,10 @@ TYPES_DIR = Path(__file__).resolve().parent / "types"
 _TEXT = {".json", ".html", ".htm", ".md", ".txt", ".csv", ".tsv", ".svg", ".css", ".js"}
 
 
-def content_json(vdir: Path) -> dict:
-    """Every file of the version: text as str, binary as a data: URI."""
+def content_json(vdir: Path, want=None) -> dict:
+    """Every file of the version (``want(rel)``: only those it accepts): text as str, binary as a data: URI."""
     out = {}
-    for f in sorted(p for p in vdir.rglob("*") if p.is_file()):
+    for f in sorted(vdir / rel for rel, _ in store.walk_files(vdir) if want is None or want(rel)):
         rel = f.relative_to(vdir).as_posix()
         if f.suffix.lower() in _TEXT:
             out[rel] = f.read_text("utf-8", "replace")

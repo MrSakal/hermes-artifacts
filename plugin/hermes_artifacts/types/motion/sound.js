@@ -117,12 +117,18 @@
     if (NOISE) NOISE.set(c, b);
     return b;
   }
+  // The reverb's impulse, made once per context (every play and seek builds a new graph on it).
+  var IMPULSE = typeof WeakMap !== "undefined" ? new WeakMap() : null;
   function impulse(c) {
-    var len = Math.floor(c.sampleRate * 2.4), b = c.createBuffer(2, len, c.sampleRate), seed = 777;
+    var b = IMPULSE && IMPULSE.get(c);
+    if (b) return b;
+    var len = Math.floor(c.sampleRate * 2.4), seed = 777;
+    b = c.createBuffer(2, len, c.sampleRate);
     for (var ch = 0; ch < 2; ch++) {
       var d = b.getChannelData(ch);
       for (var i = 0; i < len; i++) { seed = (seed * 1664525 + 1013904223) >>> 0; d[i] = (seed / 2147483648 - 1) * Math.pow(1 - i / len, 2.6); }
     }
+    if (IMPULSE) IMPULSE.set(c, b);
     return b;
   }
 
@@ -387,5 +393,5 @@
     return c.startRendering();
   }
 
-  window.MotionSound = { build: build, Live: Live, render: render, hz: hz };
+  window.MotionSound = { build: build, Live: Live, render: render };
 })();

@@ -274,7 +274,7 @@
       return { tid: tid, rects: els.slice(0, 50).map(rectOf), computed: comp, count: els.length,
         text: el ? (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200) : "" };
     });
-    post({ t: "sel", items: items, editing: st.editing ? (infoOf(st.editing) || {}).tpl.__dcTid : null });
+    post({ t: "sel", items: items });
   }
   function hover(el) {
     if (el === st.hover) return;
@@ -371,7 +371,6 @@
     e.preventDefault(); e.stopPropagation();
     var el = editableFrom(e.target);
     if (el) startEdit(el, { x: e.clientX, y: e.clientY });
-    else post({ t: "dbl", tid: (function () { var p = pick(e.target), i = infoOf(p); return i ? i.tpl.__dcTid : null; })() });
   }, true);
   window.addEventListener("contextmenu", function (e) { if (st.mode === "edit") e.preventDefault(); }, true);
   // Links between artboards move Play; #id scrolls; the web opens a tab.
@@ -604,8 +603,7 @@
         break;
       case "urls": Object.assign(st.urls, m.urls || {}); break;
       case "props": st.props = m.props || {}; if (st.inst) st.inst.setProps(st.props); break;
-      case "mode": setMode(m.mode, m.wheel); if (m.restart) mount(); break;
-      case "restart": mount(); break;
+      case "mode": setMode(m.mode, m.wheel); break;
       case "select":
         st.sel = (m.tids || []).filter(function (x) { return typeof x === "number"; });
         if (m.scroll && st.sel.length) { var el = elementsOf(st.sel[0])[0]; if (el) el.scrollIntoView({ block: "center" }); }

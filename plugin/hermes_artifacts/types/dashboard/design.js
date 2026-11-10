@@ -115,7 +115,7 @@
     if (stack(f.display)) out.fonts.display = f.display;
     return out.light || out.dark ? out : null;
   }
-  var worn = null, applied = [];
+  var worn = null;
   function mode() {
     var t = document.documentElement.getAttribute("data-theme");
     if (t === "dark" || t === "light") return t;
@@ -126,7 +126,7 @@
     // The look dresses the dashboard's own area; the bar, the panel and the menus keep the app's theme.
     var host = (document.getElementById && document.getElementById("dash-main")) || document.documentElement;
     var st = host.style, m = mode(), set = worn[m] || worn.light || worn.dark;
-    var put = function (k, v) { if (v) { st.setProperty(k, v); applied.push(k); } };
+    var put = function (k, v) { if (v) st.setProperty(k, v); };
     put("--color-bg", set.ground); put("--color-panel", set.card); put("--color-fg", set.text);
     put("--color-fg-secondary", hex(mix(rgb(set.text), rgb(set.muted), 0.45)));
     put("--color-fg-muted", set.muted); put("--color-border-line", set.border);
@@ -190,7 +190,5 @@
     return out;
   }
 
-
-  window.dashDesignKit = { LOOKS: LOOKS, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles,
-    draftFiles: draftFiles, FORMATS: FORMATS };
+  window.dashDesignKit = { LOOKS: LOOKS, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles, draftFiles: draftFiles };
 })();

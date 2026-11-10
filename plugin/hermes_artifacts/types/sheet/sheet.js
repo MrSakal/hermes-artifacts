@@ -38,7 +38,7 @@
       drafted: "Put in the chat box: press Enter there", more: "More", nameBox: "Name box", formulaBar: "Formula bar", grid: "Sheet",
       cellAnn: "{k}: {v}", empty: "empty", copy: "Copy", cut: "Cut", paste: "Paste", pasteHint: "Press Ctrl+V to paste",
       limit: "A sheet holds at most 5000 rows and 100 columns", imported: "Imported", notUndoable: "That change is too large to undo",
-      ok: "OK", fx: "fx" },
+      ok: "OK" },
     hu: { undo: "Visszavonás", redo: "Mégis", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
       alignL: "Balra igazítás", alignC: "Középre igazítás", alignR: "Jobbra igazítás", wrap: "Sortöréssel több sorba",
       numFmt: "Számformátum", nGeneral: "Általános", nNumber: "Szám (0,00)", nThousands: "Ezres tagolás (1 234)", nPercent: "Százalék", nFt: "Pénznem (Ft)",
@@ -62,7 +62,7 @@
       drafted: "Beírva a chat mezőbe: nyomj ott Entert", more: "Továbbiak", nameBox: "Név mező", formulaBar: "Szerkesztőléc", grid: "Munkalap",
       cellAnn: "{k}: {v}", empty: "üres", copy: "Másolás", cut: "Kivágás", paste: "Beillesztés", pasteHint: "A beillesztéshez nyomd meg a Ctrl+V-t",
       limit: "Egy munkalap legfeljebb 5000 sort és 100 oszlopot tartalmazhat", imported: "Importálva", notUndoable: "Ez a módosítás túl nagy a visszavonáshoz",
-      ok: "OK", fx: "fx" }
+      ok: "OK" }
   }, L);
   function fill(s, o) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return o[k] == null ? m : o[k]; }); }
 
@@ -105,7 +105,6 @@
   var ERRS = /^#(DIV\/0!|NAME\?|REF!|VALUE!|N\/A|NUM!|CYCLE!|NULL!)$/;
   function isDate(v) { return typeof v === "string" && /^\d{4}-\d\d-\d\d(T\d\d:\d\d)?$/.test(v); }
   function same(a, b) { return a === b || (a == null || a === "") && (b == null || b === ""); }
-  function jsonEq(a, b) { return JSON.stringify(a || {}) === JSON.stringify(b || {}); }
 
   // ------------------------------------------------------------------ model
   // book: [{id, name, rev, cells{A1: raw}, fmt{A1:{…}}, vals{A1: computed}, cols{A: px}, freeze{rows, cols}, charts[]}]
@@ -175,7 +174,14 @@
     } catch (e) { console.error("sheet engine", e); return null; }
   }
   wb = makeWb();
-  function invalidate() { if (wb && wb.invalidate) { try { wb.invalidate(); } catch (e) { wb = makeWb(); } } else wb = makeWb(); }
+  // The cells typed over on one sheet since the last recompute ({s, keys}): changed() then
+  // recomputes only what follows from them. false: more than one sheet, recompute everything.
+  var touched = null;
+  function touch(s, k) {
+    if (touched === null) touched = { s: s, keys: [] };
+    if (touched && touched.s === s) touched.keys.push(k); else touched = false;
+  }
+  function invalidate() { touched = null; if (wb && wb.invalidate) { try { wb.invalidate(); } catch (e) { wb = makeWb(); } } else wb = makeWb(); }
   /** The computed value of a cell: number | string | boolean | null | {error}. */
   function valueOf(s, k) {
     var raw = s.cells[k];
@@ -241,7 +247,7 @@
   var MODES = ["h", "f", "m"], Q = [], cellQ = [];
   MODES.forEach(function (ym) {
     MODES.forEach(function (xm) {
-      var q = { xm: xm, ym: ym, el: h("div", { "class": "sh-q" }), inner: h("div", { "class": "sh-in" }), pool: [], used: 0, rr: null, cc: null };
+      var q = { xm: xm, ym: ym, el: h("div", { "class": "sh-q" }), inner: h("div", { "class": "sh-in" }), pool: [], rr: null, cc: null };
       q.el.appendChild(q.inner); vp.appendChild(q.el); Q.push(q);
       if (xm !== "h" && ym !== "h") {
         q.ov = { sel: h("div", { "class": "sh-sel", hidden: true }), act: h("div", { "class": "sh-active", hidden: true }),
@@ -309,16 +315,43 @@
 
   // ------------------------------------------------------------------ rendering (pooled cells, no per-cell listeners)
   var meas = document.createElement("canvas").getContext("2d"), measFont = "";
-  function textW(t, bold) {
-    var f = (bold ? "600 " : "400 ") + "13px " + (getComputedStyle(document.body).fontFamily || "sans-serif");
+  function family() { return getComputedStyle(document.body).fontFamily || "sans-serif"; }
+  // fam: the body's font family when the caller already has it (reading it restyles the page).
+  function textW(t, bold, fam) {
+    var f = (bold ? "600 " : "400 ") + "13px " + (fam || family());
     if (f !== measFont) { meas.font = f; measFont = f; }
     return meas.measureText(t).width;
   }
   var flashSet = {}, foundSet = null;
+  // A pane's cells sit in slots by row and column modulo the window (q.H rows x q.W columns), so a
+  // cell still in view after a scroll keeps its element, and an element is written only where its
+  // class, style or text changed: restyling a cell costs far more than comparing strings.
   function slot(q, i) {
     var el = q.pool[i];
-    if (!el) { el = document.createElement("div"); q.pool.push(el); q.inner.insertBefore(el, q.layer || null); }
+    if (!el) { el = q.pool[i] = document.createElement("div"); q.inner.insertBefore(el, q.layer || null); }
     return el;
+  }
+  // A box at x, y of w x hh with the extra declarations css; a move alone sets just what moved.
+  function put(el, cls, x, y, w, hh, css, txt) {
+    if (el._c !== cls) { el.className = cls; el._c = cls; }
+    if (el._s !== css) {
+      el.style.cssText = "left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + hh + "px;" + css;
+      el._s = css; el._x = x; el._y = y; el._w = w; el._h = hh;
+    } else {
+      if (el._x !== x) { el.style.left = x + "px"; el._x = x; }
+      if (el._y !== y) { el.style.top = y + "px"; el._y = y; }
+      if (el._w !== w) { el.style.width = w + "px"; el._w = w; }
+      if (el._h !== hh) { el.style.height = hh + "px"; el._h = hh; }
+    }
+    if (el._t !== txt) { el.textContent = txt; el._t = txt; }
+  }
+  function hide(el) { if (el && el._s !== null) { el.style.display = "none"; el._s = null; } }
+  function hideAll(q) { for (var i in q.pool) hide(q.pool[i]); q.rowAt = []; }
+  // Fits the slot grid to a window of nr rows and nc columns, starting over when it is too small.
+  function fitSlots(q, nr, nc) {
+    if (q.H >= nr && q.W >= nc) return;
+    hideAll(q);
+    q.H = Math.max(q.H || 0, nr + 4); q.W = Math.max(q.W || 0, nc + 2);
   }
   // Text on a filled cell: dark on light fills, light on dark ones, whatever the theme.
   var inks = {};
@@ -332,29 +365,35 @@
   function renderQ(q, force) {
     var s = S(), wantR = rowsFor(q.ym, 0), wantC = colsFor(q.xm, 0);
     if (!force && q.rr !== undefined && within(q.rr, wantR) && within(q.cc, wantC)) return;
-    var rr = rowsFor(q.ym, 10), cc = colsFor(q.xm, 3), i = 0, R = selR(), whole = selMode;
+    var rr = rowsFor(q.ym, 10), cc = colsFor(q.xm, 3), R = selR(), whole = selMode, kept = !force && q.cc && cc && q.cc[0] === cc[0] && q.cc[1] === cc[1];
     q.rr = rr; q.cc = cc;
     if (q.xm === "h" && q.ym === "h") {
       q.corner.style.cssText = "width:" + HW + "px;height:" + HH + "px";
-    } else if (q.ym === "h") {
-      if (cc) for (var c = cc[0]; c <= cc[1]; c++) {
-        var el = slot(q, i++);
-        el.className = "sh-h col" + (c >= R.c1 && c <= R.c2 ? (whole === "cols" || whole === "all" ? " all" : " on") : "");
-        el.style.cssText = "left:" + colX[c] + "px;top:0;width:" + (colX[c + 1] - colX[c]) + "px;height:" + HH + "px";
-        el.textContent = colName(c);
-      }
+      return;
+    }
+    if (q.ym === "h" ? !cc : q.xm === "h" ? !rr : !(rr && cc)) return hideAll(q);
+    if (q.ym === "h") {
+      fitSlots(q, 1, cc[1] - cc[0] + 1);
+      for (var c = cc[0]; c <= cc[1]; c++)
+        put(slot(q, c % q.W), "sh-h col" + (c >= R.c1 && c <= R.c2 ? (whole === "cols" || whole === "all" ? " all" : " on") : ""),
+          colX[c], 0, colX[c + 1] - colX[c], HH, "", colName(c));
+      for (c = cc[1] + 1; c < cc[0] + q.W; c++) hide(q.pool[c % q.W]);
     } else if (q.xm === "h") {
-      if (rr) for (var r = rr[0]; r <= rr[1]; r++) {
-        var e2 = slot(q, i++);
-        e2.className = "sh-h row" + (r >= R.r1 && r <= R.r2 ? (whole === "rows" || whole === "all" ? " all" : " on") : "");
-        e2.style.cssText = "left:0;top:" + r * RH + "px;width:" + HW + "px;height:" + RH + "px";
-        e2.textContent = r + 1;
-      }
-    } else if (rr && cc) {
+      fitSlots(q, rr[1] - rr[0] + 1, 1);
+      for (var r = rr[0]; r <= rr[1]; r++)
+        put(slot(q, r % q.H), "sh-h row" + (r >= R.r1 && r <= R.r2 ? (whole === "rows" || whole === "all" ? " all" : " on") : ""),
+          0, r * RH, HW, RH, "", String(r + 1));
+      for (r = rr[1] + 1; r < rr[0] + q.H; r++) hide(q.pool[r % q.H]);
+    } else {
+      fitSlots(q, rr[1] - rr[0] + 1, cc[1] - cc[0] + 1);
+      var H = q.H, W = q.W, j, c3, fam = null;
       for (var r2 = rr[0]; r2 <= rr[1]; r2++) {
-        var skip = -1;
+        var skip = -1, base = (r2 % H) * W;
+        // A row already drawn for these columns and these cells is still right.
+        if (kept && q.rowAt[r2 % H] === r2) continue;
+        q.rowAt[r2 % H] = r2;
         for (var c2 = cc[0]; c2 <= cc[1]; c2++) {
-          var el2 = slot(q, i++), k = key(r2, c2), f = s.fmt[k], v = valueOf(s, k), txt = display(s, k, v), kind = cellKind(v);
+          var el2 = slot(q, base + c2 % W), k = key(r2, c2), f = s.fmt[k], v = valueOf(s, k), txt = display(s, k, v), kind = cellKind(v);
           var w = colX[c2 + 1] - colX[c2], css = "", cls = "sh-c";
           if (kind) cls += " " + kind;
           if (f) {
@@ -368,20 +407,23 @@
           }
           // Text runs on over empty cells to its right, as in Excel.
           if (txt && !kind && !(f && (f.wrap || f.align && f.align !== "left")) && c2 > skip && txt.length * 6 > w - 10) {
-            var tw = textW(txt, f && f.bold) + 12, w0 = w, cn = c2 + 1;
+            var tw = textW(txt, f && f.bold, fam || (fam = family())) + 12, w0 = w, cn = c2 + 1;
             while (w < tw && cn <= cc[1] && cn - c2 < 12 && empty(s, r2, cn)) { w += colX[cn + 1] - colX[cn]; cn++; }
             if (w > w0) { cls += " ov"; if (!(f && f.bg)) css += "background:var(--color-panel);"; skip = cn - 1; }
           }
           if (foundSet && foundSet[k]) cls += " fd";
           if (flashSet[k]) cls += " hf";
-          el2.className = cls;
-          el2.style.cssText = "left:" + colX[c2] + "px;top:" + r2 * RH + "px;width:" + w + "px;height:" + RH + "px;" + css;
-          if (el2.textContent !== txt) el2.textContent = txt;
+          put(el2, cls, colX[c2], r2 * RH, w, RH, css, txt);
         }
+        for (c3 = cc[1] + 1; c3 < cc[0] + W; c3++) hide(q.pool[base + c3 % W]);
+      }
+      for (r2 = rr[1] + 1; r2 < rr[0] + H; r2++) {
+        j = r2 % H;
+        if (q.rowAt[j] === -1) continue;
+        q.rowAt[j] = -1;
+        for (c3 = 0; c3 < W; c3++) hide(q.pool[j * W + c3]);
       }
     }
-    for (var j = i; j < q.used; j++) q.pool[j].style.display = "none";
-    q.used = i;
   }
   function renderAll(force) { Q.forEach(function (q) { renderQ(q, force); }); }
   function renderHeaders() { Q.forEach(function (q) { if (q.xm === "h" || q.ym === "h") renderQ(q, true); }); }
@@ -436,7 +478,7 @@
     r = clamp(r, 0, MAXR - 1); c = clamp(c, 0, MAXC - 1);
     if (extend) { er = r; ec = c; } else { sr = er = r; sc = ec = c; selMode = mode || "cells"; }
     if (mode) selMode = mode;
-    if (selMode === "cells" || selMode === "rows") ensureVisible(selMode === "rows" ? er : er, selMode === "rows" ? Math.max(fc, colAt(FW + sl)) : ec);
+    if (selMode === "cells" || selMode === "rows") ensureVisible(er, selMode === "rows" ? Math.max(fc, colAt(FW + sl)) : ec);
     else if (selMode === "cols") ensureVisible(Math.max(fr, Math.floor((FH + st) / RH)), ec);
     afterSel();
   }
@@ -445,7 +487,7 @@
   function box(el, R, pad) {
     var x = colX[R.c1], y = R.r1 * RH, w = colX[R.c2 + 1] - x, hh = (R.r2 - R.r1 + 1) * RH;
     pad = pad || 0;
-    el.style.left = x - pad + "px"; el.style.top = y - pad + "px"; el.style.width = w + 2 * pad - (pad ? 0 : 0) + "px"; el.style.height = hh + 2 * pad + "px";
+    el.style.left = x - pad + "px"; el.style.top = y - pad + "px"; el.style.width = w + 2 * pad + "px"; el.style.height = hh + 2 * pad + "px";
     el.hidden = false;
   }
   var fillPrev = null, edRefs = [];
@@ -911,6 +953,14 @@
   // ------------------------------------------------------------------ ops: applied here at once, sent in batches
   function eachIn(R, fn) { for (var r = R.r1; r <= R.r2; r++) for (var c = R.c1; c <= R.c2; c++) fn(r, c, key(r, c)); }
   function area(R) { return (R.r2 - R.r1 + 1) * (R.c2 - R.c1 + 1); }
+  // The used extent after one cell was filled or emptied: grown in place, recounted only when an
+  // edge cell emptied (recounting reads every key of the sheet).
+  function usedAfter(s, r, c, filled) {
+    var u = s._used;
+    if (!u) return;
+    if (filled) { if (r > u.r || c > u.c) s._used = { r: Math.max(u.r, r), c: Math.max(u.c, c) }; }
+    else if (r >= u.r || c >= u.c) s._used = null;
+  }
   function applyLocal(s, op) {
     var R, p;
     switch (op.op) {
@@ -922,13 +972,13 @@
             if (v === null || v === undefined) return;
             var k = key(p.r + i, p.c + j);
             if (v === "") delete s.cells[k]; else s.cells[k] = v;
-            delete s.vals[k];
+            delete s.vals[k]; touch(s, k); usedAfter(s, p.r + i, p.c + j, v !== "");
           });
         });
         break;
       case "clear":
         R = parseRange(op.range);
-        if (R) for (var k in s.cells) { p = parseKey(k); if (p && inR(R, p.r, p.c)) { delete s.cells[k]; delete s.vals[k]; } }
+        if (R) for (var k in s.cells) { p = parseKey(k); if (p && inR(R, p.r, p.c)) { delete s.cells[k]; delete s.vals[k]; touch(s, k); usedAfter(s, p.r, p.c, false); } }
         break;
       case "format":
         R = parseRange(op.range);
@@ -943,7 +993,6 @@
       case "col_width": s.cols[op.col] = op.w; break;
       case "freeze": s.freeze = { rows: op.rows || 0, cols: op.cols || 0 }; break;
     }
-    s._used = null;
   }
   var pend = {}, flushTimer = null, chain = Promise.resolve(), inflight = 0;
   var status = h("span", { "class": "sh-status", "aria-live": "polite" }), statusTimer = null;
@@ -1078,7 +1127,13 @@
     }
     return ops;
   }
-  function changed(s) { invalidate(); if (s === S()) refresh(); scheduleVals(); sendView(); }
+  function changed(s) {
+    var t = touched === null ? { s: s, keys: [] } : touched;  // formats and widths change no value
+    if (t && t.s === s && wb && wb.invalidateCells) { touched = null; try { wb.invalidateCells(s.name, t.keys); } catch (e) { invalidate(); } }
+    else invalidate();
+    if (s === S()) refresh();
+    scheduleVals(); sendView();
+  }
   /** One edit of the user: applied here, queued for the server, kept for undo (inv null: cannot be undone). */
   function doEdit(s, fwd, inv) {
     if (ro() || !fwd.length) return;
@@ -1186,7 +1241,7 @@
       var d = new DOMParser().parseFromString(html, "text/html"), t = d.querySelector("table");
       if (!t) return null;
       return [].map.call(t.querySelectorAll("tr"), function (tr) {
-        return [].map.call(tr.querySelectorAll("td,th"), function (td) { return (td.innerText || td.textContent || "").replace(/ /g, " ").trim(); });
+        return [].map.call(tr.querySelectorAll("td,th"), function (td) { return (td.innerText || td.textContent || "").replace(/\u00a0/g, " ").trim(); });
       });
     } catch (e) { return null; }
   }
@@ -1731,7 +1786,7 @@
       }
       text = lines.join("\r\n");
     }
-    kit.download(kit.slug(bookTitle() + (book.length > 1 ? " - " + s.name : "")) + ".csv", "﻿" + text, "text/csv");
+    kit.download(kit.slug(bookTitle() + (book.length > 1 ? " - " + s.name : "")) + ".csv", "\ufeff" + text, "text/csv");
   }
   var fileIn = h("input", { type: "file", accept: ".xlsx,.csv,.tsv,.txt", hidden: true });
   document.body.appendChild(fileIn);
@@ -1747,7 +1802,7 @@
       : f.arrayBuffer().then(function (buf) {
         var text = new TextDecoder("utf-8").decode(buf);
         if (text.indexOf("�") >= 0) { try { text = new TextDecoder("windows-1250").decode(buf); } catch (e) {} }
-        text = text.replace(/^﻿/, "");
+        text = text.replace(/^\ufeff/, "");
         var cells = X && X.fromCsv ? X.fromCsv(text).cells : csvCells(text);
         return [{ name: base, cells: cells, fmt: {}, cols: {}, freeze: { rows: 0, cols: 0 } }];
       });
@@ -1884,6 +1939,8 @@
   }
   var valsTimer = null;
   function scheduleVals() { if (!live) return; clearTimeout(valsTimer); valsTimer = setTimeout(sendVals, 800); }
+  // JSON.stringify(a) === JSON.stringify(b), stringifying only objects (an error).
+  function sameJson(a, b) { return a === b || (a !== null && typeof a === "object" || b !== null && typeof b === "object") && JSON.stringify(a) === JSON.stringify(b); }
   function sendVals() {
     if (inflight || pending() || preview || ed) return scheduleVals();
     book.forEach(function (s) {
@@ -1892,7 +1949,7 @@
       for (k in s.cells) {
         if (!isFormula(s.cells[k])) continue;
         var v = valueOf(s, k), enc = isErr(v) ? { error: String(v.error) } : v === undefined ? null : v, old = s.vals[k];
-        if (JSON.stringify(old === undefined ? null : old) !== JSON.stringify(enc)) { out[k] = enc; n++; }
+        if (!sameJson(old === undefined ? null : old, enc)) { out[k] = enc; n++; }
       }
       for (k in s.vals) if (!isFormula(s.cells[k])) { out[k] = null; n++; }
       if (!n) return;
@@ -1990,7 +2047,7 @@
     cur = i;
     var s = book[cur], v = s._view || { sr: 0, sc: 0, er: 0, ec: 0, selMode: "cells", sl: 0, st: 0 };
     sr = v.sr; sc = v.sc; er = v.er; ec = v.ec; selMode = v.selMode;
-    nRows = 50; nCols = 26; clip = clip && clip.id === s.id ? clip : clip;
+    nRows = 50; nCols = 26;
     if (findEl && findEl.parentNode) closeFind();
     refresh();
     grid.scrollLeft = v.sl; grid.scrollTop = v.st; sl = grid.scrollLeft; st = grid.scrollTop; translate(); renderAll(true);
@@ -2065,7 +2122,6 @@
     } });
     kit.menu(b, items);
   }
-  var addTab = null;
   function drawFoot() { stats(); }
 
   // ------------------------------------------------------------------ the toolbar (an overflow menu when narrow)
@@ -2155,7 +2211,7 @@
     bar.appendChild(moreBtn);
     if (!live) setStatus(T.offline);
     foot.append(tabsEl);
-    if (editable) { addTab = barBtn(T.addSheet, kit.icon("plus"), function () { addSheet(); }, "sh-addtab"); foot.appendChild(addTab); }
+    if (editable) foot.appendChild(barBtn(T.addSheet, kit.icon("plus"), function () { addSheet(); }, "sh-addtab"));
     foot.appendChild(statsEl);
     kit.exports(exportList);
   }
@@ -2184,7 +2240,6 @@
     if (!ro()) items.push({ label: T.chart + "…", onClick: function () { chartMenu(a.isConnected ? a : grid); } });
     if (canComment && live) items.push({ label: T.comment, onClick: commentSel });
     if (live && hm.sheet.ask) items.push({ label: T.ask, onClick: askSel });
-    document.body.appendChild(a);
     kit.menu(a, items);
   }
 
@@ -2194,7 +2249,6 @@
   refresh();
   afterSel();
   drawUndo();
-  if (C.thumb) document.documentElement.classList.add("sh-thumb");
   kit.ready();
   if (live) {
     hm.on("sheet", function () { pull(); });

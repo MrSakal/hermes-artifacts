@@ -52,7 +52,7 @@
       asking: "A Hermes ír…", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
       editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Fül átnevezése", tabs: "Fülek", delTabAsk: "Törlöd ezt a fület a teljes tartalmával együtt?", ok: "OK",
       byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen",
-      dropSection: "Ez a rész ne legyen benne",
+      hermesHere: "Hermes", dropSection: "Ez a rész ne legyen benne",
       editing: "Szerkesztés", editingHint: "Közvetlenül módosítod a szöveget", suggesting: "Javaslat", suggestingHint: "A módosításaid javaslatok lesznek",
       headings: "Címsorok", textFont: "Szöveg", serif: "Talpas", sans: "Talpatlan", width: "Teljes szélesség", fonts: "Betűtípus",
       bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott", strike: "Áthúzott", code: "Kód", color: "Szín", link: "Hivatkozás", linkAsk: "Hivatkozás címe",
@@ -78,7 +78,7 @@
   }, L);
 
   var bar = document.getElementById("doc-bar"), page = document.getElementById("doc-page"), toc = document.getElementById("doc-toc");
-  var tabsEl = document.getElementById("doc-tabs"), view = document.getElementById("doc-view");
+  var view = document.getElementById("doc-view");
   bar.className = "kit-bar doc-bar";
   var live = !!(hm && hm.doc) && !C.thumb;
   if (live) document.documentElement.setAttribute("data-own-pins", ""); // comments show as cards in the margin
@@ -100,7 +100,6 @@
   function fullText() {
     return tabs.length === 1 ? tabMd(tabs[0]) : tabs.map(function (t) { return "# " + t.title + "\n\n" + tabMd(t); }).join("\n\n");
   }
-  var text = fullText(); // what the Markdown export writes
 
   // Pictures put in the doc live beside it (`doc:<name>`), fetched once and kept.
   var docFiles = {}, fetching = {};
@@ -260,7 +259,6 @@
     page.replaceChildren.apply(page, nodes);
     if (focused && !keep) focused = null;
     ast = md.parse(fullText());
-    text = fullText();
     applySettings();
     drawToc(); drawTabs(); drawMargin();
   }
@@ -298,7 +296,7 @@
         return x;
       });
       return hm.doc.edit(t.id, sent, t.rev).then(function (r) {
-        ops.forEach(function (o, n) { if (o.tmp && r && r.changed) settleId(o.tmp, r.changed[r.changed.length - 1]); });
+        ops.forEach(function (o) { if (o.tmp && r && r.changed) settleId(o.tmp, r.changed[r.changed.length - 1]); });
         if (r && r.conflict) { kit.toast(T.conflict); return pull(true).then(function () { return r; }); }
         if (r && r.rev) { if (r.rev === t.rev + 1) t.rev = r.rev; else pull(true); } // someone else edited in between
         edits++;
@@ -354,18 +352,10 @@
       edit([{ op: "insert", after: afterId, md: mdText, tmp: tmp.id }]);
       return waiting;
     }
+    // Several blocks (the one-block case returned above): the server splits them; the doc is read again.
     return edit([{ op: "insert", after: afterId, md: mdText }]).then(function (r) {
       if (!r || !r.changed) return null;
-      var ids = r.changed, at = afterId ? indexOf(afterId) + 1 : 0;
-      var pieces = md.parse(mdText).length > 1 ? null : [{ id: ids[ids.length - 1], md: mdText }];
-      if (!pieces) return pull(true).then(function () { return ids[0]; });
-      tab().blocks.splice(at, 0, pieces[0]);
-      var el = drawBlock(pieces[0]), prev = afterId ? blockEl(afterId) : null;
-      if (prev) { var nx = prev.nextSibling; while (nx && nx.classList && nx.classList.contains("sug-add")) nx = nx.nextSibling; page.insertBefore(el, nx); }
-      else page.insertBefore(el, page.firstChild);
-      if (focusIt) focusBlock(pieces[0].id, focusIt === "end");
-      drawToc();
-      return pieces[0].id;
+      return pull(true).then(function () { return r.changed[0]; });
     });
   }
   function removeBlock(id) {
@@ -426,7 +416,7 @@
     save(false);
     focused = null;
     redrawOne(f.id);
-    ast = md.parse(fullText()); text = fullText();
+    ast = md.parse(fullText());
     sendView();
   }
   // Notion's hint on the empty line being typed in
@@ -500,13 +490,13 @@
   function shortcuts(el) {
     var p = el.firstElementChild;
     if (!p || el.children.length !== 1 || p.tagName !== "P") return;
-    var t = p.textContent.replace(/ /g, " "), m = /^(#{1,3}|[-*]|1\.|\[\s?\]|>) $/.exec(t.slice(0, 5).replace(/^(\S+ ).*$/, "$1"));
+    var t = p.textContent.replace(/\u00a0/g, " "), m = /^(#{1,3}|[-*]|1\.|\[\s?\]|>) $/.exec(t.slice(0, 5).replace(/^(\S+ ).*$/, "$1"));
     if (!m || !E.caretRange() || t.indexOf(m[0]) !== 0) return;
-    var r = E.caretRange(); if (r.startContainer.textContent.slice(0, r.startOffset).replace(/ /g, " ") !== m[0]) return;
+    var r = E.caretRange(); if (r.startContainer.textContent.slice(0, r.startOffset).replace(/\u00a0/g, " ") !== m[0]) return;
     var rest = E.inlineMd(p).replace(/^(\\?#{1,3}|\\?[-*]|1\\?\.|\\\[\s?\\\]|>)(\s|&nbsp;)+/, "");
     var k = m[1], newMd = /^#/.test(k) ? k + " " + (rest || "") : k === "-" || k === "*" ? "- " + rest : k === "1." ? "1. " + rest : k === ">" ? "> " + rest : "- [ ] " + rest;
     var id = el.getAttribute("data-block"), b = blockOf(id);
-    b.md = newMd.trim() === k ? newMd : newMd;
+    b.md = newMd;
     drawBlock(b, el);
     if (!rest) { // nothing typed yet: the empty heading, item or quote still needs a line for the caret
       var q = el.querySelector("blockquote");
@@ -523,7 +513,7 @@
     var r = E.caretRange();
     if (!r || !r.collapsed || r.startContainer.nodeType !== 3 || cellOf(r.startContainer)) return false;
     var before = r.startContainer.nodeValue.slice(0, r.startOffset);
-    var m = /(^|\s)([\/@])$/.exec(before.replace(/ /g, " "));
+    var m = /(^|\s)([\/@])$/.exec(before.replace(/\u00a0/g, " "));
     return m ? m[2] : false;
   }
   function liOf(n) { n = n && (n.nodeType === 1 ? n : n.parentNode); return n && n.closest ? n.closest("li") : null; }
@@ -641,8 +631,7 @@
     if (!nl.textContent) nl.appendChild(document.createElement("br"));
     sub.forEach(function (x) { nl.appendChild(x); });
     li.after(nl);
-    var target = nl.lastChild && nl.lastChild.nodeType === 1 && /^(UL|OL)$/.test(nl.lastChild.tagName) ? nl : nl;
-    var rr = document.createRange(); rr.setStart(target, task ? 1 : 0); rr.collapse(true);
+    var rr = document.createRange(); rr.setStart(nl, task ? 1 : 0); rr.collapse(true);
     var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rr);
     scheduleSave(el);
   }
@@ -1508,7 +1497,7 @@
         else E.placeCaret(lastLeaf(cur), true);
         // Put in with the Range API: insertHTML refuses an empty line (the "/date" just taken out of it).
         var tmp = h("span"); tmp.innerHTML = md.inline(md.parseInline(c), imgSrc, R);
-        var at = E.caretRange(), gap = document.createTextNode(" "), frag = document.createDocumentFragment();
+        var at = E.caretRange(), gap = document.createTextNode("\u00a0"), frag = document.createDocumentFragment();
         while (tmp.firstChild) frag.appendChild(tmp.firstChild);
         at.deleteContents(); at.insertNode(gap); at.insertNode(frag);
         var after = document.createRange(); after.setStartAfter(gap); after.collapse(true);
@@ -1543,7 +1532,7 @@
       this.el.hidden = false; this.update();
     },
     query: function () {
-      var t = this.block ? this.block.textContent.replace(/​/g, "").replace(/ /g, " ") : ""; // a typed space at the end of a line is a no-break space
+      var t = this.block ? this.block.textContent.replace(/\u200b/g, "").replace(/\u00a0/g, " ") : ""; // a typed space at the end of a line is a no-break space
       if (this.bare) return t.trim().toLowerCase();
       var i = t.lastIndexOf(this.trigger); return i < 0 ? null : t.slice(i + 1).toLowerCase();
     },
@@ -1722,7 +1711,6 @@
     cards.map(function (c) { return { c: c, y: c.el.getBoundingClientRect().top - vr.top + view.scrollTop }; })
       .sort(function (a, b) { return a.y - b.y; })
       .forEach(function (x) { var top = Math.max(x.y, y0); x.c.node.style.top = top + "px"; y0 = top + (mini ? 26 : x.c.node.offsetHeight + 8); });
-    view.classList.toggle("has-margin", cards.length > 0);
   }
   function hiQuote(el, q) { // the commented words, lightly marked
     if (el.querySelector("mark.doc-cq") || !q) return;
@@ -1813,7 +1801,6 @@
   var CARET = '<svg class="doc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
   var tabBtn = barBtn(T.tabs, "", function () { tabMenu(); }, "doc-tabbtn");
   function drawTabs() {
-    if (tabsEl) tabsEl.hidden = true;
     tabBtn.innerHTML = "<span>" + kit.esc(tab().title || T.untitled) + "</span>" + CARET;
   }
   function tabMenu() {
@@ -1857,7 +1844,7 @@
       { label: (settings.body !== "serif" ? "✓ " : "   ") + T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
   });
   var widthBtn = barBtn(T.width, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>', function () { setSettings({ wide: !settings.wide }); });
-  function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el && el.textContent.trim() === "" && it.md != null ? el : el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
+  function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
   var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); });
   var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); });
   var checkBtn = barBtn(T.checklist, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8"/></svg>', function () { insertHere({ md: "- [ ] " }); });
@@ -1893,7 +1880,7 @@
     }));
   }
   function busy(on) {
-    var b = document.querySelector(".sl-busy, .doc-busy");
+    var b = document.querySelector(".doc-busy");
     if (on && !b) document.body.appendChild(h("div", { "class": "kit-empty doc-busy", style: "position:fixed;inset:0;z-index:200;min-height:0;background:color-mix(in srgb,var(--color-bg) 70%,transparent)", text: T.building }));
     if (!on && b) b.remove();
   }

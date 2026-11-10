@@ -37,7 +37,6 @@
     text: "M5 7V5h14v2M12 5v14M9 19h6",
     image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01",
     shape: "M4 4h9v9H4zM14 17.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0",
-    presenter: "M3 4h18v12H3zM8 20h8M12 16v4",
     pause: "M8 5v14M16 5v14",
     fontUp: "M3 18l5-12 5 12M5 14h6M18 6v6M15 9h6",
     fontDown: "M3 18l5-12 5 12M5 14h6M15 9h6",

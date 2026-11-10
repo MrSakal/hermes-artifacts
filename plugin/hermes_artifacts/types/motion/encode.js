@@ -158,36 +158,42 @@
       bytes([].concat.apply([], palette));
       bytes([0x21, 0xff, 0x0b].concat(str("NETSCAPE2.0"), [3, 1, 0, 0, 0]));
     }
+    // LZW codes by (prefix code, next index), a flat table that only the entries set since the last clear are
+    // wiped from; codes are 258..4095, so 0 is "none". out holds the code stream: at most one 12-bit code a pixel,
+    // plus a clear code every 3838 codes.
+    var dict = new Int16Array(4096 * 256), used = new Int32Array(4096), out = new Uint8Array(Math.ceil((w * h * 1.01 + 8) * 1.5)), idx = new Uint8Array(w * h);
     function lzw(idx) {
-      var minCode = 8, clear = 256, eoi = 257, out = [], cur = 0, nbits = 0, size = minCode + 1;
-      var dict = new Map(), next = 258;
+      var minCode = 8, clear = 256, eoi = 257, o = 0, cur = 0, nbits = 0, size = minCode + 1, next = 258, nUsed = 0;
       function emit(code) {
         cur |= code << nbits; nbits += size;
-        while (nbits >= 8) { out.push(cur & 255); cur >>>= 8; nbits -= 8; }
+        while (nbits >= 8) { out[o++] = cur & 255; cur >>>= 8; nbits -= 8; }
       }
+      function wipe() { while (nUsed > 0) dict[used[--nUsed]] = 0; }
       emit(clear);
       var prefix = idx[0];
       for (var i = 1; i < idx.length; i++) {
-        var k = idx[i], key = prefix * 256 + k, v = dict.get(key);
-        if (v !== undefined) { prefix = v; continue; }
+        var k = idx[i], key = prefix * 256 + k, v = dict[key];
+        if (v !== 0) { prefix = v; continue; }
         emit(prefix);
         if (next < 4096) {
-          dict.set(key, next++);
+          dict[key] = next++; used[nUsed++] = key;
           if (next > (1 << size) && size < 12) size++;
-        } else { emit(clear); dict.clear(); next = 258; size = minCode + 1; }
+        } else { emit(clear); wipe(); next = 258; size = minCode + 1; }
         prefix = k;
       }
       emit(prefix); emit(eoi);
-      if (nbits > 0) out.push(cur & 255);
-      var blocks = [minCode];
-      for (var j = 0; j < out.length; j += 255) { var n = Math.min(255, out.length - j); blocks.push(n); for (var q = 0; q < n; q++) blocks.push(out[j + q]); }
-      blocks.push(0);
-      return new Uint8Array(blocks);
+      wipe();
+      if (nbits > 0) out[o++] = cur & 255;
+      var blocks = new Uint8Array(o + Math.ceil(o / 255) + 2), b = 0;
+      blocks[b++] = minCode;
+      for (var j = 0; j < o; j += 255) { var n = Math.min(255, o - j); blocks[b++] = n; blocks.set(out.subarray(j, j + n), b); b += n; }
+      blocks[b++] = 0;
+      return blocks;
     }
     return {
       setPalette: setPalette,
       addFrame: function (px, delayCs) {
-        var n = w * h, idx = new Uint8Array(n);
+        var n = w * h;
         for (var i = 0, p = 0; i < n; i++, p += 4) idx[i] = nearest(px[p], px[p + 1], px[p + 2]);
         bytes([0x21, 0xf9, 4, 0x04, delayCs & 255, delayCs >> 8, 0, 0]);
         bytes([0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0]);

@@ -83,7 +83,6 @@ const STRINGS = {
     chatArtifacts: 'Artifacts made in this chat',
     closeBeside: 'Close the artifact',
     makeNew: 'Make something new',
-    search: 'Search artifacts',
     gridView: 'Grid',
     listView: 'List',
     empty: 'No artifacts yet. Pick something to make above, or ask Hermes to publish one.',
@@ -99,7 +98,6 @@ const STRINGS = {
     reload: 'Reload',
     pin: 'Pin',
     unpin: 'Unpin',
-    more: 'More',
     moreFor: n => `More options for ${n}`,
     renameTitle: 'Rename artifact',
     tileBy: 'By Hermes Artifacts',
@@ -150,7 +148,6 @@ const STRINGS = {
     dsDefaultTitle: 'New designs, decks, films and dashboards build on this system',
     dsOn: n => `Designs, decks and films now build on ${n}`,
     dsOff: 'No default design system now',
-    download: 'Download',
     delConfirm: 'Delete for good?',
     comments: 'Comments',
     addComment: 'Comment',
@@ -273,7 +270,6 @@ const STRINGS = {
     chatArtifacts: 'Ebben a chatben készült artifactok',
     closeBeside: 'Artifact bezárása',
     makeNew: 'Készíts valami újat',
-    search: 'Keresés az artifactok közt',
     gridView: 'Rács',
     listView: 'Lista',
     empty: 'Még nincs artifact. Válassz fent, mit készítsen, vagy kérd meg a Hermest, hogy publikáljon egyet.',
@@ -289,7 +285,6 @@ const STRINGS = {
     reload: 'Újratöltés',
     pin: 'Kitűzés',
     unpin: 'Kitűzés levétele',
-    more: 'Továbbiak',
     moreFor: n => `${n}: további lehetőségek`,
     renameTitle: 'Artifact átnevezése',
     tileBy: 'Hermes Artifacts',
@@ -340,7 +335,6 @@ const STRINGS = {
     dsDefaultTitle: 'Erre épülnek az új tervek, diasorok, filmek és dashboardok',
     dsOn: n => `Az új tervek, diasorok és filmek mostantól erre épülnek: ${n}`,
     dsOff: 'Most nincs alapértelmezett design system',
-    download: 'Letöltés',
     delConfirm: 'Véglegesen törlöd?',
     comments: 'Kommentek',
     addComment: 'Komment',
@@ -421,30 +415,33 @@ const enc = encodeURIComponent
 let CTX = null // the plugin context (set in register)
 let T = k => k // the plugin's translate, kept current by Page
 
-// ---------------------------------------------------------------- pinned artifacts in the sidebar
-// Claude lists pinned artifacts in its sidebar and leaves the gallery's order alone. Hermes' own Pinned
-// section holds chats only, so each pinned artifact gets a sidebar nav row of its own (and a route, so
-// the row is lit while that artifact is open).
-const NAV_CODICON = { page: 'browser', dashboard: 'graph', slides: 'preview', doc: 'note', sheet: 'table', design: 'symbol-color',
-  'design-system': 'symbol-color', motion: 'play-circle' }
-const pinnedRegs = new Map() // id -> {key, dispose}
-let navPrefsDispose = null
-/** Our row in the built-in Artifacts row's slot, the pinned artifacts right under it. */
-function registerNavPrefs(ctx) {
-  if (navPrefsDispose) navPrefsDispose()
-  const pinned = [...pinnedRegs.keys()].map(id => `${ID}:pinned:${id}`)
-  navPrefsDispose = ctx.register({
-    id: 'nav-prefs',
-    area: SIDEBAR_NAV_PREFS_AREA,
-    order: 1000,
-    data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, ...pinned, 'cron'] }
-  })
+// Listeners and timers through the host's scoped ones (dropped when the plugin unloads); a host without
+// them gets the bare ones. Each returns a disposer.
+function listen(ctx, target, type, fn, opts) {
+  if (ctx?.addEventListener) return ctx.addEventListener(target, type, fn, opts)
+  target.addEventListener(type, fn, opts)
+  return () => target.removeEventListener(type, fn, opts)
 }
+function every(ctx, fn, ms) {
+  if (ctx?.setInterval) return ctx.setInterval(fn, ms)
+  const id = setInterval(fn, ms)
+  return () => clearInterval(id)
+}
+function later(ctx, fn, ms) {
+  if (ctx?.setTimeout) return ctx.setTimeout(fn, ms)
+  const id = setTimeout(fn, ms)
+  return () => clearTimeout(id)
+}
+
+// ---------------------------------------------------------------- pinned artifacts
+// Claude lists pinned artifacts in its sidebar and leaves the gallery's order alone. Hermes' own Pinned
+// section holds chats only, so a pinned artifact's chat is pinned there (syncPinnedChats) and the
+// artifact keeps a route of its own (a link to it opens it).
+const pinnedRegs = new Map() // id -> {key, dispose}
 const pinnedPath = id => `${PAGE}/pinned/${encodeURIComponent(id)}`
 function syncPinnedNav(ctx, list) {
   if (!ctx?.register) return
   const want = new Map(list.filter(a => a.pinned).map(a => [a.id, a]))
-  const before = [...pinnedRegs.keys()].join('|')
   for (const [id, reg] of pinnedRegs)
     if (!want.has(id) || reg.key !== `${want.get(id).title}|${want.get(id).type}`) {
       reg.dispose()
@@ -452,13 +449,9 @@ function syncPinnedNav(ctx, list) {
     }
   for (const [id, a] of want) {
     if (pinnedRegs.has(id)) continue
-    // Its own route stays (a link to it opens it); the sidebar shows it in Hermes' Pinned section instead.
-    const disposers = [
-      ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) })
-    ]
-    pinnedRegs.set(id, { key: `${a.title}|${a.type}`, dispose: () => disposers.forEach(d => typeof d === 'function' && d()) })
+    const dispose = ctx.register({ id: `pinned-page:${id}`, area: ROUTES_AREA, title: a.title, data: { path: pinnedPath(id) }, render: () => jsx(PinnedPage, { ctx, id }) })
+    pinnedRegs.set(id, { key: `${a.title}|${a.type}`, dispose: () => typeof dispose === 'function' && dispose() })
   }
-  if ([...pinnedRegs.keys()].join('|') !== before) registerNavPrefs(ctx)
   syncPinnedChats(ctx, list)
 }
 
@@ -475,7 +468,6 @@ function syncPinnedChats(ctx, list) {
   if (changed) ctx.storage.set('pinnedChats', [...ours])
 }
 
-const $noSession = atom(null) // an older host without focusedStoredSessionId
 /** The artifact beside its chat (the Chat split); again on the same one closes it. */
 function openBeside(ctx, art) {
   if ($chat.get() === 'split' && $selected.get() === art.id && dockClose) {
@@ -487,8 +479,6 @@ function openBeside(ctx, art) {
   openSplit(ctx, art)
 }
 
-/** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
- *  newest one when the chat made several). Re-registered when the chat, the list or the dock changes. */
 /** The chat's own route: `#/` (new chat) or `#/<session id>`. */
 function onChatRoute(sid) {
   const path = (window.location.hash.replace(/^#/, '') || '/').split('?')[0]
@@ -534,7 +524,7 @@ function ChatArtifactCard({ ctx, attrs }) {
   useEffect(() => { if (id && !art) refresh(ctx).catch(() => {}) }, [id, Boolean(art)])
   const [hover, setHover] = useState(false)
   const box = { display: 'flex', alignItems: 'center', gap: 12, width: '100%', maxWidth: 520, margin: '6px 0', padding: '10px 12px',
-    border: `1px solid ${C.line}`, borderRadius: C.rLg || 10, background: hover && art ? C.rowHover : C.card, color: C.fg,
+    border: `1px solid ${C.line}`, borderRadius: C.rLg, background: hover && art ? C.rowHover : C.card, color: C.fg,
     font: 'inherit', textAlign: 'left', cursor: art ? 'pointer' : 'default' }
   if (!art) {
     return jsx('div', { style: { ...box, color: C.text3 }, children: id && listedOnce ? t('cardGone') : '…' })
@@ -558,13 +548,14 @@ function ChatArtifactCard({ ctx, attrs }) {
   })
 }
 
+/** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
+ *  newest one when the chat made several). Re-registered when the chat, the list or the dock changes. */
 function watchChatArtifactTool(ctx) {
   const sidAtom = host.state?.focusedStoredSessionId
   if (!sidAtom?.listen) return () => {}
   // ctx.i18n.t translates from the start (T follows the page, which may not be open yet).
   const tr = (k, ...a) => (ctx.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
   let dispose = null, last = ''
-  const offs0 = []
   const sync = () => {
     const sid = sidAtom.get()
     const arts = sid ? $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0)) : []
@@ -622,10 +613,7 @@ function watchChatArtifactTool(ctx) {
     if (open) { wasOpenFor = sid; if (closedIn.delete(sid)) remember() }
     else if (wasOpenFor && wasOpenFor === sid) { closedIn.add(sid); remember(); wasOpenFor = null }
   }
-  window.addEventListener('hashchange', sync)
-  window.addEventListener('hashchange', enter)
-  offs0.push(() => window.removeEventListener('hashchange', sync), () => window.removeEventListener('hashchange', enter))
-  const offs = [...offs0, sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $list.listen(enter), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
+  const offs = [listen(ctx, window, 'hashchange', sync), listen(ctx, window, 'hashchange', enter), sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $list.listen(enter), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
   sync()
   return () => { offs.forEach(f => f?.()); dispose?.() }
 }
@@ -657,7 +645,7 @@ function PinMark({ ctx, sessionId }) {
     style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
       marginRight: 4, flexShrink: 0, borderRadius: C.rSm, cursor: 'pointer',
       background: hover ? C.rowHover : 'transparent', color: hover ? C.fg : C.text2 },
-    children: jsx(Icon, { name: a.type === 'page' || !TYPE_LOOK[a.type] ? 'code' : TYPE_LOOK[a.type].icon, size: 14, stroke: 1.8 })
+    children: jsx(Icon, { name: a.type === 'page' || !TYPE_ICON[a.type] ? 'code' : TYPE_ICON[a.type], size: 14, stroke: 1.8 })
   })
 }
 /** A pinned artifact's own route: the Artifacts page, opened on it. */
@@ -667,7 +655,15 @@ function PinnedPage({ ctx, id }) {
 }
 
 let listedOnce = false // the list has loaded since start (the pinned sidebar rows come from it)
-async function refresh(ctx) {
+/** The list, once at a time: a call while one runs gets one more run after it (shared by every caller
+ *  meanwhile), so what it awaits is never older than the call, and a burst costs two fetches. */
+let listRun = null, listAgain = null
+function refresh(ctx) {
+  if (listRun) return (listAgain ??= listRun.then(() => { listAgain = null; return refresh(ctx) }))
+  listRun = loadList(ctx).finally(() => { listRun = null })
+  return listRun
+}
+async function loadList(ctx) {
   try {
     const r = await ctx.rest('/artifacts')
     const list = r.artifacts || []
@@ -751,8 +747,19 @@ function withTheme(html, theme) {
   return html.slice(0, end) + tag + html.slice(end)
 }
 
+/** The resolved theme for card previews, read once per task: the cards coming into view together share
+ *  one read instead of each forcing a style recalculation. */
+let thumbTheme = null
+function themeForThumbs() {
+  if (!thumbTheme) {
+    thumbTheme = { mode: hostMode(), vars: hostTheme() }
+    later(CTX, () => { thumbTheme = null }, 0)
+  }
+  return thumbTheme
+}
+
 function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
-  const theme = thumb ? { mode: hostMode(), vars: hostTheme() } : null
+  const theme = thumb ? themeForThumbs() : null
   const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}:${hostLang}` + (theme ? `:${JSON.stringify(theme)}` : '')
   if (htmlCache.has(key)) {
     const hit = htmlCache.get(key)
@@ -859,33 +866,29 @@ const C = {
   pop: 'var(--ui-bg-elevated, var(--background))', // menus, tooltips, dialogs
   input: 'transparent', // not --ui-bg-input: it stays near-white in dark skins
   rowHover: 'var(--ui-row-hover-background, var(--chrome-action-hover))',
-  rowActive: 'var(--ui-row-active-background, var(--chrome-action-hover))',
   hair: 'var(--ui-stroke-tertiary, var(--ui-stroke-secondary))',
-  danger: 'var(--ui-red, #e5484d)',
+  danger: 'var(--dt-destructive)', // core's text-destructive (Delete in menus); set by every skin
   accent: 'var(--ui-accent, var(--foreground))',
+  // Ink on an accent fill: the theme computes it for --ui-accent (= midground); primary-foreground before a skin applies.
+  onAccent: 'var(--dt-midground-foreground, var(--dt-primary-foreground))',
   accentBg: 'color-mix(in srgb, var(--ui-accent, var(--foreground)) 16%, var(--background))',
   rSm: 'var(--radius-sm, 6px)', // buttons, inputs, menu rows
   rMd: 'var(--radius-md, 8px)',
   rLg: 'var(--radius-lg, 10px)', // menus, tooltips
   rXl: 'var(--radius-xl, 14px)', // cards, dialogs
-  shadowPop: 'var(--shadow-md, 0 10px 30px rgba(0,0,0,.25))',
-  shadowModal: 'var(--shadow-lg, 0 18px 48px rgba(0,0,0,.35))'
+  shadowPop: 'var(--shadow-md)', // core menus and popovers
+  shadowModal: 'var(--shadow-nous)' // core dialogs (--shadow-lg is not shipped)
 }
+// Shipped core classes where core has no variable: the dialog/sheet scrim, and the media (video) backdrop.
+const SCRIM = 'bg-black/22'
+const MEDIA_BACKDROP = 'bg-black'
 const font = { fontFamily: 'var(--font-sans, inherit)' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
 const hoverFill = `linear-gradient(${C.hover}, ${C.hover}), ${C.bg}`
 
-const TYPE_LOOK = {
-  page: { bg: '#4f46e5', bg2: '#7c3aed', icon: 'page' },
-  dashboard: { bg: '#0d9488', bg2: '#0e7490', icon: 'chart' },
-  slides: { bg: '#d97706', bg2: '#db2777', icon: 'slides' },
-  doc: { bg: '#0369a1', bg2: '#4338ca', icon: 'doc' },
-  sheet: { bg: '#15803d', bg2: '#0f766e', icon: 'sheet' },
-  // Designs and design systems are one family: one colour; the system wears a swatch book.
-  design: { bg: '#a21caf', bg2: '#e11d48', icon: 'palette' },
-  'design-system': { bg: '#a21caf', bg2: '#e11d48', icon: 'swatch' },
-  motion: { bg: '#15803d', bg2: '#0891b2', icon: 'motion' }
-}
+// Each type's icon (an ICONS name); the design system wears a swatch book.
+const TYPE_ICON = { page: 'page', dashboard: 'chart', slides: 'slides', doc: 'doc', sheet: 'sheet', design: 'palette',
+  'design-system': 'swatch', motion: 'motion' }
 
 const ICONS = {
   swatch: 'M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2zM16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7M7 17h.01M11 8l2.3-2.3a2.4 2.4 0 0 1 3.4 0l1.9 1.9a2.4 2.4 0 0 1 0 3.4L9.9 19.8',
@@ -949,7 +952,7 @@ function useHover() {
   return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }]
 }
 
-function IconButton({ icon, title, onClick, active, label, danger }) {
+function IconButton({ icon, title, onClick, active, label }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
@@ -970,8 +973,8 @@ function IconButton({ icon, title, onClick, active, label, danger }) {
       border: 0,
       cursor: 'pointer',
       fontSize: 12,
-      color: danger ? C.danger : active || h ? C.fg : C.text2,
-      background: active ? C.hover : h ? C.hover : 'transparent'
+      color: active || h ? C.fg : C.text2,
+      background: active || h ? C.hover : 'transparent'
     },
     children: [jsx(Icon, { name: icon }), label ? jsx('span', { children: label }) : null]
   })
@@ -991,8 +994,8 @@ function Chip({ label, active, onClick }) {
       border: 0,
       cursor: 'pointer',
       fontSize: 13,
-      // Warm Paper: the chosen one is a filled ink pill, the others ghost.
-      color: active ? C.fg : h ? C.fg : C.text2,
+      // The chosen one is a tinted pill, the others ghost.
+      color: active || h ? C.fg : C.text2,
       background: active ? C.accentBg : h ? C.card : 'transparent'
     },
     children: label
@@ -1074,10 +1077,9 @@ function Thumb({ ctx, art, height }) {
 }
 
 function TypeBadge({ type, size = 32 }) {
-  const look = TYPE_LOOK[type] || TYPE_LOOK.page
   return jsx('div', {
     style: { width: size, height: size, borderRadius: C.rMd, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.fg, background: C.bg },
-    children: jsx(Icon, { name: look.icon, size: size * 0.5, stroke: 1.5 })
+    children: jsx(Icon, { name: TYPE_ICON[type] || 'page', size: size * 0.5, stroke: 1.5 })
   })
 }
 
@@ -1171,8 +1173,7 @@ function NewTile({ ctx, kind }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   const [menu, setMenu] = useState(false)
-  const look = TYPE_LOOK[kind]
-  const ds = DS_KINDS.includes(kind)
+  const ds =DS_KINDS.includes(kind)
   // The tooltip is wider than its tile: centred under it, but kept inside what is visible (the first clipping parent, else the window).
   const wrap = useRef(null)
   const [tipX, setTipX] = useState(null)
@@ -1210,7 +1211,7 @@ function NewTile({ ctx, kind }) {
               background: h ? C.hair : C.card,
               transition: 'background 140ms ease'
             },
-            children: jsx(Icon, { name: kind === 'page' ? 'code' : look.icon, size: 30, stroke: 1.5 })
+            children: jsx(Icon, { name: kind === 'page' ? 'code' : TYPE_ICON[kind], size: 30, stroke: 1.5 })
           }),
           jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
         ]
@@ -1295,8 +1296,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
       if (k === 'r') (e.preventDefault(), rename())
       if (k === 'c') (e.preventDefault(), link())
     }
-    window.addEventListener('keydown', key)
-    return () => window.removeEventListener('keydown', key)
+    return listen(ctx, window, 'keydown', key)
   }, [view, art.pinned])
   if (view === 'move') {
     const name = q.trim()
@@ -1375,7 +1375,8 @@ function RenameDialog({ ctx, art, onClose }) {
     'aria-label': t('renameTitle'),
     onClick: e => (e.stopPropagation(), e.target === e.currentTarget && onClose()),
     onMouseDown: e => e.stopPropagation(),
-    style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.45)' },
+    className: SCRIM,
+    style: { position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     children: jsxs('div', {
       style: { ...font, width: 400, maxWidth: 'calc(100vw - 32px)', padding: 22, borderRadius: C.rXl, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowModal },
       children: [
@@ -1402,7 +1403,6 @@ function Card({ ctx, art }) {
   const [menu, setMenu] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [h, hp] = useHover()
-  const look = TYPE_LOOK[art.type] || TYPE_LOOK.page
   return jsxs('div', {
     ...hp,
     onContextMenu: e => (e.preventDefault(), setMenu(true)),
@@ -1579,7 +1579,7 @@ function NewMenu({ ctx, onClose }) {
       { icon: 'comment', label: t('chatNew'), onClick: () => (onClose(), host.newChat()) },
       { icon: 'folder', label: t('folder'), onClick: () => setNaming(true) },
       { sep: true },
-      ...NEW_KINDS.map(k => ({ key: k, icon: k === 'page' ? 'code' : TYPE_LOOK[k].icon, label: t(`tile_${k}`), onClick: () => (onClose(), startNew(ctx, k)) }))
+      ...NEW_KINDS.map(k => ({ key: k, icon: k === 'page' ? 'code' : TYPE_ICON[k], label: t(`tile_${k}`), onClick: () => (onClose(), startNew(ctx, k)) }))
     ]
   })
 }
@@ -1700,31 +1700,40 @@ function Gallery({ ctx, pageRef }) {
 
 // ---------------------------------------------------------------- viewer
 
-/** One bridge per mounted frame: hello -> MessagePort; ops -> plugin API; events both ways. */
-/** Open artifact pages follow a theme or skin change at once: Hermes repaints by changing the root's
- *  attributes and its style tags; when the resolved theme differs, every open page gets it again. */
+/** Open artifact pages follow a theme or skin change at once: Hermes paints a theme on the root element
+ *  (its style and data-hermes-* attributes) and a skin's <style> in <head>; both are only read here, and
+ *  when the resolved theme differs, every open page gets it again. */
 const themePorts = new Set()
 let themeWatch = null
+let unwatchTheme = () => {}
 function watchTheme() {
   if (themeWatch || typeof MutationObserver === 'undefined') return
-  let last = '', timer = null
+  let last = '', stop = null
   const check = () => {
-    timer = null
+    stop = null
     const theme = { mode: hostMode(), vars: hostTheme() }
     const key = JSON.stringify(theme)
     if (key === last) return
     last = key
     themePorts.forEach(ref => postToPage(ref, 'theme', theme))
   }
-  const soon = () => { if (!timer) timer = setTimeout(check, 120) }
+  const soon = () => { if (!stop) stop = later(CTX, check, 120) }
   themeWatch = new MutationObserver(soon)
   themeWatch.observe(document.documentElement, { attributes: true })
   themeWatch.observe(document.head, { childList: true, subtree: true, characterData: true })
-  themeWatch.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
-  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', soon)
+  const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+  const offMq = mq?.addEventListener ? listen(CTX, mq, 'change', soon) : null
   last = JSON.stringify({ mode: hostMode(), vars: hostTheme() })
+  unwatchTheme = () => {
+    themeWatch?.disconnect()
+    themeWatch = null
+    stop?.()
+    offMq?.()
+    unwatchTheme = () => {}
+  }
 }
 
+/** One bridge per mounted frame: hello -> MessagePort; ops -> plugin API; events both ways. */
 function useBridge(ref, art, ctx, portRef) {
   const t = usePluginI18n(ID)
   useEffect(() => {
@@ -1736,6 +1745,8 @@ function useBridge(ref, art, ctx, portRef) {
     if (!art) return undefined
     const art0 = art
     const { id: aid, title } = art
+    // The artifact as the list has it now (its chat and latest version move on while the frame stays).
+    const live = () => { const c = current(); return c && c.id === aid ? c : art0 }
     const onMessage = e => {
       const frame = ref.current
       if (!frame || e.source !== frame.contentWindow) return
@@ -1748,6 +1759,7 @@ function useBridge(ref, art, ctx, portRef) {
         if (m.event) return onPageEvent(m.event, m.detail)
         const reply = r => ch.port1.postMessage({ id: m.id, ...r })
         const gesture = navigator.userActivation?.isActive === true
+        const art = live()
         try {
           if (m.op === 'callTool') return reply({ ok: false, error: 'callTool is not enabled in the desktop' })
           if (m.op === 'navigate') {
@@ -1857,10 +1869,11 @@ function useBridge(ref, art, ctx, portRef) {
         $reopen.set(null)
         postToPage(portRef, 'open-panel', ro)
       }
-      postToPage(portRef, 'versions', { latest: art.version, shown: $shown.get() ?? art.version })
+      const now = live()
+      postToPage(portRef, 'versions', { latest: now.version, shown: $shown.get() ?? now.version })
       sendPins(portRef)
     }
-    window.addEventListener('message', onMessage)
+    const offMessage = listen(ctx, window, 'message', onMessage)
     const exit = () => postToPage(portRef, 'present-exit', {})
     presentExit.add(exit)
     const docPush = id => id === aid && postToPage(portRef, 'doc', {})
@@ -1869,7 +1882,7 @@ function useBridge(ref, art, ctx, portRef) {
     sheetListeners.add(sheetPush)
     return () => {
       sheetListeners.delete(sheetPush)
-      window.removeEventListener('message', onMessage)
+      offMessage()
       presentExit.delete(exit)
       docListeners.delete(docPush)
       const session = viewSessions.get(aid)
@@ -2095,11 +2108,12 @@ function ConfirmSend() {
   }
   return jsx('div', {
     onKeyDown: e => e.key === 'Escape' && done(false),
-    style: { position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.35)' },
+    className: SCRIM,
+    style: { position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' },
     children: jsxs('div', {
       role: 'dialog',
       'aria-label': t('confirmTitle'),
-      style: { width: 'min(440px, calc(100% - 32px))', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 16px 48px rgba(0,0,0,.4)' },
+      style: { width: 'min(440px, calc(100% - 32px))', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal },
       children: [
         jsx('div', { style: { fontSize: 15, fontWeight: 600, color: C.fg, marginBottom: 6 }, children: t('confirmTitle') }),
         jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 10 }, children: t('confirmBody') }),
@@ -2234,13 +2248,12 @@ function FloatingChat({ ctx, art }) {
   // While Hermes answers: pull the transcript until the turn ends (busy flag off, an answer after ours).
   useEffect(() => {
     if (!rid || !(waiting || running)) return undefined
-    const iv = setInterval(async () => {
+    return every(ctx, async () => {
       const list = await load(rid).catch(() => null)
       const last = list && list[list.length - 1]
       if (!running && Date.now() - sentAt.current > 4000 && last && last.role === 'assistant') setWaiting(false)
       if (Date.now() - sentAt.current > ASK_TIMEOUT_MS) setWaiting(false)
     }, 1500)
-    return () => clearInterval(iv)
   }, [rid, waiting, running])
   useEffect(() => {
     const el = listRef.current
@@ -2274,7 +2287,7 @@ function FloatingChat({ ctx, art }) {
     }
   }
   return jsxs('div', {
-    style: { position: 'absolute', right: 16, bottom: 16, zIndex: 25, width: 'min(440px, calc(100% - 32px))', height: 'min(600px, calc(100% - 32px))', display: 'flex', flexDirection: 'column', borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 16px 48px rgba(0,0,0,.4)', overflow: 'hidden' },
+    style: { position: 'absolute', right: 16, bottom: 16, zIndex: 25, width: 'min(440px, calc(100% - 32px))', height: 'min(600px, calc(100% - 32px))', display: 'flex', flexDirection: 'column', borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal, overflow: 'hidden' },
     children: [
       jsxs('div', {
         style: { display: 'flex', justifyContent: 'flex-end', gap: 2, padding: '8px 8px 0' },
@@ -2338,7 +2351,7 @@ function FloatingChat({ ctx, art }) {
 
 // ---------------------------------------------------------------- header (Claude's: title menu, Chat, Comment, close)
 
-function PopMenu({ items, onClose, align = 'left', width = 260, up = false }) {
+function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   const ref = useRef(null)
   useEffect(() => {
     // The button that opened it toggles it: a press there is left to its click, so the menu
@@ -2346,16 +2359,19 @@ function PopMenu({ items, onClose, align = 'left', width = 260, up = false }) {
     const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
     const off = e => !ref.current?.contains(e.target) && !(opener && opener.contains(e.target)) && onClose()
     const esc = e => e.key === 'Escape' && onClose()
-    setTimeout(() => window.addEventListener('mousedown', off), 0)
-    window.addEventListener('keydown', esc)
+    // Armed after this press; a menu gone before then must not leave the listener behind.
+    let offDown = null
+    const disarm = later(CTX, () => { offDown = listen(CTX, window, 'mousedown', off) }, 0)
+    const offEsc = listen(CTX, window, 'keydown', esc)
     return () => {
-      window.removeEventListener('mousedown', off)
-      window.removeEventListener('keydown', esc)
+      disarm()
+      offDown?.()
+      offEsc()
     }
   }, [])
   return jsx('div', {
     ref,
-    style: { position: 'absolute', [align]: 0, [up ? 'bottom' : 'top']: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowPop },
+    style: { position: 'absolute', [align]: 0, top: 38, zIndex: 40, width, padding: 6, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowPop },
     children: items.filter(Boolean).map((it, i) =>
       it.sep
         ? jsx('div', { style: { height: 1, margin: '6px 4px', background: C.hair } }, `s${i}`)
@@ -2459,7 +2475,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
       { sep: true },
       ...(siblings.length
         ? [{ header: t('chatArtifacts') },
-            ...siblings.map(a => ({ key: `sib-${a.id}`, icon: (TYPE_LOOK[a.type] || TYPE_LOOK.page).icon, label: a.title,
+            ...siblings.map(a => ({ key: `sib-${a.id}`, icon: TYPE_ICON[a.type] || 'page', label: a.title,
               onClick: close(() => openArtifact(ctx, a.id)) })),
             { sep: true }]
         : []),
@@ -2515,7 +2531,6 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
 }
 
 function TitleButton({ ctx, art, v, portRef, docked }) {
-  const t = usePluginI18n(ID)
   const [open, setOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(art.title)
@@ -2639,9 +2654,9 @@ function CommentPopover({ ctx, art }) {
   const label = draft.anchor ? draft.anchor.text || draft.anchor.label : ''
   return jsxs('div', {
     children: [
-      jsx('div', { style: { position: 'absolute', left: Math.min(r.x + r.w - 12, bw - 30), top: Math.max(4, r.y - 12), zIndex: 26, width: 26, height: 26, borderRadius: 13, background: C.accent, color: '#fff', border: `2px solid ${C.bg}`, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
+      jsx('div', { style: { position: 'absolute', left: Math.min(r.x + r.w - 12, bw - 30), top: Math.max(4, r.y - 12), zIndex: 26, width: 26, height: 26, borderRadius: 13, background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
       jsxs('div', {
-        style: { position: 'absolute', left, top, zIndex: 27, width: W, padding: 12, borderRadius: 12, border: `1px solid ${C.line}`, background: C.bg, boxShadow: '0 12px 36px rgba(0,0,0,.35)' },
+        style: { position: 'absolute', left, top, zIndex: 27, width: W, padding: 12, borderRadius: 12, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
         children: [
           label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
           jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
@@ -2807,7 +2822,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
           jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer' }, children: [jsx('input', { type: 'checkbox', checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),
           compact ? null : jsx('button', { type: 'button', onClick: onDone, style: { ...font, height: 26, padding: '0 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), style: { ...font, height: 26, padding: '0 12px', borderRadius: 6, border: 0, background: C.accent, color: '#fff', fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
+          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), style: { ...font, height: 26, padding: '0 12px', borderRadius: 6, border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
         ]
       })
     ]
@@ -2947,8 +2962,10 @@ function Viewer({ ctx, docked = false }) {
                 sandbox: SANDBOX,
                 src,
                 title: art.title,
+                // The letterbox around a presenting deck is chrome: core's full-window media backdrop (bg-black).
+                className: presenting ? MEDIA_BACKDROP : undefined,
                 style: presenting
-                  ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0, background: '#000' }
+                  ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0 }
                   : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
               }, `${art.id}:${fv}:${nonce}:${page || ''}`) // the key as jsx's own argument, not inside the props
             : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
@@ -2994,7 +3011,7 @@ function Page({ ctx }) {
       if (m && decodeURIComponent(m[1]) !== $selected.get()) openArtifact(ctx, decodeURIComponent(m[1]))
     }
     fromLink()
-    window.addEventListener('hashchange', fromLink)
+    const offLink = listen(ctx, window, 'hashchange', fromLink)
     if (dockClose) {
       closeDock()
       $chat.set('off')
@@ -3002,17 +3019,20 @@ function Page({ ctx }) {
     // The sidebar's Artifacts row, clicked while an artifact is open, opens the same route again: Hermes
     // adds a history entry (a new key) but the address stays, so nothing else tells the page. Seeing a new
     // entry on this route goes back to the gallery, as in Claude. (Read only: the history is the app's.)
+    // The Navigation API says when the entry changes; without it, a poll.
     let key = window.history.state?.key
-    const sameRoute = setInterval(() => {
+    const sameRoute = () => {
       const k = window.history.state?.key
       if (k === key) return
       key = k
       const h = window.location.hash
       if ((h === `#${PAGE}` || h === `#${PAGE}/`) && $selected.get()) closeArtifact()
-    }, 300)
+    }
+    const nav = window.navigation
+    const offRoute = nav?.addEventListener ? listen(ctx, nav, 'currententrychange', sameRoute) : every(ctx, sameRoute, 300)
     return () => {
-      window.removeEventListener('hashchange', fromLink)
-      clearInterval(sameRoute)
+      offLink()
+      offRoute()
     }
   }, [])
   return jsxs('div', {
@@ -3047,7 +3067,12 @@ export default {
 
     // Sidebar: swap the built-in Artifacts row for ours in the same slot, so it lights up on our page.
     ctx.register({ id: 'nav', area: SIDEBAR_NAV_AREA, data: { path: PAGE, label: 'Artifacts', codicon: 'files', tier: 'advanced' } })
-    registerNavPrefs(ctx)
+    ctx.register({
+      id: 'nav-prefs',
+      area: SIDEBAR_NAV_PREFS_AREA,
+      order: 1000,
+      data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
+    })
     const stopTool = watchChatArtifactTool(ctx)
     // The card in the transcript, where this Hermes Desktop has the directive area.
     ctx.register({ id: 'chat-card', area: SDK.TRANSCRIPT_DIRECTIVE_AREA || 'transcript.directives',
@@ -3079,17 +3104,17 @@ export default {
     }
 
     // The app router uses history.pushState (no hashchange): listen on the Navigation API too.
-    const KEY = '__hermesArtifactsRedirect'
     const nav = window.navigation
-    const prev = window[KEY]
+    // A host without scoped listeners leaves a reloaded copy's listeners in place: the window key finds them.
+    const KEY = ctx.addEventListener ? null : '__hermesArtifactsRedirect'
+    const prev = KEY && window[KEY]
     if (prev) {
       nav?.removeEventListener?.('currententrychange', prev)
       window.removeEventListener('hashchange', prev)
     }
-    window[KEY] = redirectCore
-    window.addEventListener('hashchange', redirectCore)
-    if (nav?.addEventListener) nav.addEventListener('currententrychange', redirectCore)
-    else ctx.setInterval(redirectCore, 250)
+    if (KEY) window[KEY] = redirectCore
+    const offs = [listen(ctx, window, 'hashchange', redirectCore)]
+    offs.push(nav?.addEventListener ? listen(ctx, nav, 'currententrychange', redirectCore) : every(ctx, redirectCore, 250))
     redirectCore()
 
     ctx.onEvent(`plugin.${ID}.open`, async ev => {
@@ -3098,19 +3123,13 @@ export default {
       if (p.id) openArtifact(ctx, p.id)
       host.navigate(PAGE)
     })
-    // Leaving full screen (Esc, F11) ends the presentation in the page too.
-    const onFs = () => {
+    // Leaving full screen (Esc, F11) ends the presentation in the page too (over its bridge port).
+    offs.push(listen(ctx, document, 'fullscreenchange', () => {
       if (!document.fullscreenElement && $presenting.get()) {
         $presenting.set(false)
         presentExit.forEach(fn => fn())
-        document.querySelectorAll('iframe').forEach(f => {
-          try {
-            f.contentWindow?.postMessage({ __hermes_bridge: 1, kind: 'present-exit' }, '*')
-          } catch {}
-        })
       }
-    }
-    document.addEventListener('fullscreenchange', onFs)
+    }))
     ctx.onEvent(`plugin.${ID}.reply`, ev => replyWaiters.get(payloadOf(ev).request)?.())
     ctx.onEvent(`plugin.${ID}.comments`, () => loadComments(ctx))
     ctx.onEvent(`plugin.${ID}.doc`, ev => docListeners.forEach(fn => fn(payloadOf(ev).id)))
@@ -3125,10 +3144,9 @@ export default {
 
     return () => {
       stopTool()
-      document.removeEventListener('fullscreenchange', onFs)
-      window.removeEventListener('hashchange', redirectCore)
-      nav?.removeEventListener?.('currententrychange', redirectCore)
-      if (window[KEY] === redirectCore) delete window[KEY]
+      offs.forEach(off => off())
+      unwatchTheme()
+      if (KEY && window[KEY] === redirectCore) delete window[KEY]
       syncBack(false)
       syncBack = () => {}
     }

@@ -478,7 +478,7 @@ def compile_css(tokens: Any, title: str = "") -> tuple[str, dict]:
     m = model(tokens)
     first = m["first"]
     out = f"/* {title or 'Design system'} — generated from tokens.json */\n"
-    aliases = [c for c in m["colors"] if any("alias" in v for v in c["values"].values())]
+    aliases = {id(c) for c in m["colors"] if any("alias" in v for v in c["values"].values())}
     shadows = [t for f in m["families"] if f["kind"] == "shadow" for t in f["tokens"]]
     out += f':root, [data-theme="{first}"] {{\n'
     for c in m["colors"]:
@@ -490,7 +490,7 @@ def compile_css(tokens: Any, title: str = "") -> tuple[str, dict]:
         body = ""
         for c in m["colors"]:
             v = c["values"].get(th["id"])
-            if (v and v != c["values"][first]) or c in aliases:
+            if (v and v != c["values"][first]) or id(c) in aliases:
                 body += _decl(c["name"], m["color"](c, th["id"]))
         for s in shadows:
             if s["values"].get(th["id"]) and s["values"][th["id"]] != s["values"][first]:
@@ -716,7 +716,7 @@ def readme_tail(index: dict, m: dict, comps: list, groups: list[str]) -> str:
     lines.append("- **Tokens:** load `tokens.css` (every token as `var(--name)`, a class per type style, `@font-face` per font); "
                  "set `data-theme=\"<id>\"` on the root for a theme other than the first (`" + m["first"] + "`).")
     if ns:
-        lines.append(f"- **Components:** load `components/bundle.css`, then " +
+        lines.append("- **Components:** load `components/bundle.css`, then " +
                      (", ".join(f"{lib.get('name')} {lib.get('version', '')}".strip() for lib in libs if isinstance(lib, dict)) + ", then " if libs else "") +
                      f"`components/bundle.js`: they are `window.{ns}.<Name>`. Read a component's card before using it.")
     fams = m["type"]["families"]

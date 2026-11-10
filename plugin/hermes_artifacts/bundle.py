@@ -44,7 +44,7 @@ class _Ctx:
             return None
         rel = posixpath.normpath(posixpath.join(posixpath.dirname(base_rel), ref)).lstrip("/")
         p = (self.root / rel).resolve()
-        if not str(p).startswith(str(self.root)) or not p.is_file():
+        if self.root not in p.parents or not p.is_file():  # a prefix test would let v1/ reach v10/
             return None
         self.seen.add(p)
         return p

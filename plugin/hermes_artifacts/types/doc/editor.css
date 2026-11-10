@@ -19,7 +19,6 @@
 .doc-prose pre { background: var(--doc-soft2); }
 html.doc-wide { --doc-measure: 1040px; }
 .doc-prose { max-width: var(--doc-measure); }
-#doc-tabs { max-width: var(--doc-measure); }
 .doc-prose h1, .doc-prose h2, .doc-prose h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }
 .doc-prose.head-serif h1, .doc-prose.head-serif h2, .doc-prose.head-serif h3 { font-family: var(--doc-serif); font-weight: 400; letter-spacing: -.005em; }
 .doc-prose h1 { font-size: 40px; line-height: 1.15; }
@@ -125,7 +124,7 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .doc-sb-sep { width: 1px; height: 18px; background: var(--color-border-line); margin: 0 3px; }
 .doc-slash { position: fixed; z-index: 170; min-width: 220px; max-height: 320px; overflow: auto; }
 .doc-slash[hidden] { display: none; }
-.doc-slash button.is-on, .doc-slash button:hover { background: var(--doc-soft); }
+.doc-slash button:hover { background: var(--doc-soft); }
 
 /* the margin: comment and suggestion cards */
 #doc-view { position: relative; }
@@ -242,8 +241,6 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-tui-col { width: 18px; height: 8px; }
 .doc-tui-row:hover, .doc-tui-col:hover { background: var(--color-accent); border-color: var(--color-accent); }
 .doc-tui-addrow, .doc-tui-addcol { opacity: 1; }
-
-/* ✳ beside the line being typed in */
 
 .doc-prose td, .doc-prose th { height: 40px; }
 

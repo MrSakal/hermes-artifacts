@@ -61,8 +61,6 @@ html[data-dash-mode="data"] #dash-root [data-source]:hover { background: color-m
 .src-li-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .src-kind { flex-shrink: 0; color: var(--color-fg-muted); display: inline-flex; }
 .src-kind svg { width: 16px; height: 16px; }
-.src-dot { width: 7px; height: 7px; border-radius: 4px; flex-shrink: 0; background: var(--color-ok); }
-.src-dot.error { background: var(--color-bad); }
 .src-empty { padding: 8px 16px; font-size: 13px; color: var(--color-fg-muted); }
 .src-fresh { font-size: 13px; color: var(--color-fg-muted); padding: 0 4px; }
 .src-detail { padding: 6px 0 24px; }
@@ -185,13 +183,11 @@ textarea.src-arg { height: auto; padding: 8px 12px; font: 12.5px/1.5 var(--font-
 .c-table th.sorted { color: var(--color-accent); }
 .c-table td { padding: 9px 10px; border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
 .c-table tr:hover td { background: var(--color-hover); }
-.c-table .num { text-align: right; }
 .c-table a { color: var(--color-accent); text-decoration: none; }
 .c-table a:hover { text-decoration: underline; }
 .c-barcell { background-image: linear-gradient(90deg, var(--color-accent-soft) var(--pct), transparent var(--pct)); background-repeat: no-repeat; }
 .c-unit { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--color-fg-muted); }
 #dash-root .c-table th.num, #dash-root .c-table td.num { text-align: right; }
-#dash-root .c-table td, #dash-root .c-table th { border-bottom-color: var(--color-border-line); }
 .dash-conn { border-color: color-mix(in srgb, var(--color-warn) 50%, transparent); background: color-mix(in srgb, var(--color-warn) 9%, transparent);
   display: flex; flex-direction: column; gap: 10px; }
 .dash-conn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

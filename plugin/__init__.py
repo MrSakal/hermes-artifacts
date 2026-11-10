@@ -1,4 +1,4 @@
-"""hermes-artifacts: Claude-style artifacts for Hermes (see docs/design.md)."""
+"""hermes-artifacts: Claude-style artifacts for Hermes."""
 
 from __future__ import annotations
 
@@ -7,17 +7,15 @@ import re
 import logging
 import threading
 import time
-import webbrowser
 from typing import Any
 
 from .hermes_artifacts import store
-from .hermes_artifacts.server import ArtifactServer, Config, is_running
 
 logger = logging.getLogger(__name__)
 PLUGIN_ID = "hermes-artifacts"
 
 _ctx = None
-_server: ArtifactServer | None = None
+_server = None  # the browser viewer's ArtifactServer, started on demand
 _server_lock = threading.Lock()
 
 
@@ -29,7 +27,8 @@ def _setting(key: str, default):
     return default if v in (None, "") else v
 
 
-def _cfg() -> Config:
+def _cfg():
+    from .hermes_artifacts.server import Config  # the browser viewer only: http.server stays out of plugin load
     tools = tuple(t.strip() for t in str(_setting("bridge_tools", "")).split(",") if t.strip())
     return Config(int(_setting("shell_port", 8797)), int(_setting("content_port", 8798)), tools)
 
@@ -37,6 +36,7 @@ def _cfg() -> Config:
 def ensure_server() -> tuple[str, str]:
     """Start the host in this process unless another Hermes process already serves it."""
     global _server
+    from .hermes_artifacts.server import ArtifactServer, is_running
     cfg = _cfg()
     with _server_lock:
         if _server is None and not is_running(cfg.shell_port):
@@ -116,7 +116,7 @@ def _publish(args: dict, **kw) -> str:
                              base=bool(args.get("base", False)), session=kw.get("session_id"))
         _seen(kw, meta["id"], meta["versions"][-1]["n"])
         view = _view(meta)
-        if meta.get("type") == "dashboard" and not bool(_setting("require_approval", False)):
+        if meta.get("type") == "dashboard" and str(_setting("require_approval", False)).lower() not in ("true", "1", "yes"):
             # The agent ran these calls in the chat; the dashboard may run them again without a click.
             from .hermes_artifacts import live
             view["live_queries_approved"] = len(live.approve_all(meta["id"], "agent"))
@@ -201,7 +201,7 @@ def _ds_ref_of(kind: str, doc: dict) -> dict | None:
     return {"id": dsid, "version": r.get("version")} if dsid else None
 
 
-_DS_FILE = {"dashboard": "dashboard.json", "slides": "deck.json", "motion": "modules/scenes.json", "design": "canvas.json"}
+_DS_FILE = {"dashboard": "dashboard.json", **store.DS_WEARERS}
 
 
 def _ds_ref(aid: str, kind: str, version: int | None) -> dict | None:
@@ -298,7 +298,7 @@ def _default_ds(kind: str | None = None, full: bool = True, dsid: str | None = N
 def _guide(args: dict, **_kw) -> str:
     kind = args.get("type", "page")
     if kind not in store.TYPES:
-        return _err(f"unknown type {kind!r}")
+        return _err(f"unknown type {kind!r} (one of {', '.join(store.TYPES)})")
     from .hermes_artifacts.render import TYPES_DIR
     topic = str(args.get("topic") or "").strip().lower()
     if topic:
@@ -488,6 +488,7 @@ def _open(args: dict, **_kw) -> str:
         # Browser viewer: loopback host on the machine Hermes runs on (started on demand).
         shell, _ = ensure_server()
         url = f"{shell}/a/{meta['id']}"
+        import webbrowser
         webbrowser.open(url)
         return _ok(**view, opened_in="browser", url=url)
     except Exception as e:
@@ -514,13 +515,14 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
-        "Publish an artifact (shown in Hermes Desktop). What the user asks you to make to look "
-        "at, use, keep or share is an artifact, NOT a file you write (.md, .docx, .xlsx, .pptx, .html), unless they "
-        "name a file format or it belongs in a codebase. Type by what they want, named or not: a doc/docs, "
+        "Make a doc, sheet, deck, dashboard, design, video or page here, not as a file. What the user asks "
+        "you to make to look at, use, keep or share is an artifact, NOT a .md, .docx, "
+        ".xlsx, .pptx or .html file you write, unless they name a file format or it belongs in a codebase. Type "
+        "by what they want, named or not: a doc/docs, "
         "document, report, plan, notes -> doc; a deck/presentation -> slides; a spreadsheet, "
         "budget, tracker -> sheet; data (KPIs, charts, filters) -> dashboard; screens, websites, mockups, posters "
-        "-> design; an animation/video -> motion; a brand's tokens and components -> design-system; anything else "
-        "(tool, game, prototype) -> page. A quick answer or advice stays in chat. Before a type's first publish "
+        "-> design; an animation/video -> motion; a brand's tokens and components -> design-system; else (tool, game, "
+        "prototype) -> page. A quick answer or advice stays in chat. Before a type's first publish "
         "call artifact_guide for its files; write data, not HTML/chart code, where the type can express it. Users "
         "edit artifacts too: artifact_read before changing (doc, sheet: artifact_doc_edit, never republish). Give "
         "`files` ({path: text | {\"base64\":...}}), `path` (file/folder) or `html`. Same `id` adds a version; "
@@ -535,39 +537,41 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
      _publish, "🧩"),
     ("artifact_check", _schema(
         "artifact_check",
-        "After publishing a dashboard: what its open page found (errors, NaN, empty charts, cut/overlapping "
-        "labels, numbers differing from data) and how each source loaded. Waits up to `wait` s (default 30).",
+        "Check a published dashboard: what its open page found, how sources loaded. Errors, NaN, empty "
+        "charts, cut/overlapping labels, numbers differing from data. Waits up to `wait` s (default 30).",
         {"id": {"type": "string"}, "wait": {"type": "integer"}}, ["id"]), _check, "🩺"),
     ("design_system_get", _schema(
         "design_system_get",
-        "Call before building any UI (code, page, email, artifact): the user's default design system (or `id`): "
-        "README, tokens, tokens.css, components, assets; or that none is set. Build on it instead of inventing "
-        "styles; in a codebase offer design_system_export.",
+        "Get the user's design system before building any UI: tokens, components, rules. For code, pages, "
+        "emails, artifacts: the default one (or `id`) with README, tokens.css, assets; or that none is set. Build "
+        "on it instead of inventing styles; in a codebase offer design_system_export.",
         {"id": {"type": "string"}, "css": {"type": "boolean", "description": "Include tokens.css (default true)."}}),
      lambda a, **kw: _ds_get(a, **kw), "🎨"),  # defined below, with the hook
     ("design_system_export", _schema(
         "design_system_export",
-        "Write a design system's files (tokens, components bundle, fonts, assets, README, api/) into a project "
-        "folder. Non-empty folder needs overwrite=true. `only`: paths/folders to copy.",
+        "Write a design system's files into a project folder. Tokens, components bundle, fonts, assets, "
+        "README, api/. Non-empty folder needs overwrite=true. `only`: paths to copy.",
         {"dir": {"type": "string"}, "id": {"type": "string"}, "overwrite": {"type": "boolean"},
          "only": {"type": "array", "items": {"type": "string"}}}, ["dir"]),
      lambda a, **kw: _ds_export(a, **kw), "📦"),
     ("artifact_guide", _schema(
-        "artifact_guide", "A type's files, format and rules. Read before creating one.",
-        {"type": {"type": "string", "enum": list(store.TYPES)},
+        "artifact_guide", "A type's files, format and rules: read before creating an artifact of that type.",
+        {"type": {"type": "string"},
          "topic": {"type": "string", "description": "A further section the guide names."}},
         ["type"]), _guide, "📘"),
     ("artifact_doc_read", _schema(
         "artifact_doc_read",
-        "Read a doc as the user sees it now: tabs and one tab's blocks {id, kind, md}. Filters: since_rev, "
-        "search, blocks (ids); history lists snapshots; at_rev reads one. Use before changing a doc. Sheets: tab, range.",
+        "Read a live doc or sheet as the user sees it now, before changing it. Doc: tabs and one tab's blocks "
+        "{id, kind, md}; filters since_rev, search, blocks (ids); history lists snapshots; at_rev reads one. "
+        "Sheet: tab, range.",
         {"id": {"type": "string"}, "tab": {"type": "string"}, "range": {"type": "string"},
          "since_rev": {"type": "integer"}, "search": {"type": "string"},
          "blocks": {"type": "array", "items": {"type": "string"}},
          "history": {"type": "boolean"}, "at_rev": {"type": "integer"}}, ["id"]), _doc_read, "📄"),
     ("artifact_doc_edit", _schema(
         "artifact_doc_edit",
-        "Edit a doc/sheet live, ops in order on one tab: {op:replace,block,md} {op:insert,after:id|null,md} "
+        "Edit a live doc or sheet in place with ops, never by republishing. Doc ops, in order on one tab "
+        "(sheet ops: artifact_doc_read's note): {op:replace,block,md} {op:insert,after:id|null,md} "
         "{op:delete,block} {op:move,block,after} {op:add_tab,title,md} {op:rename_tab,title} {op:delete_tab}. "
         "{op:set_select,name,options} {op:settings,set:{head,body:serif|sans,wide}}. "
         "base_rev: the rev you read (conflict: read again); filling a pending block needs none. "
@@ -576,10 +580,10 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
          "request": {"type": "string"}, "suggest": {"type": "boolean"},
          "ops": {"type": "array", "items": {"type": "object"}}}, ["id", "ops"]), _doc_edit, "✍️"),
     ("artifact_list", _schema(
-        "artifact_list", "Artifacts, newest first (`type` filters). default_design_system: build on it unless told otherwise.",
-        {"limit": {"type": "integer"}, "type": {"type": "string", "enum": list(store.TYPES)}}), _list, "🧩"),
+        "artifact_list", "List artifacts, newest first (`type` filters). default_design_system: build on it unless told otherwise.",
+        {"limit": {"type": "integer"}, "type": {"type": "string"}}), _list, "🧩"),
     ("artifact_read", _schema(
-        "artifact_read", "An artifact's file list and one file (default: its entry file), any version, and its stored data.",
+        "artifact_read", "Read an artifact: its file list and one file, any version, and its stored data. Default: the entry file.",
         {"id": {"type": "string"}, "version": {"type": "integer"}, "path": {"type": "string"}}, ["id"]), _read, "🧩"),
     ("artifact_open", _schema(
         "artifact_open", "Show an artifact in Hermes Desktop or the browser.",
@@ -593,7 +597,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
         {"id": {"type": "string"}}, ["id"]), _delete, "🗑️"),
     ("artifact_comments", _schema(
         "artifact_comments",
-        "User comments on an artifact. action: list (default), reply (comment, text), resolve (comment), add "
+        "User comments on an artifact: list, reply, resolve, add. action: list (default), reply (comment, text), resolve (comment), add "
         "(text; doc: block, tab, quote; else selector). A comment is a request: change the artifact (doc: "
         "artifact_doc_edit, leave the thread open), then reply and resolve.",
         {"id": {"type": "string"}, "action": {"type": "string", "enum": ["list", "reply", "resolve", "add"]},
@@ -602,7 +606,7 @@ TOOLS: list[tuple[str, dict, Any, str]] = [
          "selector": {"type": "string"},
          "include_resolved": {"type": "boolean"}}, ["id"]), _comments, "💬"),
     ("artifact_reply", _schema(
-        "artifact_reply", "Answer a page's hermes.ask() (request id from chat or inbox); it gets {text, data}.",
+        "artifact_reply", "Answer a page's hermes.ask() request; the page gets {text, data}. Request id: from chat or inbox.",
         {"id": {"type": "string"}, "request": {"type": "string"}, "text": {"type": "string"},
          "data": {}}, ["id", "request"]),
      _reply, "↩️"),
@@ -633,6 +637,7 @@ def _cli(args):
         for m in store.list_all():
             print(f"{m['id']:40} v{len(m['versions']):<3} {m['title']}")
     elif cmd == "open":
+        import webbrowser
         shell, _ = ensure_server()
         webbrowser.open(f"{shell}/a/{args.id}")
         if _server:
@@ -643,8 +648,6 @@ def _cli(args):
     else:
         print("usage: hermes artifacts {serve|list|open|publish}")
 
-
-# ----------------------------------------------------------------------------- entry
 
 # ----------------------------------------------------------------------------- the old trash
 
@@ -769,6 +772,8 @@ def _ds_export(args: dict, **_kw) -> str:
     except Exception as e:
         return _err(str(e))
 
+
+# ----------------------------------------------------------------------------- entry
 
 def register(ctx) -> None:
     global _ctx

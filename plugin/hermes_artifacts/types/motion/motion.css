@@ -2,7 +2,6 @@
    under it, the Tweaks / Style panel beside them (under them on a narrow page). The chrome takes every
    colour, radius and shadow from the host's theme; the film keeps its own look (#stage below). */
 html, body { overflow: hidden; }
-#mo-bar { display: none !important; }
 #mo-app { position: absolute; inset: 0; display: flex; flex-direction: row; }
 #mo-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 #mo-view { flex: none; position: relative; overflow: hidden; background: var(--color-bg); }
@@ -185,7 +184,6 @@ html[data-thumb] #mo-frame { box-shadow: none; }
 /* The strip as cards (as Claude's): each scene's picture, its name and its length beside it; only the scene on show
    is outlined. With the panel under the film on a narrow page the strip is plain pills (no .thumbs). */
 .mo-seg-row { display: flex; align-items: center; min-width: 0; flex: 1; }
-.mo-seg-row .mo-seg-t { flex: 1; }
 .mo-thumb { display: none; }
 .mo-tl:not(.thumbs) .mo-seg-t i::before { content: " · "; }
 .mo-tl.thumbs { height: 62px; }

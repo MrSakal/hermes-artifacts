@@ -7,8 +7,8 @@ fixed and this module reloadable makes a plugin update take effect without resta
 
 from __future__ import annotations
 
+import json
 import re
-from pathlib import Path
 from typing import Any, Optional
 
 from . import docs, history, live, render, sheets, store
@@ -33,14 +33,13 @@ class ApiError(Exception):
         self.status, self.detail = status, detail
 
 
-def _view(m: dict) -> dict:
+def _view(m: dict, base=None) -> dict:
     return {"id": m["id"], "title": m["title"], "type": m.get("type", "page"),
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
             "session": m.get("session"), "folder": m.get("folder") or None, "opened": m.get("opened"),
-            "comments": sum(1 for c in store.comments_list(m["id"], include_resolved=False)
-                            if c["author"] == "user")}
+            "comments": store.open_user_comments(m["id"], base)}
 
 
 def chat_status(session: Optional[str]) -> dict:
@@ -83,7 +82,7 @@ def _int(v) -> Optional[int]:
         raise ApiError(400, f"not a number: {v!r}")
 
 
-_VENDOR = Path(render.TYPES_DIR / "vendor")
+_VENDOR = render.TYPES_DIR / "vendor"
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
 _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
                "doc": r"^doc\.md$",
@@ -163,6 +162,9 @@ def _safe_svg(rel: str, val: str) -> str:
     return text
 
 
+_DS_PARTS = ("tokens.json", "components/bundle.css", "README.md")  # with fonts/: what another artifact wears
+
+
 def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
     """A design system for another artifact to wear: tokens.json, components/bundle.css, its fonts as
     data: URIs, README. None: the default one (or {"none": true}). `version`: the one the artifact was
@@ -174,10 +176,9 @@ def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
     kept = [v["n"] for v in m["versions"]]
     n = int(version) if isinstance(version, int) and not isinstance(version, bool) and version in kept else kept[-1]
     vdir = store.version_dir(dsid, n)
-    files = render.content_json(vdir)
+    files = render.content_json(vdir, lambda rel: rel.startswith("fonts/") or rel in _DS_PARTS)
     try:
-        import json as _j
-        tokens = _j.loads(files.get("tokens.json") or "{}")
+        tokens = json.loads(files.get("tokens.json") or "{}")
     except ValueError:
         tokens = {}
     fonts = {k: v for k, v in files.items() if k.startswith("fonts/")}
@@ -358,12 +359,14 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
     body = body if isinstance(body, dict) else {}
     try:
         if parts == ["artifacts"] and method == "GET":
-            arts = [_view(m) for m in store.list_all()]
-            folders = list(store.settings().get("folders") or [])
+            base = store.root()
+            arts = [_view(m, base) for m in store.list_all()]
+            settings = store.settings()
+            folders = list(settings.get("folders") or [])
             folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
             return {"artifacts": arts, "folders": folders,
-                    "default_design_system": store.settings().get("default_design_system"),
-                    "design_system_for": store.settings().get("design_system_for") or {}}
+                    "default_design_system": settings.get("default_design_system"),
+                    "design_system_for": settings.get("design_system_for") or {}}
         if parts == ["design-system-for"] and method == "POST":
             # The system one type builds on (the ••• of a Make something new tile): an id, "none", or null
             # for the default for everything.
@@ -403,7 +406,7 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 if method == "GET":
                     m = _meta(aid)
                     vdir = store.version_dir(aid)
-                    return dict(_view(m), size=sum(f.stat().st_size for f in vdir.rglob("*") if f.is_file()),
+                    return dict(_view(m), size=sum(e.stat().st_size for _, e in store.walk_files(vdir)),
                                 type_label=m.get("type", "page"))
                 if method == "DELETE":
                     _meta(aid)

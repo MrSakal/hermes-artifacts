@@ -1,6 +1,6 @@
 body { overflow: hidden; }
 
-#dc-app { position: relative; display: flex; height: calc(100vh - 44px); }
+#dc-app { position: relative; display: flex; height: 100vh; }
 #dc-view { position: relative; flex: 1; min-width: 0; overflow: hidden; background-color: var(--dc-canvas);
   background-image: radial-gradient(circle, var(--dc-dots) 1px, transparent 1.2px); touch-action: none; user-select: none; cursor: default; }
 #dc-view.is-space { cursor: grab; }
@@ -54,9 +54,6 @@ body { overflow: hidden; }
 .dc-crumbs button:hover { background: var(--color-hover); }
 .dc-crumbs button.is-on { color: var(--dc-sel); font-weight: 600; }
 .dc-crumb-sep { color: var(--color-fg-muted); }
-.dc-zoom { position: absolute; right: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 8px;
-  background: var(--color-panel); box-shadow: var(--shadow-popover); }
-.dc-zoomval { min-width: 54px; justify-content: center; font-variant-numeric: tabular-nums; }
 .dc-emptymsg { position: absolute; inset: 0; min-height: 0; }
 
 /* Notes */
@@ -77,8 +74,6 @@ body { overflow: hidden; }
 /* Properties panel */
 #dc-panel { width: 288px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid var(--color-border-line); background: var(--color-panel); padding: 10px 12px 24px; font-size: 12px; }
 #dc-panel[hidden] { display: none; }
-.dc-tabs { display: flex; margin-bottom: 8px; }
-.dc-tabs .kit-btn { flex: 1; justify-content: center; }
 .dc-ptitle { margin: 4px 0 6px; font-weight: 600; font-size: 13px; color: var(--color-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-sec { padding: 8px 0; border-top: 1px solid var(--color-border-line); }
 .dc-sec h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-fg-muted); }
@@ -106,10 +101,8 @@ body { overflow: hidden; }
 
 /* Toolbar */
 .dc-status { font-size: 12px; color: var(--color-fg-muted); }
-.dc-save { background: var(--color-accent) !important; color: #fff !important; }
-.dc-hint-bar { font-size: 12px; color: var(--color-fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
-.dc-pages[hidden] { display: none; }
-@media (max-width: 760px) { .dc-hint-bar { display: none; } #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); } }
+.dc-save { background: var(--color-accent) !important; }
+@media (max-width: 760px) { #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); } }
 
 /* The full-window view */
 #dc-focus { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: var(--dc-canvas); }
@@ -136,7 +129,7 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
   background: transparent; color: inherit; font: inherit; cursor: pointer; pointer-events: auto; }
 .dc-err .dc-fix:hover { background: rgba(255,255,255,.12); }
 
-.dc-link { box-sizing: border-box; padding: 12px 14px; border: 1px solid rgba(0,0,0,.12); border-radius: 8px;
+.dc-link { box-sizing: border-box; padding: 12px 14px; border-radius: 8px;
   background: var(--color-elevated, var(--color-panel)); color: var(--color-fg); border: 1px solid var(--color-border-line); font-size: 15px; line-height: 1.35; }
 .dc-link-t { display: block; font-weight: 600; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
 .dc-link-t:hover { text-decoration: underline; }
@@ -145,7 +138,6 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 /* The canvas's chrome, as Claude's and in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
    the panel has four tabs. Its colours, radii and shadows are the app's and follow it; the artboards keep their own look. */
 #dc-bar { display: none; }
-#dc-app { height: 100vh; }
 :root, :root[data-theme="dark"], :root[data-theme="light"] { --dc-canvas: color-mix(in srgb, var(--color-bg) 92%, var(--color-fg)); --dc-dots: color-mix(in srgb, var(--color-fg) 12%, transparent);
   --dc-sel: var(--color-accent); --dc-play: var(--color-accent); --dc-note-fg: var(--color-fg); }
 .dc-pill { position: absolute; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg, 8px);
@@ -161,7 +153,6 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-pill .dc-caretonly { min-width: 16px; padding: 0 2px; }
 .dc-pill .dc-zoomval { min-width: 0; padding: 0 8px; font-variant-numeric: tabular-nums; }
 .dc-pill .dc-status { margin: 0 4px 0 8px; }
-.dc-zoom { display: none; }
 #dc-view.is-hand { cursor: grab; }
 #dc-view.is-draw, #dc-view.is-draw * { cursor: crosshair !important; }
 #dc-view.is-hand iframe, #dc-view.is-draw iframe { pointer-events: none; }
@@ -171,7 +162,7 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-draw { line-height: 0; }
 .dc-draw svg { display: block; overflow: visible; }
 .dc-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 8px; }
-.dc-tabs .kit-btn { flex: none; padding: 0 8px; height: 28px; font-size: 12.5px; justify-content: center; }
+.dc-tabs .kit-btn { height: 28px; font-size: 12.5px; justify-content: center; }
 .dc-tabs .kit-btn[aria-pressed="true"] { background: var(--color-hover); color: var(--color-fg); }
 .dc-tabs .dc-gap { flex: 1; }
 .dc-pnote { color: var(--color-fg-muted); line-height: 1.5; padding: 8px 2px; }

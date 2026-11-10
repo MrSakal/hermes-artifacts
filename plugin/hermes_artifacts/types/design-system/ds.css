@@ -4,14 +4,12 @@
 #ds-app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
 #ds-nav { position: sticky; top: 0; align-self: start; height: 100vh; overflow: auto; padding: 14px 10px 24px;
   border-right: 1px solid var(--color-border-line); display: flex; flex-direction: column; gap: 1px; }
-.ds-nav-h { margin: 14px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-fg-muted); }
-.ds-nav-gap { margin: 10px 0 4px; border-top: 1px solid var(--color-border-line); height: 0; }
 .ds-nav-i { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--color-fg-secondary);
   font: inherit; font-size: 13px; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ds-nav-i:hover { background: var(--color-hover); color: var(--color-fg); }
 .ds-nav-i.on { background: var(--color-accent-soft); color: var(--color-fg); font-weight: 600; }
 .ds-nav-i.on .ds-nav-ic { color: var(--color-accent); }
-.ds-nav-i:focus-visible, .ds-btn:focus-visible, .ds-token:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.ds-nav-i:focus-visible, .ds-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .ds-nav-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--color-border-line); display: flex; flex-direction: column; gap: 4px; }
 .ds-nav-meta { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 0; font-size: 11px; color: var(--color-fg-muted); }
 .ds-nav-s { position: relative; margin: 0 0 8px; }
@@ -49,14 +47,12 @@
 .ds-btn-primary:hover { background: var(--color-fg-secondary); }
 .ds-btn-danger { color: var(--color-bad); margin-left: auto; }
 .ds-link { border: 0; background: none; padding: 0; color: var(--color-accent); font: inherit; font-size: 12px; cursor: pointer; }
-.ds-default[aria-pressed="true"] { color: var(--color-accent); }
-.ds-themes .kit-btn { font-size: 12px; }
 
 .ds-problems { margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--color-border-line); border-radius: 8px; font-size: 13px; }
 .ds-problems summary { cursor: pointer; color: var(--color-warn); }
 .ds-problems ul { margin: 8px 0 2px; padding-left: 18px; color: var(--color-fg-secondary); }
 .ds-problems li { margin: 3px 0; }
-.ds-problems code, .ds-token-name, .ds-files code, .ds-type-meta code, .ds-spec-meta code { font: 12px/1.4 var(--font-mono); }
+.ds-problems code, .ds-spec-meta code { font: 12px/1.4 var(--font-mono); }
 
 /* Cover and previews */
 .ds-cover { margin: 0 0 22px; border-radius: 10px; overflow: hidden; border: 1px solid var(--color-border-line); }
@@ -81,28 +77,10 @@
 .ds-prose a { color: var(--color-accent); }
 .ds-prose hr { border: 0; border-top: 1px solid var(--color-border-line); margin: 1.6em 0; }
 
-/* Token rows */
-.ds-tokens { display: flex; flex-direction: column; }
-.ds-divider { margin: 18px 0 4px; font: 600 11px/1.4 var(--font-mono); color: var(--color-fg-muted); text-transform: none; }
-.ds-divider:first-child { margin-top: 0; }
-.ds-token { display: grid; grid-template-columns: 64px minmax(0, 1.1fr) minmax(0, 1.4fr); gap: 14px; align-items: center; padding: 8px;
-  border-radius: 8px; cursor: pointer; }
-.ds-token:hover { background: var(--color-hover); }
-.ds-token.on { background: var(--color-accent-soft); }
-.ds-token.ds-static { cursor: default; }
-.ds-token-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ds-token-val { font: 12px/1.4 var(--font-mono); color: var(--color-fg-muted); overflow-wrap: anywhere; }
-.ds-token-usage { font-size: 13px; color: var(--color-fg-secondary); }
-.ds-swatch, .ds-vis { width: 64px; height: 40px; border-radius: 8px; position: relative; display: flex; align-items: center; }
-.ds-swatch { border: 1px solid var(--color-border-line);
-  background: linear-gradient(var(--sw), var(--sw)), repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 10px 10px; }
-.ds-chips { display: flex; gap: 4px; margin-top: 3px; }
-.ds-chip { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--color-border-strong);
-  background: linear-gradient(var(--sw), var(--sw)), repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 6px 6px; }
-.ds-chip.on { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* What a token looks like */
+.ds-vis { width: 64px; height: 40px; border-radius: 8px; position: relative; display: flex; align-items: center; }
 .ds-space { display: block; height: 12px; min-width: 2px; border-radius: 2px; background: var(--color-accent); opacity: .7; }
 .ds-radius { display: block; width: 40px; height: 40px; border: 2px solid var(--color-fg-muted); background: var(--color-accent-soft); }
-.ds-shadow { display: block; width: 52px; height: 34px; border-radius: 6px; background: var(--color-panel); margin-left: 4px; }
 .ds-opacity { display: block; width: 40px; height: 40px; border-radius: 6px; background: var(--color-fg); }
 .ds-aa { font-size: 26px; line-height: 1; justify-content: center; color: var(--color-fg); }
 
@@ -123,12 +101,6 @@
 .ds-page > .ds-btn { margin-top: 10px; align-self: flex-start; }
 
 /* Typography */
-.ds-type-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: baseline; padding: 12px 8px;
-  border-bottom: 1px solid var(--color-border-line); cursor: pointer; border-radius: 6px; }
-.ds-type-row:hover { background: var(--color-hover); }
-.ds-type-row.on { background: var(--color-accent-soft); }
-.ds-type-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--color-fg-muted); }
-.ds-type-meta code { color: var(--color-fg); }
 .ds-type-sample { color: var(--color-fg); overflow-wrap: anywhere; }
 .ds-specimen { padding: 12px 8px; border-bottom: 1px solid var(--color-border-line); }
 .ds-spec-meta { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: 12px; color: var(--color-fg-muted); }
@@ -136,37 +108,12 @@
 .ds-spec-glyphs { margin-top: 6px; font-size: 30px; line-height: 1.25; color: var(--color-fg); overflow-wrap: anywhere; }
 
 /* Components */
-.ds-card { margin: 0 0 18px; border: 1px solid var(--color-border-line); border-radius: 12px; background: var(--color-panel); overflow: hidden; }
-.ds-card.on { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
-.ds-card-h { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--color-border-line); }
-.ds-card-h h3 { margin: 0; font-size: 14px; font-weight: 600; }
-.ds-card-prev { background: var(--color-bg); }
-.ds-card .ds-err { padding: 6px 14px; }
-.ds-card-doc { padding: 12px 14px 4px; border-top: 1px solid var(--color-border-line); }
-.ds-card-doc .ds-prose { font-size: 14px; }
-.ds-card .ds-editor { margin: 10px 14px 14px; }
 .ds-noprev { padding: 20px 14px; color: var(--color-fg-muted); font-size: 13px; }
 
 /* Assets */
-.ds-tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-.ds-tile-l { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.ds-tile-s { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
-.ds-tile-xs { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
-.ds-tile { margin: 0; border: 1px solid var(--color-border-line); border-radius: 10px; overflow: hidden; background: var(--color-panel); }
-.ds-tile-vis { aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; padding: 14px;
-  background: repeating-conic-gradient(var(--color-hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
-.ds-tile-xs .ds-tile-vis { aspect-ratio: 1; padding: 8px; }
-.ds-tile-vis img, .ds-tile-vis video { max-width: 100%; max-height: 100%; object-fit: contain; }
-.ds-tile figcaption { display: flex; justify-content: space-between; gap: 6px; padding: 6px 8px; font-size: 12px; color: var(--color-fg-secondary); }
-.ds-tile figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ds-tile-xs figcaption .ds-link { display: none; }
 .ds-ext { font: 600 13px var(--font-mono); color: var(--color-fg-muted); }
 
 /* Files */
-.ds-files { display: flex; flex-direction: column; }
-.ds-file { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 4px 6px;
-  border-bottom: 1px solid var(--color-border-line); }
-.ds-file code { overflow-wrap: anywhere; }
 .ds-file-ic svg { width: 16px; height: 16px; color: var(--color-fg-muted); display: block; }
 
 /* Thumbnail: the cover alone */
@@ -182,15 +129,11 @@ html[data-ds-thumb] body { overflow: hidden; }
   #ds-app { grid-template-columns: 1fr; }
   #ds-nav { position: static; height: auto; flex-direction: row; overflow-x: auto; padding: 6px 8px; border-right: 0;
     border-bottom: 1px solid var(--color-border-line); }
-  .ds-nav-h, .ds-nav-foot { display: none; }
+  .ds-nav-foot { display: none; }
   .ds-nav-i { width: auto; flex: none; }
   .ds-page { padding: 16px 16px 48px; }
-  .ds-token { grid-template-columns: 48px minmax(0, 1fr); }
-  .ds-token-usage { grid-column: 2; }
-  .ds-swatch, .ds-vis { width: 48px; }
+  .ds-vis { width: 48px; }
   .ds-token-editor { margin-left: 0; }
-  .ds-type-row { grid-template-columns: 1fr; gap: 6px; }
-  .kit-bar .ds-themes { display: none; }
 }
 
 /* Claude's tables: Name | a column per theme (or Value | Preview), the usage note and the row menu at the end */

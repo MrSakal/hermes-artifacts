@@ -1,9 +1,9 @@
 # Sheet artifacts
 
-A live spreadsheet the user and you edit together: a grid with formulas, several sheets, charts,
-export to Excel (.xlsx) and CSV. Use it for anything that is rows and columns the user will keep
-working in: a budget, a quote, a price list, a schedule, a comparison, a tracker. Numbers to look at
-(KPIs, charts, filters) are a dashboard; prose with a table in it is a doc.
+A live spreadsheet the user and you edit together: formulas, several sheets, charts, export to Excel
+(.xlsx) and CSV. For rows and columns the user will keep working in (a budget, quote, price list,
+schedule, comparison, tracker). Numbers to look at (KPIs, charts, filters) are a dashboard; prose with a
+table in it is a doc.
 
 ## Creating one
 

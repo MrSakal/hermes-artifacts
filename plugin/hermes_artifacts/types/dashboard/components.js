@@ -30,24 +30,31 @@
   var HU = /^hu\b/i.test(kit.content.lang || navigator.language || "");
   function w(en, hu) { return HU ? hu : en; }
 
+  // Building an Intl formatter costs far more than using one: one per locale and format, kept.
+  var formatters = {};
+  function formatter(loc, f, make) {
+    var key = (loc || "") + "|" + f;
+    return formatters[key] || (formatters[key] = make());
+  }
   function format(v, f) {
     if (v == null || v === "" || (typeof v === "number" && isNaN(v))) return "—";
     var loc = lang(), n = num(v);
     f = f || (typeof v === "number" ? "number" : "text");
     var m;
     if (f === "text") return String(v);
-    if (f === "int") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { maximumFractionDigits: 0 }).format(n);
-    if (f === "number") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { maximumFractionDigits: 1 }).format(n);
-    if ((m = /^number:(\d)$/.exec(f))) return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { minimumFractionDigits: +m[1], maximumFractionDigits: +m[1] }).format(n);
-    if (f === "compact") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { notation: "compact", maximumFractionDigits: 1 }).format(n);
-    if (f === "percent") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { style: "percent", maximumFractionDigits: 1 }).format(n);
-    if (f === "percent100") return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { maximumFractionDigits: 1 }).format(n) + "%";
-    if ((m = /^currency:([A-Z]{3})$/.exec(f))) return isNaN(n) ? String(v) : new Intl.NumberFormat(loc, { style: "currency", currency: m[1] }).format(n);
+    var nf = function (o) { return formatter(loc, f, function () { return new Intl.NumberFormat(loc, o); }); };
+    if (f === "int") return isNaN(n) ? String(v) : nf({ maximumFractionDigits: 0 }).format(n);
+    if (f === "number") return isNaN(n) ? String(v) : nf({ maximumFractionDigits: 1 }).format(n);
+    if ((m = /^number:(\d)$/.exec(f))) return isNaN(n) ? String(v) : nf({ minimumFractionDigits: +m[1], maximumFractionDigits: +m[1] }).format(n);
+    if (f === "compact") return isNaN(n) ? String(v) : nf({ notation: "compact", maximumFractionDigits: 1 }).format(n);
+    if (f === "percent") return isNaN(n) ? String(v) : nf({ style: "percent", maximumFractionDigits: 1 }).format(n);
+    if (f === "percent100") return isNaN(n) ? String(v) : nf({ maximumFractionDigits: 1 }).format(n) + "%";
+    if ((m = /^currency:([A-Z]{3})$/.exec(f))) return isNaN(n) ? String(v) : nf({ style: "currency", currency: m[1] }).format(n);
     if (f === "date" || f === "month" || f === "datetime") {
       var d = new Date(typeof v === "number" ? v * (v < 1e12 ? 1000 : 1) : String(v).length === 7 ? v + "-01" : v);
       if (isNaN(d)) return String(v);
       var o = f === "month" ? { year: "numeric", month: "short" } : f === "date" ? { year: "numeric", month: "short", day: "numeric" } : { dateStyle: "medium", timeStyle: "short" };
-      return new Intl.DateTimeFormat(loc, o).format(d);
+      return formatter(loc, f, function () { return new Intl.DateTimeFormat(loc, o); }).format(d);
     }
     return String(v);
   }
@@ -72,23 +79,34 @@
   }
 
   function aggregate(rows, agg, field) {
-    var vals = rows.map(function (r) { return r[field]; });
-    var nums = vals.map(num).filter(function (x) { return !isNaN(x); });
+    var i, n = rows.length;
     switch (agg || "first") {
-      case "sum": return nums.reduce(function (a, b) { return a + b; }, 0);
-      case "avg": return nums.length ? nums.reduce(function (a, b) { return a + b; }, 0) / nums.length : NaN;
-      case "min": return nums.length ? Math.min.apply(null, nums) : NaN;
-      case "max": return nums.length ? Math.max.apply(null, nums) : NaN;
-      case "count": return rows.length;
-      case "countDistinct": return new Set(vals.map(String)).size;
-      case "last": return vals.length ? vals[vals.length - 1] : null;
-      default: return vals.length ? vals[0] : null;
+      case "sum": case "avg": case "min": case "max":
+        // One pass over the numbers, in row order (a sum adds in the same order as before). A loop, not
+        // Math.min.apply: that runs out of stack on a large source.
+        var sum = 0, count = 0, lo = NaN, hi = NaN;
+        for (i = 0; i < n; i++) {
+          var x = num(rows[i][field]);
+          if (isNaN(x)) continue;
+          sum += x;
+          if (!count++) { lo = hi = x; continue; }
+          if (x < lo || (x === 0 && lo === 0 && 1 / x < 0)) lo = x; // Math.min: -0 below 0
+          if (x > hi || (x === 0 && hi === 0 && 1 / hi < 0)) hi = x;
+        }
+        return agg === "sum" ? sum : agg === "avg" ? (count ? sum / count : NaN) : agg === "min" ? lo : hi;
+      case "count": return n;
+      case "countDistinct":
+        var seen = new Set();
+        for (i = 0; i < n; i++) seen.add(String(rows[i][field]));
+        return seen.size;
+      case "last": return n ? rows[n - 1][field] : null;
+      default: return n ? rows[0][field] : null;
     }
   }
 
   /** Rows of a source after its where; the dataset's status alongside. */
   function rowsOf(spec) {
-    var d = window.dash.data(spec.source);
+    var d = read(spec.source);
     var rows = d.status === "ok" ? (d.rows && d.rows.length ? d.rows : Array.isArray(d.data) ? d.data : d.value && typeof d.value === "object" ? [d.value] : []) : [];
     return { d: d, rows: filterRows(rows, spec.where) };
   }
@@ -108,10 +126,13 @@
   function sortRows(rows, sort) {
     if (!sort) return rows;
     var desc = sort[0] === "-", f = desc ? sort.slice(1) : sort;
-    return rows.slice().sort(function (a, b) {
-      var x = num(a[f]), y = num(b[f]), c = !isNaN(x) && !isNaN(y) ? x - y : String(a[f]).localeCompare(String(b[f]));
+    // Each row's key read once, not in every comparison.
+    var keyed = rows.map(function (r) { return { r: r, n: num(r[f]), s: String(r[f]) }; });
+    keyed.sort(function (a, b) {
+      var c = !isNaN(a.n) && !isNaN(b.n) ? a.n - b.n : a.s.localeCompare(b.s);
       return desc ? -c : c;
     });
+    return keyed.map(function (k) { return k.r; });
   }
 
   // ---------------------------------------------------------------- templates ("{kpi}" / "{param:x}")
@@ -230,10 +251,10 @@
         if (r.d.status !== "ok") { c.val.textContent = "—"; c.val.classList.toggle("dash-skeleton", r.d.status === "loading"); return; }
         c.val.classList.remove("dash-skeleton");
         var v = aggregate(r.rows, k.agg, k.field);
-        var text = format(v, k.format) + (k.unit ? " " + k.unit : "");
-        c.val.textContent = format(v, k.format);
+        var shown = format(v, k.format);
+        c.val.textContent = shown;
         if (k.unit) c.val.appendChild(h("span", { "class": "c-unit", text: " " + k.unit }));
-        if (k.id) { values[k.id] = text; bare[k.id] = format(v, k.format); units[k.id] = k.unit || ""; }
+        if (k.id) { values[k.id] = shown + (k.unit ? " " + k.unit : ""); bare[k.id] = shown; units[k.id] = k.unit || ""; }
         if (k.where) c.val.setAttribute("data-where", whereAttr(k.where) || ""); // follows the filters
         if (k.delta) {
           var dr = rowsOf(Object.assign({ source: k.source, field: k.field, agg: k.agg }, k.delta));
@@ -412,7 +433,12 @@
       if (q) rows = rows.filter(function (row) { return cs.some(function (c) { return String(row[c.field] == null ? "" : row[c.field]).toLowerCase().indexOf(q) >= 0; }); });
       if (b.limit) rows = rows.slice(0, b.limit);
       var maxes = {};
-      cs.forEach(function (c) { if (c.bar) maxes[c.field] = Math.max.apply(null, rows.map(function (x) { return num(x[c.field]) || 0; }).concat([0])) || 1; });
+      cs.forEach(function (c) {
+        if (!c.bar) return;
+        var m = 0; // a loop: Math.max.apply runs out of stack on a long table
+        rows.forEach(function (x) { var v = num(x[c.field]) || 0; if (v > m) m = v; });
+        maxes[c.field] = m || 1;
+      });
       tbody.replaceChildren.apply(tbody, rows.map(function (row) {
         var key = row[table.getAttribute("data-row-key")];
         return h("tr", { "data-key": key == null ? null : String(key) }, cs.map(function (c) {
@@ -436,7 +462,7 @@
   };
 
   builders.grid = function (b) {
-    var parts = (b.items || []).map(build).filter(Boolean);
+    var parts = (b.items || []).map(build);
     var el = h("div", { "class": "c-grid-row c-full", style: "grid-template-columns:repeat(" + Math.max(1, Math.min(4, b.columns || parts.length || 2)) + ", minmax(0, 1fr))" },
       parts.map(function (p) { p.el.classList.remove("c-full"); return p.el; }));
     return { el: el, draw: function () { parts.forEach(function (p) { p.draw(); }); } };
@@ -448,8 +474,13 @@
     return f(b);
   }
 
+  // A source as dash.data gives it; the runtime passes a reader that skips dash.data's copy of every
+  // row (the blocks only read them).
+  var read = function (id) { return window.dash.data(id); };
+
   /** Mount a layout into root; returns nothing — drawing runs through dash.onData like any page. */
-  window.dashLayout = function (layout, root) {
+  window.dashLayout = function (layout, root, reader) {
+    if (reader) read = reader;
     var parts = (layout || []).map(build);
     var page = h("div", { "class": "c-page" }, parts.map(function (p) { return p.el; }));
     root.appendChild(page);
@@ -457,5 +488,4 @@
     var order = parts.filter(function (p, i) { return layout[i].type === "kpis"; }).concat(parts.filter(function (p, i) { return layout[i].type !== "kpis"; }));
     window.dash.onData(function () { order.forEach(function (p) { p.draw(); }); });
   };
-  window.dashFormat = format;
 })();

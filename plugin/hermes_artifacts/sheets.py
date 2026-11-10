@@ -144,11 +144,16 @@ _EPP = re.compile(r"^(\$?)([A-Za-z]{1,3})?(\$?)([0-9]+)?$")
 
 def _ep(text: str) -> list:
     """An endpoint as [col absolute, col | None, row absolute, row | None] (0-based)."""
+    return list(_ep_parsed(text))
+
+
+@lru_cache(maxsize=1 << 16)
+def _ep_parsed(text: str) -> tuple:
     m = _EPP.match(text)
     ca, c, ra, r = m.groups()
     if c is None and ca:  # "$3": the $ belongs to the row
         ca, ra = "", "$"
-    return [bool(ca), col_index(c) if c else None, bool(ra), int(r) - 1 if r else None]
+    return (bool(ca), col_index(c) if c else None, bool(ra), int(r) - 1 if r else None)
 
 
 def _ep_text(e: list) -> str:
@@ -572,8 +577,8 @@ def _inside(m: dict, r1: int, c1: int, r2: int, c2: int) -> dict:
     return out
 
 
-def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool) -> dict:
-    nr, nc = used(sh)
+def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool, extent: Optional[tuple] = None) -> dict:
+    nr, nc = extent or used(sh)
     if rng:
         r1, c1, r2, c2 = parse_range(rng, (nr, nc))
     else:
@@ -637,7 +642,8 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
         if len(found) > 100:
             out["more"] = f"{len(found)} found: search narrower"
         return out
-    out.update(_view(st, sh, range, agent, not agent))
+    mine = next(o for o in out["sheets"] if o["id"] == sh["id"])  # used(sh), counted for the overview
+    out.update(_view(st, sh, range, agent, not agent, (mine["rows"], mine["cols"])))
     return out
 
 
@@ -699,7 +705,6 @@ def _keys_in(m: dict, r1: int, c1: int, r2: int, c2: int) -> list:
 def _touched(sh: dict, o: dict) -> tuple:
     """(cell keys an op writes over, whether any of them holds a value) for the guards."""
     kind = o.get("op")
-    nr, nc = used(sh)
     cells = sh["cells"]
     if kind == "set":
         r0, c0 = parse_range(o.get("range"))[:2]
@@ -710,7 +715,7 @@ def _touched(sh: dict, o: dict) -> tuple:
                     keys.add(key(r0 + i, c0 + j))
         return keys, any(k in cells for k in keys)
     if kind in ("clear", "sort"):
-        r1, c1, r2, c2 = parse_range(o.get("range"), (nr, nc))
+        r1, c1, r2, c2 = parse_range(o.get("range"), used(sh))
         keys = set(_keys_in(cells, r1, c1, r2, c2))
         return keys, bool(keys)
     if kind in ("delete_rows", "delete_cols"):
@@ -1087,12 +1092,16 @@ def _hist_path(aid: str) -> Path:
     return store._dir(aid) / "sheet" / "history.json"
 
 
+_HIST_CACHE: dict = {}  # history.json path -> (stamp, parsed): every edit reads it, a big one parses slowly
+
+
 def _hist(aid: str, version: int) -> list:
+    """The snapshots (a new list; the snapshots in it are shared: never change one in place)."""
     try:
-        h = json.loads(_hist_path(aid).read_text(encoding="utf-8"))
+        h = store.json_cached(_hist_path(aid), _HIST_CACHE, 8)
     except (FileNotFoundError, ValueError):
         return []
-    return h.get("snaps", []) if h.get("version") == version else []
+    return list(h.get("snaps", [])) if h.get("version") == version else []
 
 
 def _hist_save(aid: str, version: int, snaps: list) -> None:
@@ -1102,8 +1111,11 @@ def _hist_save(aid: str, version: int, snaps: list) -> None:
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": version, "snaps": snaps}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    h = {"version": version, "snaps": snaps}
+    tmp.write_text(json.dumps(h, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    st = tmp.stat()
     tmp.replace(p)
+    store.json_remember(p, _HIST_CACHE, h, st, 8)
 
 
 def _snap(sh: dict, by: str) -> dict:

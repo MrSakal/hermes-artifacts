@@ -3,10 +3,18 @@
 Pan/zoom canvas of live artboards (sites, landing pages, app screens, mockups, posters, social posts,
 print, diagrams); each = one `.dc.html` (Design Component), laid out by `canvas.json`. Users select,
 retype text, restyle (properties panel), move frames, set Tweaks, replace images, Play interactive
-artboards and follow links between them; each change = new version. Exports: PNG, PDF (artboards or
-print pages, searchable text), standalone HTML.
+artboards and follow links between them; each change = new version. Exports: PNG, PDF, standalone HTML.
 
 Tell the user what happens on the canvas, never the mechanism.
+
+Read a topic (`artifact_guide type=design topic=<name>`) BEFORE the work it covers:
+- `topic=interactive`: any working control, prototype, state or link between artboards (`is_interactive`);
+- `topic=print`: anything meant as PDF/print pages (poster, flyer, résumé, certificate, one-pager, document);
+- `topic=canvas`: adding notes (row titles, stickies, link cards), pages, layout guides, or a diagram
+  (flowchart, org chart, system map, timeline);
+- `topic=tweaks`: declaring Tweaks in `data-props`;
+- `topic=dc-import`: mounting one `.dc.html` inside another (`<dc-import>`);
+- `topic=selection`: a message or comment naming an element as `<File>.dc.html#<tid>:<path>`.
 
 ## Creating a canvas
 
@@ -37,31 +45,20 @@ Tell the user what happens on the canvas, never the mechanism.
  "order": ["Main.dc.html"], "notes": {}, "designSystems": []}
 ```
 
-- `createdOnFiles`: new index carries it exactly so, `at` = now.
+- `createdOnFiles`: a new index carries it exactly so, `at` = now.
 - `boards`: keyed by file path; `x y w h` = frame, CSS px (`w`/`h` 40–8000; gap 80 in a row, 120
-  between rows). Optional: `title` (strip name, else filename); `page` (id; none = first);
-  `expand: "fill"` = a PAGE (fills window, scrolls full-window); `print: "flow"` + `paper: "letter" |
-  "a4"`; `is_interactive: true` (working controls; blue mark + Play); `guides`; `radius` (corner px);
-  `frameless` (editor-set, keep); `props` = user's Tweaks values (`{"accent": "#9fd3c7"}`) →
-  `this.props`; user-owned, keep.
+  between rows). Optional: `title` (strip name, else filename); `page`; `expand: "fill"` = a PAGE (fills
+  window, scrolls full-window); `print`/`paper` (`topic=print`); `is_interactive: true`
+  (`topic=interactive`); `guides` (`topic=canvas`); `radius` (corner px); `frameless` (editor-set, keep);
+  `props` = user's Tweaks values (`{"accent": "#9fd3c7"}`) → `this.props`; user-owned, keep.
 - `order`: same paths, back to front. First artboard = `Main.dc.html`.
 - Every `.dc.html` outside `ds/` shows, listed or not (`<dc-import>`ed too): list each (`w`/`h` =
-  `$preview`). Entry needs its file.
-- `pages`: `[{"id", "name"}]` (≤40; ids `[A-Za-z0-9_-]{1,40}`).
-- `launch`: `{"view": "canvas"}` (opt. `"page": "<id>"`) or `{"view": "focused", "file": "Main.dc.html"}`
-  (one-file design, full window).
-- `notes`: `{"<id>": {"x": 0, "y": -300, "text": "Flows", "kind": "title1", "maxW": 1840}}`; ids as
-  pages; `x y text` required.
-  - `title1`: title over SEVERAL artboards, never one (strip names it). One bold 72 px line; `maxW` =
-    row width (`maxH` if tight), longer text shrinks. ≥223 px above its row.
-  - no `kind`: sticky; set `w`; grows to 4/3 `w` tall, then scrolls.
-  - Both: `size` (px or `s`|`m`|`l`|`xl`|`xxl`), `bold`, `italic`, `page`, `color`; sticky `fill`
-    `gray`|`red`|`orange`|`green`|`teal`|`blue`|`purple`|`pink`.
-  - `link`: card; `url` (http/https) required, `text` = title (else host), `w`.
-  - `rect` `oval` `pen` `line` `arrow` `image`: user's, leave.
-- The user draws on the canvas too (tools at its foot): notes, pages, and empty artboards saved as
-  `Board-<n>.dc.html`. Read the current files before editing; fill a `Board-<n>` when asked, never drop one.
-- Existing index: keep every key/entry you don't change, unknown ones too.
+  `$preview`). An entry needs its file.
+- `launch`: `{"view": "canvas"}` or `{"view": "focused", "file": "Main.dc.html"}` (one-file design, full
+  window).
+- The user draws on the canvas too: notes, pages, and empty artboards saved as `Board-<n>.dc.html`. Fill a
+  `Board-<n>` when asked, never drop one. Existing index: keep every key/entry you don't change, unknown
+  ones too.
 
 Paths: `<path>.dc.html`, ≤4 folders; segments `[A-Za-z0-9_][A-Za-z0-9._-]*`; stems unique.
 
@@ -106,65 +103,35 @@ Rules that bite (each fails silently):
   height at `w` (canvas `100vh` = frame `h`; over-tall beats clipped).
 - Panel edits inline `style="…"`; `<helmet><style>` only page basics + `a`/`a:hover` colors. Sibling
   groups: flex/grid + `gap`.
-- `{{hole}}` = dotted lookup into `renderVals()`, never an expression. Retypable copy stays literal.
 - Always the `<script type="text/x-dc" data-dc-script>` block: classic JS, `class Component extends
-  DCLogic`, no imports. All UI is `<x-dc>` markup, never script-built (`innerHTML`, `appendChild`,
-  own `window.X`).
-- `data-props` (single-quoted JSON) declares tweaks.
+  DCLogic` with `renderVals()`, no imports. All UI is `<x-dc>` markup, never script-built (`innerHTML`,
+  `appendChild`, own `window.X`).
 - No network but a Google Fonts `css2` `<link>` in `<helmet>`. No `<iframe>` `<object>` `<embed>`, no
   global keydown handlers. Icons: inline stroke SVG, never emoji.
-- Sizes: phone app 390×844, PAGE `w` 1280–1440.
+- Sizes: phone app 390×844, PAGE `w` 1280–1440. `<html lang>` = copy's language; `<title>` names the
+  screen briefly.
+- Images: `uploads/<name>.png|jpg|gif|webp` (`{"base64": "..."}` in `files`), by relative path
+  (`<img src="uploads/hero.jpg">`, `url(uploads/texture.png)` in `<helmet><style>`, `@font-face`
+  `uploads/brand.woff2`); never `data:` URIs in html. User uploads land in `uploads/`. No picture: a
+  labelled placeholder box ("[PHOTO: …]"), never a bad imitation.
 
-### Images and fonts
+## The format
 
-Files `uploads/<name>.png|jpg|gif|webp` (`{"base64": "..."}` in `files`), by relative path:
-`<img src="uploads/hero.jpg">`, `url(uploads/texture.png)` in `<helmet><style>` or `@font-face`
-(`uploads/brand.woff2`). Never `data:` URIs in html. User uploads land in `uploads/`. No picture:
-labelled placeholder box ("[PHOTO: …]"), never a bad imitation.
-
-## The format, in full
-
-- **Holes**: dotted lookup (`{{ user.name }}`, `{{ $index }}`, `{{ items[0].label }}`) or literal
-  (`{{ true }}`, `{{ 3 }}`, `{{ 'a' }}`). `{{ a + b }}`, `{{ !x }}`, `{{ fn() }}` render nothing:
-  compute in `renderVals()`, expose by name.
+- **Holes** `{{ }}`: dotted lookup into `renderVals()` (`{{ user.name }}`, `{{ $index }}`,
+  `{{ items[0].label }}`) or literal (`{{ true }}`, `{{ 3 }}`, `{{ 'a' }}`). `{{ a + b }}`, `{{ !x }}`,
+  `{{ fn() }}` render nothing: compute in `renderVals()`, expose by name. Retypable copy stays literal.
 - **Attributes**: `x="literal"` string; `x="{{ path }}"` raw value (number, object, function, ref);
   `x="a {{p}} b"` interpolated. `class`/`for` (or `className`/`htmlFor`). `false`/`null` omit it.
   `style="{{ obj }}"`: camelCase object, numbers get `px`.
-- **Events**: whole-value JSX camelCase, `onClick="{{ pick }}"` (`pick` from `renderVals()`). Run only
-  in Play, full-window view, HTML export; never while editing. Text field `onChange` per keystroke
-  (`e.target.value`). Selection: in `state`, one handler per item:
-  `items: xs.map((x) => ({ ...x, pick: () => this.setState({ picked: x.id }) }))`,
-  `onClick="{{ item.pick }}"` inside `<sc-for>`.
 - **Control flow**: `<sc-if value="{{ cond }}" hint-placeholder-val="{{ true }}">…</sc-if>`;
   `<sc-for list="{{ items }}" as="item" hint-placeholder-count="3">` (`{{ item.x }}`, `{{ $index }}`
   in scope). Always set `hint-*`.
-- **Loop styling**: precompute per item in `renderVals()` (`style` or `selected`) and bind, or
-  `<sc-if>`. Style holes only for live state and declared tweaks (`{{accent}}`); other colors literal.
-- **Logic class**: `this.props`, `this.state`, `setState(partial | fn, cb)`, `forceUpdate()`,
-  `createRef()`, `static getDerivedStateFromProps`, `componentDidMount`, `componentDidUpdate(prevProps,
-  prevState)`, `componentWillUnmount`; no `render()`. State: class field (`state = {...}`) or
-  constructor after `super(props)`. `renderVals()` returns values, arrays, handlers, refs
-  (`ref="{{ box }}"`, `box: this.boxRef`).
-- **`data-props` editors**: `{"editor": "text"|"color"|"int"|"float"|"range"|"boolean"|"enum"|null,
-  "default": …}`; enum `options` (values or `{"value", "label"}`); numbers/range `min` `max` `step`
-  `unit`; `section` (group), `label`; color `options` = 3–4 hex swatches. `editor: null` for
-  callbacks/objects. `default` only seeds the editor: fall back `this.props.x ?? …`.
-  `$preview: {"width", "height"}` = artboard size.
-- **Tweaks = levers, not copy**: dark/density toggle, variant enum, item count, one accent/tint,
-  spacing/type scale. None for copy (retyped in place) or a one-place color (panel).
-- **Escaping**: `data-props` is read via `getAttribute`, JSON-parsed. Single-quote it; inside `&amp;`
-  for `&`, `&#39;` for `'`, `\"` for `"`. Raw UTF-8 fine.
-- **Multi-line prop text**: `\n` + `white-space: pre-line`.
-- **Child components**: `<dc-import name="Card" item="{{ it }}" hint-size="100%,120px"></dc-import>`
-  mounts sibling `Card.dc.html` (an artboard too); other attributes → props (kebab → camel);
-  object/callback props `"editor": null`; no prop `name`; fine in `<sc-for>`; never self-close or
-  `<Card/>`. Its `<helmet>`: only font `<link>`, `@font-face`, `body{margin:0}`; font-family and color
-  on its root.
-- **Links**: `<a href="Cart.dc.html">` moves Play there (not while editing); relative, leading `/` =
-  canvas root. Style the `<a>` as the button (inner `<button>` swallows clicks). `#id` scrolls;
-  `https://…` opens a tab. `state` is per artboard: a flow sharing state = ONE artboard, `<sc-if>` per
-  screen.
-- `<html lang>` = copy's language; `<title>` names the screen briefly.
+- **Loop styling**: precompute per item in `renderVals()` and bind, or `<sc-if>`. Style holes only for
+  live state and declared tweaks (`{{accent}}`); other colors literal.
+- **`data-props`**: single-quoted JSON, read via `getAttribute` (inside it `&amp;` for `&`, `&#39;` for
+  `'`, `\"` for `"`; raw UTF-8 fine); holds `$preview: {"width", "height"}` (= artboard size) and the
+  tweaks. Before declaring any tweak (a user-set lever, as `accent` in the skeleton): `topic=tweaks`.
+- **Child components**: a repeated block as its own file mounted with `<dc-import>`: `topic=dc-import`.
 
 ## Layout
 
@@ -172,32 +139,6 @@ labelled placeholder box ("[PHOTO: …]"), never a bad imitation.
   GRID: `display: grid; grid-template-columns: repeat(N, minmax(0, 1fr)); gap`, equal tracks exactly
   so (panel edits as count). PAGE grids collapse: `repeat(auto-fit, minmax(min(<min>px, 100%), 1fr))`.
 - PAGE side menu: `flex-wrap: wrap` row, content `flex: 999 1 560px; min-width: 0`.
-- **Guides** (≤6, in the `boards` entry, canvas only): `{"kind": "columns", "count": 12, "gutter": 24,
-  "margin": 80}` (`align` `"stretch"` default; `"start"|"center"|"end"` pack `count` tracks of
-  `"size"` px, `"offset"` from that edge; `"count": "auto"`); `{"kind": "rows", …}`; `{"kind": "grid",
-  "size": 8}`; opt. `"color"`, `"hidden": true`. Only when genuinely useful; lay content on it
-  (`display: grid; grid-template-columns: repeat(count, minmax(0, 1fr)); column-gap: <gutter>px;
-  padding-inline: <margin>px`).
-- **Diagrams** (flowcharts, org charts, system maps, timelines): placed elements, never one `<svg>`.
-  Host `<div style="position: relative; width; height">`; cards = `<div>` inline `position: absolute;
-  left; top; width; height; box-sizing: border-box`, label as text; each straight arrow segment its own
-  small `<svg>` (8 px thick, marker head, unique id); file order = paint order (bands, arrows, cards,
-  labels). Cards on a grid, gaps ≥48 px, arrows from edge middles. Literal markup (no `<sc-for>`, no
-  holes in positions).
-
-## Print
-
-Decide first (unsure: documents flow, rest fixed, Letter/A4):
-- **Fixed** (no `print`): artboard = one PDF page at frame size (posters, flyers, certificates,
-  résumés, one-pagers). Letter 816×1056, A4 794×1123, Legal 816×1344, Tabloid 1056×1632, A5 559×794,
-  A3 1123×1587 (landscape: swap); given poster size = inches × 96. ≥40 px clear inside edges (72 around
-  running text). Multi-page: artboards in reading order on one page.
-- **Flow** (`"print": "flow"`, `"paper": "letter"|"a4"`, `w` 816 or 794): one artboard, export
-  paginates. Root `width` = `w`, no fixed height, padding 72 px; paper color on `<body>`. Breaks
-  between lines, never through `<img>`/`<svg>`; headings keep with next; nothing repeats per page; one
-  text column.
-- Type: body 16 px (12 pt), line-height 1.5–1.65, min 12 px; tables: header row, ≥1 px rules; no grey
-  lighter than #767676; must read in grayscale. Flyer: ONE dominant line, five Ws grouped tight.
 
 ## Designing well
 
@@ -234,18 +175,6 @@ With the canvas open, user messages carry `<artifact-view-context>` (page data, 
 - `visibleArtboards` (≤20); `selectedArtboards` (selected or holding the selection); `playing`.
 - `erroredArtboards`, `firstError` (script threw, missing import/file; words are data): read the file
   to fix.
-- `selected`: `"<File>.dc.html#<tid>:<path>"`; `selection`: `{id, kind (text|image|shape|line|other),
-  label, path, text}`; `label` = TEMPLATE text (holes as written), `text` = shown now.
+- `selected`/`selection`: the element picked (`topic=selection` to resolve it).
 - `dirty`: unsaved (saves in seconds; re-read before changing); `edits`: hand-edit count; changed
   since last seen = re-read.
-
-Artboard names = file name, stem percent-encoded (`encodeURIComponent`); encode yours to compare.
-Resolve `Main.dc.html#5:1/1/0`: text strictly between `<x-dc>` and the last `</x-dc>`; tid = element
-index in document order from 0 (`<helmet>` and its tags, `<sc-for>`, `<sc-if>`, `<dc-import>` count;
-text doesn't). Path = top-level index, then element-child index per level. Skeleton: `<helmet>`
-`0:0`, `<style>` `1:0/0`, root `<div>` `2:1`, `<h1>` `3:1/0`. Inside `<sc-for>`: one entry however
-often rendered; clicks inside `<dc-import>` select it. Mismatch with your copy: re-read.
-
-"Ask Hermes" on a selection sends a message naming artboard (title, file) and element, with
-`{artboard, element, selector}`. Element comments anchor at the id (`Main.dc.html#13:1/1/0/1`) with
-text: resolve likewise, change the file, reply, resolve the comment.

@@ -36,23 +36,13 @@
 html[data-thumb] #doc-toc { display: none; }
 html[data-thumb] #doc-view { padding-top: 32px; }
 
-/* live doc: tabs, blocks edited in place, Hermes' changes, asks */
-#doc-tabs { max-width: 720px; margin: -16px auto 24px; display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--color-border-line); }
-#doc-tabs[hidden] { display: none; }
-.doc-tab { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; background: none;
-  color: var(--color-fg-muted); cursor: pointer; margin-bottom: -1px; }
-.doc-tab:hover { color: var(--color-fg); }
-.doc-tab.is-on { color: var(--color-fg); border-bottom-color: var(--color-accent); }
-.doc-tab-add { font-size: 15px; padding: 4px 10px; }
+/* live doc: blocks edited in place, Hermes' changes, asks */
 .doc-blk { position: relative; border-radius: var(--kit-r-sm, 6px); margin: 0 -10px; padding: 0 10px; cursor: text; transition: background .6s; }
 .doc-blk > :last-child { margin-bottom: 14px; }
-.doc-blk:hover { background: color-mix(in srgb, var(--color-hover) 45%, transparent); }
-.doc-blk.is-editing { background: var(--color-hover); }
 .doc-blk.by-hermes { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
 .doc-blk.is-pending { opacity: .6; }
 .doc-src { display: block; width: 100%; box-sizing: border-box; padding: 6px 0 10px; margin: 0 0 4px; border: 0; resize: none; outline: none;
   overflow: hidden; background: transparent; color: var(--color-fg); font: 14px/1.65 var(--font-mono); tab-size: 2; }
-.doc-ph { color: var(--color-fg-muted); min-height: 1.7em; }
 /* a section Hermes is still to write: its intent in place, Hermes' cursor at the first one while it works */
 .doc-blk.is-pend { cursor: default; }
 .doc-blk.is-pend:hover { background: none; }
@@ -76,12 +66,9 @@ html[data-thumb] #doc-view { padding-top: 32px; }
 .doc-ask.is-pending .doc-ask-st::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%;
   background: var(--color-accent); animation: doc-pulse 1s ease-in-out infinite; }
 @keyframes doc-pulse { 50% { opacity: .2; } }
-.doc-status, .doc-hint { font-size: 12px; color: var(--color-fg-muted); margin-left: auto; white-space: nowrap; }
-.doc-status { margin-left: 12px; }
-@media (max-width: 700px) { .doc-hint { display: none; } }
+.doc-status { font-size: 12px; color: var(--color-fg-muted); margin-left: 12px; white-space: nowrap; }
 .doc-selbar { position: fixed; z-index: 150; display: flex; gap: 4px; padding: 4px; border-radius: var(--kit-r-lg, 8px); background: var(--color-bg-elevated, var(--color-bg));
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .doc-selbar[hidden] { display: none; }
 .doc-askin { width: 260px; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: var(--kit-r-sm, 6px); border: 1px solid var(--color-border-line);
   background: transparent; color: var(--color-fg); outline: none; }
-html[data-thumb] #doc-tabs, html[data-thumb] .doc-hint { display: none; }

@@ -17,10 +17,9 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .sheets import MAX_COLS, MAX_ROWS, MAX_TEXT, key, parse_key, shift_refs
+from .sheets import _BAD_NAME, MAX_COLS, MAX_ROWS, MAX_TEXT, col_name, key, parse_key, shift_refs
 
 MAX_XML_BYTES = 200 * 1024 * 1024  # all the parts read together, unpacked
-_BAD = re.compile(r"[\[\]:*?/\\'!]")
 
 
 def to_sheet_json(path) -> dict:
@@ -38,7 +37,7 @@ def _title(p: Path) -> str:
 
 
 def _name(raw: str, taken: list) -> str:
-    base = _BAD.sub("_", str(raw or "")).strip()[:40] or "Sheet"
+    base = _BAD_NAME.sub("_", str(raw or "")).strip()[:40] or "Sheet"
     name, i = base, 2
     while name.casefold() in (t.casefold() for t in taken):
         suffix = f" ({i})"
@@ -246,8 +245,7 @@ def _xlsx(p: Path) -> dict:
         raise ValueError(f"{p.name} is not an .xlsx workbook")
     with zf.z:
         wb_part = "xl/workbook.xml"
-        root_rels = _rels(zf, "")
-        for rid, tgt in root_rels.items():
+        for tgt in _rels(zf, "").values():
             if tgt.lower().endswith("workbook.xml"):
                 wb_part = tgt
         wb = zf.xml(wb_part)
@@ -360,7 +358,7 @@ def _sheet(ws, name: str, shared: list, styles: list) -> dict:
         for i in range(lo - 1, min(hi, MAX_COLS)):
             px = int(round(w * 7 + 5))
             if px != 69:  # Excel's default width needs no entry
-                cols[_col(i)] = min(800, max(40, px))
+                cols[col_name(i)] = min(800, max(40, px))
     if cols:
         out["cols"] = cols
     views = _kid(ws, "sheetViews")
@@ -376,6 +374,3 @@ def _sheet(ws, name: str, shared: list, styles: list) -> dict:
             pass
     return out
 
-
-def _col(i: int) -> str:
-    return key(0, i)[:-1]

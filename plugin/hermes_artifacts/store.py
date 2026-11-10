@@ -7,10 +7,11 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _LOCK = threading.RLock()
@@ -39,7 +40,8 @@ def hermes_home() -> Path:
 def root() -> Path:
     """<HERMES_HOME>/plugin-data/hermes-artifacts (Hermes' per-plugin data convention)."""
     r = Path(os.environ.get("HERMES_ARTIFACTS_DIR") or hermes_home() / "plugin-data" / PLUGIN_ID)
-    r.mkdir(parents=True, exist_ok=True)
+    if not os.path.isdir(r):  # one stat when it is there (every path below starts here)
+        r.mkdir(parents=True, exist_ok=True)
     return r
 
 
@@ -48,10 +50,11 @@ def slugify(title: str) -> str:
     return f"{s}-{secrets.token_hex(3)}"
 
 
-def _dir(aid: str) -> Path:
+def _dir(aid: str, base: Optional[Path] = None) -> Path:
+    """The artifact's folder (``base``: root(), when the caller already has it)."""
     if not _ID_RE.match(aid):
         raise ValueError(f"invalid artifact id: {aid!r}")
-    return root() / aid
+    return (base or root()) / aid
 
 
 def _write_json(p: Path, data) -> None:
@@ -63,6 +66,22 @@ def _write_json(p: Path, data) -> None:
 def get_meta(aid: str) -> Optional[dict]:
     p = _dir(aid) / "meta.json"
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+
+
+def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
+    """Every file under ``top`` as (relative POSIX path, its os.DirEntry), in ``top.rglob("*")``'s order
+    (each folder's files, then its subfolders in turn; symlinked folders not followed). A DirEntry carries
+    the size on Windows without another stat, which a Path from rglob does not."""
+    def walk(d: str, prefix: str):
+        with os.scandir(d) as it:
+            entries = list(it)
+        for e in entries:
+            if e.is_file():
+                yield prefix + e.name, e
+        for e in entries:
+            if e.is_dir() and not e.is_symlink():
+                yield from walk(e.path, prefix + e.name + "/")
+    return walk(str(top), "")
 
 
 TYPES = ("page", "dashboard", "slides", "doc", "sheet", "design", "motion", "design-system")
@@ -142,10 +161,8 @@ def _ds_build(vdir: Path) -> None:
             (vdir / extra).unlink(missing_ok=True)
         shutil.rmtree(vdir / "artifact-type", ignore_errors=True)
     files = {}
-    for f in vdir.rglob("*"):
-        if not f.is_file():
-            continue
-        rel = f.relative_to(vdir).as_posix()
+    for rel, _ in walk_files(vdir):
+        f = vdir / rel
         files[rel] = f.read_text("utf-8", "replace") if f.suffix.lower() in _DS_TEXT else f.read_bytes()
     try:
         index = json.loads(files.get("design-system.json") or "{}")
@@ -358,8 +375,8 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                 _ds_install(vdir, kind, d / f"v{meta['versions'][-1]['n']}" if meta["versions"] else None)
             if not (vdir / TYPE_ENTRY[kind]).is_file():
                 raise ValueError(f"a {kind} needs {TYPE_ENTRY[kind]}")
-            all_files = [f for f in vdir.rglob("*") if f.is_file()]
-            size = sum(f.stat().st_size for f in all_files)
+            all_files = [e for _, e in walk_files(vdir)]
+            size = sum(e.stat().st_size for e in all_files)
             if size > MAX_HTML_BYTES:
                 raise ValueError("artifact exceeds 16 MB")
             if len(all_files) > MAX_FILES:
@@ -457,8 +474,7 @@ def empty_trash() -> list[str]:
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:
-    vdir = version_dir(aid, n)
-    return sorted(f.relative_to(vdir).as_posix() for f in vdir.rglob("*") if f.is_file())
+    return sorted(rel for rel, _ in walk_files(version_dir(aid, n)))
 
 
 def read_file(aid: str, rel: str, n: Optional[int] = None) -> bytes:
@@ -468,15 +484,55 @@ def read_file(aid: str, rel: str, n: Optional[int] = None) -> bytes:
     return p.read_bytes()
 
 
+def json_cached(p: Path, cache: dict, keep: int = 0, *, st: Optional[os.stat_result] = None) -> Any:
+    """The JSON in ``p``, parsed again only when the file changed (every write here replaces the file:
+    a new inode, mtime or size). The value is shared with later calls: never change it. ``keep``: the most
+    entries ``cache`` holds (0: no limit). FileNotFoundError when ``p`` is missing, ValueError when bad."""
+    st = st or p.stat()
+    stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+    hit = cache.get(p)
+    if hit and hit[0] == stamp:
+        return hit[1]
+    value = json.loads(p.read_text(encoding="utf-8"))
+    _cache_put(cache, keep, p, stamp, value)
+    return value
+
+
+def json_remember(p: Path, cache: dict, value: Any, st: os.stat_result, keep: int = 0) -> None:
+    """After writing ``value`` as JSON (it must read back equal) to a temporary file whose stat is ``st``
+    and moving that onto ``p`` (a rename keeps inode and mtime): the next json_cached(p) skips the parse,
+    while a write by another process since then still counts as a change."""
+    _cache_put(cache, keep, p, (st.st_mtime_ns, st.st_size, st.st_ino), value)
+
+
+def _cache_put(cache: dict, keep: int, p: Path, stamp: tuple, value: Any) -> None:
+    cache.pop(p, None)
+    if keep and len(cache) >= keep:
+        cache.pop(next(iter(cache)), None)
+    cache[p] = (stamp, value)
+
+
+_METAS: dict = {}  # meta.json path -> (stamp, meta): the gallery parses only the ones that changed
+
+
 def list_all() -> list[dict]:
-    out = []
+    """Every artifact's meta, newest first (each a fresh dict; the nested lists are shared: read them only)."""
+    out, seen = [], set()
     for d in root().iterdir():
         m = d / "meta.json"
-        if m.is_file():
-            try:
-                out.append(json.loads(m.read_text(encoding="utf-8")))
-            except ValueError:
-                continue
+        try:
+            st = m.stat()
+        except OSError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        try:
+            out.append(dict(json_cached(m, _METAS, st=st)))
+        except ValueError:
+            continue
+        seen.add(m)
+    for gone in [k for k in _METAS if k not in seen]:  # deleted artifacts (or another root, in tests)
+        _METAS.pop(gone, None)
     return sorted(out, key=lambda m: m.get("updated", 0), reverse=True)
 
 
@@ -630,6 +686,26 @@ def comments_list(aid: str, include_resolved: bool = True) -> list[dict]:
     p = _comments_path(aid)
     items = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
     return [c for c in items if include_resolved or not c.get("resolved")]
+
+
+_OPEN_COUNTS: dict = {}  # comments.json path -> ((mtime_ns, size, inode), count)
+
+
+def open_user_comments(aid: str, base: Optional[Path] = None) -> int:
+    """How many of the person's comments are open (the gallery's badge on a card), counted again only
+    when comments.json changed. ``base``: root(), when the caller lists many."""
+    p = _dir(aid, base) / "comments.json"
+    try:
+        st = p.stat()
+    except FileNotFoundError:
+        return 0
+    stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+    hit = _OPEN_COUNTS.get(p)
+    if hit and hit[0] == stamp:
+        return hit[1]
+    n = sum(1 for c in comments_list(aid, include_resolved=False) if c["author"] == "user")
+    _OPEN_COUNTS[p] = (stamp, n)
+    return n
 
 
 def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[dict] = None,

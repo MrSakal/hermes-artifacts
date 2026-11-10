@@ -20,9 +20,7 @@
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
     en: { overview: "Overview", colors: "Colors", type: "Typography", components: "Components", assets: "Assets", files: "Files",
-      sections: "Sections", foundations: "Foundations", theme: "Theme", makeDefault: "Make default", isDefault: "Default",
-      defaultOn: "Designs, decks, films and dashboards now build on this system", defaultOff: "No longer the default design system",
-      defaultTitle: "The design system new designs, decks, films and dashboards use", exp: "Export", css: "tokens.css", json: "tokens.json",
+      sections: "Sections", theme: "Theme", exp: "Export", css: "tokens.css", json: "tokens.json",
       zip: "All files (.zip)", noLib: "The export library didn't load (open the system in Hermes Desktop)",
       edit: "Edit", save: "Save", cancel: "Cancel", del: "Delete", add: "Add token", saving: "Saving…", saved: "Saved",
       notSaved: "Not saved", conflict: "Changed meanwhile: reopen to see the new version", noSave: "Can't save here",
@@ -30,19 +28,17 @@
       noReadme: "No README.md yet: every reader starts there.", writeReadme: "Write the README", usage: "Usage", value: "Value",
       name: "Name", sample: "The quick brown fox jumps over the lazy dog", fonts: "Font files", families: "Families",
       notListed: "not in tokens.json type.fonts: no @font-face", missingFont: "listed, but the file is missing",
-      noPreview: "No preview.html", guidelines: "Guidelines", previewFailed: "The preview failed: ",
+      noPreview: "No preview.html", previewFailed: "The preview failed: ",
       reactMissing: "The index lists React, but components/lib/ doesn't carry it: previews that need it stay static here (no network).",
-      upload: "Upload image", newGroup: "New group", groupName: "Group name", tooBig: "Images up to 8 MB (png, jpeg, gif, webp) or an SVG up to 2 MB",
+      upload: "Upload image", groupName: "Group name", tooBig: "Images up to 8 MB (png, jpeg, gif, webp) or an SVG up to 2 MB",
       badName: "Names: letters, digits, _ . - (no spaces, no /), up to 64", taken: "That name is used already",
       search: "Search", noMatch: "Nothing matches.", wouldDrop: "That value would drop: ", download: "Download", empty: "Nothing here yet.", other: "Other",
       ci: "A pipeline republishes this system: edits here may be overwritten.", readOnly: "Editing is off for this system.",
       updated: function (by, at) { return "Updated" + (by ? " by " + by : "") + (at ? " · " + at : ""); },
-      noTokens: "tokens.json is missing or not valid JSON.", addColor: "Add color", tokens: "tokens", delSure: "Delete this token?",
+      noTokens: "tokens.json is missing or not valid JSON.", addColor: "Add color", delSure: "Delete this token?",
       uploaded: "Uploaded", fam: { spacing: "Spacing", radius: "Radius", shadow: "Shadows" } },
     hu: { overview: "Áttekintés", colors: "Színek", type: "Tipográfia", components: "Komponensek", assets: "Eszközök", files: "Fájlok",
-      sections: "Fejezetek", foundations: "Alapok", theme: "Téma", makeDefault: "Legyen alapértelmezett", isDefault: "Alapértelmezett",
-      defaultOn: "Az új tervek, diasorok, filmek és dashboardok mostantól erre épülnek", defaultOff: "Már nem ez az alapértelmezett",
-      defaultTitle: "Erre a design systemre épülnek az új tervek, diasorok, filmek és dashboardok", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
+      sections: "Fejezetek", theme: "Téma", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
       zip: "Minden fájl (.zip)", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)",
       edit: "Szerkesztés", save: "Mentés", cancel: "Mégse", del: "Törlés", add: "Új token", saving: "Mentés…", saved: "Elmentve",
       notSaved: "Nincs mentve", conflict: "Közben megváltozott: nyisd meg újra az új verzióért", noSave: "Itt nem lehet menteni",
@@ -50,14 +46,14 @@
       noReadme: "Még nincs README.md: minden olvasó ott kezdi.", writeReadme: "README írása", usage: "Használat", value: "Érték",
       name: "Név", sample: "Árvíztűrő tükörfúrógép, gyors barna róka", fonts: "Betűfájlok", families: "Családok",
       notListed: "nincs a tokens.json type.fonts listájában: nincs @font-face", missingFont: "listázva, de a fájl hiányzik",
-      noPreview: "Nincs preview.html", guidelines: "Irányelvek", previewFailed: "Az előnézet hibát dobott: ",
+      noPreview: "Nincs preview.html", previewFailed: "Az előnézet hibát dobott: ",
       reactMissing: "Az index Reactot listáz, de a components/lib/ nem tartalmazza: az ezt igénylő előnézetek itt statikusak (nincs hálózat).",
-      upload: "Kép feltöltése", newGroup: "Új csoport", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp) vagy 2 MB-os SVG",
+      upload: "Kép feltöltése", groupName: "Csoport neve", tooBig: "Legfeljebb 8 MB-os kép (png, jpeg, gif, webp) vagy 2 MB-os SVG",
       badName: "Név: betű, szám, _ . - (szóköz és / nélkül), legfeljebb 64", taken: "Ez a név már foglalt",
       search: "Keresés", noMatch: "Nincs találat.", wouldDrop: "Ez az érték kimaradna: ", download: "Letöltés", empty: "Itt még nincs semmi.", other: "Egyéb",
       ci: "Egy pipeline újraközli ezt a rendszert: az itteni szerkesztések felülíródhatnak.", readOnly: "Ennél a rendszernél a szerkesztés ki van kapcsolva.",
       updated: function (by, at) { return "Frissítve" + (by ? " · " + by : "") + (at ? " · " + at : ""); },
-      noTokens: "A tokens.json hiányzik, vagy nem érvényes JSON.", addColor: "Új szín", tokens: "token", delSure: "Törlöd ezt a tokent?",
+      noTokens: "A tokens.json hiányzik, vagy nem érvényes JSON.", addColor: "Új szín", delSure: "Törlöd ezt a tokent?",
       uploaded: "Feltöltve", fam: { spacing: "Térközök", radius: "Lekerekítés", shadow: "Árnyékok" } }
   }, L);
 
@@ -87,6 +83,7 @@
     S.components = components();
     S.sections = sections();
     S.editable = !C.thumb && !!(window.hermes && window.hermes.save) && !S.index.editing;
+    S.frameParts = null; // what every preview frame carries, made on the first one (frameParts)
     var fx = document.getElementById("ds-fontfaces") || document.head.appendChild(h("style", { id: "ds-fontfaces" }));
     fx.textContent = fontFaces();
   }
@@ -182,20 +179,9 @@
   }
   function tokensText(t) { return JSON.stringify(t, null, 2) + "\n"; }
 
-  // ------------------------------------------------------------------ chrome
-  var themeSeg = h("div", { "class": "kit-seg ds-themes", role: "group", "aria-label": T.theme });
-  function drawThemes() {
-    themeSeg.replaceChildren();
-    themeSeg.hidden = S.m.themes.length < 2;
-    S.m.themes.forEach(function (t) {
-      var b = kit.labelled(kit.button(t.name, "", function () { state.chosenTheme = true; setTheme(t.id); }, t.name), t.name);
-      b.setAttribute("aria-pressed", String(t.id === state.theme));
-      themeSeg.appendChild(b);
-    });
-  }
+  // ------------------------------------------------------------------ the theme the page previews in
   function setTheme(id) {
     state.theme = id;
-    drawThemes();
     Object.keys(frames).forEach(function (k) {
       var f = frames[k];
       try { f.iframe.contentWindow.postMessage({ dsTheme: id }, "*"); } catch (e) {}
@@ -209,29 +195,6 @@
     var want = ht.mode === "dark" ? "dark" : "light";
     if (want !== state.theme && S.m.themes.some(function (t) { return t.id === want; })) setTheme(want);
   });
-
-  var defBtn = kit.labelled(kit.button(T.makeDefault, "", toggleDefault, T.defaultTitle), T.makeDefault);
-  defBtn.classList.add("ds-default"); defBtn.hidden = true;
-  var isDefault = false;
-  function drawDefault() {
-    defBtn.setAttribute("aria-pressed", String(isDefault));
-    kit.labelled(defBtn, isDefault ? "✓ " + T.isDefault : T.makeDefault);
-  }
-  function toggleDefault() {
-    var on = !isDefault;
-    window.hermes.ds.makeDefault(on).then(function (r) {
-      if (!r || r.ok === false) throw new Error(T.notSaved);
-      isDefault = r.default !== undefined ? r.default === C.id : on;
-      drawDefault();
-      kit.toast(isDefault ? T.defaultOn : T.defaultOff);
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
-  }
-  if (!C.thumb && window.hermes && window.hermes.ds) {
-    window.hermes.ds.get().then(function (d) {
-      isDefault = !!(d && !d.none && d.id && d.id === C.id);
-      defBtn.hidden = false; drawDefault();
-    }).catch(function () {});
-  }
 
   // ------------------------------------------------------------------ exports
   var libs = {};
@@ -293,15 +256,15 @@
 
   // ------------------------------------------------------------------ nav
   function navItems() {
-    var out = [{ id: "overview", title: T.overview, part: "top" }];
-    S.sections.forEach(function (s) { out.push({ id: s.id, title: s.title, part: "sections" }); });
-    if (S.m.colors.length || S.tokens.color) out.push({ id: "colors", title: T.colors, part: "foundations" });
+    var out = [{ id: "overview", title: T.overview }];
+    S.sections.forEach(function (s) { out.push({ id: s.id, title: s.title }); });
+    if (S.m.colors.length || S.tokens.color) out.push({ id: "colors", title: T.colors });
     if (S.m.type.groups.length || S.m.type.familyKeys.length || S.m.type.fonts.length || Object.keys(S.fontUrls).length)
-      out.push({ id: "type", title: T.type, part: "foundations" });
-    S.m.families.forEach(function (f) { out.push({ id: "fam:" + f.key, title: T.fam[f.key] || f.title, part: "foundations" }); });
-    if (S.components.length) out.push({ id: "components", title: T.components, part: "build" });
-    if (assetPaths().length || S.editable) out.push({ id: "assets", title: T.assets, part: "build" });
-    out.push({ id: "files", title: T.files, part: "build" });
+      out.push({ id: "type", title: T.type });
+    S.m.families.forEach(function (f) { out.push({ id: "fam:" + f.key, title: T.fam[f.key] || f.title }); });
+    if (S.components.length) out.push({ id: "components", title: T.components });
+    if (assetPaths().length || S.editable) out.push({ id: "assets", title: T.assets });
+    out.push({ id: "files", title: T.files });
     return out;
   }
   var NAV_ICON = {
@@ -465,6 +428,15 @@
     return wants && !libFiles().some(function (p) { return /react/i.test(p); });
   }
   function inlineJs(s) { return "<script>" + String(s).replace(/<\/script/gi, "<\\/script") + "</" + "script>"; }
+  /** The system's compiled CSS and its scripts, the same in every preview: made once per load(). */
+  function frameParts() {
+    if (!S.frameParts) {
+      var css = dsKit.css({ tokens: S.tokens, fonts: S.fontUrls, css: kit.fileText("components/bundle.css") || "" });
+      S.frameParts = { css: "<style>" + css.replace(/<\/style/gi, "<\\/style") + "</style>",
+        js: libFiles().map(function (p) { return inlineJs(kit.fileText(p)); }).join("") + (S.bundle ? inlineJs(S.bundle) : "") };
+    }
+    return S.frameParts;
+  }
   function frameHtml(path, id) {
     var dir = dirOf(path), src = (kit.fileText(path) || "").replace(/^\s*<!--\s*@dsCard\b[\s\S]*?-->\s*/, "");
     // The system's own files by relative path: scripts inline, the rest as data: URLs.
@@ -480,15 +452,13 @@
       var p = resolveRel(dir, u);
       return p && C.files[p] != null ? "url(\"" + kit.fileUrl(p) + "\")" : all;
     });
-    var css = dsKit.css({ tokens: S.tokens, fonts: S.fontUrls, css: kit.fileText("components/bundle.css") || "" });
     var probe = "(function(){var ID=" + JSON.stringify(id) + ";document.documentElement.setAttribute('data-theme'," + JSON.stringify(state.theme) + ");" +
       "function post(m){m.dsFrame=ID;try{parent.postMessage(m,'*')}catch(e){}}" +
       "addEventListener('error',function(e){post({error:String(e.message||'error')})});" +
       "addEventListener('message',function(e){if(e.source===parent&&e.data&&e.data.dsTheme)document.documentElement.setAttribute('data-theme',e.data.dsTheme)});" +
       "function size(){var b=document.body,d=document.documentElement;post({h:Math.max(b?b.scrollHeight:0,d.scrollHeight)})}" +
       "addEventListener('load',function(){size();setTimeout(size,250);post({loaded:1});if(window.ResizeObserver&&document.body)new ResizeObserver(size).observe(document.body)})})();";
-    var pre = "<meta charset=\"utf-8\"><style>" + css.replace(/<\/style/gi, "<\\/style") + "</style>" + inlineJs(probe) +
-      libFiles().map(function (p) { return inlineJs(kit.fileText(p)); }).join("") + (S.bundle ? inlineJs(S.bundle) : "");
+    var fp = frameParts(), pre = "<meta charset=\"utf-8\">" + fp.css + inlineJs(probe) + fp.js;
     if (/<head\b[^>]*>/i.test(src)) return src.replace(/<head\b[^>]*>/i, function (m) { return m + pre; });
     if (/<html\b[^>]*>/i.test(src)) return src.replace(/<html\b[^>]*>/i, function (m) { return m + "<head>" + pre + "</head>"; });
     return "<!doctype html><html><head>" + pre + "</head><body>" + src + "</body></html>";
@@ -552,7 +522,7 @@
       roles: { surfaces: "Surfaces", text: "Text", fills: "Fills and status backgrounds", borders: "Borders and rings", charts: "Charts", palette: "Palette" },
       preview: "Preview", props: "Props", noProps: "This component declares no props.", propType: "Type", note: "Note", required: "required",
       sizeCol: "Type · size", storage: function (n, s) { return n + (n === 1 ? " file · " : " files · ") + s; }, newSet: "New set",
-      uploadFont: "Upload font", addStyle: "Add style", group: "Group", family: "Family", size: "Size", weight: "Weight",
+      uploadFont: "Upload font", addStyle: "Add style", family: "Family", size: "Size", weight: "Weight",
       lineHeight: "Line height", layers: "Layers", addLayer: "Add layer", inset: "inset", color: "Color", blur: "Blur", spread: "Spread",
       cats: { docs: "Documents", css: "Stylesheets", js: "Scripts", data: "Data", fonts: "Fonts", images: "Images", other: "Other" },
       noFilePreview: "No preview for this file.", delFile: "Delete this file?", fontTooBig: "Fonts up to 8 MB (woff2, woff, ttf, otf)",
@@ -576,7 +546,7 @@
       roles: { surfaces: "Felületek", text: "Szöveg", fills: "Kitöltések és státuszhátterek", borders: "Keretek és gyűrűk", charts: "Diagramok", palette: "Paletta" },
       preview: "Előnézet", props: "Propok", noProps: "Ez a komponens nem deklarál propokat.", propType: "Típus", note: "Megjegyzés", required: "kötelező",
       sizeCol: "Típus · méret", storage: function (n, s) { return n + " fájl · " + s; }, newSet: "Új készlet",
-      uploadFont: "Betű feltöltése", addStyle: "Új stílus", group: "Csoport", family: "Család", size: "Méret", weight: "Vastagság",
+      uploadFont: "Betű feltöltése", addStyle: "Új stílus", family: "Család", size: "Méret", weight: "Vastagság",
       lineHeight: "Sormagasság", layers: "Rétegek", addLayer: "Új réteg", inset: "belső", color: "Szín", blur: "Elmosás", spread: "Terítés",
       cats: { docs: "Dokumentumok", css: "Stíluslapok", js: "Szkriptek", data: "Adat", fonts: "Betűk", images: "Képek", other: "Egyéb" },
       noFilePreview: "Ehhez a fájlhoz nincs előnézet.", delFile: "Törlöd ezt a fájlt?", fontTooBig: "Legfeljebb 8 MB-os betűfájl (woff2, woff, ttf, otf)",
@@ -1633,7 +1603,7 @@
   // ------------------------------------------------------------------ render
   function render() {
     frames = {}; closePop();
-    drawNav(); drawThemes();
+    drawNav();
     var s = state.section, kids;
     if (s === "overview") kids = overview();
     else if (s.slice(0, 3) === "md:") { var sec = S.sections.filter(function (x) { return x.id === s; })[0]; kids = sec ? mdSection(sec.path, sec.title) : overview(); }

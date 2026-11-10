@@ -2,6 +2,7 @@
 (function () {
   if (window.hermes) return;
   var port = null, seq = 0, pending = new Map(), queue = [], failed = false, listeners = {};
+  var hostAccent = null; // Hermes' accent (the host sends its theme), for the page's marks
 
   function call(op, args) {
     return new Promise(function (resolve, reject) {
@@ -86,8 +87,6 @@
     }
     return parts.join(" > ");
   }
-  /** Hermes' accent (the host sends its theme), for the page's marks. */
-  var hostAccent = null;
   function mark() { return hostAccent || "#6b7280"; }
   function box(color) {
     var b = document.createElement("div");
@@ -163,7 +162,6 @@
       remove: function (key) { return call("storage.set", { key: key, value: null }).then(function () {}); },
       list: function () { return call("storage.list").then(function (r) { return r.keys; }); }
     }),
-    /** Send a message to the Hermes agent (lands in its artifact inbox / the chat). */
     /** Into the artifact's chat. By default it is put in the chat's message box for the user to send (Claude's
      *  stage_in_chat); {deliver: "send"} asks the user to confirm, then sends it. */
     send: function (text, data, opts) {
@@ -207,7 +205,6 @@
       edit: function (tab, ops, baseRev) { return call("doc.edit", { tab: tab || null, ops: ops, base_rev: baseRev == null ? null : baseRev }); },
       ask: function (a) { return call("doc.ask", a || {}); },
       history: function (tab) { return call("doc.history", { tab: tab || null }); },
-      at: function (tab, rev) { return call("doc.at", { tab: tab || null, rev: rev }); },
       restore: function (tab, rev) { return call("doc.restore", { tab: tab || null, rev: rev }); },
       /** Suggesting mode: propose ops instead of making them; the person accepts or rejects each. */
       suggest: function (tab, ops) { return call("doc.suggest", { tab: tab || null, ops: ops }); },
