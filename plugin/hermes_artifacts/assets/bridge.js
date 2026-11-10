@@ -239,6 +239,9 @@
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */
     save: function (files, baseVersion) { return call("save", { files: files, base_version: baseVersion || null }); },
+    /** Type runtimes: a picture of the version shown (a PNG data URL, at most 400 KB) for the gallery's card;
+     *  version: the one drawn (nothing is kept when a newer one exists). Makes no version. */
+    preview: function (dataUrl, version) { return call("preview.set", { data: String(dataUrl), version: typeof version === "number" ? version : null }); },
     /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
      *  then sends an "export" event with the id the user picked. */
     chrome: function (opts) { return call("chrome", opts || {}); },

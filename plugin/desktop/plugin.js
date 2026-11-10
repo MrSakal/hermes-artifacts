@@ -115,6 +115,7 @@ const STRINGS = {
     tileAbout_sheet: 'A spreadsheet you and Hermes edit together: formulas, several sheets, charts; export to Excel or CSV.',
     tileAbout_slides: 'A slide deck to present, page through and download as PDF or PowerPoint.',
     tileAbout_design: 'Artboards on a canvas: pages, screens, mockups, posters and social posts.',
+    tileAbout_model: 'A 3D model you can orbit, edit and export: parametric parts and meshes from files.',
     tileAbout_dashboard: 'Charts, figures and tables of data; every number shows where it came from.',
     tileAbout_motion: 'A short animation that plays in place and exports as video.',
     tileAbout_page: 'Any web page or small tool, written as code.',
@@ -184,6 +185,7 @@ const STRINGS = {
     type_doc: 'Doc',
     type_sheet: 'Sheet',
     type_design: 'Design',
+    type_model: '3D model',
     type_motion: 'Motion',
     'type_design-system': 'Design system',
     tile_page: 'Make your own',
@@ -192,9 +194,11 @@ const STRINGS = {
     tile_doc: 'Docs',
     tile_sheet: 'Sheets',
     tile_design: 'Design',
+    tile_model: '3D',
     tile_motion: 'Motion',
     'tile_design-system': 'Design system',
     prompt_design: 'Make a design artifact (type design) of: ',
+    prompt_model: 'Make a 3D model artifact (type model) of: ',
     prompt_motion: 'Make a motion artifact (type motion), an animation of: ',
     'prompt_design-system': 'Make a design system artifact (type design-system) for: ',
     prompt_page: 'Make an artifact (a web page, type page) for: ',
@@ -312,6 +316,7 @@ const STRINGS = {
     tileAbout_sheet: 'Táblázat, amit Hermesszel együtt szerkesztetek: képletek, több munkalap, diagramok; Excel vagy CSV export.',
     tileAbout_slides: 'Diasor vetítéshez, lapozáshoz, PDF vagy PowerPoint letöltéssel.',
     tileAbout_design: 'Artboardok egy vásznon: oldalak, képernyők, látványtervek, plakátok, posztok.',
+    tileAbout_model: 'Körbeforgatható, szerkeszthető, exportálható 3D modell: paraméteres elemek és fájlokból hozott hálók.',
     tileAbout_dashboard: 'Diagramok, számok és táblázatok; minden szám mutatja, honnan jön.',
     tileAbout_motion: 'Rövid animáció, ami helyben lejátszódik, és videóként exportálható.',
     tileAbout_page: 'Bármilyen weboldal vagy kis eszköz, kódként megírva.',
@@ -381,6 +386,7 @@ const STRINGS = {
     type_doc: 'Dokumentum',
     type_sheet: 'Táblázat',
     type_design: 'Terv',
+    type_model: '3D modell',
     type_motion: 'Animáció',
     'type_design-system': 'Arculat',
     tile_page: 'Saját készítése',
@@ -389,6 +395,7 @@ const STRINGS = {
     tile_doc: 'Docs',
     tile_sheet: 'Sheets',
     tile_design: 'Design',
+    tile_model: '3D',
     tile_motion: 'Motion',
     'tile_design-system': 'Arculat',
   }
@@ -533,7 +540,7 @@ function markClosed(sid, closed) {
 // Types published whole get a placeholder in the tile beside the chat from the first step (the guide)
 // until the publish swaps the same tile to the artifact. A doc gets none: its outline is published within
 // seconds and then fills in live, which is what Claude shows.
-const PLACEHOLDER = new Set(['page', 'dashboard', 'slides', 'design', 'motion', 'design-system', 'sheet'])
+const PLACEHOLDER = new Set(['page', 'dashboard', 'slides', 'design', 'model', 'motion', 'design-system', 'sheet'])
 
 /** The chat on screen: the focused chat while its own route shows (pages and the full page are not). */
 function frontChat() {
@@ -1064,6 +1071,18 @@ function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
   return p
 }
 
+// The picture a page stored of a version (a model's view), per id:version: a card shows it instead of a frame.
+const previewCache = new Map()
+function fetchPreview(ctx, id, v) {
+  const key = `${id}:${v}`
+  if (previewCache.has(key)) return previewCache.get(key)
+  const p = ctx.rest(`/artifacts/${enc(id)}/preview?v=${v}`).then(r => r.data)
+  p.catch(() => previewCache.delete(key))
+  previewCache.set(key, p)
+  while (previewCache.size > 60) previewCache.delete(previewCache.keys().next().value)
+  return p
+}
+
 // Thumbnails load a few at a time, so opening the gallery never fires dozens of requests at once.
 const thumbQueue = []
 let thumbActive = 0
@@ -1177,7 +1196,7 @@ const hoverFill = `linear-gradient(${C.hover}, ${C.hover}), ${C.bg}`
 
 // Each type's icon (an ICONS name); the design system wears a swatch book.
 const TYPE_ICON = { page: 'page', dashboard: 'chart', slides: 'slides', doc: 'doc', sheet: 'sheet', design: 'palette',
-  'design-system': 'swatch', motion: 'motion' }
+  model: 'cube', 'design-system': 'swatch', motion: 'motion' }
 
 const ICONS = {
   swatch: 'M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2zM16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7M7 17h.01M11 8l2.3-2.3a2.4 2.4 0 0 1 3.4 0l1.9 1.9a2.4 2.4 0 0 1 0 3.4L9.9 19.8',
@@ -1187,6 +1206,7 @@ const ICONS = {
   doc: 'M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6',
   sheet: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 9h16M4 14.5h16M9.5 4v16',
   palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01',
+  cube: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',
   motion: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.6v6.8l5.6-3.4z',
   code: 'M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14',
   folder: 'M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
@@ -1327,6 +1347,7 @@ function FloatingFooter({ label, onClick, spot }) {
 function Thumb({ ctx, art, height }) {
   const box = useRef(null)
   const [src, setSrc] = useState(null)
+  const [pic, setPic] = useState(null) // the stored preview picture (art.preview), shown instead of a frame
   const [w, setW] = useState(0)
   useLayoutEffect(() => {
     const el = box.current
@@ -1338,6 +1359,12 @@ function Thumb({ ctx, art, height }) {
     const io = new IntersectionObserver(entries => {
       if (started || !entries.some(e => e.isIntersecting)) return
       started = true
+      if (art.preview) {
+        queueThumb(() => fetchPreview(ctx, art.id, art.version))
+          .then(setPic)
+          .catch(() => {})
+        return
+      }
       queueThumb(() => fetchHtml(ctx, art.id, art.version, { thumb: true }))
         .then(setSrc)
         .catch(() => {})
@@ -1347,13 +1374,15 @@ function Thumb({ ctx, art, height }) {
       ro.disconnect()
       io.disconnect()
     }
-  }, [art.id, art.version])
+  }, [art.id, art.version, Boolean(art.preview)])
   const VW = 1280
   const scale = w ? w / VW : 0.2
   return jsx('div', {
     ref: box,
     style: { position: 'relative', height, overflow: 'hidden', background: C.bg, pointerEvents: 'none' },
-    children: src
+    children: pic
+      ? jsx('img', { src: pic, alt: '', draggable: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } })
+      : src
       ? jsx(SandboxedFrame, {
           src,
           title: art.title,
@@ -1799,7 +1828,7 @@ function inDate(a, when) {
   if (when === 'yesterday') return at >= today - DAY && at < today
   return at >= Date.now() / 1000 - (when === '7d' ? 7 : 30) * DAY
 }
-const TYPE_KEYS = ['doc', 'sheet', 'slides', 'design', 'design-system', 'dashboard', 'motion']
+const TYPE_KEYS = ['doc', 'sheet', 'slides', 'design', 'model', 'design-system', 'dashboard', 'motion']
 
 /** Filter and sort: Sort by, Type (with counts), Date opened, Pinned. */
 function FilterMenu({ ctx, onClose }) {
@@ -1872,7 +1901,7 @@ function NewMenu({ ctx, onClose }) {
     ]
   })
 }
-const NEW_KINDS = ['doc', 'sheet', 'slides', 'design', 'dashboard', 'motion', 'design-system', 'page']
+const NEW_KINDS = ['doc', 'sheet', 'slides', 'design', 'model', 'dashboard', 'motion', 'design-system', 'page']
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
@@ -2119,6 +2148,10 @@ function useBridge(ref, art, ctx, portRef) {
           if (m.op === 'dataset.approve' && !gesture) return reply({ ok: false, error: 'allowing live data needs a click in the page' })
           const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: m.op, args: m.args || {} } })
           if (m.op === 'history.restore' && value.ok) await refresh(ctx)
+          if (m.op === 'preview.set' && value.ok) {
+            previewCache.delete(`${aid}:${value.version}`)
+            refresh(ctx) // the card shows the new picture
+          }
           if ((m.op === 'save' || m.op === 'dataset.edit') && value.ok) {
             // The page already shows what it saved: don't reload it (autosave can write several in a row).
             if (!keepFrame.has(aid)) keepFrame.set(aid, new Set())

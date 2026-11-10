@@ -39,7 +39,8 @@ def _view(m: dict, base=None) -> dict:
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
             "session": m.get("session"), "folder": m.get("folder") or None, "opened": m.get("opened"),
-            "comments": store.open_user_comments(m["id"], base)}
+            "comments": store.open_user_comments(m["id"], base),
+            **({"preview": True} if store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file() else {})}
 
 
 def chat_status(session: Optional[str]) -> dict:
@@ -92,6 +93,8 @@ _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-
                # Design: the index, artboard sources (the canvas edits text, styles, positions, tweaks) and uploads.
                "design": r"^(canvas\.json|[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}){0,3}\.dc\.html"
                          r"|uploads/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
+               # Model: the model and the meshes brought in (a data: URL of any type, stored as the file).
+               "model": r"^(model\.json|meshes/[A-Za-z0-9_-]{1,64}\.(glb|gltf|stl|obj|ply|3mf))$",
                # Motion: the page's own records of what the user retyped, recolored, refaced or recut.
                "motion": r"^modules/(retyped|recolored|refaced|recut|retouched)\.json$",
                # Design System: tokens, the brand book, component guidelines, asset uploads.
@@ -106,6 +109,9 @@ _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)
 _FONT_PATH = re.compile(r"\.(woff2?|ttf|otf)$", re.I)
 _FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x-font-[a-z]+|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+# A mesh the model page brings in: any data: URL (browsers name these types inconsistently).
+_MESH_PATH = re.compile(r"^meshes/.+\.(glb|gltf|stl|obj|ply|3mf)$", re.I)
+_ANY_URI = re.compile(r"^data:[^,]*;base64,([A-Za-z0-9+/=]+)$")
 # An SVG the Design System page uploads (Assets): text or a base64 data: URI, kept only when static.
 _SVG_PATH = re.compile(r"\.svg$", re.I)
 _SVG_URI = re.compile(r"^data:image/svg\+xml(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=]+)$", re.I)
@@ -208,7 +214,13 @@ def _op(aid: str, op: str, a: dict) -> dict:
         for rel, val in files.items():
             if not re.match(pat, str(rel)) or not (val is None or isinstance(val, str)):
                 raise ValueError(f"can't save {rel!r} here")
-            if _SVG_PATH.search(str(rel)) and val is not None:
+            if _MESH_PATH.match(str(rel)) and val is not None:
+                from .models import MAX_MESH_BYTES
+                mm = _ANY_URI.match(val)
+                if not mm or len(mm.group(1)) * 3 // 4 > MAX_MESH_BYTES:
+                    raise ValueError(f"{rel}: a mesh file (glb, gltf, stl, obj, ply or 3mf) of at most 12 MB, as a data: URL")
+                val = {"base64": mm.group(1)}
+            elif _SVG_PATH.search(str(rel)) and val is not None:
                 val = _safe_svg(str(rel), val)  # only design-system assets match .svg in _SAVE_PATHS
             elif _IMG_PATH.search(str(rel)) and val is not None:
                 im = _IMG_URI.match(val)
@@ -226,6 +238,11 @@ def _op(aid: str, op: str, a: dict) -> dict:
             return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files, by="user")
         return {"ok": True, "version": nm["versions"][-1]["n"]}
+    if op == "preview.set":
+        # A picture of the version the page shows (a model's view) for the gallery: no version, not an edit.
+        v = _int(a.get("version"))
+        n = store.preview_set(aid, a.get("data"), v)
+        return {"ok": True, "version": n} if n is not None else {"ok": False, "stale": True}
     if op == "ds.get":
         # Any page may build on a design system (that's what one is for): its tokens, stylesheet, fonts.
         v = a.get("version")
@@ -427,6 +444,14 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     raise ApiError(404, "unknown version or page")
                 return {"id": aid, "version": _int(query.get("v")), "type": m.get("type", "page"),
                         "html": inject_bridge(html.encode("utf-8")).decode("utf-8")}
+            elif rest == ["preview"] and method == "GET":
+                # The gallery card's picture (a model's view): one small request per card shown.
+                m = _meta(aid)
+                n = _int(query.get("v")) or m["versions"][-1]["n"]
+                data = store.preview_get(aid, n)
+                if not data:
+                    raise ApiError(404, "no preview")
+                return {"id": aid, "version": n, "data": data}
             elif rest == ["files"] and method == "GET":
                 _meta(aid)
                 try:

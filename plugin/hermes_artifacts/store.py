@@ -84,10 +84,10 @@ def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
     return walk(str(top), "")
 
 
-TYPES = ("page", "dashboard", "slides", "doc", "sheet", "design", "motion", "design-system")
+TYPES = ("page", "dashboard", "slides", "doc", "sheet", "design", "model", "motion", "design-system")
 # The file a type's content starts from (validated at publish).
 TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md",
-              "sheet": "sheet.json", "design": "canvas.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
+              "sheet": "sheet.json", "design": "canvas.json", "model": "model.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
 _REL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){0,7}$")
 MAX_FILES = 512
 
@@ -320,6 +320,8 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
         meta = get_meta(aid) if aid else None
         if aid and meta is None:
             _dir(aid)  # validates id
+        if not title and not meta and path is not None and type == "model" and Path(path).is_file():
+            title = Path(path).stem  # a mesh file brought in names the model
         aid = aid or slugify(title or "artifact")
         d = _dir(aid)
         d.mkdir(parents=True, exist_ok=True)
@@ -347,6 +349,11 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
                     vdir.mkdir(exist_ok=True)
                     spec = xlsx_in.to_sheet_json(src)
                     (vdir / "sheet.json").write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+                elif src.is_file() and kind == "model" and src.suffix.lower() != ".json":
+                    # A mesh file becomes the model's meshes/<name>.<ext> with one file part.
+                    from . import models
+                    vdir.mkdir(exist_ok=True)
+                    models.wrap_mesh(src, vdir, title)
                 elif src.is_file():
                     vdir.mkdir(exist_ok=True)
                     _copy_fresh(str(src), str(vdir / TYPE_ENTRY[kind] if kind != "page" else vdir / "index.html"))
@@ -371,6 +378,9 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             elif kind == "sheet":
                 from . import sheets
                 sheets.check_file(vdir / "sheet.json")
+            elif kind == "model":
+                from . import models
+                models.check_file(vdir / "model.json")
             elif kind in DS_WEARERS:
                 _ds_install(vdir, kind, d / f"v{meta['versions'][-1]['n']}" if meta["versions"] else None)
             if not (vdir / TYPE_ENTRY[kind]).is_file():
@@ -823,6 +833,62 @@ def report_set(aid: str, kind: str, data: dict) -> None:
 def reports(aid: str) -> dict:
     p = _reports_path(aid)
     return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+
+
+# --- previews: a picture of a version the page drew (a model's view), outside the versions -------------
+# <artifact>/previews/v<N>.png: no version is made and it is not an edit; the gallery shows it on the card.
+
+MAX_PREVIEW_BYTES = 400 * 1024
+PREVIEWS_KEPT = 3  # pictures of the latest few versions
+_PREVIEW_URI = re.compile(r"^data:image/png;base64,([A-Za-z0-9+/=\s]+)$")
+
+
+def preview_set(aid: str, data_url: str, version: Optional[int] = None) -> Optional[int]:
+    """Keep ``data_url`` (a PNG) as the picture of the latest version. ``version``: the one the page drew;
+    when that is no longer the latest nothing is kept (None is returned), else the version it went to."""
+    import base64
+    import binascii
+    m = _PREVIEW_URI.match(data_url) if isinstance(data_url, str) else None
+    if not m or len(m.group(1)) * 3 // 4 > MAX_PREVIEW_BYTES + 3:
+        raise ValueError(f"a preview is a PNG data URL of at most {MAX_PREVIEW_BYTES // 1024} KB")
+    try:
+        raw = base64.b64decode(re.sub(r"\s+", "", m.group(1)), validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("a preview is a PNG data URL (bad base64)")
+    if len(raw) > MAX_PREVIEW_BYTES or raw[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"a preview is a PNG of at most {MAX_PREVIEW_BYTES // 1024} KB")
+    with _LOCK:
+        meta = get_meta(aid)
+        if not meta or not meta.get("versions"):
+            raise FileNotFoundError(aid)
+        latest = meta["versions"][-1]["n"]
+        if version is not None and int(version) != latest:
+            return None
+        d = _dir(aid) / "previews"
+        d.mkdir(exist_ok=True)
+        p = d / f"v{latest}.png"
+        tmp = p.with_suffix(".tmp")
+        tmp.write_bytes(raw)
+        os.replace(tmp, p)
+        keep = {f"v{v['n']}.png" for v in meta["versions"][-PREVIEWS_KEPT:]}
+        for f in d.iterdir():
+            if f.name not in keep:
+                f.unlink(missing_ok=True)
+        return latest
+
+
+def preview_path(aid: str, n: int, base: Optional[Path] = None) -> Path:
+    return _dir(aid, base) / "previews" / f"v{int(n)}.png"
+
+
+def preview_get(aid: str, n: int) -> Optional[str]:
+    """The picture of version ``n`` as a data URL, or None."""
+    import base64
+    try:
+        raw = preview_path(aid, n).read_bytes()
+    except OSError:
+        return None
+    return "data:image/png;base64," + base64.b64encode(raw).decode()
 
 
 # --- query history: each saved version of a live query's args (90 days, 200 KB) ------------------

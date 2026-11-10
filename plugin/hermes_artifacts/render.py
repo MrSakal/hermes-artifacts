@@ -77,7 +77,11 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
         return bundle.bundle(vdir, entry)
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
             "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",  # the app's language, for the page's own words
-            "files": content_json(vdir)}
+            # A model's card draws no 3D: it needs model.json (its title), not the meshes.
+            "files": content_json(vdir, (lambda rel: rel == "model.json") if kind == "model" and thumb else None)}
+    preview = store.preview_get(meta["id"], data["version"])
+    if preview:
+        data["preview"] = preview  # the picture the page drew of this version (a model's view)
     if kind == "doc" and data["version"] == meta["versions"][-1]["n"]:
         # The live doc (what the user and Hermes edited since this version), for the first paint
         # and thumbnails; an open doc then follows it through doc.read.

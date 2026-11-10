@@ -605,13 +605,13 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("artifact_publish", _schema(
         "artifact_publish",
-        "Make a doc, sheet, deck, dashboard, design, video or page here, not as a file. What the user asks "
+        "Make docs, sheets, decks, dashboards, designs, 3D models, films here, not files. What the user asks "
         "you to make to look at, use, keep or share is an artifact, NOT a .md, .docx, "
         ".xlsx, .pptx or .html file you write, unless they name a file format or it belongs in a codebase. Type "
         "by what they want, named or not: a doc/docs, "
         "document, report, plan, notes -> doc; a deck/presentation -> slides; a spreadsheet, "
         "budget, tracker -> sheet; data (KPIs, charts, filters) -> dashboard; screens, websites, mockups, posters "
-        "-> design; an animation/video -> motion; a brand's tokens and components -> design-system; else (tool, game, "
+        "-> design; a 3D model, part, assembly -> model; an animation/video -> motion; a brand's tokens and components -> design-system; else (tool, game, "
         "prototype) -> page. A quick answer or advice stays in chat. Before a type's first publish "
         "call artifact_guide for its files; write data, not HTML/chart code, where the type can express it. Users "
         "edit artifacts too: artifact_read before changing (doc, sheet: artifact_doc_edit, never republish). Give "

@@ -40,6 +40,7 @@ open view reloads. It also works when Hermes Desktop is connected to a remote He
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `artifact_doc_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
 | **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
 | **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) in Claude's `.dc.html` format: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
+| **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
 | **Motion** (`motion`) | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
 | **Design system** (`design-system`) | A brand's browsable reference: tokens across themes, type, spacing, components with live previews, assets, the brand book. Mark one as default: it is copied into the decks, canvases and films that wear it, and a dashboard takes its look from it. | tokens.css, tokens.json, ZIP |
 
@@ -187,8 +188,9 @@ Environment variable: `HERMES_ARTIFACTS_DIR` moves the data folder (see below).
 | Live docs | `plugin/hermes_artifacts/docs.py` | Blocks, tabs, revisions, suggestions and history of a doc; the ops behind `artifact_doc_edit` |
 | Live sheets | `plugin/hermes_artifacts/sheets.py`, `xlsx_in.py` | Cells, formats, charts and history of a sheet; `.xlsx` and `.csv` import |
 | Live dashboard queries | `plugin/hermes_artifacts/live.py` | Runs a dashboard's stored MCP calls, with approvals, argument rules and a read-only SQL guard |
+| 3D models | `plugin/hermes_artifacts/models.py` | Checks `model.json` on every publish and save (shape, ids, kinds, profiles, the syntax and names of expressions, limits) and turns a mesh file into a model; the geometry is built in the page (`types/model/`, on three.js) |
 | Design systems | `plugin/hermes_artifacts/dsbuild.py` | Compiles a design system's generated files (`tokens.css`, `manifest.json`, `api/` cards) on every publish and save |
-| Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, design, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
+| Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, design, model, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
 | Desktop page | `plugin/desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
 | Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send) |
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
@@ -208,7 +210,8 @@ which decides what is allowed.
 - **Where data is stored:** `<HERMES_HOME>/plugin-data/hermes-artifacts/` (Hermes' own, profile-aware
   home when available; else the `HERMES_HOME` environment variable, `%LOCALAPPDATA%\hermes` on Windows if
   that folder exists, else `~/.hermes`). Set `HERMES_ARTIFACTS_DIR` to use another folder instead.
-  Artifact versions, comments, stored values, the inbox, dataset caches and approvals live there, on the
+  Artifact versions, comments, stored values, the inbox, dataset caches, approvals and card pictures
+  (`<id>/previews/`, outside the versions) live there, on the
   machine the Hermes backend runs on.
 - **Reads and writes:** that folder, the files you pass to `artifact_publish`, and the folder named in
   `design_system_export`. Deleting is for good, as in Claude: every version, comment and stored value goes
@@ -257,6 +260,7 @@ which decides what is allowed.
   | pdf-lib | 1.17.1 | MIT | PDF export |
   | fflate | 0.8.3 | MIT | .docx and .xlsx export, .xlsx import |
   | KaTeX | 0.16.11 | MIT | Formulas in docs |
+  | three.js | 0.187.0 | MIT | 3D models: viewing, mesh import and export |
 
 ## Development
 

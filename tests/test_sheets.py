@@ -391,7 +391,7 @@ class ToolTests(unittest.TestCase):
         tools = {t[0]: t[1] for t in self.p.TOOLS}
         self.assertIn("sheet", tools["artifact_publish"]["parameters"]["properties"]["type"]["enum"])
         self.assertIn("range", tools["artifact_doc_read"]["parameters"]["properties"])
-        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7123 + 125)
+        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7245 + 48)  # + the model type (spec: at most + 60)
 
 
 def _xlsx(path):
