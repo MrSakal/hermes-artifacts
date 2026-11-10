@@ -202,7 +202,7 @@ which decides what is allowed.
 ## Surfaces, data and disclosures
 
 **Hermes surfaces used:** `ctx.register_tool` (14 tools, toolset `artifacts`), `ctx.register_hook`
-(`pre_llm_call`), `ctx.register_cli_command` (`hermes artifacts`), a web-dashboard router
+(`pre_llm_call`, `on_session_end`, `post_compaction`), `ctx.register_cli_command` (`hermes artifacts`), a web-dashboard router
 (`plugin/dashboard/`), and the Desktop plugin SDK (`plugin/desktop/plugin.js`). No core code is patched.
 
 - **Where data is stored:** `<HERMES_HOME>/plugin-data/hermes-artifacts/` (Hermes' own, profile-aware
@@ -231,6 +231,10 @@ which decides what is allowed.
   version and where you are in it (the page's own view context) to the turn, marked as data, not
   instructions, and only when that changed since the last turn. On the first turn of a chat opened for an
   artifact it adds one line naming that artifact. Nothing else is added to any turn.
+- **Other hooks:** `on_session_end` (and the next `pre_llm_call`) clears the note that a chat is making
+  an artifact; `post_compaction` moves a chat's artifacts to the chat's new id when Hermes compresses it.
+  Neither adds anything to a turn. While Hermes makes an artifact, the plugin keeps that note (chat id,
+  type, start time) in its data folder and tells Hermes Desktop, which opens the pane beside the chat.
 - **Desktop half:** it replaces the built-in Artifacts page by sending `#/artifacts` to its own route
   (`#/hermes-artifacts`) with `location.replace`; it patches no history API or prototype and changes no
   core object. It observes the theme on the root element and in `<head>`, read-only, to restyle open

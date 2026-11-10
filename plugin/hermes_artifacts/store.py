@@ -898,3 +898,96 @@ def view_get(session: str) -> Optional[dict]:
     if not v or time.time() - v.get("at", 0) > VIEW_TTL_S:
         return None
     return v
+
+
+# --- making: a chat's artifact being made (Hermes read a type's guide; nothing published yet) ----------
+# Kept on disk like the view context: the agent's tools, its hooks and the REST API may run in different
+# module copies or processes. One small file, written only when something starts, moves on or ends.
+
+MAKING_TTL_S = 20 * 60  # a making state no step has touched for this long is over (a turn that died)
+
+
+def _making_path() -> Path:
+    return root() / "making.json"
+
+
+def _making_read() -> dict:
+    p = _making_path()
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _making_live(data: dict, now: float) -> dict:
+    return {k: v for k, v in data.items() if isinstance(v, dict) and now - v.get("at", 0) <= MAKING_TTL_S}
+
+
+def making_set(session: str, kind: str, phase: str, **fields) -> dict:
+    """Record that ``session`` is making a ``kind`` artifact, now at ``phase``; the start time is kept
+    while the type stays the same. ``fields``: title, id (None values are left out)."""
+    if not isinstance(session, str) or not 0 < len(session) <= 200:
+        raise ValueError("bad session")
+    if kind not in TYPES:
+        raise ValueError(f"unknown type {kind!r}")
+    with _LOCK:
+        now = time.time()
+        data = _making_live(_making_read(), now)
+        prev = data.get(session)
+        started = prev["started"] if prev and prev.get("type") == kind and prev.get("started") else now
+        state = {"type": kind, "phase": str(phase)[:40], "started": started, "at": now,
+                 **{k: str(v)[:200] for k, v in fields.items() if v not in (None, "")}}
+        data[session] = state
+        _write_json(_making_path(), data)
+        return {"session": session, **state}
+
+
+def making_get(session: str) -> Optional[dict]:
+    """The session's making state, or None (none, or stale)."""
+    v = _making_read().get(session) if session else None
+    if not isinstance(v, dict) or time.time() - v.get("at", 0) > MAKING_TTL_S:
+        return None
+    return {"session": session, **v}
+
+
+def making_all() -> dict:
+    """Every live making state, by session."""
+    return {k: {"session": k, **v} for k, v in _making_live(_making_read(), time.time()).items()}
+
+
+def making_clear(session: str) -> Optional[dict]:
+    """End the session's making state; returns it when there was a live one. Writes only when it changes."""
+    if not session:
+        return None
+    with _LOCK:
+        data = _making_read()
+        if session not in data:
+            return None
+        prev = data.pop(session)
+        _write_json(_making_path(), _making_live(data, time.time()))
+        if not isinstance(prev, dict) or time.time() - prev.get("at", 0) > MAKING_TTL_S:
+            return None
+        return {"session": session, **prev}
+
+
+# --- a chat that moved: Hermes continues a compressed chat under a new session id -------------------------
+
+def repoint_session(old: str, new: str) -> list[str]:
+    """Move what belongs to chat ``old`` (its artifacts, a making state) to ``new``, the session Hermes
+    continues it in after compressing it. Returns the ids of the artifacts moved."""
+    if not old or not new or old == new or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", str(new)):
+        return []
+    moved = []
+    with _LOCK:
+        for m in list_all():
+            if m.get("session") == old:
+                update_meta(m["id"], session=new)
+                moved.append(m["id"])
+        data = _making_read()
+        if old in data:
+            data[new] = data.pop(old)
+            _write_json(_making_path(), data)
+    return moved

@@ -50,6 +50,16 @@ const STRINGS = {
     chat: 'Chat',
     popOut: 'Pop out chat',
     popIn: 'Chat beside the artifact',
+    showChat: 'Show chat',
+    makingTag: 'Being made',
+    makingTab: name => `${name} (being made)`,
+    makingOpen: name => `Show the ${name.toLowerCase()} being made`,
+    makingArtifact: 'Artifact',
+    stepGuide: name => `Reading the ${name.toLowerCase()} guide`,
+    stepTool: tool => `Using ${tool}`,
+    stepThink: 'Thinking',
+    stepWrite: name => `Writing the ${name.toLowerCase()}`,
+    stepPublish: 'Publishing',
     comment: 'Comment',
     moreComment: 'More comment options',
     showComments: 'All comments',
@@ -237,6 +247,16 @@ const STRINGS = {
     chat: 'Chat',
     popOut: 'Chat lebegő ablakban',
     popIn: 'Chat az artifact mellett',
+    showChat: 'Chat megjelenítése',
+    makingTag: 'Készül',
+    makingTab: name => `${name} (készül)`,
+    makingOpen: name => `A készülő ${name.toLowerCase()} megjelenítése`,
+    makingArtifact: 'Artifact',
+    stepGuide: name => `Útmutató olvasása: ${name.toLowerCase()}`,
+    stepTool: tool => `Eszköz: ${tool}`,
+    stepThink: 'Gondolkodik',
+    stepWrite: name => `Írja: ${name.toLowerCase()}`,
+    stepPublish: 'Közzététel',
     comment: 'Komment',
     moreComment: 'További komment-lehetőségek',
     showComments: 'Összes komment',
@@ -400,6 +420,15 @@ const $confirm = atom(null) // {text, resolve}: a page asked to send something; 
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
 const $reopen = atom(null) // {panel, version}: the page asked to come back with that panel open (History)
 const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat with the artifact beside it)
+// {id, session} while the full page shows an artifact expanded (⤢) from its split: its header then offers
+// one "Show chat", which docks it back beside that chat. null when the page was reached any other way.
+const $expandedFrom = atom(null)
+// What chats are making now (Hermes read a type's guide, has not published): stored chat id -> {session,
+// type (null: not known yet), started (ms, this desktop's clock), title, step, tool, local}. From the
+// backend's `making` events (local: false) or, without one, the chat's own artifact_publish (local: true).
+const $makings = atom({})
+// The chat whose being-made placeholder the tile beside it shows (null: the tile shows an artifact, or none).
+const $dockMaking = atom(null)
 const $presenting = atom(false) // a deck is presenting: its frame fills the screen
 const viewSessions = new Map() // artifact id -> chat session its view context went to
 const docListeners = new Set() // per mounted frame: Hermes changed this doc
@@ -471,19 +500,217 @@ function syncPinnedChats(ctx, list) {
 /** The artifact beside its chat (the Chat split); again on the same one closes it. */
 function openBeside(ctx, art) {
   if ($chat.get() === 'split' && $selected.get() === art.id && dockClose) {
-    closeDock()
-    $chat.set('off')
+    closeBeside(art)
     return
   }
   openArtifact(ctx, art.id)
   openSplit(ctx, art)
 }
 
-/** The chat's own route: `#/` (new chat) or `#/<session id>`. */
-function onChatRoute(sid) {
-  const path = (window.location.hash.replace(/^#/, '') || '/').split('?')[0]
-  return path === '/' || (Boolean(sid) && path === `/${encodeURIComponent(sid)}`)
+/** The person closed the artifact beside its chat (titlebar button, the pane's ✕, the tab's ✕, the same
+ *  card again): it stays closed in that chat until they open it there again (closedIn). Closes the plugin
+ *  makes itself (expand, another chat in front, the Artifacts page opening) are not this. */
+function closeBeside(art) {
+  if (art?.session) markClosed(art.session, true)
+  closeDock()
+  $chat.set('off')
 }
+
+// Chats where the person closed the artifact (stored ids, persisted: a reload keeps it closed there).
+const closedIn = new Set()
+function markClosed(sid, closed) {
+  if (!sid || closedIn.has(sid) === closed) return
+  if (closed) closedIn.add(sid)
+  else closedIn.delete(sid)
+  CTX?.storage?.set('closedIn', [...closedIn].slice(-200))
+}
+
+// ---------------------------------------------------------------- an artifact being made (Claude opens its pane early)
+// Types published whole get a placeholder in the tile beside the chat from the first step (the guide)
+// until the publish swaps the same tile to the artifact. A doc gets none: its outline is published within
+// seconds and then fills in live, which is what Claude shows.
+const PLACEHOLDER = new Set(['page', 'dashboard', 'slides', 'design', 'motion', 'design-system', 'sheet'])
+
+/** The chat on screen: the focused chat while its own route shows (pages and the full page are not). */
+function frontChat() {
+  const sid = host.state?.focusedStoredSessionId?.get?.()
+  return sid && onChatRoute(sid) ? sid : null
+}
+
+/** Merge into (or with null, drop) a chat's making state. */
+function setMaking(sid, patch) {
+  const all = $makings.get()
+  if (!sid || (patch === null && !all[sid])) return
+  const next = { ...all }
+  if (patch === null) delete next[sid]
+  else next[sid] = { ...(all[sid] || {}), ...patch }
+  $makings.set(next)
+}
+
+/** The chat (stored id) whose artifact or placeholder the tile beside the chat shows; null: no tile. */
+const dockOwner = () => ($chat.get() === 'split' && dockClose ? $dockMaking.get() || current()?.session || null : null)
+
+/** The placeholder beside the chat in front, unless something of that chat shows already or the person
+ *  closed it there (a new making clears that first: see onMaking). */
+function showMaking(ctx, sid) {
+  if (!$makings.get()[sid] || sid !== frontChat() || closedIn.has(sid) || dockOwner() === sid) return
+  if (typeof host.openWorkspace !== 'function') return
+  dockMaking(ctx, sid)
+}
+
+/** The tile beside the chat shows its placeholder (the artifact tile's own id: one tile, refreshed in place). */
+function dockMaking(ctx, sid) {
+  const m = $makings.get()[sid]
+  if (!m) return
+  markClosed(sid, false)
+  if (dockClose && dockOwner() && dockOwner() !== sid) closeDock()
+  closeArtifact() // nothing selected: a card or the titlebar then opens the artifact, not toggles the placeholder
+  $dockMaking.set(sid)
+  const tr = (k, ...a) => (ctx?.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
+  openTile(ctx, tr('makingTab', m.type ? tr(`type_${m.type}`) : tr('makingArtifact')))
+}
+
+/** The person closed the placeholder: like closing the artifact there (closedIn). */
+function closeMaking(sid) {
+  markClosed(sid, true)
+  closeDock()
+  $dockMaking.set(null)
+  $chat.set('off')
+}
+
+/** A making is over without an artifact (the turn ended): its placeholder goes; the plugin's close is not
+ *  remembered as the person's. */
+function endMaking(sid) {
+  setMaking(sid, null)
+  if ($dockMaking.get() === sid) {
+    closeDock()
+    $dockMaking.set(null)
+    $chat.set('off')
+  }
+}
+
+/** The backend's `making` event: {session, type, phase: guide | done | ended, started, title?, id?, open?}. */
+function onMaking(ctx, p) {
+  const sid = p?.session
+  if (!sid) return
+  if (p.phase === 'guide') {
+    markClosed(sid, false) // something new is being made in this chat: a fresh reason to show it
+    if (!PLACEHOLDER.has(p.type)) return setMaking(sid, null) // a doc: its outline publish opens it
+    const prev = $makings.get()[sid]
+    setMaking(sid, { session: sid, type: p.type, started: prev && prev.type === p.type ? prev.started : Date.now(),
+      title: null, step: 'guide', tool: null, local: false })
+    showMaking(ctx, sid)
+  } else if (p.phase === 'done') {
+    if (p.open === false) endMaking(sid) // published without showing: no open event follows
+    else if ($makings.get()[sid]) setMaking(sid, { step: 'publish', title: p.title || null }) // the open event hands over
+  } else endMaking(sid)
+}
+
+/** The publish's `open` for a chat: the artifact beside it, in the same tile (a placeholder there becomes it). */
+const handing = new Set()
+async function handover(ctx, p) {
+  const sid = p.session
+  if (handing.has(p.id)) return
+  handing.add(p.id)
+  try {
+    markClosed(sid, false)
+    await refresh(ctx)
+    const art = $list.get().find(a => a.id === p.id)
+    if (!art || sid !== frontChat()) return endMaking(sid) // another chat: shown when it comes in front
+    if (!$dockMaking.get() && $chat.get() === 'split' && dockClose && $selected.get() === art.id) return setMaking(sid, null)
+    if (typeof host.openWorkspace !== 'function') {
+      endMaking(sid)
+      return openBeside(ctx, art)
+    }
+    openArtifact(ctx, art.id)
+    if (dockClose) {
+      // Re-opening the tile's id refreshes it in place (the title too); its content follows the atoms anyway.
+      try {
+        dock(ctx, art)
+      } catch {
+        closeDock() // a host that refuses the in-place refresh: close, then open
+        dock(ctx, art)
+      }
+    } else dock(ctx, art)
+    setMaking(sid, null)
+  } finally {
+    handing.delete(p.id)
+  }
+}
+
+/** A tool name as the step line says it. */
+const toolLabel = name => String(name || '').replace(/^mcp__/, '').replace(/__|_/g, ' ').trim()
+
+/** The chat in front's tool events move the placeholder's step line; a publish starting in a chat that
+ *  read no guide this turn (an older backend, a guide read earlier) opens a placeholder too. */
+function onTool(ctx, ev) {
+  const sid = frontChat()
+  if (!sid) return
+  const rt = host.state?.focusedSessionId?.get?.()
+  if (ev?.session_id && rt && ev.session_id !== rt) return
+  const p = payloadOf(ev)
+  let name = String(p.name || ''), args = p.args
+  // A deferred tool runs through the tool_call bridge: its one call is ours.
+  if (name === 'tool_call' && Array.isArray(args?.calls) && args.calls.length === 1) {
+    name = String(args.calls[0]?.name || '')
+    args = args.calls[0]?.arguments
+    if (typeof args === 'string') try { args = JSON.parse(args) } catch { args = null }
+  }
+  const m = $makings.get()[sid]
+  if (ev.type === 'tool.generating') {
+    if (name === 'artifact_publish') {
+      if (m) return setMaking(sid, { step: 'write' })
+      if (chatArtifacts(sid).length) return // most likely a new version of what the chat has
+      setMaking(sid, { session: sid, type: null, started: Date.now(), title: null, step: 'write', tool: null, local: true })
+      return showMaking(ctx, sid)
+    }
+    if (m) setMaking(sid, name === 'artifact_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
+  } else if (ev.type === 'tool.start') {
+    if (!m) return
+    if (name === 'artifact_publish') {
+      const type = typeof args?.type === 'string' && (PLACEHOLDER.has(args.type) || args.type === 'doc') ? args.type : m.type
+      setMaking(sid, { step: 'publish', title: (typeof args?.title === 'string' && args.title.trim()) || m.title || null, type })
+    } else setMaking(sid, name === 'artifact_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
+  } else if (ev.type === 'tool.complete' && m && m.step !== 'publish') setMaking(sid, { step: 'think' })
+}
+
+/** After a reload, or entering a chat that is working: what the backend says it is making. */
+async function fetchMaking(ctx, sid) {
+  try {
+    const r = await ctx.rest(`/making?session=${enc(sid)}`)
+    const m = r?.making
+    if (!m || !PLACEHOLDER.has(m.type) || $makings.get()[sid] || sid !== frontChat()) return
+    setMaking(sid, { session: sid, type: m.type, started: Date.now(), title: m.title || null, step: 'think', tool: null, local: false })
+    showMaking(ctx, sid)
+  } catch {}
+}
+
+/** The chat's own route: `#/` (new chat) or `#/<session id>`. While the full page or another page shows,
+ *  the focused stored session stays the chat's (the selection is kept off chat routes), so only the route
+ *  tells whether the chat is on screen. */
+function onChatRoute(sid) {
+  const path = (window.location.hash.replace(/^#/, '') || '/').split(/[?#]/)[0]
+  if (path === '/') return true
+  if (!sid || !path.startsWith('/')) return false
+  try {
+    return decodeURIComponent(path.slice(1)) === sid
+  } catch {
+    return false
+  }
+}
+
+/** Runs fn on every route change. Hermes' HashRouter moves with history.pushState, which fires no
+ *  hashchange (only host.navigate's hash assignment does): the Navigation API's currententrychange sees
+ *  both; without it, a poll. */
+function onRouteChange(ctx, fn) {
+  const nav = window.navigation
+  const offs = [listen(ctx, window, 'hashchange', fn)]
+  offs.push(nav?.addEventListener ? listen(ctx, nav, 'currententrychange', fn) : every(ctx, fn, 300))
+  return () => offs.forEach(f => f?.())
+}
+
+/** A chat's artifacts, newest first. */
+const chatArtifacts = sid => (sid ? $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0)) : [])
 
 /** Hermes' titlebar icon size, so it matches the buttons beside it. */
 function titlebarIcon() {
@@ -548,73 +775,101 @@ function ChatArtifactCard({ ctx, attrs }) {
   })
 }
 
+/** The titlebar button's content: reads the chat, the list and the dock itself, so the registration only
+ *  changes when the button should appear or go (not on every open/close: no flicker, no re-register race). */
+function ChatArtifactTitlebar({ ctx }) {
+  const t = usePluginI18n(ID)
+  useValue($list)
+  const chat = useValue($chat)
+  const sel = useValue($selected)
+  const sid = useValue(host.state.focusedStoredSessionId)
+  const makings = useValue($makings)
+  const dm = useValue($dockMaking)
+  const arts = chatArtifacts(sid)
+  if (!arts.length) {
+    // Only a placeholder so far: the button shows and hides it.
+    const m = sid ? makings[sid] : null
+    if (!m) return null
+    const shown = chat === 'split' && dm === sid
+    return jsx(TitlebarArtifactButton, {
+      label: shown ? t('closeBeside') : t('makingOpen', m.type ? t(`type_${m.type}`) : t('makingArtifact')),
+      active: shown,
+      count: 0,
+      onSelect: () => (shown ? closeMaking(sid) : dockMaking(ctx, sid))
+    })
+  }
+  const open = chat === 'split' && arts.some(a => a.id === sel)
+  return jsx(TitlebarArtifactButton, {
+    label: open ? t('closeBeside') : t('openBeside', arts[0].title),
+    active: open,
+    count: arts.length,
+    onSelect: () => (open ? closeBeside(current()) : openBeside(ctx, arts[0]))
+  })
+}
+
 /** Top right, beside Hermes' own pane buttons: the focused chat's artifact, opened beside the chat (its
- *  newest one when the chat made several). Re-registered when the chat, the list or the dock changes. */
+ *  newest one when the chat made several). Registered only while that chat's own route shows and it has an
+ *  artifact: a titleBar.right contribution on a plugin page makes Hermes hide its own titlebar clusters
+ *  (titlebar-controls.tsx, pageOwnsTitlebar), and off a chat there is nothing to open beside.
+ *  Re-checked on every route change (onRouteChange: the router's pushState fires no hashchange) and when
+ *  the focused chat or the list changes. */
 function watchChatArtifactTool(ctx) {
   const sidAtom = host.state?.focusedStoredSessionId
   if (!sidAtom?.listen) return () => {}
-  // ctx.i18n.t translates from the start (T follows the page, which may not be open yet).
-  const tr = (k, ...a) => (ctx.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
-  let dispose = null, last = ''
+  let dispose = null
   const sync = () => {
     const sid = sidAtom.get()
-    const arts = sid ? $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0)) : []
-    const art = arts[0]
-    const open = Boolean(art) && $chat.get() === 'split' && arts.some(a => a.id === $selected.get())
-    const key = art ? `${art.id}|${art.type}|${arts.length}|${open}|${onChatRoute(sid)}|${tr('openBeside', art.title)}` : ''
-    if (key === last) return
-    last = key
-    dispose?.()
-    dispose = null
-    if (!art) return
-    const label = open ? tr('closeBeside') : tr('openBeside', art.title)
-    const onSelect = () => (open ? (closeDock(), $chat.set('off')) : openBeside(ctx, art))
-    // Only on the chat's own route, in Hermes' right cluster (the titleBar.right slot): the pane header
-    // keeps its window-drag handle clear of that cluster, and off a chat (the Artifacts page, other pages)
-    // the button has nothing to open beside.
-    if (!onChatRoute(sid)) return
-    dispose = ctx.register({
-      id: 'chat-artifact-slot',
-      area: 'titleBar.right',
-      order: 9999,
-      render: () => jsx(TitlebarArtifactButton, { label, active: open, count: arts.length, onSelect })
-    })
+    const want = Boolean(sid) && onChatRoute(sid) && (chatArtifacts(sid).length > 0 || Boolean($makings.get()[sid]))
+    if (want === Boolean(dispose)) return
+    if (!want) {
+      dispose()
+      dispose = null
+      return
+    }
+    const d = ctx.register({ id: 'chat-artifact-slot', area: 'titleBar.right', order: 9999, render: () => jsx(ChatArtifactTitlebar, { ctx }) })
+    dispose = () => typeof d === 'function' && d()
   }
-  // Entering a chat that made an artifact opens it beside the chat, as Claude does; closing it there keeps
-  // it closed in that chat (until the person opens it again).
-  // The chat in front, but only while its own route shows (not the Artifacts page or another page).
+  // Entering a chat that made an artifact opens it beside the chat, as Claude does, unless the person
+  // closed it in that chat (closedIn). Coming back from a page (the Artifacts page, an expand) counts as
+  // entering again. The chat in front, but only while its own route shows.
   const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
   let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
-  const closedIn = new Set(Array.isArray(ctx.storage?.get('closedIn')) ? ctx.storage.get('closedIn') : [])
-  const remember = () => ctx.storage?.set('closedIn', [...closedIn].slice(-200))
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
     const sid = chatInFront()
     if (sid === lastSid) return
     lastSid = sid
     if (!sid) return // on a page: the dock stays as it is
-    // The artifact belongs to its chat: another chat in front closes it.
-    const shown = current()
-    if ($chat.get() === 'split' && dockClose && shown?.session && shown.session !== sid) {
+    $expandedFrom.set(null) // a chat is in front again: no full page to come back from
+    // The artifact (or placeholder) belongs to its chat: another chat in front closes it (not the person's close).
+    const owner = dockOwner()
+    if (owner && owner !== sid) {
       closeDock()
+      $dockMaking.set(null)
       $chat.set('off')
     }
     if (closedIn.has(sid)) return
-    if ($chat.get() === 'split' && current()?.session === sid) return
-    const art = $list.get().filter(a => a.session === sid).sort((a, b) => (b.updated || 0) - (a.updated || 0))[0]
-    if (art) openBeside(ctx, art)
+    if (dockOwner() === sid) return
+    const art = chatArtifacts(sid)[0]
+    if (art) return openBeside(ctx, art)
+    // A chat with nothing made yet that is making one: its placeholder (asked for after a reload).
+    if ($makings.get()[sid]) return dockMaking(ctx, sid)
+    if (host.state?.busy?.get?.()) fetchMaking(ctx, sid)
   }
-  // A close counts only when the person closed it in that chat, not when they went to another page.
-  let wasOpenFor = null
-  const track = () => {
-    const sid = chatInFront()
+  const both = () => { sync(); enter() }
+  // The focused chat starts working (after a reload the backend may be mid-making), or stops: a placeholder
+  // made here from its own publish ends with the turn (the backend ends its own with an `ended` event).
+  const onBusy = busy => {
+    const sid = frontChat()
     if (!sid) return
-    const open = $chat.get() === 'split' && current()?.session === sid
-    if (open) { wasOpenFor = sid; if (closedIn.delete(sid)) remember() }
-    else if (wasOpenFor && wasOpenFor === sid) { closedIn.add(sid); remember(); wasOpenFor = null }
+    const m = $makings.get()[sid]
+    if (busy && !m && !chatArtifacts(sid).length && !closedIn.has(sid)) fetchMaking(ctx, sid)
+    if (!busy && m?.local) endMaking(sid)
   }
-  const offs = [listen(ctx, window, 'hashchange', sync), listen(ctx, window, 'hashchange', enter), sidAtom.listen(sync), sidAtom.listen(enter), $list.listen(sync), $list.listen(enter), $chat.listen(sync), $chat.listen(track), $selected.listen(sync)]
+  const offs = [onRouteChange(ctx, both), sidAtom.listen(both), $list.listen(both), $makings.listen(sync)]
+  if (host.state?.busy?.listen) offs.push(host.state.busy.listen(onBusy))
   sync()
+  enter()
   return () => { offs.forEach(f => f?.()); dispose?.() }
 }
 
@@ -701,6 +956,7 @@ async function loadComments(ctx) {
 }
 
 function openArtifact(ctx, id) {
+  if ($expandedFrom.get()?.id !== id) $expandedFrom.set(null) // another artifact: not the expanded one
   $selected.set(id)
   $shown.set(null)
   $page.set(null)
@@ -715,6 +971,7 @@ function openArtifact(ctx, id) {
 
 function closeArtifact() {
   $selected.set(null)
+  $expandedFrom.set(null)
   $picking.set(false)
   $draft.set(null)
 }
@@ -2018,16 +2275,60 @@ function sendPins(portRef) {
 
 // ---------------------------------------------------------------- chat beside the artifact (Claude's Chat / Pop out chat)
 
+// Where the artifact shows, and the moves between (one place each):
+//   none           $chat 'off', no tile
+//   beside         $chat 'split', one workspace tile right of the artifact's chat (dockClose), chat route
+//   page/expanded  the full page with $expandedFrom = the split it came from; "Show chat" -> beside
+//   page/gallery   the full page opened from the gallery or a link; Chat -> beside (its chat, or a new one)
+//   float          $chat 'float': the floating chat over the full page
+// none -> beside: openBeside/openSplit (titlebar, card, sidebar mark, entering the chat). beside -> none:
+// closeBeside (the person: remembered in closedIn) or closeDock (the plugin: another chat, the page).
+// beside -> page/expanded: expandDock. page -> beside: openSplit, which first brings the chat route back.
 let dockClose = null // closes the artifact tile docked beside the chat (split view)
+let dockClosing = false // true while the plugin closes the tile itself (its onClose is then not the person's)
+let splitRun = 0 // the newest openSplit: an older one still awaiting its chat gives way
 
 function closeDock() {
   const c = dockClose
   dockClose = null
   if (c) {
+    dockClosing = true
     try {
       c()
-    } catch {}
+    } catch {
+    } finally {
+      dockClosing = false
+    }
   }
+}
+
+/** The artifact's tile right of the chat in front. A tile already there is re-opened under the same id,
+ *  which Hermes refreshes in place (one tile, never two); the older disposer is dropped, not called, since
+ *  the registry removes by id and would take the new tile with it. */
+function dock(ctx, art) {
+  markClosed(art.session, false)
+  $dockMaking.set(null) // a placeholder there becomes the artifact
+  openTile(ctx, art.title)
+}
+
+/** The one workspace tile right of the chat (an artifact or a being-made placeholder: DockView picks). */
+function openTile(ctx, title) {
+  $chat.set('split')
+  const close = host.openWorkspace(`${ID}:view`, {
+    title,
+    dock: { pane: 'workspace', pos: 'right' },
+    minWidth: '26rem',
+    render: () => jsx(DockView, { ctx }),
+    onClose: () => {
+      if (dockClose !== close && dockClose) return // an older tile's close: the current one stays
+      dockClose = null
+      // The tab's own ✕ (or ⌘W) is the person closing it in this chat.
+      if (!dockClosing) markClosed($dockMaking.get() || current()?.session, true)
+      $dockMaking.set(null)
+      if ($chat.get() === 'split') $chat.set('off')
+    }
+  })
+  dockClose = close
 }
 
 /** The artifact's own chat, attached without navigating: stored session id -> runtime id. */
@@ -2137,33 +2438,36 @@ async function openSplit(ctx, art) {
     $chat.set('float')
     return
   }
-  closeDock()
-  // Its chat is already the one in front (the titlebar button, a pinned row's icon): dock at once; the
-  // check and reopen below take seconds and would only bring back the same chat.
+  const run = ++splitRun
+  // Its chat is already the focused one (the titlebar button, a pinned row's icon, "Show chat" after an
+  // expand): dock at once; the check and reopen below take seconds and would only bring back the same chat.
+  // The focused stored session stays the chat's while a page shows (Hermes keeps the selection off chat
+  // routes), so the chat is on screen only on its own route: from the full page, go back to it first, or
+  // the tile would dock beside the Artifacts page (the full page and the tile showing the same artifact).
   const here = art.session && host.state?.focusedStoredSessionId?.get?.() === art.session
-  if (!here) {
+  if (here) {
+    if (!onChatRoute(art.session)) host.navigate(`/${enc(art.session)}`)
+  } else {
     try {
       const c = await ensureChat(art)
+      if (run !== splitRun) return
       await host.openSession(c.stored)
     } catch {
-      $chat.set('float')
+      if (run === splitRun) $chat.set('float')
       return
     }
+    if (run !== splitRun) return
   }
-  $chat.set('split')
-  dockClose = host.openWorkspace(`${ID}:view`, {
-    title: art.title,
-    dock: { pane: 'workspace', pos: 'right' },
-    minWidth: '26rem',
-    render: () => jsx(DockView, { ctx }),
-    onClose: () => {
-      dockClose = null
-      if ($chat.get() === 'split') $chat.set('off')
-    }
-  })
+  $expandedFrom.set(null)
+  // Entering the chat may have docked it already (the route change runs enter()): one tile either way.
+  if (!(dockClose && $chat.get() === 'split' && $selected.get() === art.id && !$dockMaking.get())) dock(ctx, art)
 }
 
+/** ⤢ in the docked pane: the artifact full page, remembering the split it came from ("Show chat" there
+ *  docks it back). Not the person's close: the chat keeps its artifact. */
 function expandDock() {
+  const art = current()
+  $expandedFrom.set(art ? { id: art.id, session: art.session || null } : null)
   closeDock()
   $chat.set('off')
   host.navigate(PAGE)
@@ -2589,6 +2893,8 @@ function Header({ ctx, art, v, portRef, docked }) {
   const panel = useValue($panel)
   const comments = useValue($comments)
   const [cmenu, setCmenu] = useState(false)
+  const expandedFrom = useValue($expandedFrom)
+  const fromSplit = !docked && expandedFrom?.id === art.id && chat !== 'float'
   const open = comments.filter(c => !c.parent && !c.resolved).length
   return jsxs('div', {
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
@@ -2597,6 +2903,10 @@ function Header({ ctx, art, v, portRef, docked }) {
       jsx('div', { style: { flex: 1 } }),
       docked
         ? null
+        : fromSplit
+        // Expanded from its split (Claude's): one "Show chat" where the docked pane had ⤢; it docks the
+        // artifact back beside the same chat.
+        ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => openSplit(ctx, art) })
         : jsxs('div', {
             style: { display: 'flex', alignItems: 'center', borderRadius: 8, background: C.hover },
             children: [
@@ -2632,7 +2942,7 @@ function Header({ ctx, art, v, portRef, docked }) {
         ]
       }),
       docked ? jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: expandDock }) : null,
-      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => (closeDock(), $chat.set('off')) : () => ($chat.set('off'), closeArtifact()) })
+      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => ($chat.set('off'), closeArtifact()) })
     ]
   })
 }
@@ -2668,7 +2978,84 @@ function CommentPopover({ ctx, art }) {
 
 function DockView({ ctx }) {
   useValue($selected)
+  const dm = useValue($dockMaking)
+  const makings = useValue($makings)
+  if (dm) return makings[dm] ? jsx(MakingView, { ctx, m: makings[dm] }) : null
   return current() ? jsx(Viewer, { ctx, docked: true }) : null
+}
+
+/** The step line: what Hermes is doing now, from the chat's own tool events. */
+function stepText(t, m, name) {
+  if (m.step === 'guide') return t('stepGuide', name)
+  if (m.step === 'write') return t('stepWrite', name)
+  if (m.step === 'publish') return t('stepPublish')
+  if (m.step === 'tool' && m.tool) return t('stepTool', m.tool)
+  return t('stepThink')
+}
+
+const elapsedText = ms => {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`
+}
+
+/** The tile while an artifact is being made (until its publish swaps the tile to it): the type, the title
+ *  once known, the time it has taken, one line for the current step, and a quiet outline of the type. */
+function MakingView({ ctx, m }) {
+  const t = usePluginI18n(ID)
+  const [, setTick] = useState(0)
+  useEffect(() => every(ctx, () => setTick(n => n + 1), 1000), [])
+  const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
+  const one = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+  return jsxs('div', {
+    style: { ...font, height: '100%', display: 'flex', flexDirection: 'column', background: C.bg, color: C.fg },
+    children: [
+      jsxs('div', {
+        style: { display: 'flex', alignItems: 'center', gap: 10, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
+        children: [
+          jsx(TypeBadge, { type: m.type || 'page', size: 28 }),
+          jsxs('div', { style: { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }, children: [
+            jsx('span', { style: { ...one, fontWeight: 600, fontSize: 14 }, children: m.title || name }),
+            jsx('span', { style: { ...one, fontSize: 12, color: C.text3 }, children: m.title ? `${name} · ${t('makingTag')}` : t('makingTag') })
+          ] }),
+          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session) })
+        ]
+      }),
+      jsxs('div', {
+        role: 'status',
+        'aria-live': 'polite',
+        style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, color: C.text2 },
+        children: [
+          jsx('span', { style: { ...one, flex: 1, minWidth: 0 }, children: stepText(t, m, name) }),
+          jsx('span', { style: { flexShrink: 0, color: C.text3, fontVariantNumeric: 'tabular-nums' }, children: elapsedText(Date.now() - (m.started || Date.now())) })
+        ]
+      }),
+      jsx(MakingSkeleton, { type: m.type })
+    ]
+  })
+}
+
+/** A still outline of the type being made (core's animate-pulse), in the theme's hover tint. */
+function MakingSkeleton({ type }) {
+  const box = (key, style) => jsx('div', { key, style: { borderRadius: C.rMd, background: C.hover, flexShrink: 0, ...style } })
+  const bar = (key, width, height = 10) => box(key, { width, height, borderRadius: C.rSm })
+  let body
+  if (type === 'slides' || type === 'motion') body = [box('s', { width: '100%', aspectRatio: '16 / 9' }), bar('a', '45%', 14), bar('b', '30%')]
+  else if (type === 'dashboard') {
+    body = [
+      jsx('div', { key: 'k', style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }, children: [0, 1, 2].map(i => box(i, { height: 56 })) }),
+      box('c', { height: 180 }),
+      box('d', { height: 120 })
+    ]
+  } else if (type === 'sheet') {
+    body = Array.from({ length: 10 }, (_, i) => jsx('div', { key: i, style: { display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 6 },
+      children: [0, 1, 2, 3].map(j => box(j, { height: 18, borderRadius: C.rSm })) }))
+  } else body = [bar('h', '55%', 18), bar('a', '90%'), bar('b', '80%'), bar('c', '85%'), box('i', { height: 140 }), bar('d', '70%'), bar('e', '60%')]
+  return jsx('div', {
+    className: 'animate-pulse',
+    'aria-hidden': true,
+    style: { flex: 1, minHeight: 0, overflow: 'hidden', padding: '6px 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 },
+    children: body
+  })
 }
 
 const REACTIONS = ['👍', '❤️', '🎉', '✅', '👀', '😄']
@@ -3073,6 +3460,9 @@ export default {
       order: 1000,
       data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
     })
+    closedIn.clear()
+    const savedClosed = ctx.storage.get('closedIn')
+    if (Array.isArray(savedClosed)) savedClosed.forEach(s => typeof s === 'string' && closedIn.add(s))
     const stopTool = watchChatArtifactTool(ctx)
     // The card in the transcript, where this Hermes Desktop has the directive area.
     ctx.register({ id: 'chat-card', area: SDK.TRANSCRIPT_DIRECTIVE_AREA || 'transcript.directives',
@@ -3119,9 +3509,24 @@ export default {
 
     ctx.onEvent(`plugin.${ID}.open`, async ev => {
       const p = payloadOf(ev)
+      // A publish names its chat: the artifact beside that chat when it is in front (else when it comes).
+      if (p.id && p.session) return handover(ctx, p)
+      // artifact_open, or an older backend: the full page.
       await refresh(ctx)
       if (p.id) openArtifact(ctx, p.id)
       host.navigate(PAGE)
+    })
+    ctx.onEvent(`plugin.${ID}.making`, ev => onMaking(ctx, payloadOf(ev)))
+    for (const type of ['tool.generating', 'tool.start', 'tool.complete']) ctx.onEvent(type, ev => onTool(ctx, ev))
+    // A compressed chat goes on under a new session id; the backend moved its artifacts with it.
+    ctx.onEvent(`plugin.${ID}.moved`, ev => {
+      const { old, new: now } = payloadOf(ev)
+      if (!old || !now) return
+      if (closedIn.has(old)) { markClosed(old, false); markClosed(now, true) }
+      const m = $makings.get()[old]
+      if (m) { setMaking(old, null); setMaking(now, { ...m, session: now }) }
+      if ($dockMaking.get() === old) $dockMaking.set(now)
+      refresh(ctx)
     })
     // Leaving full screen (Esc, F11) ends the presentation in the page too (over its bridge port).
     offs.push(listen(ctx, document, 'fullscreenchange', () => {

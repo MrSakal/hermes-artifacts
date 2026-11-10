@@ -60,6 +60,89 @@ def _broadcast(event: str, payload: dict) -> bool:
         return False
 
 
+def _making(state: dict | None, phase: str | None = None, **extra) -> None:
+    """Tell Hermes Desktop what a chat is making (``making`` event): {session, type, phase, started[, title,
+    id]}. Phases: guide (Hermes read the type's guide), done (published: the ``open`` event follows), ended
+    (the turn ended or a new one began without a publish). Never reaches the agent."""
+    if not state:
+        return
+    p = {k: state[k] for k in ("session", "type", "phase", "started", "title", "id") if state.get(k) not in (None, "")}
+    if phase:
+        p["phase"] = phase
+    p.update({k: v for k, v in extra.items() if v not in (None, "")})
+    _broadcast("making", p)
+
+
+def _making_start(session, kind: str) -> None:
+    if not session:
+        return
+    try:
+        _making(store.making_set(str(session), kind, "guide"))
+    except Exception:
+        logger.debug("making state failed", exc_info=True)
+
+
+def _making_end(session, phase: str, **extra) -> None:
+    if not session:
+        return
+    try:
+        _making(store.making_clear(str(session)), phase, **extra)
+    except Exception:
+        logger.debug("making state failed", exc_info=True)
+
+
+def _turn_end(**kw):
+    """on_session_end (each turn's end): a making the turn did not publish is over."""
+    _making_end(kw.get("session_id"), "ended")
+
+
+def _compacted(**kw):
+    """post_compaction: Hermes continues a compressed chat under a new session id; its artifacts (and a
+    making state) follow it, so the chat in front still owns them. Desktop hears ``moved`` {old, new}."""
+    old, new = kw.get("old_session_id"), kw.get("session_id")
+    if not old or not new or old == new:
+        return
+    try:
+        moved = store.repoint_session(str(old), str(new))
+        for key in [k for k in _SEEN if k[0] == old]:
+            n = _SEEN.pop(key)
+            _SEEN[(new, key[1])] = max(n, _SEEN.get((new, key[1]), 0))
+        if moved:
+            _broadcast("moved", {"old": old, "new": new})
+    except Exception:
+        logger.debug("following a compressed chat failed", exc_info=True)
+
+
+def _follow_compressed_now() -> int:
+    """Artifacts of chats compressed before this version (or while the plugin was off) move to the session
+    their chat continues in, from Hermes' public SessionDB. Returns how many chats moved."""
+    try:
+        from hermes_state import SessionDB
+        db = SessionDB(read_only=True)
+    except Exception:
+        return 0
+    n = 0
+    try:
+        for sid in {m.get("session") for m in store.list_all() if m.get("session")}:
+            tip = db.get_compression_tip(sid)
+            if isinstance(tip, str) and tip and tip != sid and store.repoint_session(sid, tip):
+                logger.info("hermes-artifacts: artifacts of chat %s follow it to %s", sid, tip)
+                n += 1
+    except Exception:
+        logger.debug("following compressed chats failed", exc_info=True)
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+    return n
+
+
+def _follow_compressed() -> None:
+    """Once at start, in the background (a large session store must not hold up Hermes)."""
+    threading.Thread(target=_follow_compressed_now, name="hermes-artifacts-chats", daemon=True).start()
+
+
 def _on_send(item: dict) -> bool:
     """Browser-viewer send(): best-effort note into the session; the inbox always has it."""
     _broadcast("inbox", {"artifact": item["artifact"], "id": item["id"]})
@@ -125,6 +208,11 @@ def _publish(args: dict, **kw) -> str:
             if ds:  # in case the guide was read before the default was set
                 view["design_system"] = {**ds, "rule": "Default design system, not used here: build on it (artifact_guide) unless declined."}
         shown = dict(view)
+        if kw.get("session_id"):
+            shown["session"] = kw["session_id"]  # Desktop only: the chat it was made in
+        # open=False: no open event follows, so Desktop closes a placeholder instead of waiting for one.
+        _making_end(kw.get("session_id"), "done", id=meta["id"], title=meta.get("title"), type=meta.get("type"),
+                    open=None if args.get("open", True) else False)
         if meta.get("type") == "doc":
             from .hermes_artifacts import docs
             view["doc"] = docs.outline(meta["id"])  # tab ids, revs and the pending sections to fill
@@ -299,6 +387,8 @@ def _guide(args: dict, **_kw) -> str:
     kind = args.get("type", "page")
     if kind not in store.TYPES:
         return _err(f"unknown type {kind!r} (one of {', '.join(store.TYPES)})")
+    # The first step of making one: Hermes Desktop may open the pane now (a topic read keeps it going).
+    _making_start(_kw.get("session_id"), kind)
     from .hermes_artifacts.render import TYPES_DIR
     topic = str(args.get("topic") or "").strip().lower()
     if topic:
@@ -674,6 +764,8 @@ def _view_context(**kw):
     design system line here: like Claude, the system comes with the guide of the types that wear it,
     and in code it is files in the project, design_system_export.)"""
     parts = []
+    # A new turn: a making the last one left open is over (a Hermes without on_session_end).
+    _making_end(kw.get("session_id"), "ended")
     try:
         session = kw.get("session_id")
         v = store.view_get(session) if session else None
@@ -783,6 +875,15 @@ def register(ctx) -> None:
         ctx.register_hook("pre_llm_call", _view_context)
     except Exception:  # an older Hermes without this hook: no view context, everything else works
         logger.debug("pre_llm_call hook unavailable", exc_info=True)
+    try:
+        ctx.register_hook("on_session_end", _turn_end)  # a turn's end ends a making it did not publish
+    except Exception:
+        logger.debug("on_session_end hook unavailable", exc_info=True)
+    try:
+        ctx.register_hook("post_compaction", _compacted)  # a compressed chat's artifacts follow it
+    except Exception:
+        logger.debug("post_compaction hook unavailable", exc_info=True)
+    _follow_compressed()
     for name, schema, handler, emoji in TOOLS:
         ctx.register_tool(name=name, toolset="artifacts", schema=schema, handler=handler,
                           description=schema["description"], emoji=emoji)

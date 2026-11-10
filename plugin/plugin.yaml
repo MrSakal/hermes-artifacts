@@ -13,6 +13,8 @@ requires_hermes: ">=0.22.5"
 tags: [artifacts, desktop, html, ui, preview]
 provides_hooks:
   - pre_llm_call
+  - on_session_end
+  - post_compaction
 provides_tools:
   - artifact_publish
   - artifact_guide

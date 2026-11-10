@@ -1,0 +1,336 @@
+"""The artifact beside its chat: the titlebar button, the dock, expand / Show chat, close (plugin.js).
+
+Node drives desktop/plugin.js against a fake Hermes Desktop modelled on the v0.23.1 SDK
+(apps/desktop/src/sdk/index.ts): nanostores atoms (listeners only on a change); host.navigate assigns
+location.hash (hashchange); the app's HashRouter moves with history.pushState (no hashchange, only the
+Navigation API's currententrychange) and the selected chat follows the route after the URL; the focused
+stored session stays the chat's while a page shows; openWorkspace tiles; ctx.register disposers remove
+by id. It plays the reported sequences (Artifacts page and back by the sidebar, another chat and back,
+expand then Show chat, closes by the titlebar / pane / tab strip, a second artifact, a late list, a page
+opened from the gallery) and checks after every step: the titlebar button is registered exactly when the
+chat in front has an artifact and its route shows, at most one tile, $chat agrees with the tile, no tile
+beside the Artifacts page, the dock belongs to the chat in front. Then the early pane: a `making` event
+opens a being-made placeholder beside the chat in front (one tile), its step line follows the chat's tool
+events, the publish's `open` swaps the same tile to the artifact, `ended` closes a placeholder without
+remembering a close, a new making reopens a chat closed before, other chats stay quiet until they come in
+front while busy, and a doc gets no placeholder. Skipped without node.
+"""
+
+import json
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+PLUGIN = ROOT / "plugin" / "desktop" / "plugin.js"
+NODE = shutil.which("node")
+
+SDK = r"""
+// A stub of @hermes/plugin-sdk modelled on apps/desktop/src/sdk/index.ts (v0.23.1): nanostores atoms
+// (listeners only on a change), host.navigate sets location.hash (hashchange), the app router moves with
+// history.pushState (no hashchange; the Navigation API's currententrychange only), openWorkspace tiles.
+export const atom = v => {
+  let x = v
+  const ls = new Set()
+  return { get: () => x, set: n => { if (n === x) return; x = n; [...ls].forEach(f => f(n)) }, listen: f => (ls.add(f), () => ls.delete(f)), subscribe: f => (f(x), ls.add(f), () => ls.delete(f)) }
+}
+const W = globalThis.__W
+export const host = W.host
+export const ROUTES_AREA = 'routes', SIDEBAR_NAV_AREA = 'sidebar.nav', SIDEBAR_NAV_PREFS_AREA = 'sidebar.nav.prefs'
+export const STATUSBAR_AREAS = { left: 'statusBar.left', right: 'statusBar.right' }
+export const SandboxedFrame = () => null
+export const usePluginI18n = () => (k, ...a) => (a.length ? `${k}:${a.join(',')}` : k)
+export const useValue = a => a.get()
+export default {}
+"""
+
+REACT = r"""
+const W = () => globalThis.__W
+export const useEffect = f => { W().collect && W().collect.push(f) }
+export const useLayoutEffect = () => {}
+export const useRef = v => ({ current: v === undefined ? null : v })
+export const useState = v => [typeof v === 'function' ? v() : v, () => {}]
+export const useMemo = f => f()
+export const useCallback = f => f
+export default {}
+"""
+
+JSX = "export const jsx = (type, props) => ({ type, props }), jsxs = jsx, Fragment = Symbol('Fragment')\n"
+
+RUN = r"""
+// Drives plugin.js (copied to ./plugin.mjs with its imports pointed at the stubs) through the user's
+// sequences against a fake Hermes Desktop and checks the invariants after every step.
+
+const PAGE = '/hermes-artifacts'
+const enc = encodeURIComponent
+const tick = () => new Promise(r => setTimeout(r, 0))
+const settle = async () => { for (let i = 0; i < 20; i++) await tick() }
+
+// ---------------------------------------------------------------- fake window
+const window = new EventTarget()
+window.navigation = new EventTarget()
+let entryKey = 0
+window.history = { state: { key: 'k0' } }
+let hash = '#/'
+window.location = {
+  get hash() { return hash },
+  set hash(v) { setRoute(v, true) }, // host.navigate: a hash assignment fires hashchange
+  replace(v) { setRoute(v, true) }
+}
+globalThis.window = window
+globalThis.document = Object.assign(new EventTarget(), { fullscreenElement: null, getElementById: () => null, documentElement: {}, head: {} })
+
+// ---------------------------------------------------------------- fake host
+const mk = v => { let x = v; const ls = new Set(); return { get: () => x, set: n => { if (n === x) return; x = n; [...ls].forEach(f => f(n)) }, listen: f => (ls.add(f), () => ls.delete(f)) } }
+const selected = mk(null) // $selectedStoredSessionId; no session tiles here, so focused = selected
+const tiles = new Map() // workspace tiles: id -> {opts, close}
+const log = []
+const host = {
+  state: { focusedStoredSessionId: selected, busyBySession: mk({}), busy: mk(false), focusedSessionId: mk(null) },
+  request: async (m, p) => (m === 'session.resume' ? { session_id: `rt-${p.session_id}` } : {}),
+  composer: {},
+  navigate(path) { window.location.hash = `#${path}` },
+  async openSession(sid) { await tick(); routerNav(`/${enc(sid)}`) },
+  openWorkspace(id, opts) {
+    const prev = tiles.get(id)
+    if (prev) log.push(`re-open ${id}`)
+    const close = () => { if (tiles.get(id)?.close === close) tiles.delete(id); opts.onClose?.() }
+    tiles.set(id, { opts, close })
+    return close
+  }
+}
+globalThis.__W = { host, collect: null }
+
+// The app's route effects: the selection follows a chat route (after the URL, as use-route-resume does);
+// our page mounts on its route and unmounts off it.
+let pageMounted = null
+function setRoute(v, fireHash) {
+  hash = v.startsWith('#') ? v : `#${v}`
+  window.history.state = { key: `k${++entryKey}` }
+  if (fireHash) window.dispatchEvent(new Event('hashchange'))
+  window.navigation.dispatchEvent(new Event('currententrychange'))
+  const path = hash.slice(1).split('?')[0]
+  if (path === '/') selected.set(null)
+  else if (!path.slice(1).includes('/') && !path.startsWith(PAGE) && !['/artifacts', '/capabilities'].includes(path)) selected.set(decodeURIComponent(path.slice(1)))
+  const onPage = path === PAGE || path.startsWith(`${PAGE}/`)
+  if (onPage && !pageMounted) pageMounted = mount(routeEl())
+  if (!onPage && pageMounted) { pageMounted.forEach(f => typeof f === 'function' && f()); pageMounted = null }
+}
+// The HashRouter: history.pushState, so no hashchange.
+function routerNav(path) { setRoute(`#${path}`, false) }
+
+// ---------------------------------------------------------------- plugin
+const contribs = new Map()
+const storage = new Map()
+let list = []
+let openGate, listGate = new Promise(r => { openGate = r })
+const evs = new Map() // gateway / plugin events the plugin listens to
+const emit = (type, ev) => [...(evs.get(type) || [])].forEach(f => f(ev))
+const makingSrv = {} // GET /making: what the backend says a chat is making
+const ctx = {
+  i18n: { register() {}, t: (k, ...a) => (a.length ? `${k}:${a.join(',')}` : k) },
+  register(c) {
+    contribs.set(c.id, c)
+    return () => contribs.delete(c.id) // the real registry removes by id, whoever registered it
+  },
+  storage: { get: k => storage.get(k), set: (k, v) => storage.set(k, v) },
+  async rest(path, o) {
+    if (path === '/artifacts') await listGate
+    if (path === '/artifacts') return { artifacts: JSON.parse(JSON.stringify(list)), folders: [] }
+    if (path.endsWith('/chat')) return { known: true, exists: true, archived: false }
+    if (path.startsWith('/making?session=')) { const sid = decodeURIComponent(path.split('=')[1]); return { making: makingSrv[sid] ? { session: sid, ...makingSrv[sid] } : null } }
+    return {}
+  },
+  onEvent(type, fn) { if (!evs.has(type)) evs.set(type, new Set()); evs.get(type).add(fn); return () => evs.get(type).delete(fn) },
+  setInterval(fn, ms) { const id = setInterval(fn, ms); id.unref?.(); return () => clearInterval(id) },
+  setTimeout(fn, ms) { const id = setTimeout(fn, ms); return () => clearTimeout(id) },
+  addEventListener(t, type, fn, o) { t.addEventListener(type, fn, o); return () => t.removeEventListener(type, fn, o) }
+}
+
+const mod = await import('./plugin.mjs')
+const I = mod.__test
+const routeEl = () => contribs.get('page').render()
+
+// A shallow renderer: function components are called (hooks are stubs), host elements collected.
+const SKIP = new Set(['Gallery', 'CommentsPanel', 'FloatingChat', 'CommentPopover', 'ConfirmSend', 'Toast', 'PopMenu', 'TitleMenu'])
+function expand(el, out = []) {
+  if (el == null || typeof el !== 'object') return out
+  if (Array.isArray(el)) { el.forEach(e => expand(e, out)); return out }
+  if (typeof el.type === 'function') return SKIP.has(el.type.name) ? out : expand(el.type(el.props || {}), out)
+  out.push(el)
+  expand(el.props?.children, out)
+  return out
+}
+// The top component's own effects run once (its [] effects: Page's mount), children's never.
+function mount(el) {
+  const fx = []
+  globalThis.__W.collect = fx
+  el.type(el.props)
+  globalThis.__W.collect = null
+  return fx.map(f => f())
+}
+const buttons = el => expand(el).filter(e => e.type === 'button')
+const click = (el, pred, what) => {
+  const b = buttons(el).find(pred)
+  if (!b) throw new Error(`no ${what} button`)
+  return b.props.onClick({ preventDefault() {}, stopPropagation() {} })
+}
+const titlebar = () => contribs.get('chat-artifact-slot')
+const tileEl = () => [...tiles.values()][0]?.opts.render()
+
+// ---------------------------------------------------------------- invariants
+const fails = []
+let step = ''
+function check(expect = {}) {
+  const sid = selected.get()
+  const path = hash.slice(1).split('?')[0]
+  const onChat = path === '/' || path === `/${enc(sid || '')}`
+  const has = Boolean(sid && (list.some(a => a.session === sid) || I.$makings.get()[sid]))
+  const want = onChat && has
+  const bad = m => fails.push(`[${step}] ${m}`)
+  if (Boolean(titlebar()) !== want) bad(`titlebar button ${titlebar() ? 'shown' : 'missing'} (route ${path}, chat ${sid})`)
+  if (tiles.size > 1) bad(`${tiles.size} tiles`)
+  const chat = I.$chat.get()
+  if ((chat === 'split') !== (tiles.size === 1)) bad(`$chat=${chat} with ${tiles.size} tile(s)`)
+  if (tiles.size && pageMounted) bad('a tile beside the Artifacts page')
+  if (chat === 'split' && (I.$dockMaking.get() || I.current()?.session) !== sid) bad(`docked ${I.$dockMaking.get() || I.$selected.get()} beside chat ${sid}`)
+  if (I.$dockMaking.get() && chat !== 'split') bad('a placeholder with no tile')
+  if ('making' in expect && I.$dockMaking.get() !== expect.making) bad(`expected placeholder for ${expect.making}, got ${I.$dockMaking.get()}`)
+  if ('reopens' in expect) { const n = log.filter(x => x.startsWith('re-open')).length; if (n !== expect.reopens) bad(`expected ${expect.reopens} in-place re-open(s), got ${n}`); log.length = 0 }
+  if ('closed' in expect) { const c = (storage.get('closedIn') || []).includes(sid); if (c !== expect.closed) bad(`expected closedIn ${expect.closed} for ${sid}`) }
+  if ('split' in expect && (chat === 'split') !== expect.split) bad(`expected split=${expect.split}, $chat=${chat}`)
+  if ('page' in expect && Boolean(pageMounted) !== expect.page) bad(`expected page=${expect.page}`)
+  if ('titlebarOpen' in expect) { const b = titlebar() && buttons(titlebar().render())[0]; if (!b || b.props['aria-pressed'] !== expect.titlebarOpen) bad('titlebar button not in the open state') }
+  if ('selected' in expect && I.$selected.get() !== expect.selected) bad(`expected selected=${expect.selected}, got ${I.$selected.get()}`)
+}
+async function S(name, fn, expect) {
+  step = name
+  try { await fn() } catch (e) { fails.push(`[${step}] threw: ${e.message}`) }
+  await settle()
+  check(expect)
+}
+
+// ---------------------------------------------------------------- scenarios
+const A = { id: 'a1', title: 'Alpha', type: 'page', session: 'chatA', updated: 1, version: 1 }
+const A2 = { id: 'a2', title: 'Alpha two', type: 'doc', session: 'chatA', updated: 3, version: 1 }
+const B = { id: 'b1', title: 'Beta', type: 'page', session: 'chatB', updated: 2, version: 1 }
+list = [A, B]
+
+routerNav('/chatA') // the app starts on chat A; the list arrives later
+mod.default.register(ctx)
+await settle()
+await S('start on chat A, list late', () => openGate(), { split: true, selected: 'a1', titlebarOpen: true })
+await S('to Artifacts page by the sidebar', () => routerNav(PAGE), { split: false, page: true })
+await S('back to chat A by the sidebar', () => routerNav('/chatA'), { split: true })
+await S('to chat B', () => routerNav('/chatB'), { split: true, selected: 'b1' })
+await S('back to chat A', () => routerNav('/chatA'), { split: true, selected: 'a1' })
+await S('expand from the split', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { split: false, page: true, selected: 'a1' })
+await S('the expanded page offers one Show chat', () => {
+  const bs = buttons(routeEl()).map(b => b.props.title)
+  if (bs.filter(x => x === 'showChat').length !== 1 || bs.includes('chat') || bs.includes('popOut')) throw new Error('header buttons ' + bs.join(' '))
+}, { page: true })
+await S('Show chat on the full page', () => click(routeEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, page: false, selected: 'a1', titlebarOpen: true })
+await S('expand again', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { split: false, page: true })
+await S('back to chat A by the sidebar after expand', () => routerNav('/chatA'), { split: true, page: false, titlebarOpen: true })
+await S('expand is not a close (persisted state)', () => { if ((storage.get('closedIn') || []).includes('chatA')) throw new Error('chatA marked closed') }, { split: true })
+await S('close with the titlebar button', () => click(titlebar().render(), () => true, 'titlebar'), { split: false })
+await S('the close is persisted (a reload keeps it closed)', () => { if (!(storage.get('closedIn') || []).includes('chatA')) throw new Error('not persisted') }, { split: false })
+await S('to chat B and back: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
+await S('reopen with the titlebar button', () => click(titlebar().render(), () => true, 'titlebar'), { split: true, selected: 'a1' })
+await S('close with the tab strip', () => [...tiles.values()][0].close(), { split: false })
+await S('to chat B and back after the strip close: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
+await S('reopen from the titlebar', () => click(titlebar().render(), () => true, 'titlebar'), { split: true })
+await S('a second artifact in chat A, late list refresh', async () => { list = [A, A2, B]; routerNav(PAGE); await settle(); routerNav('/chatA') }, { split: true })
+await S('gallery: open B full page, then Chat', async () => {
+  routerNav(PAGE); await settle(); I.openArtifact(ctx, 'b1'); await settle(); if (buttons(routeEl()).some(b => b.props.title === 'showChat')) throw new Error('Show chat on a gallery-opened page')
+  click(routeEl(), b => b.props.title === 'chat', 'Chat')
+}, { split: true, page: false, selected: 'b1', titlebarOpen: true })
+await S('the dock close (header x) in chat B', () => click(tileEl(), b => b.props.title === 'close', 'close'), { split: false })
+await S('Settings-like page and back', async () => { routerNav('/capabilities'); await settle(); routerNav('/chatB') }, { split: false })
+
+// ---------------------------------------------------------------- the early pane (an artifact being made)
+const texts = el => expand(el).map(e => e.props?.children).filter(c => typeof c === 'string')
+const making = (session, phase, extra = {}) => emit('plugin.hermes-artifacts.making', { payload: { session, phase, started: 1, ...extra } })
+const opened = (art, extra = {}) => emit('plugin.hermes-artifacts.open', { payload: { id: art.id, title: art.title, type: art.type, version: 1, session: art.session, ...extra } })
+const tool = (type, name, args) => emit(type, { type, payload: args ? { name, args } : { name } })
+const C1 = { id: 'c1', title: 'Deck', type: 'slides', session: 'chatC', updated: 5, version: 1 }
+
+await S('a new chat with nothing made', () => routerNav('/chatC'), { split: false })
+await S('Hermes reads the slides guide: the placeholder beside the chat', () => making('chatC', 'guide', { type: 'slides' }), { split: true, making: 'chatC', titlebarOpen: true })
+await S('the placeholder says the type and the step', () => {
+  const ts = texts(tileEl())
+  if (!ts.includes('type_slides') || !ts.some(x => x.startsWith('stepGuide:'))) throw new Error('placeholder text ' + ts.join(' | '))
+}, { split: true, making: 'chatC' })
+await S('writing, then publishing with its title', async () => {
+  tool('tool.generating', 'artifact_publish')
+  await settle()
+  if (!texts(tileEl()).some(x => x.startsWith('stepWrite:'))) throw new Error('no writing step')
+  tool('tool.start', 'tool_call', { calls: [{ name: 'artifact_publish', arguments: { type: 'slides', title: 'Deck' } }] })
+  await settle()
+  const ts = texts(tileEl())
+  if (!ts.includes('Deck') || !ts.includes('stepPublish')) throw new Error('no title or publishing step ' + ts.join(' | '))
+}, { split: true, making: 'chatC' })
+await S('a making in another chat shows nothing here', () => making('chatD', 'guide', { type: 'page' }), { split: true, making: 'chatC' })
+await S('published: the same tile becomes the artifact', async () => {
+  list = [A, A2, B, C1]
+  making('chatC', 'done', { id: 'c1', title: 'Deck', type: 'slides' })
+  opened(C1)
+}, { split: true, making: null, selected: 'c1', titlebarOpen: true, reopens: 1 })
+await S('the other chat ends quietly', () => making('chatD', 'ended', { type: 'page' }), { split: true, selected: 'c1' })
+await S('close the artifact in chat C', () => click(titlebar().render(), () => true, 'titlebar'), { split: false, closed: true })
+await S('a new making in a closed chat shows again', () => making('chatC', 'guide', { type: 'page' }), { split: true, making: 'chatC', closed: false })
+await S('the turn ends without a publish: the placeholder goes, not as a close', () => making('chatC', 'ended'), { split: false, making: null, closed: false })
+
+await S('chat E: a placeholder', async () => { routerNav('/chatE'); await settle(); making('chatE', 'guide', { type: 'dashboard' }) }, { split: true, making: 'chatE' })
+await S('the person closes the placeholder (its x)', () => click(tileEl(), b => b.props.title === 'close', 'close'), { split: false, closed: true })
+await S('the titlebar shows it again', () => click(titlebar().render(), () => true, 'titlebar'), { split: true, making: 'chatE', closed: false, titlebarOpen: true })
+await S('closed by the tab strip', () => [...tiles.values()][0].close(), { split: false, closed: true })
+await S('its publish opens it anyway (new artifact)', async () => {
+  list = [...list, { id: 'e1', title: 'Board', type: 'dashboard', session: 'chatE', updated: 6, version: 1 }]
+  opened(list[list.length - 1])
+}, { split: true, selected: 'e1', closed: false, reopens: 0 })
+
+await S('chat F: a placeholder, Hermes still working', async () => { host.state.busy.set(true); routerNav('/chatF'); await settle(); making('chatF', 'guide', { type: 'design' }) }, { split: true, making: 'chatF' })
+await S('to chat B: the placeholder goes with its chat', () => routerNav('/chatB'), { split: false })
+await S('back to chat F, still making: it is back', () => routerNav('/chatF'), { split: true, making: 'chatF', closed: false })
+await S('chat F ends', () => making('chatF', 'ended'), { split: false })
+
+await S('after a reload: a busy chat the backend says is making', async () => { makingSrv.chatG = { type: 'sheet', phase: 'guide' }; routerNav('/chatG') }, { split: true, making: 'chatG' })
+await S('chat G ends', async () => { making('chatG', 'ended'); delete makingSrv.chatG }, { split: false })
+await S('a chat not busy shows nothing from the backend', async () => { host.state.busy.set(false); makingSrv.chatH = { type: 'page' }; routerNav('/chatH') }, { split: false })
+await S('a doc gets no placeholder', async () => { routerNav('/chatI'); await settle(); making('chatI', 'guide', { type: 'doc' }) }, { split: false })
+await S('a publish with no guide this turn: a placeholder from the tool event', async () => {
+  routerNav('/chatJ'); await settle(); host.state.busy.set(true); await settle(); tool('tool.generating', 'artifact_publish')
+}, { split: true, making: 'chatJ' })
+await S('that turn ends: it goes', () => host.state.busy.set(false), { split: false, closed: false })
+
+console.log(JSON.stringify({ fails, log }, null, 1))
+process.exit(0)
+"""
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class DesktopStateTests(unittest.TestCase):
+    def test_beside_expand_close_sequences(self):
+        d = Path(tempfile.mkdtemp(prefix="ha-states-"))
+        src = (PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
+               .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
+        # The internals the invariants read, exported from the copy only.
+        src += "\nexport const __test = { $chat, $selected, current, openArtifact, $makings, $dockMaking }\n"
+        (d / "plugin.mjs").write_text(src, "utf-8")
+        (d / "sdk.mjs").write_text(SDK, "utf-8")
+        (d / "react.mjs").write_text(REACT, "utf-8")
+        (d / "jsx.mjs").write_text(JSX, "utf-8")
+        (d / "run.mjs").write_text(RUN, "utf-8")
+        r = subprocess.run([NODE, "run.mjs"], cwd=d, capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout[r.stdout.index("{"):])
+        self.assertEqual(out["fails"], [], "\n".join(out["fails"]))
+        self.assertEqual(out["log"], [])
+        shutil.rmtree(d, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    unittest.main()

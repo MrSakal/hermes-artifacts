@@ -366,7 +366,12 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
             return {"artifacts": arts, "folders": folders,
                     "default_design_system": settings.get("default_design_system"),
-                    "design_system_for": settings.get("design_system_for") or {}}
+                    "design_system_for": settings.get("design_system_for") or {},
+                    "making": store.making_all()}
+        if parts == ["making"] and method == "GET":
+            # What a chat is making now (Hermes read a guide, has not published): after a reload or a chat switch.
+            session = str(query.get("session") or "")
+            return {"making": store.making_get(session) if session else store.making_all()}
         if parts == ["design-system-for"] and method == "POST":
             # The system one type builds on (the ••• of a Make something new tile): an id, "none", or null
             # for the default for everything.
