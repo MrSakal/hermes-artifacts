@@ -17,7 +17,7 @@ NODE = shutil.which("node")
 
 SCRIPT = r"""
 const fs = require('fs');
-const src = fs.readFileSync(process.argv[2], 'utf8');
+const src = fs.readFileSync(process.argv[2], 'utf8').replace(/\r\n/g, '\n'); // a Windows checkout has CRLF
 const a = src.indexOf('// >>> pure'), b = src.indexOf('// <<< pure');
 if (a < 0 || b < a) throw new Error('the pure block is not marked in sheet.js');
 const P = new Function(src.slice(a, b) + '\nreturn PURE;')();
