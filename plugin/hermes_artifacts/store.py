@@ -84,10 +84,65 @@ def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
     return walk(str(top), "")
 
 
-TYPES = ("page", "dashboard", "slides", "doc", "sheet", "design", "model", "motion", "design-system")
+# A static SVG (the Design System page's uploads, a board's drawings).
+_SVG_URI = re.compile(r"^data:image/svg\+xml(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=]+)$", re.I)
+MAX_SVG_BYTES = 2 * 1024 * 1024
+_SVG_BANNED = {"script", "foreignobject", "iframe", "embed", "object"}
+
+
+def safe_svg(rel: str, val: str) -> str:
+    """The SVG's text when it is a static drawing (no script, handlers, javascript: or outside links), else ValueError."""
+    import base64
+    import binascii
+    import xml.etree.ElementTree as ET
+    bad = f"{rel}: an SVG of at most 2 MB"
+    um = _SVG_URI.match(val)
+    if um:
+        if len(um.group(1)) * 3 // 4 > MAX_SVG_BYTES + 3:
+            raise ValueError(bad)
+        try:
+            raw = base64.b64decode(um.group(1), validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError(bad)
+    elif val.startswith("data:"):
+        raise ValueError(bad)
+    else:
+        raw = val.encode("utf-8")
+    if len(raw) > MAX_SVG_BYTES:
+        raise ValueError(bad)
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise ValueError(f"{rel}: an SVG must be UTF-8 text")
+    low = text.lower()
+    if "<!doctype" in low or "<!entity" in low or "<?xml-stylesheet" in low:
+        raise ValueError(f"{rel}: an SVG may not declare a DOCTYPE, entities or stylesheets")
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        raise ValueError(f"{rel}: not a well-formed SVG")
+    local = lambda n: str(n).rsplit("}", 1)[-1].lower()
+    if local(root.tag) != "svg":
+        raise ValueError(f"{rel}: the root element must be <svg>")
+    for el in root.iter():
+        if local(el.tag) in _SVG_BANNED:
+            raise ValueError(f"{rel}: an SVG may not contain <{local(el.tag)}>")
+        for k, v in el.attrib.items():
+            # Browsers drop whitespace and control characters inside a URL's scheme ("java\tscript:").
+            name, v = local(k), re.sub(r"[\s\x00-\x1f]+", "", str(v)).lower()
+            if name.startswith("on"):
+                raise ValueError(f"{rel}: an SVG may not have event handlers ({name})")
+            if v.startswith("javascript:"):
+                raise ValueError(f"{rel}: an SVG may not link to javascript:")
+            if name == "href" and not (v.startswith("#") or v.startswith("data:image/")):
+                raise ValueError(f"{rel}: an SVG may link only to its own #fragments or data:image/ URIs")
+    return text
+
+
+TYPES = ("page", "dashboard", "slides", "doc", "sheet", "board", "design", "model", "motion", "design-system")
 # The file a type's content starts from (validated at publish).
 TYPE_ENTRY = {"page": "index.html", "dashboard": "dashboard.json", "slides": "deck.json", "doc": "doc.md",
-              "sheet": "sheet.json", "design": "canvas.json", "model": "model.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
+              "sheet": "sheet.json", "board": "board.json", "design": "canvas.json", "model": "model.json", "motion": "modules/scenes.json", "design-system": "design-system.json"}
 _REL_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9._-]{0,99}){0,7}$")
 MAX_FILES = 512
 
@@ -378,6 +433,9 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             elif kind == "sheet":
                 from . import sheets
                 sheets.check_file(vdir / "sheet.json")
+            elif kind == "board":
+                from . import boards
+                boards.check_file(vdir / "board.json")
             elif kind == "model":
                 from . import models
                 models.check_file(vdir / "model.json")

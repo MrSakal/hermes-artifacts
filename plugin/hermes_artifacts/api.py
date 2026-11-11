@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any, Optional
 
-from . import docs, history, live, render, sheets, store
+from . import boards, docs, history, live, render, sheets, store
 from .server import inject_bridge
 
 
@@ -114,58 +114,7 @@ _MESH_PATH = re.compile(r"^meshes/.+\.(glb|gltf|stl|obj|ply|3mf)$", re.I)
 _ANY_URI = re.compile(r"^data:[^,]*;base64,([A-Za-z0-9+/=]+)$")
 # An SVG the Design System page uploads (Assets): text or a base64 data: URI, kept only when static.
 _SVG_PATH = re.compile(r"\.svg$", re.I)
-_SVG_URI = re.compile(r"^data:image/svg\+xml(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=]+)$", re.I)
-MAX_SVG_BYTES = 2 * 1024 * 1024
-_SVG_BANNED = {"script", "foreignobject", "iframe", "embed", "object"}
-
-
-def _safe_svg(rel: str, val: str) -> str:
-    """The SVG's text when it is a static drawing (no script, handlers, javascript: or outside links), else ValueError."""
-    import base64
-    import binascii
-    import xml.etree.ElementTree as ET
-    bad = f"{rel}: an SVG of at most 2 MB"
-    um = _SVG_URI.match(val)
-    if um:
-        if len(um.group(1)) * 3 // 4 > MAX_SVG_BYTES + 3:
-            raise ValueError(bad)
-        try:
-            raw = base64.b64decode(um.group(1), validate=True)
-        except (binascii.Error, ValueError):
-            raise ValueError(bad)
-    elif val.startswith("data:"):
-        raise ValueError(bad)
-    else:
-        raw = val.encode("utf-8")
-    if len(raw) > MAX_SVG_BYTES:
-        raise ValueError(bad)
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise ValueError(f"{rel}: an SVG must be UTF-8 text")
-    low = text.lower()
-    if "<!doctype" in low or "<!entity" in low or "<?xml-stylesheet" in low:
-        raise ValueError(f"{rel}: an SVG may not declare a DOCTYPE, entities or stylesheets")
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
-        raise ValueError(f"{rel}: not a well-formed SVG")
-    local = lambda n: str(n).rsplit("}", 1)[-1].lower()
-    if local(root.tag) != "svg":
-        raise ValueError(f"{rel}: the root element must be <svg>")
-    for el in root.iter():
-        if local(el.tag) in _SVG_BANNED:
-            raise ValueError(f"{rel}: an SVG may not contain <{local(el.tag)}>")
-        for k, v in el.attrib.items():
-            # Browsers drop whitespace and control characters inside a URL's scheme ("java\tscript:").
-            name, v = local(k), re.sub(r"[\s\x00-\x1f]+", "", str(v)).lower()
-            if name.startswith("on"):
-                raise ValueError(f"{rel}: an SVG may not have event handlers ({name})")
-            if v.startswith("javascript:"):
-                raise ValueError(f"{rel}: an SVG may not link to javascript:")
-            if name == "href" and not (v.startswith("#") or v.startswith("data:image/")):
-                raise ValueError(f"{rel}: an SVG may link only to its own #fragments or data:image/ URIs")
-    return text
+_safe_svg = store.safe_svg  # shared with boards.py (a drawing's SVG)
 
 
 _DS_PARTS = ("tokens.json", "components/bundle.css", "README.md")  # with fonts/: what another artifact wears
@@ -301,7 +250,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
         except docs.DocError as e:
             raise ValueError(e.message)
     if op == "doc.edit":
-        # The doc's own editor (the user typing). Hermes edits through its artifact_doc_edit tool.
+        # The doc's own editor (the user typing). Hermes edits through its artifact_live_edit tool.
         try:
             return docs.apply(aid, a.get("ops") or [], by="user", tab=a.get("tab") or None, base_rev=_int(a.get("base_rev")))
         except docs.DocError as e:
@@ -330,17 +279,19 @@ def _op(aid: str, op: str, a: dict) -> dict:
         return {"ok": True, "id": item["id"]}
     if op.startswith("sheet."):
         return _sheet_op(aid, op, a)
+    if op.startswith("board."):
+        return _board_op(aid, op, a)
     if op == "reply.get":
         return {"reply": store.reply_get(aid, str(a.get("request", "")))}
     raise ApiError(400, f"op {op!r} not allowed here")
 
 
 def _sheet_op(aid: str, op: str, a: dict) -> dict:
-    """The sheet page's own ops (the user editing). Hermes edits through artifact_doc_edit."""
+    """The sheet page's own ops (the user editing). Hermes edits through artifact_live_edit."""
     sheet = a.get("sheet") or None
     try:
         if op == "sheet.read":
-            return sheets.read(aid, sheet, a.get("range") or None, since_rev=_int(a.get("since_rev")))
+            return sheets.with_lists(aid, sheets.read(aid, sheet, a.get("range") or None, since_rev=_int(a.get("since_rev"))))
         if op == "sheet.edit":
             try:
                 return sheets.apply(aid, a.get("ops") or [], by="user", sheet=sheet, base_rev=_int(a.get("base_rev")))
@@ -353,7 +304,7 @@ def _sheet_op(aid: str, op: str, a: dict) -> dict:
         if op == "sheet.history":
             return sheets.history(aid, sheet)
         if op == "sheet.at":
-            return sheets.at_rev(aid, sheet, _int(a.get("rev")) or 0)
+            return sheets.with_lists(aid, sheets.at_rev(aid, sheet, _int(a.get("rev")) or 0))
         if op == "sheet.restore":
             return sheets.restore(aid, sheet, _int(a.get("rev")) or 0)
     except sheets.SheetError as e:
@@ -366,6 +317,37 @@ def _sheet_op(aid: str, op: str, a: dict) -> dict:
         data = {"sheet": str(a.get("sheet") or "")[:40], "range": str(a.get("range") or "")[:40],
                 "selection": str(a.get("selection") or "")[:4000]}
         item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="sheet-ask")
+        return {"ok": True, "id": item["id"]}
+    raise ApiError(400, f"op {op!r} not allowed here")
+
+
+def _board_op(aid: str, op: str, a: dict) -> dict:
+    """The board page's own ops (the user editing). Hermes edits through artifact_live_edit."""
+    try:
+        if op == "board.read":
+            return boards.read(aid, since_rev=_int(a.get("since_rev")))
+        if op == "board.edit":
+            try:
+                return boards.apply(aid, a.get("ops") or [], by="user", base_rev=_int(a.get("base_rev")))
+            except boards.BoardError as e:
+                if e.code == "conflict":
+                    return {"ok": False, "error": e.message, **e.extra}
+                raise
+        if op == "board.history":
+            return boards.history(aid)
+        if op == "board.at":
+            return boards.at_rev(aid, _int(a.get("rev")) or 0)
+        if op == "board.restore":
+            return boards.restore(aid, _int(a.get("rev")) or 0)
+    except boards.BoardError as e:
+        if e.code == "absent":
+            raise FileNotFoundError(e.message)
+        raise ValueError(e.message)
+    if op == "board.ask":
+        # "Ask Hermes" about the selected items: into the chat (the host words the message), kept in the inbox.
+        _meta(aid)
+        data = {"ids": [str(i)[:40] for i in (a.get("ids") or [])][:50]}
+        item = store.inbox_add(aid, str(a.get("text", ""))[:4000], data, kind="board-ask")
         return {"ok": True, "id": item["id"]}
     raise ApiError(400, f"op {op!r} not allowed here")
 

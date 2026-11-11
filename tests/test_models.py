@@ -409,7 +409,7 @@ class AgentTests(unittest.TestCase):
     def test_tool_description(self):
         pub_tool = next(t[1] for t in self.p.TOOLS if t[0] == "artifact_publish")
         first = pub_tool["description"].split(". ")[0] + "."
-        self.assertEqual(first, "Make docs, sheets, decks, dashboards, designs, 3D models, films here, not files.")
+        self.assertEqual(first, "Make docs, sheets, boards, decks, dashboards, designs, 3D, films here not files.")
         self.assertLessEqual(len(first), 80)
         self.assertIn("a 3D model, part, assembly -> model", pub_tool["description"])
         self.assertIn("model", pub_tool["parameters"]["properties"]["type"]["enum"])

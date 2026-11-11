@@ -223,6 +223,15 @@
       restore: function (sheet, rev) { return call("sheet.restore", { sheet: sheet || null, rev: rev }); },
       ask: function (a) { return call("sheet.ask", a || {}); }
     }),
+    /** Boards: the live whiteboard on the server (read it, or what changed since a rev; edit it with ops). */
+    board: Object.freeze({
+      read: function (sinceRev) { return call("board.read", { since_rev: sinceRev == null ? null : sinceRev }); },
+      edit: function (ops, baseRev) { return call("board.edit", { ops: ops, base_rev: baseRev == null ? null : baseRev }); },
+      history: function () { return call("board.history", {}); },
+      at: function (rev) { return call("board.at", { rev: rev }); },
+      restore: function (rev) { return call("board.restore", { rev: rev }); },
+      ask: function (a) { return call("board.ask", a || {}); }
+    }),
     /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
      *  version in place (null = the latest). */
     history: Object.freeze({

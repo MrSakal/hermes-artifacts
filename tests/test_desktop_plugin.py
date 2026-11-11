@@ -50,3 +50,13 @@ class DesktopPluginTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DownloadTests(unittest.TestCase):
+    def test_a_blob_export_is_saved_as_it_is(self):
+        """Every binary export (xlsx, docx, pdf, pptx, png, zip, mp4) hands the host a Blob. Up to 0.14 the
+        host JSON-stringified anything that was not a string or a buffer, so those files were a 2 byte "{}"."""
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        branch = src[src.index("m.op === 'download'"):]
+        branch = branch[:branch.index("return reply")]
+        self.assertIn("instanceof Blob", branch)

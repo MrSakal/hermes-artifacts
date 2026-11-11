@@ -1,6 +1,7 @@
 """Live sheets: a workbook of cells the user and Hermes edit together; xlsx/CSV import."""
 
 import json
+import re
 import os
 import sys
 import tempfile
@@ -305,6 +306,35 @@ class RefTests(unittest.TestCase):
 
 
 class BridgeTests(unittest.TestCase):
+    def test_a_comment_on_a_cell_is_never_sent_empty(self):
+        # The page's Comment button only opens the host's form at the cell (hermes.comment: an anchor, its
+        # quote "A14" or "A14: <what it shows>"); what gets stored is the text typed there. Empty, blank
+        # or only the "@Hermes " the form starts with: refused by the form and by the server.
+        aid = pub()
+        anchor = {"selector": "cell:" + sheets.load(aid)["sheets"][0]["id"] + "!A14", "text": "A14", "label": "Costs · A14"}
+        for body in ("", "   ", "\n\t"):
+            with self.assertRaises(ValueError):
+                store.comment_add(aid, body, anchor=anchor)
+            with self.assertRaises(api.ApiError):
+                api.handle("POST", f"artifacts/{aid}/comments", {}, {"text": body, "anchor": anchor})
+        self.assertEqual(store.comments_list(aid), [])
+        host = (ROOT / "plugin" / "desktop" / "plugin.js").read_text("utf-8")
+        form = host[host.index("function CommentForm("):]
+        submit = form[:form.index("ctx.rest(")]
+        # what is left once the "@Hermes" the text starts with goes (the form's own pattern, run here):
+        # "@Hermes " alone is nothing. (A stray control character once stood where its \b is: nothing was cut.)
+        m = re.search(r"text\.trim\(\)\.replace\(/(.+?)/i, ''\)", submit)
+        self.assertTrue(m, submit)
+        self.assertNotRegex(m.group(1), r"[\x00-\x1f]")
+        cut = lambda t: re.sub(m.group(1), "", t.strip(), count=1, flags=re.I)  # noqa: E731
+        self.assertEqual([cut(t) for t in ("@Hermes ", "@hermes, ", "@Hermes: fix it", "@Hermesx")], ["", "", "fix it", "@Hermesx"])
+        self.assertIn("if (!body || busy) return", submit)                   # nothing is sent then
+        self.assertIn("if (e.key === 'Escape') return onDone()", form)       # Esc closes, sends nothing
+        page = (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js").read_text("utf-8")
+        sel = page[page.index("function commentSel()"):page.index("function askSel()")]
+        self.assertNotIn("hm.sheet.edit", sel)
+        self.assertIn("text: (shown ? k + \": \" + shown : k)", sel)            # an empty cell's quote is just "A14"
+
     def test_ops(self):
         aid = pub()
         r = op(aid, "sheet.read")
@@ -361,7 +391,7 @@ class ToolTests(unittest.TestCase):
         aid = out["id"]
         r = json.loads(p._doc_read({"id": aid, "tab": "Costs"}))
         self.assertEqual(r["rows"][1][3], "=B2*C2")
-        self.assertIn("artifact_doc_edit", r["note"])
+        self.assertIn("artifact_live_edit", r["note"])
         self.assertNotIn("fmt", r)
         r2 = json.loads(p._doc_read({"id": aid, "range": "A1:B1"}))
         self.assertEqual(r2["rows"], [["Item", "Unit price"]])
@@ -390,8 +420,8 @@ class ToolTests(unittest.TestCase):
     def test_tool_schemas_name_sheets(self):
         tools = {t[0]: t[1] for t in self.p.TOOLS}
         self.assertIn("sheet", tools["artifact_publish"]["parameters"]["properties"]["type"]["enum"])
-        self.assertIn("range", tools["artifact_doc_read"]["parameters"]["properties"])
-        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7245 + 48)  # + the model type (spec: at most + 60)
+        self.assertIn("range", tools["artifact_live_read"]["parameters"]["properties"])
+        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7245 + 48 + 102)  # + the model type (spec: at most + 60), + the board type (102)
 
 
 def _xlsx(path):

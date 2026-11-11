@@ -772,7 +772,7 @@
     var tools = h("div", { "class": "src-tools" }, [
       full ? null : iconBtn("expand", T.expand, function () { expandResult(id); }),
       iconBtn("copy", T.copy, function () { copyText(isValue ? JSON.stringify(r.value, null, 2) : toTsv(r)); }),
-      iconBtn("download", T.downloadCsv, function () { kit.download(id + ".csv", toCsv(isValue ? asTable(rows) : r), "text/csv"); kit.toast(T.saved); })
+      iconBtn("download", T.downloadCsv, function () { kit.download(id + ".csv", "\ufeff" + toCsv(isValue ? asTable(rows) : r), "text/csv"); kit.toast(T.saved); })
     ]);
     var body;
     if (rows.length === 1) {
@@ -1307,7 +1307,7 @@
     { id: "json", label: T.json, run: function () { kit.download(kit.slug(C.title) + ".json", exportJson(), "application/json"); } }
   ].concat(Object.keys(datasets).map(function (id) {
     return { id: "csv:" + id, label: T.csvOf + ": " + (datasets[id].title || id),
-      run: function () { kit.download(id + ".csv", toCsv(get(id)), "text/csv"); } };
+      run: function () { kit.download(id + ".csv", "\ufeff" + toCsv(get(id)), "text/csv"); } };
   }));
   bar.className = "kit-bar dash-bar";
   var histBtn = kit.button("", "history", function () { toggleHistory(); }, T.history);

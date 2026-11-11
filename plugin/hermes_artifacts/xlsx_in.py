@@ -1,7 +1,9 @@
 """A spreadsheet file (.xlsx, .csv, .tsv) as a sheet artifact's sheet.json, with the standard library only.
 
 xlsx: values, formulas (shared ones expanded), sheet names, column widths, frozen rows/columns,
-bold and number formats; dates become ``YYYY-MM-DD`` text. Anything else is dropped.
+bold and number formats, dropdowns (list validations written inline), cell borders (as thin lines),
+merged cells, conditional formats (expression rules and colour scales); dates become ``YYYY-MM-DD``
+text. Anything else is dropped.
 csv/tsv: the separator is sniffed (, ; tab), UTF-8 with or without BOM, else cp1250; numbers,
 booleans and dates are typed.
 """
@@ -17,7 +19,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .sheets import _BAD_NAME, MAX_COLS, MAX_ROWS, MAX_TEXT, col_name, key, parse_key, shift_refs
+from .sheets import (_BAD_NAME, MAX_COLS, MAX_OPTION, MAX_OPTIONS, MAX_ROWS, MAX_TEXT, col_name, key, parse_key,
+                     range_name, shift_refs)
 
 MAX_XML_BYTES = 200 * 1024 * 1024  # all the parts read together, unpacked
 
@@ -191,11 +194,40 @@ def _is_date(code: str) -> bool:
     return bool(re.search(r"[yd]", bare)) or ("m" in bare and "h" not in bare and "s" not in bare and "0" not in bare)
 
 
-def _styles(zf: _Zip, part: str) -> list:
-    """Per cell style index: (number format code | None, bold)."""
+def _rgb(el) -> str | None:
+    """A <color rgb="FFRRGGBB"> as #rrggbb (a theme or indexed colour: None)."""
+    v = _attr(el, "rgb") if el is not None else None
+    return "#" + v[-6:].lower() if v and re.fullmatch(r"[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}", v) else None
+
+
+def _dxfs(root) -> list:
+    """The differential formats conditional formats point at, as a rule's format keys."""
+    out = []
+    dxfs = _kid(root, "dxfs")
+    for d in (dxfs if dxfs is not None else []):
+        f = {}
+        font, fill = _kid(d, "font"), _kid(d, "fill")
+        if font is not None:
+            for tag, name in (("b", "bold"), ("strike", "strike")):
+                el = _kid(font, tag)
+                if el is not None and _attr(el, "val", "1") not in ("0", "false"):
+                    f[name] = True
+            fg = _rgb(_kid(font, "color"))
+            if fg:
+                f["fg"] = fg
+        pf = _kid(fill, "patternFill") if fill is not None else None
+        bg = (_rgb(_kid(pf, "bgColor")) or _rgb(_kid(pf, "fgColor"))) if pf is not None else None
+        if bg:
+            f["bg"] = bg
+        out.append(f)
+    return out
+
+
+def _styles(zf: _Zip, part: str) -> tuple:
+    """(per cell style index: (number format code | None, bold, the edges it draws: of "tblr"), the dxf formats)."""
     root = zf.xml(part) if part else None
     if root is None:
-        return []
+        return [], []
     codes = dict(_BUILTIN)
     nf = _kid(root, "numFmts")
     for f in (nf if nf is not None else []):
@@ -208,6 +240,11 @@ def _styles(zf: _Zip, part: str) -> list:
     for f in (fonts if fonts is not None else []):
         b = _kid(f, "b")
         bolds.append(b is not None and _attr(b, "val", "1") not in ("0", "false"))
+    edges = []
+    borders = _kid(root, "borders")
+    for b in (borders if borders is not None else []):
+        edges.append("".join(ch for ch, tag in zip("tblr", ("top", "bottom", "left", "right"))
+                             if _kid(b, tag) is not None and _attr(_kid(b, tag), "style", "none") != "none"))
     out = []
     xfs = _kid(root, "cellXfs")
     for x in (xfs if xfs is not None else []):
@@ -219,8 +256,12 @@ def _styles(zf: _Zip, part: str) -> list:
             bold = bolds[int(_attr(x, "fontId", "0"))]
         except (ValueError, IndexError):
             bold = False
-        out.append((num if num and num.lower() != "general" else None, bold))
-    return out
+        try:
+            bd = edges[int(_attr(x, "borderId", "0"))]
+        except (ValueError, IndexError):
+            bd = ""
+        out.append((num if num and num.lower() != "general" else None, bold, bd))
+    return out, _dxfs(root)
 
 
 def _serial_date(v: float, with_time: bool) -> str:
@@ -261,7 +302,7 @@ def _xlsx(p: Path) -> dict:
                 shared = [_text(si) for si in (sst if sst is not None else [])]
             elif low.endswith("styles.xml"):
                 styles_part = tgt
-        styles = _styles(zf, styles_part)
+        styles, dxfs = _styles(zf, styles_part)
         out, names = [], []
         sheets_el = _kid(wb, "sheets")
         for s in (sheets_el if sheets_el is not None else []):
@@ -273,7 +314,7 @@ def _xlsx(p: Path) -> dict:
                 continue
             name = _name(_attr(s, "name") or "Sheet", names)
             names.append(name)
-            out.append(_sheet(ws, name, shared, styles))
+            out.append(_sheet(ws, name, shared, styles, dxfs))
             if len(out) >= 20:
                 break
         if not out:
@@ -281,7 +322,56 @@ def _xlsx(p: Path) -> dict:
         return {"title": _title(p), "sheets": out}
 
 
-def _sheet(ws, name: str, shared: list, styles: list) -> dict:
+_SQREF = re.compile(r"^(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6})(?::(\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}))?$")
+
+
+def _sqref(ref: str):
+    """One range of a sqref as a box (r1, c1, r2, c2) cut to the sheet, or None."""
+    m = _SQREF.match(ref)
+    if not m:
+        return None
+    a, b = parse_key(m[1]), parse_key(m[2] or m[1])
+    if a[0] >= MAX_ROWS or a[1] >= MAX_COLS:
+        return None
+    return a[0], a[1], min(b[0], MAX_ROWS - 1), min(b[1], MAX_COLS - 1)
+
+
+def _rules(ws, dxfs: list) -> list:
+    """Conditional formats we model: expression rules with a fill, a font colour, bold or strike, and
+    2- or 3-colour scales. The file's highest priority (lowest number) comes last: later rules win."""
+    found = []
+    for cf in _kids(ws, "conditionalFormatting"):
+        boxes = [b for b in map(_sqref, (_attr(cf, "sqref") or "").split()) if b]
+        for rule in _kids(cf, "cfRule") if boxes else ():
+            try:
+                prio = int(_attr(rule, "priority", "0"))
+            except ValueError:
+                prio = 0
+            one = None
+            if _attr(rule, "type") == "expression":
+                f = _kid(rule, "formula")
+                try:
+                    look = dxfs[int(_attr(rule, "dxfId", "-1"))]
+                except (ValueError, IndexError):
+                    look = None
+                if f is not None and (f.text or "").strip() and look:
+                    one = {"if": _formula(f.text.strip()), **look}
+            elif _attr(rule, "type") == "colorScale":
+                cs = _kid(rule, "colorScale")
+                cols = [_rgb(c) for c in _kids(cs, "color")] if cs is not None else []
+                if len(cols) in (2, 3) and all(cols):
+                    one = {"scale": cols}
+            for box in boxes if one else ():
+                r = {"range": range_name(*box), **one}
+                if "if" in r:  # the formula is written for the first range's first cell
+                    r["if"] = shift_refs(r["if"], box[0] - boxes[0][0], box[1] - boxes[0][1])
+                    if len(r["if"]) > 500:
+                        continue
+                found.append((prio, len(found), r))
+    return [r for _, _, r in sorted(found, key=lambda x: (-x[0], x[1]))][-50:]
+
+
+def _sheet(ws, name: str, shared: list, styles: list, dxfs: list = ()) -> dict:
     cells, fmts, masters = {}, {}, {}
     data = _kid(ws, "sheetData")
     for row in (data if data is not None else []):
@@ -294,9 +384,9 @@ def _sheet(ws, name: str, shared: list, styles: list) -> dict:
                 raise ValueError(f"sheet {name!r} reaches {ref}: a sheet holds {MAX_ROWS} rows x {MAX_COLS} columns")
             t = _attr(c, "t", "n")
             try:
-                num, bold = styles[int(_attr(c, "s", "0"))]
+                num, bold, bd = styles[int(_attr(c, "s", "0"))]
             except (ValueError, IndexError):
-                num, bold = None, False
+                num, bold, bd = None, False, ""
             f, v = _kid(c, "f"), _kid(c, "v")
             val = None
             if f is not None:
@@ -343,9 +433,42 @@ def _sheet(ws, name: str, shared: list, styles: list) -> dict:
                 f_["num"] = num
             if f_ and k in cells:
                 fmts[k] = f_
+            if bd:  # a border also on an empty cell
+                fmts[k] = {**fmts.get(k, {}), "bd": bd}
+    merges = []
+    mcs = _kid(ws, "mergeCells")
+    for mc in (mcs if mcs is not None else []):
+        box = _sqref(_attr(mc, "ref") or "")
+        if box and (box[0], box[1]) != (box[2], box[3]) and len(merges) < 500:
+            merges.append(range_name(*box))
+    rules = _rules(ws, dxfs)
+    dvs = _kid(ws, "dataValidations")
+    for dv in (dvs if dvs is not None else []):  # dropdowns: list validations with their items written inline
+        f1 = _kid(dv, "formula1")
+        src = (f1.text or "").strip() if f1 is not None else ""
+        if _attr(dv, "type") != "list" or len(src) < 3 or src[0] != '"' or src[-1] != '"':
+            continue
+        opts = []
+        for o in src[1:-1].replace('""', '"').split(","):
+            o = o.strip()[:MAX_OPTION]
+            if o and o not in opts:
+                opts.append(o)
+        for ref in (_attr(dv, "sqref") or "").split() if opts else ():
+            m = _SQREF.match(ref)
+            if not m:
+                continue
+            a, b = parse_key(m[1]), parse_key(m[2] or m[1])
+            if a[0] >= MAX_ROWS or a[1] >= MAX_COLS:
+                continue
+            rng = range_name(a[0], a[1], min(b[0], MAX_ROWS - 1), min(b[1], MAX_COLS - 1))
+            fmts[rng] = {**fmts.get(rng, {}), "options": opts[:MAX_OPTIONS]}
     out = {"name": name, "rows": _rows(cells)}
     if fmts:
         out["formats"] = fmts
+    if merges:
+        out["merges"] = merges
+    if rules:
+        out["rules"] = rules
     cols = {}
     cols_el = _kid(ws, "cols")
     for col in (cols_el if cols_el is not None else []):

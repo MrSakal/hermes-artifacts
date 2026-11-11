@@ -18,6 +18,19 @@
     var ch = new MessageChannel();
     ch.port1.onmessage = function (ev) {
       var m = ev.data || {};
+      if (m.op === "download") { // saved here: the server has no such op, and a Blob does not survive JSON
+        try {
+          var a0 = m.args || {}, c = a0.content;
+          var raw = c instanceof Blob || c instanceof ArrayBuffer || ArrayBuffer.isView(c) || typeof c === "string";
+          var blob = c instanceof Blob && c.type ? c : new Blob([raw ? c : JSON.stringify(c)], { type: a0.type || "application/octet-stream" });
+          var url = URL.createObjectURL(blob), link = document.createElement("a");
+          link.href = url; link.download = String(a0.name || "download").replace(/[\\/:*?"<>|]+/g, "_");
+          document.body.appendChild(link); link.click(); link.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+          ch.port1.postMessage({ id: m.id, ok: true, value: { ok: true } });
+        } catch (err) { ch.port1.postMessage({ id: m.id, ok: false, error: String(err) }); }
+        return;
+      }
       fetch("/api/" + encodeURIComponent(B.id) + "/" + encodeURIComponent(m.op), {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Hermes-Token": B.token },

@@ -1,7 +1,7 @@
 {
   "name": "hermes-artifacts",
   "label": "Artifacts",
-  "description": "Backend for the Hermes Desktop Artifacts page: artifacts, live docs and sheets, live dashboard queries, comments, storage, inbox, export libraries.",
-  "version": "0.14.0",
+  "description": "Backend for the Hermes Desktop Artifacts page: artifacts, live docs, sheets and boards, live dashboard queries, comments, storage, inbox, export libraries.",
+  "version": "0.15.0",
   "api": "plugin_api.py"
 }

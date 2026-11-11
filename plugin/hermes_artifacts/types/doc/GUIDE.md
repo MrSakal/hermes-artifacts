@@ -35,7 +35,7 @@ The doc opens beside the chat as soon as you publish:
 1. **Outline first**, before any research: publish `doc.md` with the title, a lead line if the ask gives
    one, and one `<!-- pending: Heading: what comes here, or what you will look up -->` line per section
    the ask needs. The result's `doc.tabs[].pending` lists each one's block id.
-2. **One section per `artifact_doc_edit`**, in reading order: `{op: "replace", block: <pending id>, md:
+2. **One section per `artifact_live_edit`**, in reading order: `{op: "replace", block: <pending id>, md:
    "## Heading\n\n…"}` (a pending block needs no `base_rev`). Look up what a section needs right
    before writing it, not everything first. Between calls, one short chat line on what you are on.
 3. A pending block that is gone (`absent`): the user removed that section; leave it out.
@@ -61,10 +61,10 @@ A short note (a few paragraphs) needs no outline: publish it whole.
 Never republish a doc to change it (refused; it would restart from the file and lose what the user
 typed). Instead:
 
-1. `artifact_doc_read id=…` (optional `tab`, `search`, `blocks`, or `since_rev` for what changed): a
+1. `artifact_live_read id=…` (optional `tab`, `search`, `blocks`, or `since_rev` for what changed): a
    tab's blocks, each `{id, kind, md}`, and its `rev`. A `since_rev` read returning
    `since: "unavailable"` holds the whole tab: read it as new.
-2. `artifact_doc_edit id=… base_rev=<rev> ops=[…]`, one tab per call (`replace`/`delete` need
+2. `artifact_live_edit id=… base_rev=<rev> ops=[…]`, one tab per call (`replace`/`delete` need
    `base_rev`, the rev you read):
    - `{op: "replace", block, md}` (Markdown with blank lines becomes several blocks);
    - `{op: "insert", after: <id or null for the top>, md}`;
@@ -86,7 +86,7 @@ Requests from inside the doc arrive as chat messages:
 - `[@Hermes in the doc …]`: replace that block (id in the message) with your answer as document text,
   not a chat reply; pass `request=<id>` from the message.
 - `[Edit with Hermes …]`: selected text plus what to change; change only the named blocks.
-- `[comment on the doc …]`: fix the block with `artifact_doc_edit`, then reply in the thread with
+- `[comment on the doc …]`: fix the block with `artifact_live_edit`, then reply in the thread with
   `artifact_comments`. Leave a person's thread open; resolve it only when they ask in chat.
 
 Keep the chat reply to one line: the change is in the doc.

@@ -1,7 +1,7 @@
 # hermes-artifacts
 
 Claude-style artifacts for [Hermes Agent](https://github.com/NousResearch/hermes-agent). The agent
-publishes something you look at or use (a page, dashboard, deck, doc, sheet, design canvas, film or
+publishes something you look at or use (a page, dashboard, deck, doc, sheet, whiteboard, design canvas, film or
 design system), and it opens on the **Artifacts** page of Hermes Desktop. The plugin replaces the
 built-in page with a gallery (live previews, search, sort, pins, "make something new" tiles) and a
 sandboxed viewer. Every artifact is versioned: publishing again with the same id adds a version, and the
@@ -37,8 +37,9 @@ open view reloads. It also works when Hermes Desktop is connected to a remote He
 | **Page** (`page`) | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML |
 | **Dashboard** (`dashboard`) | Numbers, charts and tables drawn from datasets: live MCP queries (loaders with `read.bigquery` / `governed` / `snowflake` / `databricks`), CSV/TSV/JSON files or inline rows. Sources shows where each figure comes from; History, looks (Clay, Ocean, Meadow, a design system), Edit the page, drafts in other formats (Scrollyteller, Visual analysis, Visual short), full screen. Hermes checks it with `artifact_check`. | CSV per source, HTML snapshot, JSON |
 | **Slides** (`slides`) | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
-| **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `artifact_doc_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
+| **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `artifact_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
 | **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
+| **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members); history with restore. | PNG, SVG |
 | **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) in Claude's `.dc.html` format: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
 | **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
 | **Motion** (`motion`) | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
@@ -64,10 +65,10 @@ Toolset `artifacts`, 14 tools:
 
 | Tool | What it does |
 |---|---|
-| `artifact_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc or sheet, and a version the user saved since Hermes last read it. |
+| `artifact_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board, and a version the user saved since Hermes last read it. |
 | `artifact_guide` | The file format, API and design rules of a type. Read it before the first artifact of that type. |
 | `artifact_check` | What an open dashboard reported about itself (code errors, NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
-| `artifact_doc_read` / `artifact_doc_edit` | Read and edit a live doc or sheet in place with ops, as the user sees it now; a doc edit can be a suggestion. |
+| `artifact_live_read` / `artifact_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. |
 | `artifact_list` / `artifact_read` | List artifacts, or read one's file list and any file (any version), plus its stored data. |
 | `artifact_open` | Show it in Hermes Desktop, or in a browser on the Hermes machine. |
 | `artifact_comments` | The user's comments: list, reply, resolve, and add a thread of Hermes' own. |
@@ -185,12 +186,13 @@ Environment variable: `HERMES_ARTIFACTS_DIR` moves the data folder (see below).
 |---|---|---|
 | Store | `plugin/hermes_artifacts/store.py` | `<HERMES_HOME>/plugin-data/hermes-artifacts/<id>/v<N>/`, per-artifact storage, comments, inbox, replies |
 | Rendering | `plugin/hermes_artifacts/render.py`, `bundle.py` | A page with its files inlined, or a type runtime with the artifact's files embedded as JSON |
-| Live docs | `plugin/hermes_artifacts/docs.py` | Blocks, tabs, revisions, suggestions and history of a doc; the ops behind `artifact_doc_edit` |
+| Live docs | `plugin/hermes_artifacts/docs.py` | Blocks, tabs, revisions, suggestions and history of a doc; the ops behind `artifact_live_edit` |
 | Live sheets | `plugin/hermes_artifacts/sheets.py`, `xlsx_in.py` | Cells, formats, charts and history of a sheet; `.xlsx` and `.csv` import |
+| Live boards | `plugin/hermes_artifacts/boards.py` | Items, placement without coordinates, ops, conflicts and history of a whiteboard |
 | Live dashboard queries | `plugin/hermes_artifacts/live.py` | Runs a dashboard's stored MCP calls, with approvals, argument rules and a read-only SQL guard |
 | 3D models | `plugin/hermes_artifacts/models.py` | Checks `model.json` on every publish and save (shape, ids, kinds, profiles, the syntax and names of expressions, limits) and turns a mesh file into a model; the geometry is built in the page (`types/model/`, on three.js) |
 | Design systems | `plugin/hermes_artifacts/dsbuild.py` | Compiles a design system's generated files (`tokens.css`, `manifest.json`, `api/` cards) on every publish and save |
-| Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, design, model, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
+| Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, board, design, model, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
 | Desktop page | `plugin/desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
 | Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send) |
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
@@ -248,6 +250,11 @@ which decides what is allowed.
 - **Bridge tools:** `window.hermes.callTool` is off by default. In the browser viewer it is limited to the
   `bridge_tools` allowlist; in the desktop it is not available. Artifact HTML is untrusted content: only
   allowlist tools that are safe whatever the page asks for.
+- **Sheet calculation:** when Hermes reads a sheet whose formulas have not been computed since its last
+  edit (no page open), the plugin starts a short-lived `node` process, if `node` is on the `PATH`, to
+  compute them with the bundled `formula.js`: no shell, no network, no file access, data over
+  stdin/stdout only, killed after 5 s. Without `node` the values stay marked stale until the sheet is
+  opened.
 - **Shell commands, credentials, telemetry:** none.
 - **Bundled libraries:** each runs inside the artifact sandbox, and every export runs locally. Their
   licence files sit next to them under `plugin/hermes_artifacts/types/vendor/` (d3 under

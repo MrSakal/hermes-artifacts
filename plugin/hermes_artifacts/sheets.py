@@ -25,7 +25,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from . import store
+from . import calc, store
 
 _LOCK = threading.RLock()
 MAX_SHEETS = 20
@@ -37,6 +37,12 @@ MAX_LOG_CELLS = 200
 MAX_CHARTS = 20
 MAX_OPS = 500
 FMT_PAD = 200          # range formats reach this far below the used range
+MAX_OPTIONS, MAX_OPTION = 50, 60   # a dropdown: this many options, each this long
+MAX_LISTS = 100        # different dropdown lists one sheet keeps
+MAX_RULES, MAX_RULE = 50, 500      # conditional formats of a sheet; the length of a rule's formula
+MAX_MERGES = 500       # merged cells of a sheet
+PILLS = ("gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "magenta")  # a dropdown option's colour
+BORDERS = ("all", "outer", "inner", "horizontal", "vertical", "top", "bottom", "left", "right", "none")  # horizontal, vertical: the inner lines one way
 AGENT_ROWS, AGENT_COLS = 200, 30
 ACTIVE_SECS = 300      # Hermes counts as at work in a sheet this long after its last change there
 _BAD_NAME = re.compile(r"[\[\]:*?/\\'!]")
@@ -302,10 +308,36 @@ def clean_fmt(d, where: str, allow_null: bool = False) -> dict:
     for k, v in d.items():
         if v is None and allow_null:
             out[k] = None
-            if k not in _FMT_BOOL + ("align", "num", "bg", "fg"):
+            if k not in _FMT_BOOL + ("align", "num", "bg", "fg", "options", "check", "colors", "border", "bd"):
                 raise SheetError("invalid", f"{where}: unknown format key {k!r}")
+            if k == "border":
+                out[k] = "none"
             continue
-        if k in _FMT_BOOL:
+        if k == "options":
+            out[k] = _clean_options(v, where)
+        elif k == "colors":
+            if not isinstance(v, list) or len(v) > MAX_OPTIONS or any(c is not None and c not in PILLS for c in v):
+                raise SheetError("invalid", f"{where}: colors is a list, one for each option, of {', '.join(PILLS)} or null")
+            v = list(v)
+            while v and v[-1] is None:
+                v.pop()
+            out[k] = v or None
+        elif k == "border":
+            if v not in BORDERS:
+                raise SheetError("invalid", f"{where}: border is one of {', '.join(BORDERS)}")
+            out[k] = v
+        elif k == "bd":  # the edges a cell draws, as the page and an imported file give them
+            if not isinstance(v, str) or any(ch not in "tblr" for ch in v):
+                raise SheetError("invalid", f"{where}: bd is a cell's edges out of t, b, l, r")
+            out[k] = "".join(ch for ch in "tblr" if ch in v) or None
+        elif k == "check":
+            if not isinstance(v, bool):
+                raise SheetError("invalid", f"{where}: check is true or false")
+            if v:
+                out[k] = True
+            elif allow_null:
+                out[k] = None  # false takes the checkboxes away
+        elif k in _FMT_BOOL:
             if not isinstance(v, bool):
                 raise SheetError("invalid", f"{where}: {k} is true or false")
             out[k] = v
@@ -322,8 +354,227 @@ def clean_fmt(d, where: str, allow_null: bool = False) -> dict:
                 raise SheetError("invalid", f"{where}: {k} is a colour like #1f6feb")
             out[k] = v.lower()
         else:
-            raise SheetError("invalid", f"{where}: unknown format key {k!r} (bold, italic, underline, wrap, align, num, bg, fg)")
+            raise SheetError("invalid", f"{where}: unknown format key {k!r} (bold, italic, underline, wrap, align, num, bg, fg, "
+                                        "options, colors, check, border)")
+    if not allow_null:
+        out = {k: v for k, v in out.items() if v is not None}
     return out
+
+
+def _clean_options(v, where: str) -> list:
+    """A dropdown's options: 1-50 different texts."""
+    if not isinstance(v, list) or not v:
+        raise SheetError("invalid", f"{where}: options is a list of texts like [\"To do\", \"Done\"] (null removes the dropdown)")
+    out = []
+    for o in v:
+        if isinstance(o, (int, float)) and not isinstance(o, bool):
+            o = str(_value(o, where))
+        if not isinstance(o, str) or not o.strip() or len(o.strip()) > MAX_OPTION or "\n" in o.strip():
+            raise SheetError("invalid", f"{where}: an option is a text of 1-{MAX_OPTION} characters on one line")
+        if o.strip() not in out:
+            out.append(o.strip())
+    if len(out) > MAX_OPTIONS:
+        raise SheetError("too_large", f"{where}: a dropdown holds at most {MAX_OPTIONS} options")
+    return out
+
+
+def _bind(sh: dict, f: dict) -> dict:
+    """A checked format as it is stored: ``options`` becomes ``opt``, the id of that list in the
+    sheet's ``lists`` ({id: [options]}), so a column of dropdowns keeps its options once; the
+    ``colors`` given with them are that list's, in ``list_colors`` ({id: [colour | None]}). Ids are
+    never used again, so a snapshot's cells still find their list. ``colors`` without ``options``
+    stays in the format: the caller gives them to the dropdowns already there (_recolor)."""
+    if "options" not in f:
+        return f
+    f = dict(f)
+    opts, cols = f.pop("options"), f.pop("colors", None)
+    f["opt"] = None if opts is None else _list_id(sh, opts, cols)
+    return f
+
+
+def _list_id(sh: dict, opts: list, cols: Optional[list]) -> str:
+    """The id of the dropdown list with these options and colours, made when the sheet has none."""
+    cols = list(cols or [])[:len(opts)]
+    while cols and cols[-1] is None:
+        cols.pop()
+    lists, colors = sh.setdefault("lists", {}), sh.get("list_colors") or {}
+    for i, have in lists.items():
+        if have == opts and colors.get(i, []) == cols:
+            return i
+    if len(lists) >= MAX_LISTS:  # make room: the lists no cell points at any more (the newest id stays taken)
+        live = {x["opt"] for x in sh["fmt"].values() if "opt" in x}
+        top = str(max(map(int, lists)))
+        for i in [i for i in lists if i not in live and i != top]:
+            del lists[i]
+            colors.pop(i, None)
+        if len(lists) >= MAX_LISTS:
+            raise SheetError("too_large", f"a sheet holds at most {MAX_LISTS} different dropdown lists")
+    i = str(max(map(int, lists), default=0) + 1)
+    lists[i] = opts
+    if cols:
+        sh.setdefault("list_colors", {})[i] = cols
+    return i
+
+
+def _recolor(sh: dict, new: dict, memo: dict) -> None:
+    """``colors`` given without ``options`` (still in ``new``): the dropdown the cell already is takes them."""
+    cols, i = new.pop("colors"), new.get("opt")
+    if i in (sh.get("lists") or {}):
+        if i not in memo:
+            memo[i] = _list_id(sh, sh["lists"][i], cols)
+        new["opt"] = memo[i]
+
+
+def _apply_border(fmt: dict, kind: str, r1: int, c1: int, r2: int, c2: int, log: Optional[set] = None) -> None:
+    """A range's ``border`` as the edges each of its cells draws (fmt ``bd``: a subset of "tblr").
+    ``none`` also takes the facing edges of the cells around the range."""
+    def put(r, c, add="", drop=""):
+        if r < 0 or c < 0 or r >= MAX_ROWS or c >= MAX_COLS:
+            return
+        k = key(r, c)
+        f = fmt.get(k, {})
+        have = f.get("bd", "")
+        bd = "".join(ch for ch in "tblr" if (ch in have or ch in add) and ch not in drop)
+        if bd == have:
+            return
+        f = {**f, "bd": bd}
+        if not bd:
+            del f["bd"]
+        if f:
+            fmt[k] = f
+        else:
+            fmt.pop(k, None)
+        if log is not None:
+            log.add(k)
+
+    if kind == "none":
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                put(r, c, drop="tblr")
+            put(r, c1 - 1, drop="r")
+            put(r, c2 + 1, drop="l")
+        for c in range(c1, c2 + 1):
+            put(r1 - 1, c, drop="b")
+            put(r2 + 1, c, drop="t")
+        return
+    for r in range(r1, r2 + 1):
+        for c in range(c1, c2 + 1):
+            if kind == "all":
+                e = "tblr"
+            elif kind in ("inner", "horizontal", "vertical"):
+                e = (("t" if r > r1 else "") + ("b" if r < r2 else "") if kind != "vertical" else "") \
+                    + (("l" if c > c1 else "") + ("r" if c < c2 else "") if kind != "horizontal" else "")
+            else:
+                e = ("t" if kind in ("outer", "top") and r == r1 else "") + ("b" if kind in ("outer", "bottom") and r == r2 else "") \
+                    + ("l" if kind in ("outer", "left") and c == c1 else "") + ("r" if kind in ("outer", "right") and c == c2 else "")
+            if e:
+                put(r, c, add=e)
+
+
+def _spread(sh: dict, f: dict, r1: int, c1: int, r2: int, c2: int, log: Optional[set] = None) -> None:
+    """A checked, bound format (clean_fmt, _bind) put on every cell of a range; a null value takes that key away."""
+    f = dict(f)
+    border, memo, fmt = f.pop("border", None), {}, sh["fmt"]
+    alone = "colors" in f
+    for r in range(r1, r2 + 1) if f else ():
+        for c in range(c1, c2 + 1):
+            k = key(r, c)
+            new = {**fmt.get(k, {}), **f}
+            if alone:
+                _recolor(sh, new, memo)
+            new = {a: b for a, b in new.items() if b is not None}
+            if new != fmt.get(k, {}):
+                if new:
+                    fmt[k] = new
+                else:
+                    fmt.pop(k, None)
+                if log is not None:
+                    log.add(k)
+    if border:
+        _apply_border(fmt, border, r1, c1, r2, c2, log)
+
+
+# ----------------------------------------------------------------------------- conditional formats, merged cells
+
+def _clean_rules(v, where: str) -> list:
+    """A sheet's conditional formats: {range, if: "=formula", bg, fg, bold, strike} (the formula
+    as written for the range's top-left cell) or {range, scale: [low, (mid,) high]}."""
+    if not isinstance(v, list) or len(v) > MAX_RULES:
+        raise SheetError("invalid", f"{where}: rules is a list of at most {MAX_RULES} rules")
+    out = []
+    for i, r in enumerate(v):
+        w = f"{where}[{i}]"
+        if not isinstance(r, dict):
+            raise SheetError("invalid", f"{w}: a rule is {{range, if, bg}} or {{range, scale}}")
+        one = {"range": range_name(*parse_range(r.get("range")))}
+        if "scale" in r:
+            sc = r["scale"]
+            if not isinstance(sc, list) or len(sc) not in (2, 3) or not all(isinstance(c, str) and _COLOR.match(c) for c in sc) \
+                    or set(r) - {"range", "scale"}:
+                raise SheetError("invalid", f"{w}: scale is 2 or 3 colours like [\"#ffffff\", \"#57bb8a\"] (low, mid, high), "
+                                            "with range and nothing else")
+            one["scale"] = [c.lower() for c in sc]
+        else:
+            f = r.get("if")
+            if not _is_formula(f) or len(f) > MAX_RULE:
+                raise SheetError("invalid", f"{w}: if is a formula like \"=C3<TODAY()\" (at most {MAX_RULE} characters), "
+                                            "written for the range's top-left cell")
+            one["if"] = f
+            for k, x in r.items():
+                if k in ("range", "if") or x is None or x is False:
+                    continue
+                if k in ("bg", "fg") and isinstance(x, str) and _COLOR.match(x):
+                    one[k] = x.lower()
+                elif k in ("bold", "strike") and x is True:
+                    one[k] = True
+                else:
+                    raise SheetError("invalid", f"{w}: a rule formats with bg, fg (#rrggbb), bold, strike (true), not {k!r}")
+            if len(one) == 2:
+                raise SheetError("invalid", f"{w}: a rule needs a format: bg, fg, bold or strike")
+        out.append(one)
+    return out
+
+
+def _boxes(sh: dict) -> list:
+    return [parse_range(m) for m in sh.get("merges") or ()]
+
+
+def _merge(sh: dict, rng, log: Optional[set] = None) -> int:
+    """Merge a range into one cell: its top-left cell keeps its content, the others are emptied
+    (how many: returned). Merged cells wholly inside it become part of it."""
+    r1, c1, r2, c2 = parse_range(rng, used(sh))
+    if (r1, c1) == (r2, c2):
+        raise SheetError("invalid", f"merge needs a range of two or more cells, not {rng!r}")
+    keep = []
+    for m in sh.get("merges") or ():
+        a, b, c, d = parse_range(m)
+        if r1 <= a and c1 <= b and c <= r2 and d <= c2:
+            continue
+        if not (c < r1 or a > r2 or d < c1 or b > c2):
+            raise SheetError("invalid", f"{range_name(r1, c1, r2, c2)} cuts across the merged cell {m}: unmerge that first")
+        keep.append(m)
+    if len(keep) >= MAX_MERGES:
+        raise SheetError("too_large", f"a sheet holds at most {MAX_MERGES} merged cells")
+    n = 0
+    for k in _keys_in(sh["cells"], r1, c1, r2, c2):
+        if k != key(r1, c1):
+            del sh["cells"][k]
+            sh["vals"].pop(k, None)
+            n += 1
+            if log is not None:
+                log.add(k)
+    sh["merges"] = keep + [range_name(r1, c1, r2, c2)]
+    return n
+
+
+def _unmerge(sh: dict, rng) -> None:
+    """Every merged cell that reaches into the range is cells again."""
+    r1, c1, r2, c2 = parse_range(rng, used(sh))
+    keep = [m for m, (a, b, c, d) in zip(sh.get("merges") or (), _boxes(sh)) if c < r1 or a > r2 or d < c1 or b > c2]
+    if keep:
+        sh["merges"] = keep
+    else:
+        sh.pop("merges", None)
 
 
 def _check_name(name, where: str) -> str:
@@ -394,13 +645,14 @@ def sheet_from_spec(spec, where: str, taken: list) -> dict:
     if not isinstance(formats, dict):
         raise SheetError("invalid", f"{where}.formats: an object of range -> format")
     for rng, f in formats.items():
-        f = clean_fmt(f, f"{where}.formats[{rng!r}]")
+        f = _bind(sh, clean_fmt(f, f"{where}.formats[{rng!r}]"))
         r1, c1, r2, c2 = parse_range(rng, (nr, nc))
         r2 = min(r2, max(nr, r1 + 1) + FMT_PAD - 1, MAX_ROWS - 1)
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                k = key(r, c)
-                sh["fmt"][k] = {**sh["fmt"].get(k, {}), **f}
+        _spread(sh, f, r1, c1, r2, c2)
+    for m in _list(spec, "merges", where):
+        _merge(sh, m)
+    if spec.get("rules"):
+        sh["rules"] = _clean_rules(spec["rules"], where + ".rules")
     cols = spec.get("cols") or {}
     if not isinstance(cols, dict):
         raise SheetError("invalid", f"{where}.cols: an object like {{\"A\": 180}}")
@@ -419,6 +671,13 @@ def sheet_from_spec(spec, where: str, taken: list) -> dict:
     for i, ch in enumerate(charts):
         sh["charts"].append(_clean_chart(ch, f"{where}.charts[{i}]", sh["charts"]))
     return sh
+
+
+def _list(spec: dict, name: str, where: str) -> list:
+    v = spec.get(name) or []
+    if not isinstance(v, list):
+        raise SheetError("invalid", f"{where}.{name}: a list")
+    return v
 
 
 def _clean_freeze(rows, cols, where: str) -> dict:
@@ -535,7 +794,8 @@ def outline(aid: str) -> dict:
 
 
 def _stale(st: dict, sh: dict) -> bool:
-    """Formula values not computed since Hermes last changed the workbook (the page computes them)."""
+    """Formula values not computed since Hermes last changed the workbook: the open page computes
+    them, and a read by Hermes does when no page has (calc.refresh)."""
     return st.get("hermes_at", 0) > sh.get("vals_at", 0) and any(_is_formula(v) for v in sh["cells"].values())
 
 
@@ -578,6 +838,9 @@ def _inside(m: dict, r1: int, c1: int, r2: int, c2: int) -> dict:
 
 
 def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool, extent: Optional[tuple] = None) -> dict:
+    if agent and _stale(st, sh):  # a caller without the artifact's id (dump): computed, saved with the next save
+        with _LOCK:
+            calc.refresh(st, value=_value, parse_key=parse_key, is_formula=_is_formula, limit=MAX_ROWS * MAX_COLS)
     nr, nc = extent or used(sh)
     if rng:
         r1, c1, r2, c2 = parse_range(rng, (nr, nc))
@@ -595,20 +858,36 @@ def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool, exten
     if full:
         out["fmt"] = _inside(sh["fmt"], r1, c1, r2, c2) if rng else sh["fmt"]
         out["cols"], out["freeze"], out["charts"] = sh["cols"], sh["freeze"], sh["charts"]
+        out["rules"], out["merges"] = sh.get("rules") or [], sh.get("merges") or []
     return out
+
+
+def left(st: dict) -> int:
+    """Whole seconds until Hermes no longer counts as at work in the workbook (0: not now)."""
+    return max(0, math.ceil(ACTIVE_SECS - (time.time() - st.get("hermes_at", 0))))
 
 
 def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, since_rev: Optional[int] = None,
          search: Optional[str] = None, agent: bool = False) -> dict:
     """A sheet's cells (2D, from the range's top-left), or what changed since ``since_rev``, or the
     cells holding ``search``. ``agent``: capped at 200 rows x 30 columns; else the page's read, which
-    also carries fmt, cols, freeze and charts."""
-    st = load(aid)
+    also carries fmt, cols, freeze and charts, and before it the formula values nobody computed since
+    Hermes' last change are computed and kept (no page needed; ``stale`` stays true if that fails)."""
     if range and "!" in str(range) and not sheet:
         sheet = str(range).rsplit("!", 1)[0].strip("'").replace("''", "'")
-    sh = _sheet(st, sheet)
+    with _LOCK:
+        st = load(aid)
+        sh = _sheet(st, sheet)
+        if agent and _stale(st, sh) and calc.refresh(st, value=_value, parse_key=parse_key, is_formula=_is_formula,
+                                                     limit=MAX_ROWS * MAX_COLS):
+            try:
+                _save(aid, st)
+            except OSError:
+                _CACHE.pop(aid, None)  # not kept: this read still shows them, the next computes again
     out = {"sheet": sh["id"], "name": sh["name"], "rev": sh["rev"], "edits": st.get("edits", 0),
            "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS, "sheets": overview(st)}
+    if not agent:  # the page hides its pill on its own when these run out
+        out["hermes_left"] = left(st)
     if since_rev is not None:
         since = int(since_rev)
         mine = [e for e in st["log"] if e["sheet"] == sh["id"]]
@@ -627,6 +906,7 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
             if not agent:
                 out["fmt"] = {k: sh["fmt"].get(k) for k in sorted(keys)}
                 out["cols"], out["freeze"], out["charts"] = sh["cols"], sh["freeze"], sh["charts"]
+                out["rules"], out["merges"] = sh.get("rules") or [], sh.get("merges") or []
             out["values"] = {k: sh["vals"][k] for k in keys if k in sh["vals"]}
             out["stale"] = _stale(st, sh)
             return out
@@ -659,14 +939,79 @@ def dump(aid: str) -> str:
             one["values"] = v["values"]
         if v.get("more"):
             one["more"] = v["more"]
+        one.update(_extras(sh, None, True))
         sheets.append(one)
     return json.dumps({"title": meta.get("title", aid), "sheets": sheets}, ensure_ascii=False, separators=(",", ":"))
 
 
+def with_lists(aid: str, out: dict) -> dict:
+    """The page's read or history state, with the sheet's dropdown lists ({id: [options]}: what the
+    ``opt`` of a cell's fmt names) when it has any."""
+    sh = _sheet(load(aid), out.get("sheet"))
+    if sh.get("lists"):
+        out["lists"] = sh["lists"]
+        if sh.get("list_colors"):
+            out["list_colors"] = sh["list_colors"]
+    return out
+
+
+def _extras(sh: dict, rng: Optional[str], whole: bool = False) -> dict:
+    out = {}
+    if sh.get("merges"):
+        r1, c1, r2, c2 = parse_range(rng, used(sh)) if rng else (0, 0, MAX_ROWS, MAX_COLS)
+        m = [x for x, (a, b, c, d) in zip(sh["merges"], _boxes(sh)) if not (c < r1 or a > r2 or d < c1 or b > c2)]
+        if m:
+            out["merges"] = m if whole or len(m) <= 20 else m[:20] + [f"+{len(m) - 20}"]
+    if sh.get("rules"):
+        out["rules"] = sh["rules"] if whole or len(sh["rules"]) <= 10 else len(sh["rules"])
+    return out
+
+
+def extras(aid: str, sheet: Optional[str], rng: Optional[str] = None) -> dict:
+    """What Hermes' read adds for a sheet with merged cells or conditional formats: ``merges`` (the
+    merged ranges reaching into what was read, at most 20) and ``rules`` (the sheet's rules, all of
+    them as the ``rules`` op replaces them all; just their count past 10: artifact_read lists them)."""
+    return _extras(_sheet(load(aid), sheet), rng)
+
+
+def dropdowns(aid: str, sheet: Optional[str], rng: Optional[str] = None) -> dict:
+    """{range: [options]} of the dropdown cells of a sheet (inside ``rng``), for Hermes' read: at
+    most 20 ranges, none for a sheet without dropdowns."""
+    sh = _sheet(load(aid), sheet)
+    lists = sh.get("lists")
+    if not lists:
+        return {}
+    r1, c1, r2, c2 = parse_range(rng, used(sh)) if rng else (0, 0, MAX_ROWS, MAX_COLS)
+    cols: dict = {}
+    for k, f in sh["fmt"].items():
+        if f.get("opt") in lists:
+            r, c = parse_key(k)
+            if r1 <= r <= r2 and c1 <= c <= c2:
+                cols.setdefault(c, []).append((r, f["opt"]))
+    runs: dict = {}  # (first row, last row, list) -> its columns
+    for c, cells in cols.items():
+        cells.sort()
+        a = 0
+        for b in range(1, len(cells) + 1):
+            if b == len(cells) or cells[b] != (cells[b - 1][0] + 1, cells[a][1]):
+                runs.setdefault((cells[a][0], cells[b - 1][0], cells[a][1]), []).append(c)
+                a = b
+    out = {}
+    for (ra, rb, i), cs in sorted(runs.items()):
+        cs.sort()
+        a = 0
+        for b in range(1, len(cs) + 1):  # neighbouring columns with the same run: one block
+            if b == len(cs) or cs[b] != cs[b - 1] + 1:
+                if len(out) < 20:
+                    out[range_name(ra, cs[a], rb, cs[b - 1])] = lists[i]
+                a = b
+    return out
+
+
 # ----------------------------------------------------------------------------- edits
 
-_GUARDED = ("set", "clear", "delete_rows", "delete_cols", "sort", "delete_sheet")
-_CELL_OPS = ("set", "clear", "format", "insert_rows", "delete_rows", "insert_cols", "delete_cols", "sort")
+_GUARDED =("set", "clear", "delete_rows", "delete_cols", "sort", "delete_sheet", "merge")
+_CELL_OPS = ("set", "clear", "format", "insert_rows", "delete_rows", "insert_cols", "delete_cols", "sort", "merge", "unmerge")
 
 
 def _int(v, what: str, lo: int, hi: int) -> int:
@@ -718,6 +1063,10 @@ def _touched(sh: dict, o: dict) -> tuple:
         r1, c1, r2, c2 = parse_range(o.get("range"), used(sh))
         keys = set(_keys_in(cells, r1, c1, r2, c2))
         return keys, bool(keys)
+    if kind == "merge":  # empties every cell but the top-left one
+        r1, c1, r2, c2 = parse_range(o.get("range"), used(sh))
+        keys = set(_keys_in(cells, r1, c1, r2, c2)) - {key(r1, c1)}
+        return keys, bool(keys)
     if kind in ("delete_rows", "delete_cols"):
         n = o.get("n", 1)
         n = n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else 1
@@ -766,7 +1115,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
         nonempty |= ne and o.get("op") in _GUARDED
     if by == "hermes" and base_rev is None and nonempty:
         raise SheetError("missing_guard", "writing over cells that hold values needs base_rev: the rev you read "
-                                          "(artifact_doc_read)", rev=sh["rev"])
+                                          "(artifact_live_read)", rev=sh["rev"])
     if base_rev is not None:
         base = int(base_rev)
         cell_ops = any(o.get("op") in _CELL_OPS for o in ops)
@@ -783,7 +1132,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
                 raise SheetError("conflict", "cells you change were changed meanwhile: read them again",
                                  rev=sh["rev"], cells=sorted(hit, key=parse_key)[:50])
     before = _snap(sh, "start")
-    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False}
+    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": []}
     for o in ops:
         _one(st, sh, o, ctx)
     sh["rev"] += 1
@@ -806,6 +1155,8 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
     out = {"ok": True, "sheet": sh["id"], "rev": sh["rev"], "changed": changed[:MAX_LOG_CELLS]}
     if len(changed) > MAX_LOG_CELLS:
         out["changed_count"] = len(changed)
+    if ctx["skipped"]:
+        out["skipped"] = f"{', '.join(ctx['skipped'][:10])} not written: inside a merged cell (write its top-left cell)"
     if ctx["new"]:
         out["new_sheet"] = ctx["new"]
     if ctx["struct"] or ctx["outline"]:
@@ -820,6 +1171,7 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
         r0, c0 = parse_range(o.get("range"))[:2]
         if "values" not in o:
             raise SheetError("invalid", "set needs values: [[...], ...] from the range's top-left cell")
+        boxes = _boxes(sh)
         for i, row in enumerate(_block(o.get("values"))):
             for j, v in enumerate(row):
                 if v is None:
@@ -835,6 +1187,9 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
                         ctx["vals"].add(k)
                     vals.pop(k, None)
                     continue
+                if boxes and any(a <= r <= b2 and b <= c <= d and (r, c) != (a, b) for a, b, b2, d in boxes):
+                    ctx["skipped"].append(k)  # a merged cell holds content in its top-left cell only
+                    continue
                 if cells.get(k, None) != v or type(cells.get(k)) is not type(v):
                     cells[k] = v
                     ctx["vals"].add(k)
@@ -847,22 +1202,23 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
             vals.pop(k, None)
             ctx["vals"].add(k)
     elif kind == "format":
-        f = clean_fmt({k: v for k, v in o.items() if k not in ("op", "range")}, "format", allow_null=True)
+        f = _bind(sh, clean_fmt({k: v for k, v in o.items() if k not in ("op", "range")}, "format", allow_null=True))
         if not f:
-            raise SheetError("invalid", "format needs keys to set: bold, italic, underline, wrap, align, num, bg, fg")
+            raise SheetError("invalid", "format needs keys to set: bold, italic, underline, wrap, align, num, bg, fg, "
+                                        "options, colors, check, border")
         nr, nc = used(sh)
         r1, c1, r2, c2 = parse_range(o.get("range"), (nr + FMT_PAD, nc))
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                k = key(r, c)
-                new = {**fmt.get(k, {}), **f}
-                new = {a: b for a, b in new.items() if b is not None}
-                if new != fmt.get(k, {}):
-                    if new:
-                        fmt[k] = new
-                    else:
-                        fmt.pop(k, None)
-                    ctx["fmt"].add(k)
+        _spread(sh, f, r1, c1, r2, c2, ctx["fmt"])
+    elif kind == "rules":
+        rules = _clean_rules(o.get("rules"), "rules")
+        if rules:
+            sh["rules"] = rules
+        else:
+            sh.pop("rules", None)
+    elif kind == "merge":
+        _merge(sh, o.get("range"), ctx["vals"])
+    elif kind == "unmerge":
+        _unmerge(sh, o.get("range"))
     elif kind in ("insert_rows", "delete_rows", "insert_cols", "delete_cols"):
         axis = "row" if kind.endswith("rows") else "col"
         insert = kind.startswith("insert")
@@ -924,7 +1280,7 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
         ctx["outline"] = True
     else:
         raise SheetError("invalid", f"unknown op {kind!r} (set, clear, format, insert_rows, delete_rows, insert_cols, "
-                                    "delete_cols, col_width, freeze, sort, add_chart, delete_chart, add_sheet, "
+                                    "delete_cols, col_width, freeze, sort, merge, unmerge, rules, add_chart, delete_chart, add_sheet, "
                                     "rename_sheet, delete_sheet, move_sheet)")
 
 
@@ -938,6 +1294,8 @@ def _rewrite_all(st: dict, cb_for) -> None:
                 nv = map_refs(v, cb)
                 if nv != v:
                     s["cells"][k] = nv
+        if s.get("rules"):  # new rule objects: a snapshot may share the old ones
+            s["rules"] = [{**r, "if": map_refs(r["if"], cb)} if "if" in r else r for r in s["rules"]]
 
 
 def _structural(st: dict, sh: dict, axis: str, at: int, n: int, insert: bool, ctx: dict) -> None:
@@ -967,6 +1325,17 @@ def _structural(st: dict, sh: dict, axis: str, at: int, n: int, insert: bool, ct
 
     sh["cells"] = move(sh["cells"], ctx["vals"])
     sh["fmt"] = move(sh["fmt"], None)
+    if insert and 0 < at and at + n < lim:
+        # Rows or columns put inside a run of dropdowns or checkboxes are that too.
+        fmt = sh["fmt"]
+        for k, f in list(fmt.items()):
+            p = parse_key(k)
+            if p[i] != at - 1 or ("opt" not in f and "check" not in f):
+                continue
+            after = fmt.get(key(at + n, p[1]) if axis == "row" else key(p[0], at + n)) or {}
+            keep = {a: f[a] for a in ("opt", "check") if a in f and after.get(a) == f[a]}
+            for y in range(at, at + n) if keep else ():
+                fmt[key(y, p[1]) if axis == "row" else key(p[0], y)] = dict(keep)
     sh["vals"] = move(sh["vals"], None)
     if axis == "col":
         widths = {}
@@ -981,6 +1350,39 @@ def _structural(st: dict, sh: dict, axis: str, at: int, n: int, insert: bool, ct
     elif not insert:
         f -= max(0, min(f, at + n) - at)
     sh["freeze"]["rows" if axis == "row" else "cols"] = f
+
+    def moved(rng: str) -> Optional[tuple]:
+        """A range after the move: (its box, how far its first row or column was cut off) or None when all of it went."""
+        b = list(parse_range(rng))
+        res = _span(b[i], b[i + 2], at, n, insert)
+        if res is None or res[0] >= lim:
+            return None
+        cut = at + n - b[i] if not insert and at <= b[i] < at + n else 0
+        b[i], b[i + 2] = res[0], min(res[1], lim - 1)
+        return tuple(b), cut
+
+    merges = []
+    for m in sh.get("merges") or ():
+        got = moved(m)
+        if got and (got[0][0], got[0][1]) != (got[0][2], got[0][3]):
+            merges.append(range_name(*got[0]))
+    if merges:
+        sh["merges"] = merges
+    else:
+        sh.pop("merges", None)
+    rules = []
+    for r in sh.get("rules") or ():
+        got = moved(r["range"])
+        if not got:
+            continue
+        r = {**r, "range": range_name(*got[0])}
+        if got[1] and "if" in r:  # its first rows or columns went: the formula is now written for the first one left
+            r["if"] = shift_refs(r["if"], got[1] if axis == "row" else 0, got[1] if axis == "col" else 0)
+        rules.append(r)
+    if rules:
+        sh["rules"] = rules
+    else:
+        sh.pop("rules", None)
 
     _rewrite_all(st, lambda s: _struct_cb(sh["name"], s["name"], axis, at, n, insert))
     charts = []
@@ -1020,6 +1422,9 @@ def _sort(sh: dict, o: dict, ctx: dict) -> None:
     kc = _col_at(o.get("col"), "col") if o.get("col") is not None else c1
     if not c1 <= kc <= c2:
         raise SheetError("invalid", f"col {col_name(kc)} is outside the range {range_name(r1, c1, r2, c2)}")
+    for m, (a, b, c, d) in zip(sh.get("merges") or (), _boxes(sh)):
+        if not (c < r1 or a > r2 or d < c1 or b > c2):
+            raise SheetError("invalid", f"the merged cell {m} is in the way of sorting {range_name(r1, c1, r2, c2)}: unmerge it first")
     rows = list(range(r1, r2 + 1))
     keyed = [(r, _sort_key(sh, key(r, kc))) for r in rows]
     full = sorted((x for x in keyed if x[1] is not None), key=lambda x: x[1], reverse=bool(o.get("desc")))
@@ -1060,19 +1465,7 @@ def set_vals(aid: str, sheet: Optional[str], rev, vals) -> dict:
             return {"ok": False, "ignored": True, "rev": sh["rev"]}
         try:
             cur = sh["vals"]
-            for k, v in list(vals.items())[: MAX_ROWS * MAX_COLS]:
-                if not isinstance(k, str) or not parse_key(k):
-                    continue
-                if v is None:
-                    cur.pop(k, None)
-                elif isinstance(v, dict):
-                    if isinstance(v.get("error"), str):
-                        cur[k] = {"error": v["error"][:20]}
-                else:
-                    try:
-                        cur[k] = _value(v, k)
-                    except SheetError:
-                        continue
+            calc.merge(cur, vals, _value, parse_key, MAX_ROWS * MAX_COLS)  # the check the server's own values pass too
             sh["vals"] = {k: v for k, v in cur.items() if _is_formula(sh["cells"].get(k))}
             sh["vals_at"] = time.time()
             _save(aid, st)
@@ -1121,7 +1514,8 @@ def _hist_save(aid: str, version: int, snaps: list) -> None:
 def _snap(sh: dict, by: str) -> dict:
     return {"sheet": sh["id"], "rev": sh["rev"], "by": by, "at": time.time(), "name": sh["name"],
             "cells": dict(sh["cells"]), "fmt": {k: dict(v) for k, v in sh["fmt"].items()}, "cols": dict(sh["cols"]),
-            "freeze": dict(sh["freeze"]), "charts": [dict(c) for c in sh["charts"]]}
+            "freeze": dict(sh["freeze"]), "charts": [dict(c) for c in sh["charts"]],
+            **{k: list(sh[k]) for k in ("rules", "merges") if sh.get(k)}}  # the rules themselves are never changed in place
 
 
 def _record(aid: str, st: dict, sh: dict, by: str, before: Optional[dict]) -> None:
@@ -1159,7 +1553,8 @@ def at_rev(aid: str, sheet: Optional[str], rev: int, *, agent: bool = False, ran
     sh = _sheet(st, sheet)
     x = _snap_at(aid, st, sh, rev)
     then = {"id": sh["id"], "name": x["name"], "cells": x["cells"], "fmt": x["fmt"], "vals": {},
-            "cols": x["cols"], "freeze": x["freeze"], "charts": x["charts"], "vals_at": time.time()}
+            "cols": x["cols"], "freeze": x["freeze"], "charts": x["charts"], "vals_at": time.time(),
+            "rules": x.get("rules"), "merges": x.get("merges")}
     out = {"sheet": sh["id"], "name": x["name"], "rev": x["rev"], "current_rev": sh["rev"], "by": x["by"], "at": x["at"]}
     v = _view(st, then, range, agent, not agent)
     v.pop("values", None)
@@ -1177,7 +1572,17 @@ def restore(aid: str, sheet: Optional[str], rev: int) -> dict:
         try:
             before = _snap(sh, "user")
             sh["cells"], sh["fmt"] = dict(x["cells"]), {k: dict(v) for k, v in x["fmt"].items()}
+            lists = sh.get("lists") or {}
+            for k in [k for k, f in sh["fmt"].items() if "opt" in f and f["opt"] not in lists]:  # a list dropped since
+                del sh["fmt"][k]["opt"]
+                if not sh["fmt"][k]:
+                    del sh["fmt"][k]
             sh["cols"], sh["freeze"], sh["charts"] = dict(x["cols"]), dict(x["freeze"]), [dict(c) for c in x["charts"]]
+            for k in ("rules", "merges"):
+                if x.get(k):
+                    sh[k] = list(x[k])
+                else:
+                    sh.pop(k, None)
             sh["vals"] = {k: v for k, v in sh["vals"].items() if _is_formula(sh["cells"].get(k))}
             sh["rev"] += 1
             st["edits"] = st.get("edits", 0) + 1

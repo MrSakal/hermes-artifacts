@@ -1,9 +1,9 @@
 name: hermes-artifacts
-version: 0.14.0
+version: 0.15.0
 description: >
-  Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, designs, films and design
+  Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
-  Desktop. Docs and sheets are live: the user and Hermes edit them in place. Dashboards can run live MCP
+  Desktop. Docs, sheets and boards are live: the user and Hermes edit them in place. Dashboards can run live MCP
   queries; a design system is copied into the decks, canvases and films that wear it. Comments, and a small
   bridge for pages (storage, send, ask). Works with Hermes Desktop on a remote Hermes server.
 author: MrSakal
@@ -19,8 +19,8 @@ provides_tools:
   - artifact_publish
   - artifact_guide
   - artifact_check
-  - artifact_doc_read
-  - artifact_doc_edit
+  - artifact_live_read
+  - artifact_live_edit
   - artifact_list
   - artifact_read
   - artifact_open

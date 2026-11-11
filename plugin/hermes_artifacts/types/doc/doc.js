@@ -2,7 +2,7 @@
  *
  * The doc is tabs of blocks (each a piece of Markdown with a stable id) kept on the Hermes server. Each
  * block is edited in place as formatted text (editor.js writes it back as Markdown); Hermes edits blocks
- * too (artifact_doc_edit) and its changes appear here at once. A selection offers formatting, "Edit with
+ * too (artifact_live_edit) and its changes appear here at once. A selection offers formatting, "Edit with
  * Hermes" and "Comment"; "/" and "+" insert blocks and chips; Suggesting mode proposes changes instead of
  * making them. Exports: Word, PDF, Markdown, HTML.
  */

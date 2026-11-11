@@ -38,6 +38,30 @@
       drafted: "Put in the chat box: press Enter there", more: "More", nameBox: "Name box", formulaBar: "Formula bar", grid: "Sheet",
       cellAnn: "{k}: {v}", empty: "empty", copy: "Copy", cut: "Cut", paste: "Paste", pasteHint: "Press Ctrl+V to paste",
       limit: "A sheet holds at most 5000 rows and 100 columns", imported: "Imported", notUndoable: "That change is too large to undo",
+      dropdown: "Dropdown", ddTitle: "Dropdown options, one per line", ddRemove: "Remove dropdown", ddEdit: "Edit options…", ddNone: "Clear",
+      checkbox: "Checkbox", filter: "Filter", fltCol: "Filter this column", fltOn: "Filter on: {n} of {m} rows shown", fltClear: "Clear filter",
+      fltSearch: "Search values", fltAll: "Select all", fltBlank: "(Blanks)", fltHide: "Hide filter buttons", fltMore: "{n} more: search to find them",
+      csvAll: "CSV (this sheet, all rows)",
+      align: "Align", borders: "Borders", merge: "Merge cells", unmerge: "Unmerge cells", rules: "Conditional formatting",
+      decLess: "Fewer decimals", decMore: "More decimals", currency: "Currency", ddOptions: "Options", ckTick: "Tick or untick", ckRemove: "Remove checkbox", dateToday: "Date (today)",
+      view: "View", zoom: "Zoom", zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset", showFx: "Show formulas", layout: "Layout", layComfy: "Comfortable", layCompact: "Compact",
+      theme: "Theme", thAuto: "Automatic", thLight: "Light", thDark: "Dark",
+      err_div: "The formula divides by zero or by an empty cell.", err_ref: "The formula refers to a cell or a sheet that does not exist.",
+      err_name: "The formula has a name or a piece of syntax the sheet does not understand.", err_nameFn: "The formula uses {f}, a function this sheet does not know.",
+      err_value: "The formula uses a value of the wrong kind, such as text where a number is needed.", err_na: "The formula looked for a value and did not find it.",
+      err_num: "The formula gives a number that is not valid or is too large.", err_cycle: "The formula refers back to its own cell (a circular reference).",
+      err_null: "The formula uses two ranges that do not meet.", err_other: "The formula returns an error.",
+      fixAsk: "Ask Hermes to fix", fixMsg1: "Fix this formula error.", fixMsgN: "Fix these {n} formula errors.", fixMsgMore: "(The workbook has {n} in all.)",
+      errOne: "1 error", errMany: "{n} errors",
+      fltAddCol: "Filter another column", fltYou: "Filtered for you only", fltClearAll: "Clear all", fltChip: "{c} {o} {v}", fltChipVals: "{c}: {n} values",
+      fltRows: "{n} of {m} rows", fltDrop: "Remove", fltSortAll: "Sort — for everyone", fltYouHead: "Filter — for you only", fltAddCond: "Add a condition",
+      fltSuggest: "Suggested", fltNot: "Not {v}", fltNRows: "{n} rows", fltRow1: "1 row", fltCond: "Condition", fltValue: "Value", fltValsHead: "Values — {n} of {m} rows",
+      fo_is: "Is", fo_isnt: "Is not", fo_has: "Contains", fo_hasnt: "Does not contain", fo_starts: "Starts with", fo_ends: "Ends with", fo_blank: "Is blank", fo_nblank: "Is not blank",
+      fo_gt: "Is greater than", fo_ge: "Is at least", fo_lt: "Is less than", fo_le: "Is at most", fo_before: "Is before", fo_after: "Is after",
+      fo_dup: "Is a duplicate", fo_err: "Is an error", fo_true: "Is ticked", fo_false: "Is not ticked",
+      repl: "Replace", repPh: "Replace with", rep1: "Replace", repAll: "Replace all", findScope: "Search in", findThis: "This sheet", findAll: "All sheets",
+      findCase: "Match case", findWhole: "Match entire cell", findFx: "Also search in formulas", repDone: "Replaced in {n} cells", repNone: "Nothing to replace",
+      min: "Min", max: "Max", aggPick: "Choose what the selection shows",
       ok: "OK" },
     hu: { undo: "Visszavonás", redo: "Mégis", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
       alignL: "Balra igazítás", alignC: "Középre igazítás", alignR: "Jobbra igazítás", wrap: "Sortöréssel több sorba",
@@ -62,6 +86,30 @@
       drafted: "Beírva a chat mezőbe: nyomj ott Entert", more: "Továbbiak", nameBox: "Név mező", formulaBar: "Szerkesztőléc", grid: "Munkalap",
       cellAnn: "{k}: {v}", empty: "üres", copy: "Másolás", cut: "Kivágás", paste: "Beillesztés", pasteHint: "A beillesztéshez nyomd meg a Ctrl+V-t",
       limit: "Egy munkalap legfeljebb 5000 sort és 100 oszlopot tartalmazhat", imported: "Importálva", notUndoable: "Ez a módosítás túl nagy a visszavonáshoz",
+      dropdown: "Legördülő lista", ddTitle: "A lista elemei, soronként egy", ddRemove: "Lista eltávolítása", ddEdit: "Elemek szerkesztése…", ddNone: "Törlés",
+      checkbox: "Jelölőnégyzet", filter: "Szűrő", fltCol: "Oszlop szűrése", fltOn: "Szűrő bekapcsolva: {m} sorból {n} látszik", fltClear: "Szűrő törlése",
+      fltSearch: "Értékek keresése", fltAll: "Összes kijelölése", fltBlank: "(Üres)", fltHide: "Szűrőgombok elrejtése", fltMore: "Még {n}: kereséssel megtalálod",
+      csvAll: "CSV (ez a munkalap, minden sor)",
+      align: "Igazítás", borders: "Szegélyek", merge: "Cellák egyesítése", unmerge: "Egyesítés megszüntetése", rules: "Feltételes formázás",
+      decLess: "Kevesebb tizedesjegy", decMore: "Több tizedesjegy", currency: "Pénznem", ddOptions: "Elemek", ckTick: "Bejelölés vagy törlés", ckRemove: "Jelölőnégyzet eltávolítása", dateToday: "Dátum (ma)",
+      view: "Nézet", zoom: "Nagyítás", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoomReset: "Alaphelyzet", showFx: "Képletek megjelenítése", layout: "Elrendezés", layComfy: "Kényelmes", layCompact: "Tömör",
+      theme: "Téma", thAuto: "Automatikus", thLight: "Világos", thDark: "Sötét",
+      err_div: "A képlet nullával vagy üres cellával oszt.", err_ref: "A képlet nem létező cellára vagy munkalapra hivatkozik.",
+      err_name: "A képletben olyan név vagy írásmód van, amelyet a munkalap nem ért.", err_nameFn: "A képlet a(z) {f} függvényt használja, amelyet ez a munkalap nem ismer.",
+      err_value: "A képlet nem megfelelő típusú értéket használ, például szöveget ott, ahol szám kell.", err_na: "A képlet keresett egy értéket, de nem találta.",
+      err_num: "A képlet érvénytelen vagy túl nagy számot ad.", err_cycle: "A képlet a saját cellájára hivatkozik vissza (körkörös hivatkozás).",
+      err_null: "A képlet két olyan tartományt használ, amelyek nem metszik egymást.", err_other: "A képlet hibát ad.",
+      fixAsk: "Javíttasd a Hermesszel", fixMsg1: "Javítsd ki ezt a képlethibát.", fixMsgN: "Javítsd ki ezt a(z) {n} képlethibát.", fixMsgMore: "(A munkafüzetben összesen {n} van.)",
+      errOne: "1 hiba", errMany: "{n} hiba",
+      fltAddCol: "Másik oszlop szűrése", fltYou: "Csak neked szűrve", fltClearAll: "Összes törlése", fltChip: "{c}: {o} {v}", fltChipVals: "{c}: {n} érték",
+      fltRows: "{m} sorból {n}", fltDrop: "Eltávolítás", fltSortAll: "Rendezés — mindenkinek", fltYouHead: "Szűrés — csak neked", fltAddCond: "Feltétel hozzáadása",
+      fltSuggest: "Javasolt", fltNot: "Nem {v}", fltNRows: "{n} sor", fltRow1: "1 sor", fltCond: "Feltétel", fltValue: "Érték", fltValsHead: "Értékek — {m} sorból {n}",
+      fo_is: "Egyenlő", fo_isnt: "Nem egyenlő", fo_has: "Tartalmazza", fo_hasnt: "Nem tartalmazza", fo_starts: "Ezzel kezdődik", fo_ends: "Erre végződik", fo_blank: "Üres", fo_nblank: "Nem üres",
+      fo_gt: "Nagyobb, mint", fo_ge: "Legalább", fo_lt: "Kisebb, mint", fo_le: "Legfeljebb", fo_before: "Korábbi, mint", fo_after: "Későbbi, mint",
+      fo_dup: "Ismétlődik", fo_err: "Hibás", fo_true: "Bejelölve", fo_false: "Nincs bejelölve",
+      repl: "Csere", repPh: "Csere erre", rep1: "Csere", repAll: "Összes cseréje", findScope: "Keresés helye", findThis: "Ez a munkalap", findAll: "Minden munkalap",
+      findCase: "Kis- és nagybetű egyezzen", findWhole: "A teljes cella egyezzen", findFx: "Keresés a képletekben is", repDone: "{n} cellában cserélve", repNone: "Nincs mit cserélni",
+      min: "Minimum", max: "Maximum", aggPick: "Válaszd ki, mit mutasson a kijelölésről",
       ok: "OK" }
   }, L);
   function fill(s, o) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return o[k] == null ? m : o[k]; }); }
@@ -78,7 +126,10 @@
     search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20",
     upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
     num: "M9 4L7 20M17 4l-2 16M4 9h16M3 15h16",
-    eraser: "M8 20h12M5 14l8-8 6 6-6 6H9z"
+    eraser: "M8 20h12M5 14l8-8 6 6-6 6H9z",
+    dropdown: "M3 7h18v10H3zM13.5 11l2.5 2.5 2.5-2.5M6.5 12h4",
+    checkbox: "M5 5h14v14H5zM8.5 12l2.5 2.5 4.5-5",
+    filter: "M4 5h16l-6 7.5V19l-4-2v-4.5z"
   };
   function ico(name) {
     var p = ICO[name];
@@ -106,13 +157,138 @@
   function isDate(v) { return typeof v === "string" && /^\d{4}-\d\d-\d\d(T\d\d:\d\d)?$/.test(v); }
   function same(a, b) { return a === b || (a == null || a === "") && (b == null || b === ""); }
 
+  // ------------------------------------------------------------------ pure helpers (no DOM): filter conditions, error kinds, find and replace, decimals
+  // tests/test_sheet_page.py runs the block between the two markers under node.
+  // >>> pure
+  var PURE = (function () {
+    // "1 234,5", "1,234.5", "12" -> a number; anything else -> null
+    function num(t) {
+      t = String(t == null ? "" : t).replace(/[\s\u00a0]/g, "");
+      if (!t) return null;
+      if (/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, "");
+      else if (/^[-+]?\d{1,3}(\.\d{3})+,\d+$/.test(t)) t = t.replace(/\./g, "").replace(",", ".");
+      else if (/^[-+]?\d*,\d+$/.test(t)) t = t.replace(",", ".");
+      return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t) ? parseFloat(t) : null;
+    }
+    // "2026-03-01", "2026.03.01.", "2026. 3. 1." -> "2026-03-01"; anything else -> null
+    function date(t) {
+      var m = /^(\d{4})\s*[-.\/]\s*(\d{1,2})\s*[-.\/]\s*(\d{1,2})\.?(?:$|[\sT])/.exec(String(t == null ? "" : t).trim());
+      if (!m || +m[2] < 1 || +m[2] > 12 || +m[3] < 1 || +m[3] > 31) return null;
+      return m[1] + "-" + (m[2].length < 2 ? "0" : "") + m[2] + "-" + (m[3].length < 2 ? "0" : "") + m[3];
+    }
+    var NOVAL = /^(blank|nblank|dup|err|true|false)$/;
+    function needsVal(op) { return !NOVAL.test(op); }
+    // A condition filters once it is complete: one that needs a value does nothing until it has one.
+    function active(c) { return !!c && (!needsVal(c.op) || String(c.val == null ? "" : c.val).trim() !== ""); }
+    function prep(c) { var v = String(c.val == null ? "" : c.val).trim(); return { op: c.op, s: v.toLowerCase(), n: num(v), d: date(v) }; }
+    function isIso(v) { return typeof v === "string" && /^\d{4}-\d\d-\d\d(T\d\d:\d\d)?$/.test(v); }
+    /** Does a cell meet a prepared condition? x: {t: the text it shows, v: its computed value, dup: its text is in the column twice}. */
+    function test(p, x) {
+      var t = String(x.t == null ? "" : x.t).trim().toLowerCase(), v = x.v;
+      switch (p.op) {
+        case "is": return t === p.s || typeof v === "number" && p.n !== null && Math.abs(v - p.n) < 1e-9 || isIso(v) && p.d !== null && v.slice(0, 10) === p.d;
+        case "isnt": return !test({ op: "is", s: p.s, n: p.n, d: p.d }, x);
+        case "has": return t.indexOf(p.s) >= 0;
+        case "hasnt": return t.indexOf(p.s) < 0;
+        case "starts": return t.slice(0, p.s.length) === p.s;
+        case "ends": return p.s.length <= t.length && t.slice(t.length - p.s.length) === p.s;
+        case "blank": return t === "";
+        case "nblank": return t !== "";
+        case "gt": return typeof v === "number" && p.n !== null && v > p.n;
+        case "ge": return typeof v === "number" && p.n !== null && v >= p.n;
+        case "lt": return typeof v === "number" && p.n !== null && v < p.n;
+        case "le": return typeof v === "number" && p.n !== null && v <= p.n;
+        case "before": return isIso(v) && p.d !== null && v.slice(0, 10) < p.d;
+        case "after": return isIso(v) && p.d !== null && v.slice(0, 10) > p.d;
+        case "dup": return !!x.dup;
+        case "err": return !!(v && typeof v === "object" && v.error);
+        case "true": return v === true;
+        case "false": return v !== true;
+      }
+      return true;
+    }
+    // The first function a formula calls that is not among names (upper case); null when all are known.
+    function unknownFn(fx, names) {
+      var t = String(fx == null ? "" : fx), i = 0, n = t.length;
+      if (!names || !names.length) return null;
+      while (i < n) {
+        var ch = t.charAt(i);
+        if (ch === '"' || ch === "'") { i++; while (i < n && !(t.charAt(i) === ch && t.charAt(i + 1) !== ch)) i += t.charAt(i) === ch ? 2 : 1; i++; continue; }
+        var m = /^[A-Za-z_\u00c0-\u024f][\w.\u00c0-\u024f]*/.exec(t.slice(i));
+        if (m) {
+          i += m[0].length;
+          if (t.charAt(i) === "(" && names.indexOf(m[0].toUpperCase()) < 0) return m[0].toUpperCase();
+          continue;
+        }
+        i++;
+      }
+      return null;
+    }
+    var ERRK = { "#DIV/0!": "div", "#REF!": "ref", "#NAME?": "name", "#VALUE!": "value", "#N/A": "na", "#NUM!": "num", "#CYCLE!": "cycle", "#NULL!": "null" };
+    /** What kind of error a code is, for its sentence: {kind, fn} (fn: the unknown function of a #NAME?). */
+    function errInfo(code, fx, names) {
+      var k = ERRK[String(code)] || "other", f = k === "name" ? unknownFn(fx, names) : null;
+      return { kind: f ? "nameFn" : k, fn: f };
+    }
+    function reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+    // o: {cs: match case, whole: the entire cell}
+    function matches(text, q, o) {
+      text = String(text); q = String(q);
+      if (!q) return false;
+      if (!(o && o.cs)) { text = text.toLowerCase(); q = q.toLowerCase(); }
+      return o && o.whole ? text === q : text.indexOf(q) >= 0;
+    }
+    function replace(text, q, rep, o) {
+      text = String(text);
+      if (!matches(text, q, o)) return text;
+      if (o && o.whole) return String(rep);
+      return text.replace(new RegExp(reEsc(q), o && o.cs ? "g" : "gi"), function () { return String(rep); });
+    }
+    /** A number format with d more (or fewer) decimals; shown: the decimals a General cell shows now. null: not a number format. */
+    function decimals(fmt, d, shown) {
+      var zeros = function (n) { return n > 0 ? "." + new Array(n + 1).join("0") : ""; };
+      if (fmt == null || fmt === "") return "0" + zeros(Math.max(0, Math.min(10, (shown || 0) + d)));
+      fmt = String(fmt);
+      var mask = fmt.replace(/"[^"]*"|\\./g, function (m) { return new Array(m.length + 1).join(" "); }), out = "", at = 0, hit = false;
+      mask.replace(/0(?:\.(0+))?(?![0.#,]*0)/g, function (m, dec, off) {
+        var n = Math.max(0, Math.min(10, (dec ? dec.length : 0) + d));
+        out += fmt.slice(at, off) + "0" + zeros(n); at = off + m.length; hit = true;
+        return m;
+      });
+      return hit ? out + fmt.slice(at) : null;
+    }
+    return { num: num, date: date, needsVal: needsVal, active: active, prep: prep, test: test, unknownFn: unknownFn, errInfo: errInfo,
+      matches: matches, replace: replace, decimals: decimals };
+  })();
+  // <<< pure
+
   // ------------------------------------------------------------------ model
   // book: [{id, name, rev, cells{A1: raw}, fmt{A1:{…}}, vals{A1: computed}, cols{A: px}, freeze{rows, cols}, charts[]}]
-  var FMT_KEYS = ["bold", "italic", "underline", "align", "num", "bg", "fg", "wrap"];
+  // A fmt here holds a dropdown's options themselves (fmt.options, one array shared by its cells) and
+  // check: true for a checkbox; the server keeps a dropdown as fmt.opt, the id of a list of the sheet.
+  // Only in this page, never sent: _flt (the viewer's filter), _hid (the rows it hides), _fon.
+  // colors: a dropdown's option colours (beside options); bd: the edges the cell draws, of "tblr".
+  // A sheet also holds rules (its conditional formats) and merges (its merged ranges), as the server does.
+  var FMT_KEYS = ["bold", "italic", "underline", "align", "num", "bg", "fg", "wrap", "options", "check", "colors", "bd"];
+  var cfGen = 0, mgTok = 0;  // conditional formats are computed again when cfGen moves on; mgTok: one drawing of a pane (see renderQ)
+  function noFmt() { var o = {}; FMT_KEYS.forEach(function (x) { o[x] = null; }); return o; }
+  // The server's fmt (opt: a list id) as the page's (options: that list, colors: its colours), in place.
+  function bindLists(fmt, lists, keys, colors) {
+    (keys || Object.keys(fmt)).forEach(function (k) {
+      var f = fmt[k];
+      if (!f || f.opt == null) return;
+      if (lists && lists[f.opt]) { f.options = lists[f.opt]; if (colors && colors[f.opt]) f.colors = colors[f.opt]; }
+      delete f.opt;
+      if (!Object.keys(f).length) delete fmt[k];
+    });
+    return fmt;
+  }
   var live = !!(hm && hm.sheet && hm.sheet.edit) && !C.thumb && !!C.sheet;
-  var book = [], cur = 0, hermesActive = false, edits = 0, preview = null;
+  var book = [], cur = 0, hermesActive = false, hermesUntil = 0, edits = 0, preview = null;
   function normSheet(o) {
+    if (o.lists && o.fmt) bindLists(o.fmt, o.lists, null, o.list_colors);
     return { id: o.id || "local-" + Math.random().toString(36).slice(2, 8), name: o.name || T.sheetWord + " 1", rev: o.rev || 0,
+      rules: o.rules || [], merges: o.merges || [],
       cells: o.cells || {}, fmt: o.fmt || {}, vals: o.vals || {}, cols: o.cols || {},
       freeze: { rows: (o.freeze && o.freeze.rows) || 0, cols: (o.freeze && o.freeze.cols) || 0 },
       charts: (o.charts || []).map(function (c, i) { var x = {}; for (var k in c) x[k] = c[k]; x.id = x.id || "c" + (i + 1); return x; }) };
@@ -129,15 +305,19 @@
         R.r2 = Math.min(R.r2, maxR + 200, MAXR - 1); R.c2 = Math.min(R.c2, MAXC - 1);
         for (var r = R.r1; r <= R.r2; r++) for (var c = R.c1; c <= R.c2; c++) {
           var k = key(r, c), f = fmt[k] || (fmt[k] = {}), src = sh.formats[rg];
-          for (var x in src) if (src[x] != null) f[x] = src[x];
+          for (var x in src) if (src[x] != null && x !== "border") f[x] = src[x];
         }
+        if (sh.formats[rg].border) bdLocal(fmt, sh.formats[rg].border, R);
       });
-      return normSheet({ id: "local-" + i, name: sh.name || T.sheetWord + " " + (i + 1), cells: cells, fmt: fmt, cols: sh.cols, freeze: sh.freeze, charts: sh.charts });
+      var merges = (sh.merges || []).filter(function (m) { var R = parseRange(m); if (R) eachIn(R, function (r, c, k) { if (r !== R.r1 || c !== R.c1) delete cells[k]; }); return !!R; });
+      return normSheet({ id: "local-" + i, name: sh.name || T.sheetWord + " " + (i + 1), cells: cells, fmt: fmt, cols: sh.cols, freeze: sh.freeze, charts: sh.charts,
+        rules: sh.rules, merges: merges });
     });
   }
   if (C.sheet && C.sheet.sheets && C.sheet.sheets.length) {
     book = C.sheet.sheets.map(normSheet);
     hermesActive = !!C.sheet.hermes_active;
+    hermesUntil = hermesActive ? Date.now() + ((C.sheet.hermes_left > 0 ? C.sheet.hermes_left : 300) * 1000 + 500) : 0;
   } else {
     var j0 = null;
     try { j0 = JSON.parse(kit.fileText("sheet.json") || "null"); } catch (e) { j0 = null; }
@@ -181,7 +361,7 @@
     if (touched === null) touched = { s: s, keys: [] };
     if (touched && touched.s === s) touched.keys.push(k); else touched = false;
   }
-  function invalidate() { touched = null; if (wb && wb.invalidate) { try { wb.invalidate(); } catch (e) { wb = makeWb(); } } else wb = makeWb(); }
+  function invalidate() { touched = null; cfGen++; if (wb && wb.invalidate) { try { wb.invalidate(); } catch (e) { wb = makeWb(); } } else wb = makeWb(); }
   /** The computed value of a cell: number | string | boolean | null | {error}. */
   function valueOf(s, k) {
     var raw = s.cells[k];
@@ -239,6 +419,7 @@
 
   // ------------------------------------------------------------------ geometry and the panes
   var RH = 24, HH = 24, HW = 46, DW = 96;
+  var ZM = 1, showFx = false;  // the view's zoom (RH, HH, HW and the column widths follow it) and "show formulas"
   var nRows = 50, nCols = 26, colX = [0], fr = 0, fc = 0, FW = 0, FH = 0, sl = 0, st = 0, vpW = 0, vpH = 0;
   var grid = document.getElementById("sh-grid");
   grid.setAttribute("aria-label", T.grid);
@@ -252,8 +433,9 @@
       if (xm !== "h" && ym !== "h") {
         q.ov = { sel: h("div", { "class": "sh-sel", hidden: true }), act: h("div", { "class": "sh-active", hidden: true }),
           handle: h("div", { "class": "sh-handle", hidden: true }), fill: h("div", { "class": "sh-fillbox", hidden: true }),
-          clip: h("div", { "class": "sh-clip", hidden: true }), refs: h("div"), charts: h("div") };
-        q.layer = h("div", { style: "position:absolute;left:0;top:0" }, [q.ov.sel, q.ov.clip, q.ov.fill, q.ov.act, q.ov.handle, q.ov.refs, q.ov.charts]);
+          clip: h("div", { "class": "sh-clip", hidden: true }), refs: h("div"), charts: h("div"),
+          dd: h("div", { "class": "sh-c dd sh-ddsel", hidden: true, html: '<span class="sh-pl pe"></span><i class="sh-dc"></i>' }) };
+        q.layer = h("div", { style: "position:absolute;left:0;top:0" }, [q.ov.sel, q.ov.clip, q.ov.fill, q.ov.dd, q.ov.act, q.ov.handle, q.ov.refs, q.ov.charts]);
         q.inner.appendChild(q.layer);
         cellQ.push(q);
       }
@@ -263,21 +445,68 @@
   var fzX = h("div", { "class": "sh-fz-x", hidden: true }), fzY = h("div", { "class": "sh-fz-y", hidden: true }), resizeLine = h("div", { "class": "sh-resize", hidden: true });
   vp.appendChild(fzX); vp.appendChild(fzY); vp.appendChild(resizeLine);
 
-  function cw(s, c) { var w = s.cols[colName(c)]; return w ? clamp(+w || DW, 24, 800) : DW; }
+  function cw(s, c) { var w = s.cols[colName(c)]; return Math.round((w ? clamp(+w || DW, 24, 800) : DW) * ZM); }
   function colAt(x) {
     var lo = 0, hi = nCols - 1;
     while (lo < hi) { var mid = (lo + hi + 1) >> 1; if (colX[mid] <= x) lo = mid; else hi = mid - 1; }
     return lo;
   }
+  // Rows a filter hides take no place in the grid: the panes lay out the shown rows only. vis: place
+  // (0-based, top to bottom) -> row; vix: row -> place (a hidden row: that of the next shown one);
+  // both null without a filter, when a row's place is its number. nVis: how many places there are.
+  var vis = null, vix = null, nVis = 50;
+  function hid(s, r) { return !!(s._hid && s._hid[r]); }
+  function isHid(r) { return hid(S(), r); }
+  function buildVis() {
+    var hd = S()._hid;
+    if (!hd) { vis = vix = null; nVis = nRows; return; }
+    vis = []; vix = new Int32Array(nRows + 1);
+    for (var r = 0; r < nRows; r++) { vix[r] = vis.length; if (!hd[r]) vis.push(r); }
+    vix[nRows] = nVis = vis.length;
+  }
+  function rowY(r) { return (vis ? (r >= nRows ? nVis + r - nRows : vix[r]) : r) * RH; }
+  function rowOf(i) { return vis ? vis[clamp(i, 0, nVis - 1)] : i; }
+  // The shown row nearest to r: itself, else the next one down, else up.
+  function seen(r) {
+    if (!isHid(r)) return r;
+    var a = r;
+    while (a < MAXR - 1 && isHid(a)) a++;
+    if (!isHid(a)) return a;
+    for (a = r; a > 0 && isHid(a);) a--;
+    return a;
+  }
+  // d rows on from r, counting the shown rows only.
+  function stepRow(r, d) {
+    if (!S()._hid) return r + d;
+    for (var n = Math.abs(d), step = d < 0 ? -1 : 1; n > 0; n--) {
+      var x = r + step;
+      while (x >= 0 && x < MAXR && isHid(x)) x += step;
+      if (x < 0 || x >= MAXR) break;
+      r = x;
+    }
+    return r;
+  }
+  // [first, last] of each run of shown rows in r1..r2.
+  function visRuns(s, r1, r2) {
+    if (!s._hid) return [[r1, r2]];
+    var out = [], a = -1;
+    for (var r = r1; r <= r2 + 1; r++) {
+      var on = r <= r2 && !s._hid[r];
+      if (on && a < 0) a = r;
+      if (!on && a >= 0) { out.push([a, r - 1]); a = -1; }
+    }
+    return out;
+  }
   function layout() {
     var s = S(), u = used(s);
     nRows = clamp(Math.max(nRows, 50, u.r + 30), 1, MAXR);
     nCols = clamp(Math.max(nCols, 26, u.c + 4), 1, MAXC);
+    buildVis();
     colX = [0];
     for (var c = 0; c < nCols; c++) colX.push(colX[c] + cw(s, c));
     fr = clamp(s.freeze.rows || 0, 0, Math.min(nRows - 1, 50)); fc = clamp(s.freeze.cols || 0, 0, Math.min(nCols - 1, 20));
     FW = colX[fc]; FH = fr * RH;
-    wrapEl.style.width = HW + colX[nCols] + "px"; wrapEl.style.height = HH + nRows * RH + "px";
+    wrapEl.style.width = HW + colX[nCols] + "px"; wrapEl.style.height = HH + nVis * RH + "px";
     size();
   }
   function size() {
@@ -305,11 +534,12 @@
     var a = colAt(FW + sl) - pad, b = colAt(FW + sl + Math.max(0, vpW - HW - FW)) + pad;
     return [Math.max(fc, a), Math.min(nCols - 1, b)];
   }
+  // The rows a pane shows, as places (see vis): the frozen rows are never hidden, so theirs are their numbers.
   function rowsFor(ym, pad) {
     if (ym === "h") return null;
     if (ym === "f") return fr ? [0, fr - 1] : null;
     var a = Math.floor((FH + st) / RH) - pad, b = Math.floor((FH + st + Math.max(0, vpH - HH - FH)) / RH) + pad;
-    return [Math.max(fr, a), Math.min(nRows - 1, b)];
+    return [Math.max(fr, a), Math.min(nVis - 1, b)];
   }
   function within(have, want) { return !want || (have && want[0] >= have[0] && want[1] <= have[1]); }
 
@@ -332,7 +562,7 @@
     return el;
   }
   // A box at x, y of w x hh with the extra declarations css; a move alone sets just what moved.
-  function put(el, cls, x, y, w, hh, css, txt) {
+  function put(el, cls, x, y, w, hh, css, txt, html) {
     if (el._c !== cls) { el.className = cls; el._c = cls; }
     if (el._s !== css) {
       el.style.cssText = "left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + hh + "px;" + css;
@@ -343,7 +573,8 @@
       if (el._w !== w) { el.style.width = w + "px"; el._w = w; }
       if (el._h !== hh) { el.style.height = hh + "px"; el._h = hh; }
     }
-    if (el._t !== txt) { el.textContent = txt; el._t = txt; }
+    var tk = html == null ? txt : "\u0000" + html;  // html: a cell with parts (a pill, a button) instead of plain text
+    if (el._t !== tk) { if (html == null) el.textContent = txt; else el.innerHTML = html; el._t = tk; }
   }
   function hide(el) { if (el && el._s !== null) { el.style.display = "none"; el._s = null; } }
   function hideAll(q) { for (var i in q.pool) hide(q.pool[i]); q.rowAt = []; }
@@ -375,45 +606,68 @@
     if (q.ym === "h") {
       fitSlots(q, 1, cc[1] - cc[0] + 1);
       for (var c = cc[0]; c <= cc[1]; c++)
-        put(slot(q, c % q.W), "sh-h col" + (c >= R.c1 && c <= R.c2 ? (whole === "cols" || whole === "all" ? " all" : " on") : ""),
+        put(slot(q, c % q.W), "sh-h col" + (c >= R.c1 && c <= R.c2 ? (whole === "cols" || whole === "all" ? " all" : " on") : "") + (s._fact && s._fact[c] ? " fl" : ""),
           colX[c], 0, colX[c + 1] - colX[c], HH, "", colName(c));
       for (c = cc[1] + 1; c < cc[0] + q.W; c++) hide(q.pool[c % q.W]);
     } else if (q.xm === "h") {
       fitSlots(q, rr[1] - rr[0] + 1, 1);
-      for (var r = rr[0]; r <= rr[1]; r++)
-        put(slot(q, r % q.H), "sh-h row" + (r >= R.r1 && r <= R.r2 ? (whole === "rows" || whole === "all" ? " all" : " on") : ""),
-          0, r * RH, HW, RH, "", String(r + 1));
+      // r, r2 below: a row's place in the pane; rw, rw2: its number (they differ while a filter hides rows)
+      for (var r = rr[0]; r <= rr[1]; r++) {
+        var rw = vis ? vis[r] : r;
+        put(slot(q, r % q.H), "sh-h row" + (rw >= R.r1 && rw <= R.r2 ? (whole === "rows" || whole === "all" ? " all" : " on") : "") + (vis ? " fl" : ""),
+          0, r * RH, HW, RH, "", String(rw + 1));
+      }
       for (r = rr[1] + 1; r < rr[0] + q.H; r++) hide(q.pool[r % q.H]);
     } else {
       fitSlots(q, rr[1] - rr[0] + 1, cc[1] - cc[0] + 1);
-      var H = q.H, W = q.W, j, c3, fam = null;
+      var H = q.H, W = q.W, j, c3, fam = null, u = used(s), hr = C.thumb || preview ? -1 : hdrRow(s), fa = s._fact || {};
+      // vm: the merged cells in this window (each drawn once, over its whole area, by the first of its cells met: tok);
+      // cfOn: the sheet has conditional formats; bdOn: some cell draws a border
+      var vm = mgIn(s, rr, cc), tok = ++mgTok, cfOn = s.rules.length > 0, bdOn = hasBd(s);
+      if (vm) kept = false;
       for (var r2 = rr[0]; r2 <= rr[1]; r2++) {
-        var skip = -1, base = (r2 % H) * W;
+        var skip = -1, base = (r2 % H) * W, rw2 = vis ? vis[r2] : r2;
         // A row already drawn for these columns and these cells is still right.
-        if (kept && q.rowAt[r2 % H] === r2) continue;
-        q.rowAt[r2 % H] = r2;
+        if (kept && q.rowAt[r2 % H] === rw2) continue;
+        q.rowAt[r2 % H] = rw2;
         for (var c2 = cc[0]; c2 <= cc[1]; c2++) {
-          var el2 = slot(q, base + c2 % W), k = key(r2, c2), f = s.fmt[k], v = valueOf(s, k), txt = display(s, k, v), kind = cellKind(v);
-          var w = colX[c2 + 1] - colX[c2], css = "", cls = "sh-c";
+          var el2 = slot(q, base + c2 % W), mg = vm && mgHit(vm, rw2, c2);
+          if (mg) { if (mg.tok === tok) { hide(el2); continue; } mg.tok = tok; }
+          var k = mg ? key(mg.r1, mg.c1) : key(rw2, c2), f = s.fmt[k], v = valueOf(s, k), txt = display(s, k, v), kind = cellKind(v);
+          var w = colX[c2 + 1] - colX[c2], css = "", cls = "sh-c", html = null;
+          if (showFx && isFormula(s.cells[k])) { txt = String(s.cells[k]); kind = ""; }  // View > Show formulas
+          if (rw2 === hr && c2 <= u.c && u.r > hr) {  // a header cell: the button of its filter
+            html = kit.esc(txt) + '<i class="sh-fb' + (fa[c2] ? " on" : "") + '"></i>'; cls += fa[c2] ? " fh fa" : " fh";
+          } else if (f && f.options) {  // a dropdown: its value as a pill when it is one of the options
+            var oi = optIdx(f.options, v, txt);
+            html = (oi >= 0 ? '<span class="sh-pl ' + pillCls(f, oi) + '">' + kit.esc(txt) + "</span>" : txt ? kit.esc(txt) : '<span class="sh-pl pe"></span>') + '<i class="sh-dc"></i>';
+            cls += txt ? " dd" : " dd de"; kind = "";
+          } else if (f && f.check && (v === null || typeof v === "boolean")) {  // a checkbox, drawn by the style sheet
+            cls += v ? " ck on" : " ck"; kind = ""; txt = ""; html = "";
+          }
           if (kind) cls += " " + kind;
+          if (cfOn) f = cfMix(f, cfAt(s, mg ? mg.r1 : rw2, mg ? mg.c1 : c2, k));  // a rule's format over the cell's own
+          if (mg) { w = colX[Math.min(mg.c2 + 1, nCols)] - colX[mg.c1]; cls += " mg"; if (!(f && f.wrap)) css += "line-height:" + (rowY(mg.r2 + 1) - rowY(mg.r1) - 1) + "px;"; }
+          if (bdOn) css += bdCss(s, mg, rw2, c2);
           if (f) {
             if (f.bold) css += "font-weight:600;";
             if (f.italic) css += "font-style:italic;";
-            if (f.underline) css += "text-decoration:underline;";
+            if (f.underline || f.strike) css += "text-decoration:" + (f.underline ? "underline " : "") + (f.strike ? "line-through" : "") + ";";
             if (f.align === "left" || f.align === "center" || f.align === "right") css += "text-align:" + f.align + ";";
             if (f.bg && /^#[0-9a-f]{3,8}$/i.test(f.bg)) css += "background:" + f.bg + ";" + (f.fg || kind === "e" ? "" : "color:" + inkOn(f.bg) + ";");
             if (f.fg && /^#[0-9a-f]{3,8}$/i.test(f.fg) && kind !== "e") css += "color:" + f.fg + ";";
             if (f.wrap) cls += " wr";
           }
           // Text runs on over empty cells to its right, as in Excel.
-          if (txt && !kind && !(f && (f.wrap || f.align && f.align !== "left")) && c2 > skip && txt.length * 6 > w - 10) {
-            var tw = textW(txt, f && f.bold, fam || (fam = family())) + 12, w0 = w, cn = c2 + 1;
-            while (w < tw && cn <= cc[1] && cn - c2 < 12 && empty(s, r2, cn)) { w += colX[cn + 1] - colX[cn]; cn++; }
+          if (txt && !kind && html === null && !mg && !(f && (f.wrap || f.align && f.align !== "left")) && c2 > skip && txt.length * 6 * ZM > w - 10) {
+            var tw = (textW(txt, f && f.bold, fam || (fam = family())) + 12) * ZM, w0 = w, cn = c2 + 1;
+            while (w < tw && cn <= cc[1] && cn - c2 < 12 && empty(s, rw2, cn) && !(vm && mgHit(vm, rw2, cn))) { w += colX[cn + 1] - colX[cn]; cn++; }
             if (w > w0) { cls += " ov"; if (!(f && f.bg)) css += "background:var(--color-panel);"; skip = cn - 1; }
           }
           if (foundSet && foundSet[k]) cls += " fd";
           if (flashSet[k]) cls += " hf";
-          put(el2, cls, colX[c2], r2 * RH, w, RH, css, txt);
+          if (mg) put(el2, cls, colX[mg.c1], rowY(mg.r1), w, rowY(mg.r2 + 1) - rowY(mg.r1), css, txt, html === "" ? null : html);
+          else put(el2, cls, colX[c2], r2 * RH, w, RH, css, txt, html === "" ? null : html);
         }
         for (c3 = cc[1] + 1; c3 < cc[0] + W; c3++) hide(q.pool[base + c3 % W]);
       }
@@ -425,9 +679,11 @@
       }
     }
   }
+  // Which option a dropdown cell holds (-1: none of them, shown as plain text).
+  function optIdx(options, v, txt) { return v === null ? -1 : options.indexOf(typeof v === "string" ? v : typeof v === "number" ? String(v) : txt); }
   function renderAll(force) { Q.forEach(function (q) { renderQ(q, force); }); }
   function renderHeaders() { Q.forEach(function (q) { if (q.xm === "h" || q.ym === "h") renderQ(q, true); }); }
-  function refresh() { layout(); renderAll(true); drawOverlay(); drawCharts(); updateFbar(); stats(); }
+  function refresh() { layout(); renderAll(true); drawOverlay(); drawCharts(); updateFbar(); stats(); drawFlt(); uiSync(); }
   var rafPending = false;
   function onScroll() {
     if (rafPending) return;
@@ -436,7 +692,7 @@
       rafPending = false;
       sl = grid.scrollLeft; st = grid.scrollTop;
       var grow = false;
-      if (st + vpH > HH + nRows * RH - 6 * RH && nRows < MAXR) { nRows = Math.min(MAXR, nRows + 100); grow = true; }
+      if (st + vpH > HH + nVis * RH - 6 * RH && nRows < MAXR) { nRows = Math.min(MAXR, nRows + 100); grow = true; }
       if (sl + vpW > HW + colX[nCols] - 3 * DW && nCols < MAXC) { nCols = Math.min(MAXC, nCols + 10); grow = true; }
       if (grow) layout(); else translate();
       renderAll(grow);
@@ -446,13 +702,13 @@
   }
   // A cell's box in viewport pixels.
   function cellBox(r, c) {
-    var x = colX[c], y = r * RH, w = colX[c + 1] - x;
+    var x = colX[c], y = rowY(r), w = colX[c + 1] - x;
     return { x: HW + (c < fc ? x : x - sl), y: HH + (r < fr ? y : y - st), w: w, h: RH };
   }
   function ensureVisible(r, c) {
     if (r >= nRows || c >= nCols) { nRows = clamp(Math.max(nRows, r + 20), 1, MAXR); nCols = clamp(Math.max(nCols, c + 4), 1, MAXC); layout(); }
     var mainW = vpW - HW - FW, mainH = vpH - HH - FH, ns = st, nl = sl;
-    if (r >= fr) { var y = r * RH; if (y < FH + st) ns = y - FH; else if (y + RH > FH + st + mainH) ns = y + RH - FH - mainH; }
+    if (r >= fr) { var y = rowY(r); if (y < FH + st) ns = y - FH; else if (y + RH > FH + st + mainH) ns = y + RH - FH - mainH; }
     if (c >= fc) { var x = colX[c], x2 = colX[c + 1]; if (x < FW + sl) nl = x - FW; else if (x2 > FW + sl + mainW) nl = Math.min(x - FW, x2 - FW - mainW); }
     if (ns !== st) grid.scrollTop = Math.max(0, ns);
     if (nl !== sl) grid.scrollLeft = Math.max(0, nl);
@@ -473,33 +729,41 @@
     var R = selR(), u = used(S());
     return { r1: R.r1, c1: R.c1, r2: Math.max(R.r1, Math.min(R.r2, u.r)), c2: Math.max(R.c1, Math.min(R.c2, u.c)) };
   }
-  function multi() { var R = selR(); return R.r1 !== R.r2 || R.c1 !== R.c2; }
+  // More than one cell selected (one merged cell is one cell).
+  function multi() {
+    var R = selR(), m;
+    if (R.r1 === R.r2 && R.c1 === R.c2) return false;
+    return !(selMode === "cells" && (m = mergeAt(S(), sr, sc)) && m.r1 === R.r1 && m.c1 === R.c1 && m.r2 === R.r2 && m.c2 === R.c2);
+  }
   function select(r, c, extend, mode) {
-    r = clamp(r, 0, MAXR - 1); c = clamp(c, 0, MAXC - 1);
+    r = seen(clamp(r, 0, MAXR - 1)); c = clamp(c, 0, MAXC - 1);
     if (extend) { er = r; ec = c; } else { sr = er = r; sc = ec = c; selMode = mode || "cells"; }
     if (mode) selMode = mode;
     if (selMode === "cells" || selMode === "rows") ensureVisible(er, selMode === "rows" ? Math.max(fc, colAt(FW + sl)) : ec);
-    else if (selMode === "cols") ensureVisible(Math.max(fr, Math.floor((FH + st) / RH)), ec);
+    else if (selMode === "cols") ensureVisible(rowOf(Math.max(fr, Math.floor((FH + st) / RH))), ec);
     afterSel();
   }
-  function setActive(r, c) { sr = r; sc = c; ensureVisible(r, c); afterSel(); }
-  function afterSel() { drawOverlay(); renderHeaders(); updateFbar(); stats(); announce(); sendView(); }
+  function setActive(r, c) { sr = r = seen(r); sc = c; ensureVisible(r, c); afterSel(); }
+  function afterSel() { snapSel(); drawOverlay(); renderHeaders(); updateFbar(); stats(); announce(); sendView(); uiSync(); }
   function box(el, R, pad) {
-    var x = colX[R.c1], y = R.r1 * RH, w = colX[R.c2 + 1] - x, hh = (R.r2 - R.r1 + 1) * RH;
+    var x = colX[R.c1], y = rowY(R.r1), w = colX[R.c2 + 1] - x, hh = rowY(R.r2 + 1) - y;
     pad = pad || 0;
     el.style.left = x - pad + "px"; el.style.top = y - pad + "px"; el.style.width = w + 2 * pad + "px"; el.style.height = hh + 2 * pad + "px";
     el.hidden = false;
   }
   var fillPrev = null, edRefs = [];
   function drawOverlay() {
-    var R = selR(), A = { r1: sr, c1: sc, r2: sr, c2: sc }, s = S();
+    var R = selR(), s = S(), A = mergeAt(s, sr, sc) || { r1: sr, c1: sc, r2: sr, c2: sc }, fa = s.fmt[key(sr, sc)];
+    // an empty dropdown cell shows what it is while it is the active one (the others on hover)
+    var ddHere = !ro() && !ed && !!(fa && fa.options) && empty(s, sr, sc) && sr !== hdrRow(s);
     cellQ.forEach(function (q) {
       var o = q.ov;
       if (multi()) box(o.sel, R, 0); else o.sel.hidden = true;
       box(o.act, A, 1);
+      if (ddHere) box(o.dd, A, 0); else o.dd.hidden = true;
       if (!ro() && !ed && selMode !== "all") {
         o.handle.hidden = false;
-        o.handle.style.left = colX[Math.min(R.c2 + 1, nCols)] - 4 + "px"; o.handle.style.top = (R.r2 + 1) * RH - 4 + "px";
+        o.handle.style.left = colX[Math.min(R.c2 + 1, nCols)] - 4 + "px"; o.handle.style.top = rowY(R.r2 + 1) - 4 + "px";
       } else o.handle.hidden = true;
       if (fillPrev) box(o.fill, fillPrev, 0); else o.fill.hidden = true;
       if (clip && clip.id === s.id && !preview) box(o.clip, clip.R, 0); else o.clip.hidden = true;
@@ -572,14 +836,14 @@
   }
   function placeEditor() {
     if (!ed) return;
-    var b = cellBox(ed.r, ed.c), lines = edTa.value.split("\n");
-    var w = b.w, hh = RH;
+    var b = mBox(ed.r, ed.c), lines = edTa.value.split("\n");
+    var w = b.w, hh = b.h;
     if (edWrap.classList.contains("wr")) { edWrap.style.width = w + 1 + "px"; hh = Math.max(RH, edTa.scrollHeight); }
     else {
       var tw = 0;
-      lines.forEach(function (ln) { tw = Math.max(tw, textW(ln) + 18); });
+      lines.forEach(function (ln) { tw = Math.max(tw, (textW(ln) + 18) * ZM); });
       w = Math.max(b.w, Math.min(tw, vpW - b.x - 6));
-      hh = Math.max(RH, lines.length * 23 + 1);
+      hh = Math.max(b.h, lines.length * (RH - 1) + 1);
     }
     edWrap.style.left = b.x + "px"; edWrap.style.top = b.y + "px"; edWrap.style.width = w + 1 + "px"; edWrap.style.height = hh + "px";
   }
@@ -755,7 +1019,7 @@
       var rows = [];
       for (var r = R.r1; r <= R.r2; r++) {
         var row = [];
-        for (var c = R.c1; c <= R.c2; c++) row.push(isFormula(p.value) ? shift(p.value, r - e.r, c - e.c) : p.value);
+        for (var c = R.c1; c <= R.c2; c++) row.push(hid(s, r) ? null : isFormula(p.value) ? shift(p.value, r - e.r, c - e.c) : p.value);
         rows.push(row);
       }
       setBlock(s, R.r1, R.c1, rows, p.num ? { num: p.num } : null);
@@ -772,8 +1036,9 @@
   }
   // Enter / Tab inside a selection walk its cells; otherwise they move the selection.
   function moveInSel(dr, dc) {
-    if (!multi() || selMode !== "cells") return select(sr + dr, sc + dc, false);
-    var R = selR(), r = sr + dr, c = sc + dc;
+    var t = stepOut(sr, sc, dr, dc);  // past the merged cell the active cell is
+    if (!multi() || selMode !== "cells") return select(t[0], t[1], false);
+    var R = selR(), r = t[0], c = t[1];
     if (dc) { if (c > R.c2) { c = R.c1; r++; } else if (c < R.c1) { c = R.c2; r--; } if (r > R.r2) r = R.r1; else if (r < R.r1) r = R.r2; }
     if (dr) { if (r > R.r2) { r = R.r1; c++; } else if (r < R.r1) { r = R.r2; c--; } if (c > R.c2) c = R.c1; else if (c < R.c1) c = R.c2; }
     setActive(r, c);
@@ -783,7 +1048,9 @@
   function hit(cx, cy) {
     var b = vp.getBoundingClientRect(), x = cx - b.left, y = cy - b.top, r, c;
     if (x < HW) c = -1; else { var sx = x - HW < FW ? x - HW : x - HW + sl; c = colAt(Math.max(0, sx)); }
-    if (y < HH) r = -1; else { var sy = y - HH < FH ? y - HH : y - HH + st; r = clamp(Math.floor(Math.max(0, sy) / RH), 0, nRows - 1); }
+    if (y < HH) r = -1; else { var sy = y - HH < FH ? y - HH : y - HH + st; r = rowOf(clamp(Math.floor(Math.max(0, sy) / RH), 0, nVis - 1)); }
+    var m = r >= 0 && c >= 0 ? mergeAt(S(), r, c) : null;  // anywhere in a merged cell: its top-left cell
+    if (m) { r = m.r1; c = m.c1; }
     return { r: r, c: c, x: x, y: y };
   }
   var drag = null, dragTimer = null, lastPt = null;
@@ -832,7 +1099,7 @@
     clearInterval(dragTimer);
     var d = drag; drag = null; lastPt = null;
     if (!d) return;
-    if (d.kind === "resize") { resizeLine.hidden = true; if (d.w) setColWidth(S(), d.col, d.w); }
+    if (d.kind === "resize") { resizeLine.hidden = true; if (d.w) setColWidth(S(), d.col, Math.round(d.w / ZM)); }
     if (d.kind === "fill") fillEnd();
     if (d.kind === "point" && ed) edSrc().focus();
   }
@@ -853,6 +1120,15 @@
     if (p.r === -1) { e.preventDefault(); grid.focus(); if (e.shiftKey && selMode === "cols") { ec = p.c; afterSel(); } else { sr = 0; er = nRows - 1; sc = ec = p.c; selMode = "cols"; afterSel(); } return startDrag("cols"); }
     if (p.c === -1) { e.preventDefault(); grid.focus(); if (e.shiftKey && selMode === "rows") { er = p.r; afterSel(); } else { sr = er = p.r; sc = 0; ec = nCols - 1; selMode = "rows"; afterSel(); } return startDrag("rows"); }
     e.preventDefault(); grid.focus();
+    if (!e.shiftKey && !C.thumb) {
+      // a header's filter button, a dropdown's pill or caret, a checkbox's box: these act, the rest of the cell selects
+      var s = S(), cb = mBox(p.r, p.c), f = s.fmt[key(p.r, p.c)], tc = e.target.classList;
+      if (tc.contains("sh-fb")) { select(p.r, p.c, false); return openFilter(p.c); }
+      if (!ro() && p.r !== hdrRow(s)) {
+        if (f && f.options && (tc.contains("sh-pl") || p.x >= cb.x + cb.w - 20)) { select(p.r, p.c, false); return openDd(p.r, p.c); }
+        if (checkable(s, p.r, p.c) && Math.abs(p.x - cb.x - cb.w / 2) <= 10) { select(p.r, p.c, false); return toggleChecks({ r1: p.r, c1: p.c, r2: p.r, c2: p.c }); }
+      }
+    }
     if (e.shiftKey) { selMode = "cells"; select(p.r, p.c, true); } else select(p.r, p.c, false);
     startDrag("sel");
   }
@@ -874,6 +1150,7 @@
     if (!vp.contains(e.target) || e.target.closest(".sh-chart, .sh-edwrap")) return;
     var p = hit(e.clientX, e.clientY), col = edgeOfCol(p);
     if (col >= 0 && !ro()) return autofit(col);
+    if (pop || p.r >= 0 && p.c >= 0 && checkable(S(), p.r, p.c)) return;  // a list just opened, a checkbox ticked twice
     if (p.r >= 0 && p.c >= 0 && !ro()) { select(p.r, p.c, false); beginEdit(null, "edit"); }
   }
 
@@ -895,21 +1172,30 @@
     if (e.target !== grid || ed) return;
     var k = e.key, mod = e.ctrlKey || e.metaKey;
     var arrows = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
+    // Alt+Down opens what the cell offers: a header's filter, a dropdown's list (Enter opens that too).
+    if (k === "ArrowDown" && e.altKey || k === "Enter" && !e.shiftKey && !mod && !ro() && isDd(S(), sr, sc)) {
+      e.preventDefault();
+      if (sr === hdrRow(S())) return k === "Enter" ? moveInSel(1, 0) : openFilter(sc);
+      return openDd(sr, sc);
+    }
     if (arrows) {
       e.preventDefault();
       if (selMode !== "cells" && e.shiftKey) selMode = "cells";
-      var r0 = e.shiftKey ? er : sr, c0 = e.shiftKey ? ec : sc, t = mod ? jump(r0, c0, arrows[0], arrows[1]) : [r0 + arrows[0], c0 + arrows[1]];
+      var r0 = e.shiftKey ? er : sr, c0 = e.shiftKey ? ec : sc;
+      if (e.shiftKey && !multi()) { if (arrows[0] < 0) r0 = sr; if (arrows[1] < 0) c0 = sc; }  // one merged cell: grown from the side the arrow points to
+      var t = mod ? jump(r0, c0, arrows[0], arrows[1]) : e.shiftKey ? [stepRow(r0, arrows[0]), c0 + arrows[1]] : stepOut(r0, c0, arrows[0], arrows[1]);
       return select(t[0], t[1], e.shiftKey, e.shiftKey ? null : "cells");
     }
     if (k === "Tab") { e.preventDefault(); return moveInSel(0, e.shiftKey ? -1 : 1); }
     if (k === "Enter") { e.preventDefault(); return moveInSel(e.shiftKey ? -1 : 1, 0); }
+    if (k === " " && !mod && !e.altKey && !ro() && checkable(S(), sr, sc)) { e.preventDefault(); return toggleChecks(selR()); }
     if (k === "Home") { e.preventDefault(); return select(mod ? 0 : (e.shiftKey ? er : sr), 0, e.shiftKey); }
     if (k === "End") { e.preventDefault(); var u = used(S()); return select(mod ? Math.max(0, u.r) : (e.shiftKey ? er : sr), Math.max(0, u.c), e.shiftKey); }
     if (k === "PageDown" || k === "PageUp") {
       e.preventDefault();
       var n = Math.max(1, Math.floor((vpH - HH - FH) / RH) - 1) * (k === "PageDown" ? 1 : -1);
       grid.scrollTop += n * RH;
-      return select((e.shiftKey ? er : sr) + n, e.shiftKey ? ec : sc, e.shiftKey);
+      return select(stepRow(e.shiftKey ? er : sr, n), e.shiftKey ? ec : sc, e.shiftKey);
     }
     if (k === "F2") { e.preventDefault(); return beginEdit(null, "edit"); }
     if (k === "Escape") { if (clip) { clip = null; drawOverlay(); } if (preview) closePreview(); return; }
@@ -924,6 +1210,8 @@
       if (lk === "i") { e.preventDefault(); return toggleFmt("italic"); }
       if (lk === "u") { e.preventDefault(); return toggleFmt("underline"); }
       if (lk === "f") { e.preventDefault(); return openFind(); }
+      if (lk === "h") { e.preventDefault(); return openFind(true); }
+      if (k === "`" || e.code === "Backquote") { e.preventDefault(); return toggleFx(); }
       if (lk === "s") { e.preventDefault(); return flush(); }
       if (lk === "d" && !ro()) { e.preventDefault(); return fillDownRight(true); }
       if (lk === "r" && !ro()) { e.preventDefault(); return fillDownRight(false); }
@@ -971,6 +1259,7 @@
           (row || []).forEach(function (v, j) {
             if (v === null || v === undefined) return;
             var k = key(p.r + i, p.c + j);
+            if (v !== "" && covered(s, p.r + i, p.c + j)) return;  // inside a merged cell: only its top-left cell holds content
             if (v === "") delete s.cells[k]; else s.cells[k] = v;
             delete s.vals[k]; touch(s, k); usedAfter(s, p.r + i, p.c + j, v !== "");
           });
@@ -986,10 +1275,18 @@
         R.r2 = Math.min(R.r2, MAXR - 1); R.c2 = Math.min(R.c2, MAXC - 1);
         eachIn(R, function (r, c, k) {
           var f = s.fmt[k] || {};
-          FMT_KEYS.forEach(function (x) { if (x in op) { if (op[x] === null || op[x] === false || op[x] === undefined) delete f[x]; else f[x] = op[x]; } });
+          FMT_KEYS.forEach(function (x) {
+            if (!(x in op) || x === "colors" && !("options" in op) && !f.options) return;  // colours alone: for the dropdowns there
+            if (op[x] === null || op[x] === false || op[x] === undefined || op[x] === "") delete f[x]; else f[x] = op[x];
+          });
           if (Object.keys(f).length) s.fmt[k] = f; else delete s.fmt[k];
         });
+        if ("border" in op) bdLocal(s.fmt, op.border || "none", R);
+        if ("border" in op || "bd" in op) s._bd = undefined;
         break;
+      case "merge": R = parseRange(op.range); if (R) mgApply(s, R); break;
+      case "unmerge": R = parseRange(op.range); if (R) s.merges = s.merges.filter(function (m) { var b = parseRange(m); return !b || b.r2 < R.r1 || b.r1 > R.r2 || b.c2 < R.c1 || b.c1 > R.c2; }); break;
+      case "rules": s.rules = op.rules || []; s._cf = null; break;
       case "col_width": s.cols[op.col] = op.w; break;
       case "freeze": s.freeze = { rows: op.rows || 0, cols: op.cols || 0 }; break;
     }
@@ -1058,7 +1355,9 @@
     if (r.name) t.name = r.name;
     if (typeof r.rev === "number") t.rev = r.rev;
     t.vals = r.values || r.vals || {};
-    if (r.fmt) t.fmt = r.fmt;
+    if (r.fmt) { t.fmt = bindLists(r.fmt, r.lists, null, r.list_colors); t._bd = undefined; }
+    if (r.rules) { t.rules = r.rules; t._cf = null; }
+    if (r.merges) t.merges = r.merges;
     if (r.cols) t.cols = r.cols;
     if (r.freeze) t.freeze = { rows: r.freeze.rows || 0, cols: r.freeze.cols || 0 };
     if (r.charts) t.charts = r.charts;
@@ -1071,9 +1370,10 @@
       var t = byId(r.sheet || s.id) || s;
       loadRead(t, r);
       (pend[t.id] || []).forEach(function (op) { applyLocal(t, op); });
-      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active);
+      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
       if (typeof r.edits === "number") edits = r.edits;
       invalidate();
+      refit(t);
       if (t === book[cur] && !preview) refresh(); else drawTabs();
       scheduleVals();
       return r;
@@ -1129,6 +1429,7 @@
   }
   function changed(s) {
     var t = touched === null ? { s: s, keys: [] } : touched;  // formats and widths change no value
+    cfGen++;
     if (t && t.s === s && wb && wb.invalidateCells) { touched = null; try { wb.invalidateCells(s.name, t.keys); } catch (e) { invalidate(); } }
     else invalidate();
     if (s === S()) refresh();
@@ -1184,6 +1485,7 @@
   function tsvOf(s, R) {
     var lines = [];
     for (var r = R.r1; r <= R.r2; r++) {
+      if (hid(s, r)) continue;
       var row = [];
       for (var c = R.c1; c <= R.c2; c++) { var k = key(r, c); row.push(tsvCell(display(s, k, valueOf(s, k)))); }
       lines.push(row.join("\t"));
@@ -1193,6 +1495,7 @@
   function htmlOf(s, R) {
     var out = "<table>";
     for (var r = R.r1; r <= R.r2; r++) {
+      if (hid(s, r)) continue;
       out += "<tr>";
       for (var c = R.c1; c <= R.c2; c++) {
         var k = key(r, c), f = s.fmt[k] || {}, st2 = "";
@@ -1213,13 +1516,17 @@
     e.clipboardData.setData("text/plain", text);
     e.clipboardData.setData("text/html", htmlOf(s, R));
     e.preventDefault();
-    var raw = [], fm = [];
+    var raw = [], fm = [], rws = [];
     for (var r = R.r1; r <= R.r2; r++) {
+      if (hid(s, r)) continue;  // the rows a filter hides are not copied
       var a = [], b = [];
       for (var c = R.c1; c <= R.c2; c++) { var k = key(r, c); a.push(oldRaw(s, r, c)); b.push(s.fmt[k] ? JSON.parse(JSON.stringify(s.fmt[k])) : null); }
-      raw.push(a); fm.push(b);
+      raw.push(a); fm.push(b); rws.push(r);
     }
-    clip = { id: s.id, R: R, raw: raw, fmt: fm, text: normText(text), cut: !!cut && !ro() };
+    if (!raw.length) return;
+    // rows: where each copied row came from, when hidden rows were left out (then a cut is a copy: it would empty those too)
+    var gaps = rws.length < R.r2 - R.r1 + 1;
+    clip = { id: s.id, R: R, raw: raw, fmt: fm, rows: gaps ? rws : null, text: normText(text), cut: !!cut && !ro() && !gaps };
     drawOverlay();
   }
   function parseTsv(t) {
@@ -1266,7 +1573,7 @@
     sr = R.r1; sc = R.c1; selMode = "cells"; select(Math.min(MAXR - 1, R.r1 + rows.length - 1), Math.min(MAXC - 1, R.c1 + w - 1), true);
   }
   function pasteInternal() {
-    var s = S(), src = byId(clip.id), R = selR(), cR = clip.R, h0 = cR.r2 - cR.r1 + 1, w0 = cR.c2 - cR.c1 + 1, th = h0, tw = w0;
+    var s = S(), src = byId(clip.id), R = selR(), cR = clip.R, h0 = clip.raw.length, w0 = cR.c2 - cR.c1 + 1, th = h0, tw = w0;
     if (multi() && selMode === "cells" && (R.r2 - R.r1 + 1) % h0 === 0 && (R.c2 - R.c1 + 1) % w0 === 0) { th = R.r2 - R.r1 + 1; tw = R.c2 - R.c1 + 1; }
     var r0 = R.r1, c0 = R.c1;
     if (!growTo(r0 + th - 1, c0 + tw - 1)) return;
@@ -1275,7 +1582,7 @@
       var row = [];
       for (var j = 0; j < tw; j++) {
         var v = clip.raw[i % h0][j % w0], f = clip.fmt[i % h0][j % w0], k = key(r0 + i, c0 + j);
-        if (isFormula(v) && !clip.cut) v = shift(v, r0 + i - (cR.r1 + i % h0), c0 + j - (cR.c1 + j % w0));
+        if (isFormula(v) && !clip.cut) v = shift(v, r0 + i - (clip.rows ? clip.rows[i % h0] : cR.r1 + i % h0), c0 + j - (cR.c1 + j % w0));
         row.push(v);
         if (f || s.fmt[k]) {
           anyFmt = true;
@@ -1289,7 +1596,7 @@
     var fwd = [], inv = [];
     var dOld = oldMatrix(s, D), dFmt = anyFmt ? invFmt(s, D, FMT_KEYS) : [];
     if (clip.cut && src) {
-      var sOld = oldMatrix(src, cR), sFmt = invFmt(src, cR, FMT_KEYS), clr = [{ op: "clear", range: rangeName(cR) }, fmtOp(cR, { bold: null, italic: null, underline: null, align: null, num: null, bg: null, fg: null, wrap: null })];
+      var sOld = oldMatrix(src, cR), sFmt = invFmt(src, cR, FMT_KEYS), clr = [{ op: "clear", range: rangeName(cR) }, fmtOp(cR, noFmt())];
       var srcInv = sOld && sFmt ? [{ op: "set", range: key(cR.r1, cR.c1), values: sOld }].concat(sFmt) : null;
       if (src === s) { fwd = clr; inv = srcInv; }
       else doEdit(src, clr, srcInv);
@@ -1342,7 +1649,7 @@
     for (var r = Tg.r1; r <= Tg.r2; r++) {
       var row = [];
       for (var c = Tg.c1; c <= Tg.c2; c++) {
-        if (inR(R, r, c)) { row.push(null); continue; }
+        if (inR(R, r, c) || hid(s, r)) { row.push(null); continue; }  // the rows a filter hides stay as they are
         var src = [], t, fsrc;
         if (vert) { for (var a = R.r1; a <= R.r2; a++) src.push(oldRaw(s, a, c)); t = r - R.r1; fsrc = s.fmt[key(R.r1 + (((t % src.length) + src.length) % src.length), c)]; }
         else { for (var b = R.c1; b <= R.c2; b++) src.push(oldRaw(s, r, b)); t = c - R.c1; fsrc = s.fmt[key(r, R.c1 + (((t % src.length) + src.length) % src.length))]; }
@@ -1378,12 +1685,413 @@
     commitIfEditing();
     if (ro()) return;
     var s = S(), R = selR(), U = selUsed(), old = oldMatrix(s, U);
-    if (!Object.keys(s.cells).some(function (k) { var p = parseKey(k); return p && inR(R, p.r, p.c); })) return;
-    doEdit(s, [{ op: "clear", range: rangeName(R) }], old ? [{ op: "set", range: key(U.r1, U.c1), values: old }] : null);
+    if (!Object.keys(s.cells).some(function (k) { var p = parseKey(k); return p && inR(R, p.r, p.c) && !hid(s, p.r); })) return;
+    if (!s._hid) return doEdit(s, [{ op: "clear", range: rangeName(R) }], old ? [{ op: "set", range: key(U.r1, U.c1), values: old }] : null);
+    // under a filter: the shown rows only, run by run
+    var fwd = [], inv = [];
+    visRuns(s, U.r1, U.r2).forEach(function (x) {
+      var P = { r1: x[0], c1: U.c1, r2: x[1], c2: U.c2 }, was = oldMatrix(s, P);
+      fwd.push({ op: "clear", range: rangeName({ r1: x[0], c1: R.c1, r2: x[1], c2: R.c2 }) });
+      if (was && inv) inv.push({ op: "set", range: key(P.r1, P.c1), values: was }); else inv = null;
+    });
+    doEdit(s, fwd, inv);
   }
-  function clearFormats() {
-    var o = {}; FMT_KEYS.forEach(function (x) { o[x] = null; });
-    fmtSel(o);
+  function clearFormats() { fmtSel(noFmt()); }
+
+  // ------------------------------------------------------------------ dropdown and checkbox cells
+  function isDd(s, r, c) { var f = s.fmt[key(r, c)]; return !!(f && f.options); }
+  // A cell a click or Space ticks: in a checkbox range, holding true, false or nothing (not a formula).
+  function checkable(s, r, c) {
+    var k = key(r, c), f = s.fmt[k], raw = s.cells[k];
+    return !!(f && f.check) && (raw === undefined || raw === null || raw === "" || typeof raw === "boolean");
+  }
+  // Every checkbox of R takes the opposite of the active cell's state (an empty one becomes true first).
+  function toggleChecks(R) {
+    if (ro()) return;
+    var s = S(), to = s.cells[key(sr, sc)] !== true, rows = [], last = -1;
+    R = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, used(s).r + 200, MAXR - 1), c2: Math.min(R.c2, MAXC - 1) };
+    for (var r = R.r1; r <= R.r2; r++) {
+      var row = [];
+      for (var c = R.c1; c <= R.c2; c++) {
+        var ok = checkable(s, r, c) && !hid(s, r) && s.cells[key(r, c)] !== to;
+        row.push(ok ? to : null);
+        if (ok) last = r;
+      }
+      rows.push(row);
+    }
+    if (last >= 0) setBlock(s, R.r1, R.c1, rows.slice(0, last - R.r1 + 1));
+  }
+  function openDd(r, c) {
+    var s = S(), k = key(r, c), f = s.fmt[k];
+    if (!f || !f.options || ro()) return;
+    commitIfEditing();
+    var opts = f.options, v = valueOf(s, k), now = optIdx(opts, v, display(s, k, v)), on = Math.max(0, now);
+    var list = h("div", { "class": "sh-pop sh-ddl", role: "listbox", tabindex: "-1", "aria-label": T.dropdown });
+    opts.forEach(function (o, i) {
+      list.appendChild(h("div", { role: "option", "data-i": i, "aria-selected": i === now ? "true" : "false" }, [h("span", { "class": "sh-pl " + pillCls(f, i), text: o }),
+        h("button", { type: "button", "class": "sh-ddm", "data-m": i, title: T.ddOpt, "aria-label": T.ddOpt + ": " + o, tabindex: "-1", text: "⋯" })]));
+    });
+    list.appendChild(h("div", { "class": "sh-ddsep" }));
+    list.appendChild(h("div", { role: "option", "data-i": opts.length, text: T.ddNone }));
+    list.appendChild(h("div", { role: "option", "data-i": opts.length + 1, text: T.ddEdit }));
+    list.appendChild(h("div", { role: "option", "data-i": opts.length + 2, text: "+ " + T.ddAdd }));
+    list.appendChild(h("div", { role: "option", "data-i": opts.length + 3, text: T.ddPresets }));
+    var items = list.querySelectorAll("[data-i]");
+    function mark(i) {
+      on = (i + items.length) % items.length;
+      [].forEach.call(items, function (n, j) { n.classList.toggle("on", j === on); if (j === on) { n.scrollIntoView({ block: "nearest" }); list.setAttribute("aria-activedescendant", n.id); } });
+    }
+    [].forEach.call(items, function (n, j) { n.id = "sh-ddo" + j; });
+    function pick(i) {
+      if (i === opts.length + 2) return ddOptView(list, s, f, -1);     // a new option
+      if (i === opts.length + 3) return ddPresetView(list, function (p) { ddChange(s, f, p.options.slice(), p.colors.slice()); });
+      closePop(); grid.focus();
+      if (i > opts.length) return dropdownDlg();
+      // a number among the options is written as a number, so sums and sorts see it as one
+      var o = i < opts.length ? opts[i] : "", val = o !== "" && String(Number(o)) === o ? Number(o) : o;
+      if (!same(s.cells[k], val) || typeof s.cells[k] !== typeof val && val !== "") setBlock(s, r, c, [[val]]);
+    }
+    list.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    list.addEventListener("mousedown", function (e) { if (e.target.closest("input")) e.stopPropagation(); }, true);  // a view's own input takes the click
+    list.addEventListener("click", function (e) {
+      var m = e.target.closest("[data-m]"), o = e.target.closest("[data-i]");
+      if (m) ddOptView(list, s, f, +m.getAttribute("data-m")); else if (o) pick(+o.getAttribute("data-i"));
+    });
+    list.addEventListener("keydown", function (e) {
+      var kk = e.key;
+      if (e.target !== list) return;  // an option's own view (ddOptView) has its keys
+      if (kk === "ArrowDown") { e.preventDefault(); mark(on + 1); }
+      else if (kk === "ArrowUp") { e.preventDefault(); mark(on - 1); }
+      else if (kk === "Home") { e.preventDefault(); mark(0); }
+      else if (kk === "End") { e.preventDefault(); mark(items.length - 1); }
+      else if (kk === "Enter" || kk === " ") { e.preventDefault(); pick(on); }
+      else if (kk === "Tab") { e.preventDefault(); closePop(); grid.focus(); }
+      else if (kk.length === 1 && !e.ctrlKey && !e.metaKey) {  // a letter: the next option that starts with it
+        for (var n = 1; n <= opts.length; n++) { var j = (on + n) % opts.length; if (opts[j].charAt(0).toLowerCase() === kk.toLowerCase()) { mark(j); break; } }
+      }
+    });
+    openPop(list, null);
+    var b = mBox(r, c), vr = vp.getBoundingClientRect(), top = vr.top + b.y + b.h + 2;
+    list.style.minWidth = Math.min(b.w, 320) + "px";
+    list.style.left = Math.max(8, Math.min(vr.left + b.x, innerWidth - list.offsetWidth - 8)) + "px";
+    list.style.top = (top + list.offsetHeight > innerHeight - 8 ? Math.max(8, vr.top + b.y - list.offsetHeight - 2) : top) + "px";
+    mark(on);
+    list.focus();
+  }
+  // Make the selection a dropdown, or change or remove the one it is: its options, one per line.
+  function dropdownDlg() {
+    commitIfEditing();
+    if (ro()) return;
+    var s = S(), U = selUsed(), had = curFmt().options, hadCols = curFmt().colors || [], start = had ? had.slice() : [];
+    if (!had && area(U) <= 5000) eachIn(U, function (r, c, k) {  // the texts already there are the first guess
+      var v = valueOf(s, k), t = typeof v === "string" && !isDate(v) ? v.trim() : "";
+      if (t && t.length <= 60 && start.length < 20 && start.indexOf(t) < 0 && r !== hdrRow(s)) start.push(t);
+    });
+    var ta = h("textarea", { "class": "sh-q-in", "aria-label": T.ddTitle, rows: 7 });
+    ta.value = start.join("\n");
+    var ok = h("button", { type: "button", "class": "sh-b pri", text: T.ok }), no = h("button", { type: "button", "class": "sh-b", text: T.cancel });
+    var rm = had ? h("button", { type: "button", "class": "sh-b sh-left", text: T.ddRemove }) : null;
+    // ready-made lists with their colours: one click makes the selection that dropdown
+    var presets = h("div", { "class": "sh-chips" }, DD_PRESETS.map(function (p) {
+      return h("button", { type: "button", "class": "sh-chip", text: p.name, title: p.options.join(" · "), onclick: function () { done(p.options.slice(), p.colors.slice()); } });
+    }));
+    var el = h("div", { "class": "sh-pop sh-dlg", role: "dialog", "aria-label": T.dropdown }, [h("div", { "class": "sh-dlg-q", text: T.ddTitle }), presets, ta, h("div", { "class": "sh-dlg-bar" }, [rm, no, ok])]);
+    function done(options, colors) { closePop(); grid.focus(); if (options !== undefined) fmtSel({ options: options, colors: options && colors && colors.some(Boolean) ? colors : null }); }
+    ok.addEventListener("click", function () {
+      var out = [];
+      ta.value.split("\n").forEach(function (t) { t = t.trim().slice(0, 60); if (t && out.indexOf(t) < 0 && out.length < 50) out.push(t); });
+      // an option keeps the colour it had
+      done(out.length ? out : had ? null : undefined, out.map(function (o) { var i = had ? had.indexOf(o) : -1; return i >= 0 && hadCols[i] || null; }));
+    });
+    no.addEventListener("click", function () { done(); });
+    if (rm) rm.addEventListener("click", function () { done(null); });
+    ta.addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ok.click(); } });
+    openPop(el, null);
+    ta.focus();
+  }
+
+  // ------------------------------------------------------------------ filter: rows hidden in this viewer's page only (nothing is stored or sent)
+  // s._flt: {column key: {vals: {shown value: 1} | null, conds: [{op, val}]}}: a row shows when, in every
+  // filtered column, its value is ticked (vals; null: all are) and meets every condition (PURE.test).
+  // s._hid: the rows that hides (Uint8Array by row number, or null); s._fact: {column: 1} for the header
+  // buttons; s._fn: the counts. The header row: the last frozen row, else row 1 once Filter was asked
+  // for (s._fon); -1: none.
+  function hdrRow(s) { return s.freeze.rows >= 1 ? Math.min(s.freeze.rows, 50) - 1 : s._fon ? 0 : -1; }
+  function shown(s, r, c) { var k = key(r, c); return display(s, k, valueOf(s, k)); }
+  // The last row and column holding a value (used() also counts the charts).
+  function dataEnd(s) {
+    var mr = -1, mc = -1;
+    for (var k in s.cells) { var p = parseKey(k); if (p) { if (p.r > mr) mr = p.r; if (p.c > mc) mc = p.c; } }
+    return { r: mr, c: mc };
+  }
+  // {column key: column}: a column is known by its header's text, so its filter follows it through a
+  // sort or an inserted column; by its place when the header is empty or used twice.
+  function fltCols(s, hr, end) {
+    var n = Object.create(null), out = Object.create(null), c;
+    for (c = 0; c <= end.c; c++) { var t = shown(s, hr, c); n[t] = (n[t] || 0) + 1; }
+    for (c = 0; c <= end.c; c++) { t = shown(s, hr, c); out[t && n[t] === 1 ? "t" + t : "#" + c] = c; }
+    return out;
+  }
+  // A column's filter as a test of a row; null when it lets every row through.
+  function colTest(s, c, f, hr, end) {
+    var conds = (f.conds || []).filter(PURE.active).map(PURE.prep), vals = f.vals, dup = null;
+    if (!vals && !conds.length) return null;
+    if (conds.some(function (p) { return p.op === "dup"; })) {
+      dup = Object.create(null);
+      for (var r0 = hr + 1; r0 <= end.r; r0++) { var t0 = shown(s, r0, c); if (t0) dup[t0] = (dup[t0] || 0) + 1; }
+    }
+    return function (r) {
+      var k = key(r, c), v = valueOf(s, k), t = display(s, k, v);
+      if (vals && !vals[t]) return false;
+      for (var i = 0; i < conds.length; i++) if (!PURE.test(conds[i], { t: t, v: v, dup: !!dup && dup[t] > 1 })) return false;
+      return true;
+    };
+  }
+  function refilter(s) {
+    var f = s._flt, hr = hdrRow(s), end = dataEnd(s), tests = [], n = 0, k;
+    s._hid = null; s._fact = null; s._fn = null;
+    if (!f || hr < 0) { s._flt = null; return; }
+    var cols = fltCols(s, hr, end), fa = {};
+    for (k in f) {
+      if (cols[k] === undefined) { delete f[k]; continue; }
+      var t = colTest(s, cols[k], f[k], hr, end);
+      if (t) { tests.push(t); fa[cols[k]] = 1; }
+      else if (!(f[k].conds || []).length) delete f[k];  // a condition still being typed stays for the popover
+    }
+    if (!Object.keys(f).length) { s._flt = null; return; }
+    if (!tests.length) return;
+    var hd = new Uint8Array(MAXR);
+    for (var r = hr + 1; r <= end.r; r++)
+      for (var i = 0; i < tests.length; i++) if (!tests[i](r)) { hd[r] = 1; n++; break; }
+    if (n) s._hid = hd;
+    s._fact = fa; s._fn = { n: end.r - hr - n, m: end.r - hr };
+  }
+  // The filter again over what the sheet holds now (after it was read anew); the selection leaves hidden rows.
+  function refit(s) {
+    if (!s._flt) return;
+    refilter(s);
+    if (s === S()) { sr = seen(sr); er = seen(er); }
+  }
+  function applyFilter(s) {
+    refilter(s);
+    if (s !== S()) return;
+    sr = seen(sr); er = seen(er);
+    refresh(); afterSel();
+  }
+  function clearFilter() { var s = S(); if (!s._flt) return; s._flt = null; applyFilter(s); grid.focus(); }
+  // The bar over the grid while a filter is on: a chip per condition (x takes it off), + for another
+  // column, how many rows show, and that all this is the viewer's own.
+  var fltBar = h("div", { "class": "sh-fltbar", hidden: true, role: "group", "aria-label": T.filter });
+  var fltChips = h("div", { "class": "sh-chips" }), fltText = h("span", { "class": "sh-fltn", "aria-live": "polite" }), fltSig = "";
+  var fltAdd = h("button", { type: "button", "class": "sh-chip-add", title: T.fltAddCol, "aria-label": T.fltAddCol, text: "+" });
+  fltAdd.addEventListener("click", function () {
+    var s = S(), hr = hdrRow(s), end = dataEnd(s), items = [];
+    if (hr < 0) return;
+    for (var c = 0; c <= Math.min(end.c, 59); c++) (function (c) { items.push({ label: shown(s, hr, c) || colName(c), onClick: function () { openFilter(c); } }); })(c);
+    kit.menu(fltAdd, items);
+  });
+  fltBar.append(fltChips, fltAdd, fltText, h("span", { "class": "sh-flt-you", text: T.fltYou }),
+    h("button", { type: "button", "class": "sh-b", text: T.fltClearAll, onclick: clearFilter }));
+  grid.parentNode.insertBefore(fltBar, grid);
+  function lcFirst(t) { return t.charAt(0).toLowerCase() + t.slice(1); }
+  // The filter as chips: [{c: column, ck: its key, i: which condition (-1: the ticked values), text}]
+  function fltChipList(s) {
+    var hr = hdrRow(s), out = [];
+    if (!s._flt || hr < 0) return out;
+    var cols = fltCols(s, hr, dataEnd(s));
+    Object.keys(s._flt).forEach(function (ck) {
+      var c = cols[ck], f = s._flt[ck];
+      if (c === undefined) return;
+      var name = shown(s, hr, c) || colName(c);
+      (f.conds || []).forEach(function (cd, i) {
+        if (PURE.active(cd)) out.push({ c: c, ck: ck, i: i, text: fill(T.fltChip, { c: name, o: lcFirst(T["fo_" + cd.op] || cd.op), v: PURE.needsVal(cd.op) ? cd.val : "" }).trim() });
+      });
+      if (f.vals) {
+        var ks = Object.keys(f.vals);
+        out.push({ c: c, ck: ck, i: -1, text: ks.length && ks.length <= 2 ? fill(T.fltChip, { c: name, o: lcFirst(T.fo_is), v: ks.map(function (v) { return v || T.fltBlank; }).join(", ") })
+          : fill(T.fltChipVals, { c: name, n: ks.length }) });
+      }
+    });
+    return out;
+  }
+  function dropChip(ck, i) {
+    var s = S(), f = s._flt && s._flt[ck];
+    if (!f) return;
+    if (i < 0) f.vals = null; else f.conds.splice(i, 1);
+    if (!f.vals && !f.conds.length) delete s._flt[ck];
+    if (!Object.keys(s._flt).length) s._flt = null;
+    applyFilter(s);
+    if (fltBar.hidden) grid.focus(); else fltAdd.focus();
+  }
+  function drawFlt() {
+    var s = S(), on = !!(s._flt && s._fn) && !C.thumb, chips = on ? fltChipList(s) : [], t = on ? fill(T.fltRows, s._fn) : "";
+    var sig = on ? s.id + "\u0001" + chips.map(function (x) { return x.ck + "\u0002" + x.i + "\u0002" + x.text; }).join("\u0001") : "";
+    if (fltText.textContent !== t) fltText.textContent = t;
+    if (sig !== fltSig) {
+      fltSig = sig;
+      fltChips.innerHTML = "";
+      chips.forEach(function (x) {
+        var open = h("button", { type: "button", "class": "sh-chip-t", text: x.text, title: x.text, onclick: function () { openFilter(x.c); } });
+        var del = h("button", { type: "button", "class": "sh-chip-x", title: T.fltDrop, "aria-label": T.fltDrop + ": " + x.text, text: "×", onclick: function () { dropChip(x.ck, x.i); } });
+        fltChips.appendChild(h("span", { "class": "sh-chip" }, [open, del]));
+      });
+    }
+    if (fltBar.hidden === on) fltBar.hidden = !on;
+  }
+  function sortCol(c, desc) {
+    var s = S(), hr = hdrRow(s), end = dataEnd(s);
+    if (ro() || hr < 0 || end.r <= hr + 1) return;
+    structural([{ op: "sort", range: rangeName({ r1: hr + 1, c1: 0, r2: end.r, c2: end.c }), col: colName(c), desc: !!desc }]);
+  }
+  // Start filtering at the active cell's column (row 1 becomes the header when no row is frozen).
+  function filterHere() {
+    commitIfEditing();
+    var s = S();
+    if (preview) return;
+    if (hdrRow(s) < 0) { s._fon = true; refresh(); }
+    openFilter(clamp(sc, 0, Math.max(0, dataEnd(s).c)));
+  }
+  var FLT_OPS = { text: ["has", "hasnt", "is", "isnt", "starts", "ends", "blank", "nblank", "dup", "err"],
+    num: ["gt", "ge", "lt", "le", "is", "isnt", "blank", "nblank", "dup", "err", "has", "hasnt", "starts", "ends"],
+    date: ["after", "before", "is", "isnt", "blank", "nblank", "dup", "err"],
+    dd: ["is", "isnt", "blank", "nblank", "has", "hasnt", "starts", "ends", "dup", "err"],
+    check: ["true", "false"] };
+  // A column's popover: sort it (for everyone), and filter it (for this viewer): conditions, quick
+  // picks, and the values to tick. Every change shows at once.
+  function openFilter(c) {
+    commitIfEditing();
+    var s = S(), hr = hdrRow(s), end = dataEnd(s);
+    if (hr < 0 || preview || end.r <= hr || c > end.c) return;
+    var cols = fltCols(s, hr, end), ck = null, k, others = [];
+    for (k in cols) if (cols[k] === c) ck = k;
+    for (k in s._flt || {}) if (k !== ck && cols[k] !== undefined) { var ot = colTest(s, cols[k], s._flt[k], hr, end); if (ot) others.push(ot); }
+    // the column's values in the rows the other columns' filters let through (blanks last), and what kind it is
+    var count = Object.create(null), vals = [], nNum = 0, nDate = 0, nAny = 0, nTrue = 0, passN = 0, opts = null, isCheck = false;
+    for (var r = hr + 1; r <= end.r; r++) {
+      var k2 = key(r, c), fm = s.fmt[k2], pass = true;
+      if (fm && fm.options && !opts) opts = fm.options;
+      if (fm && fm.check) isCheck = true;
+      var v = valueOf(s, k2), d = display(s, k2, v);
+      if (d && !isErr(v)) { nAny++; if (typeof v === "number") nNum++; else if (isDate(v)) nDate++; }  // the kind: from every row
+      for (var i = 0; i < others.length && pass; i++) pass = others[i](r);
+      if (!pass) continue;
+      if (!count[d]) { count[d] = 0; vals.push(d); }
+      count[d]++; passN++;
+      if (v === true) nTrue++;
+    }
+    var kind = isCheck ? "check" : opts ? "dd" : nAny && nDate * 2 > nAny ? "date" : nAny && nNum * 2 > nAny ? "num" : "text";
+    var coll = new Intl.Collator(L, { numeric: true, sensitivity: "base" });
+    vals.sort(function (a, b) { return a === "" ? 1 : b === "" ? -1 : coll.compare(a, b); });
+    var had = s._flt && s._flt[ck], sel = Object.create(null), conds = had ? (had.conds || []).map(function (x) { return { op: x.op, val: x.val }; }) : [];
+    vals.forEach(function (x) { if (!had || !had.vals || had.vals[x]) sel[x] = 1; });
+    var search = h("input", { type: "search", placeholder: T.fltSearch, "aria-label": T.fltSearch });
+    var all = h("input", { type: "checkbox" }), listEl = h("div", { "class": "sh-flt-list" });
+    var clr = h("button", { type: "button", "class": "sh-b", text: T.fltClear });
+    var condsEl = h("div", { "class": "sh-flt-conds" }), valsHead = h("div", { "class": "sh-flt-h" });
+    var addBtn = h("button", { type: "button", "class": "sh-flt-add", text: "+ " + T.fltAddCond });
+    var name = shown(s, hr, c) || colName(c), dlId = "sh-flt-dl";
+    var el = h("div", { "class": "sh-pop sh-flt", role: "dialog", "aria-label": T.filter + ": " + name });
+    if (!ro()) el.append(h("div", { "class": "sh-flt-h", text: T.fltSortAll }), h("div", { "class": "sh-flt-row" }, [
+      h("button", { type: "button", "class": "sh-b", text: T.sortAsc, onclick: function () { closePop(); grid.focus(); sortCol(c, false); } }),
+      h("button", { type: "button", "class": "sh-b", text: T.sortDesc, onclick: function () { closePop(); grid.focus(); sortCol(c, true); } })]));
+    el.append(h("div", { "class": "sh-flt-h", text: T.fltYouHead }), condsEl, addBtn);
+    if (opts) { var dl = h("datalist", { id: dlId }); opts.forEach(function (o) { dl.appendChild(h("option", { value: o })); }); el.appendChild(dl); }
+    // quick picks for a dropdown or a checkbox column: one click sets the column's one condition
+    var quick = [];
+    if (kind === "check") quick = [[T.fo_true, "true", "", nTrue], [T.fo_false, "false", "", passN - nTrue]];
+    else if (kind === "dd") {
+      var top = opts.filter(function (o) { return count[o] > 0; }).sort(function (a, b) { return count[b] - count[a]; }).slice(0, 3);
+      top.forEach(function (o) { quick.push([o, "is", o, count[o]]); });
+      top.slice(0, 2).forEach(function (o) { if (passN - count[o] > 0) quick.push([fill(T.fltNot, { v: o }), "isnt", o, passN - count[o]]); });
+    }
+    quick = quick.filter(function (q) { return q[3] > 0; });
+    if (quick.length) {
+      el.appendChild(h("div", { "class": "sh-flt-h", text: T.fltSuggest }));
+      var qEl = h("div", { "class": "sh-flt-quick" });
+      quick.forEach(function (q) {
+        qEl.appendChild(h("button", { type: "button", "class": "sh-flt-q" }, [h("span", { text: q[0] }), h("small", { text: q[3] === 1 ? T.fltRow1 : fill(T.fltNRows, { n: q[3] }) })]))
+          .addEventListener("click", function () { conds = [{ op: q[1], val: q[2] }]; vals.forEach(function (x) { sel[x] = 1; }); commit(); drawConds(); draw(); sync(); });
+      });
+      el.appendChild(qEl);
+    }
+    el.append(valsHead, search, h("label", { "class": "sh-flt-all" }, [all, h("span", { text: T.fltAll })]), listEl, h("div", { "class": "sh-flt-row" }, [clr]));
+    function matches() { var q = search.value.trim().toLowerCase(); return q ? vals.filter(function (x) { return (x || T.fltBlank).toLowerCase().indexOf(q) >= 0; }) : vals; }
+    function drawConds() {
+      condsEl.innerHTML = "";
+      conds.forEach(function (cd, i) {
+        var opSel = h("select", { "aria-label": T.fltCond });
+        var list = FLT_OPS[kind].indexOf(cd.op) < 0 ? [cd.op].concat(FLT_OPS[kind]) : FLT_OPS[kind];
+        list.forEach(function (o) { opSel.appendChild(h("option", { value: o, text: T["fo_" + o] || o })); });
+        opSel.value = cd.op;
+        var inp = h("input", { type: kind === "date" ? "date" : "text", "aria-label": T.fltValue, placeholder: T.fltValue, list: opts ? dlId : null, inputmode: kind === "num" ? "decimal" : null });
+        inp.value = cd.val || "";
+        inp.hidden = !PURE.needsVal(cd.op);
+        opSel.addEventListener("change", function () { cd.op = opSel.value; inp.hidden = !PURE.needsVal(cd.op); commit(); sync(); if (!inp.hidden && !inp.value) inp.focus(); });
+        inp.addEventListener("input", function () { cd.val = inp.value; commit(); sync(); });
+        inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); closePop(); grid.focus(); } });
+        var del = h("button", { type: "button", "class": "sh-chip-x", title: T.fltDrop, "aria-label": T.fltDrop, text: "×" });
+        del.addEventListener("click", function () { conds.splice(i, 1); commit(); drawConds(); sync(); (condsEl.querySelector("select") || addBtn).focus(); });
+        condsEl.appendChild(h("div", { "class": "sh-flt-cond" }, [opSel, inp, del]));
+      });
+      place();
+    }
+    function draw() {
+      var m = matches();
+      listEl.innerHTML = "";
+      m.slice(0, 300).forEach(function (x) {
+        var cb = h("input", { type: "checkbox" });
+        cb.checked = !!sel[x];
+        cb.addEventListener("change", function () { if (cb.checked) sel[x] = 1; else delete sel[x]; commit(); sync(); });
+        listEl.appendChild(h("label", { title: x || T.fltBlank }, [cb, h("span", { "class": x ? null : "sh-muted", text: x || T.fltBlank }), h("small", { text: String(count[x]) })]));
+      });
+      if (m.length > 300) listEl.appendChild(h("div", { "class": "sh-muted sh-flt-more", text: fill(T.fltMore, { n: m.length - 300 }) }));
+    }
+    function sync() {
+      var m = matches(), on = m.filter(function (x) { return sel[x]; }).length, total = end.r - hr;
+      all.checked = on === m.length && m.length > 0; all.indeterminate = on > 0 && on < m.length;
+      clr.disabled = !(s._flt && s._flt[ck]);
+      valsHead.textContent = fill(T.fltValsHead, { n: s._fn ? s._fn.n : total, m: total });
+    }
+    // The page follows every change: all ticked and no condition means no filter on this column.
+    function commit() {
+      var f = s._flt || Object.create(null), keep = null, n = 0;
+      vals.forEach(function (x) { if (sel[x]) n++; });
+      if (n !== vals.length) { keep = Object.create(null); vals.forEach(function (x) { if (sel[x]) keep[x] = 1; }); }
+      if (!keep && !conds.length) delete f[ck]; else f[ck] = { vals: keep, conds: conds.map(function (x) { return { op: x.op, val: x.val }; }) };
+      s._flt = Object.keys(f).length ? f : null;
+      applyFilter(s);
+      place();  // the bar coming or going moves the grid
+    }
+    function place() {
+      if (!el.parentNode) return;
+      var b = cellBox(hr, c), vr = vp.getBoundingClientRect(), top = vr.top + b.y + b.h + 2;
+      el.style.left = Math.max(8, Math.min(vr.left + b.x, innerWidth - el.offsetWidth - 8)) + "px";
+      el.style.top = Math.max(8, Math.min(top, innerHeight - el.offsetHeight - 8)) + "px";
+    }
+    addBtn.addEventListener("click", function () {
+      conds.push({ op: FLT_OPS[kind][0], val: "" });
+      commit(); drawConds(); sync();
+      var rows = condsEl.querySelectorAll(".sh-flt-cond"), last = rows[rows.length - 1], inp = last && last.querySelector("input");
+      (inp && !inp.hidden ? inp : last.querySelector("select")).focus();
+    });
+    all.addEventListener("change", function () {
+      var m = matches(), to = all.checked;
+      m.forEach(function (x) { if (to) sel[x] = 1; else delete sel[x]; });
+      commit(); draw(); sync();
+    });
+    search.addEventListener("input", function () { draw(); sync(); });
+    search.addEventListener("keydown", function (e) {  // Enter: keep just what the search found
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var m = matches();
+      if (search.value.trim() && m.length) { sel = Object.create(null); m.forEach(function (x) { sel[x] = 1; }); commit(); }
+      closePop(); grid.focus();
+    });
+    clr.addEventListener("click", function () { vals.forEach(function (x) { sel[x] = 1; }); conds = []; commit(); closePop(); grid.focus(); });
+    draw(); sync();
+    openPop(el, null);
+    drawConds();
+    search.focus();
   }
   function setColWidth(s, c, w) {
     if (ro()) return;
@@ -1409,7 +2117,11 @@
     return sendOps(s.id, ops, true);
   }
   function insRows(below) { var R = selR(); structural([{ op: "insert_rows", at: (below ? R.r2 + 1 : R.r1) + 1, n: Math.min(R.r2 - R.r1 + 1, 500) }]); }
-  function delRows() { var R = selR(); structural([{ op: "delete_rows", at: R.r1 + 1, n: R.r2 - R.r1 + 1 }]); }
+  function delRows() {
+    // under a filter the shown rows only, from the bottom up so the row numbers above stay right
+    var R = selR(), runs = visRuns(S(), R.r1, R.r2).reverse();
+    if (runs.length) structural(runs.map(function (x) { return { op: "delete_rows", at: x[0] + 1, n: x[1] - x[0] + 1 }; }));
+  }
   function insCols(right) { var R = selR(); structural([{ op: "insert_cols", at: colName(right ? R.c2 + 1 : R.c1), n: Math.min(R.c2 - R.c1 + 1, 50) }]); }
   function delCols() { var R = selR(); structural([{ op: "delete_cols", at: colName(R.c1), n: R.c2 - R.c1 + 1 }]); }
   function headerRow(s, u) {
@@ -1573,7 +2285,7 @@
       function up() {
         document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
         card.classList.remove("is-drag"); card.style.transform = "";
-        var a = parseKey(ch.at) || { r: 0, c: 0 }, nc = colAt(Math.max(0, colX[Math.min(a.c, nCols - 1)] + dx)), nr = clamp(Math.floor((a.r * RH + dy) / RH), 0, MAXR - 1);
+        var a = parseKey(ch.at) || { r: 0, c: 0 }, nc = colAt(Math.max(0, colX[Math.min(a.c, nCols - 1)] + dx)), nr = clamp(rowOf(Math.max(0, Math.floor((rowY(a.r) + dy) / RH))), 0, MAXR - 1);
         if (nr === a.r && nc === a.c) return;
         var at = key(nr, nc);
         structural([{ op: "delete_chart", id: ch.id }, { op: "add_chart", type: type, range: ch.range, title: ch.title || "", at: at }]);
@@ -1588,7 +2300,7 @@
     var s = S();
     (s.charts || []).forEach(function (ch) {
       var a = parseKey(ch.at) || { r: 0, c: 0 }, c = Math.min(a.c, nCols - 1), r = Math.min(a.r, nRows - 1), card = chartCard(s, ch);
-      card.style.left = colX[c] + 4 + "px"; card.style.top = r * RH + 4 + "px";
+      card.style.left = colX[c] + 4 + "px"; card.style.top = rowY(r) + 4 + "px";
       quadFor(r, c).ov.charts.appendChild(card);
     });
   }
@@ -1649,50 +2361,142 @@
     openPop(h("div", { "class": "sh-pop", role: "dialog", "aria-label": which === "bg" ? T.fill : T.textColor }, [grid8, none]), anchor);
   }
 
-  // ------------------------------------------------------------------ find (Ctrl+F)
-  var findEl = null, findIn = null, findN = null, findList = [], findAt = -1;
-  function openFind() {
-    if (!findEl) {
-      findIn = h("input", { type: "search", placeholder: T.findPh, "aria-label": T.find });
-      findN = h("span", { "class": "sh-n", "aria-live": "polite" });
-      findEl = h("div", { "class": "sh-pop sh-find", role: "search" }, [findIn, findN,
-        barBtn(T.prev, kit.icon("prev"), function () { findGo(-1); }), barBtn(T.next, kit.icon("next"), function () { findGo(1); }),
-        barBtn(T.close, kit.icon("close"), closeFind)]);
-      findIn.addEventListener("input", runFind);
-      findIn.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") { e.preventDefault(); findGo(e.shiftKey ? -1 : 1); }
-        else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
-      });
+  // ------------------------------------------------------------------ find and replace (Ctrl+F, Ctrl+H)
+  // findList: the matches in order [{s: sheet, r, c}]; foundSet marks those of the sheet in view.
+  var findEl = null, findIn = null, findN = null, repIn = null, repRow = null, repTog = null, findList = [], findAt = -1, findNav = false;
+  var findOpt = { all: false, cs: false, whole: false, fx: false };
+  function buildFind() {
+    findIn = h("input", { type: "search", placeholder: T.findPh, "aria-label": T.find });
+    findN = h("span", { "class": "sh-n", "aria-live": "polite" });
+    repIn = h("input", { type: "text", placeholder: T.repPh, "aria-label": T.repPh });
+    var one = h("button", { type: "button", "class": "sh-b", text: T.rep1, onclick: function () { replaceOne(); } });
+    var every = h("button", { type: "button", "class": "sh-b", text: T.repAll, onclick: function () { replaceEvery(); } });
+    repRow = h("div", { "class": "sh-find-row sh-rep", hidden: true }, [repIn, one, every]);
+    repTog = barBtn(T.repl + " (Ctrl+H)", ico("replace"), function () { showRep(repRow.hidden); if (!repRow.hidden) repIn.focus(); });
+    repTog.setAttribute("aria-expanded", "false");
+    var scope = h("select", { "aria-label": T.findScope }, [h("option", { value: "", text: T.findThis }), h("option", { value: "1", text: T.findAll })]);
+    scope.addEventListener("change", function () { findOpt.all = !!scope.value; runFind(); });
+    function chk(label, k) {
+      var cb = h("input", { type: "checkbox" });
+      cb.addEventListener("change", function () { findOpt[k] = cb.checked; runFind(); });
+      return h("label", {}, [cb, h("span", { text: label })]);
     }
+    findEl = h("div", { "class": "sh-pop sh-find", role: "dialog", "aria-label": T.find }, [
+      h("div", { "class": "sh-find-row" }, [findIn, findN,
+        barBtn(T.prev, kit.icon("prev"), function () { findGo(-1); }), barBtn(T.next, kit.icon("next"), function () { findGo(1); }),
+        repTog, barBtn(T.close, kit.icon("close"), closeFind)]),
+      repRow,
+      h("div", { "class": "sh-find-row sh-find-opts" }, [scope, chk(T.findCase, "cs"), chk(T.findWhole, "whole"), chk(T.findFx, "fx")])]);
+    findIn.addEventListener("input", function () { runFind(); });
+    findEl.addEventListener("keydown", function (e) {
+      var mod = e.ctrlKey || e.metaKey, lk = e.key.toLowerCase();
+      if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+      else if (e.key === "Enter" && e.target === findIn) { e.preventDefault(); findGo(e.shiftKey ? -1 : 1); }
+      else if (e.key === "Enter" && e.target === repIn) { e.preventDefault(); replaceOne(); }
+      else if (mod && lk === "f") { e.preventDefault(); findIn.focus(); findIn.select(); }
+      else if (mod && lk === "h") { e.preventDefault(); if (!ro()) { showRep(true); repIn.focus(); repIn.select(); } }
+    });
+  }
+  function showRep(on) {
+    on = on && !ro();
+    repRow.hidden = !on;
+    repTog.setAttribute("aria-expanded", on ? "true" : "false"); repTog.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  /** Open the find box; withReplace: with its Replace row, the cursor there. */
+  function openFind(withReplace) {
+    if (!findEl) buildFind();
     if (!findEl.parentNode) document.body.appendChild(findEl);
     findEl.style.top = grid.getBoundingClientRect().top + 8 + "px";
-    findIn.focus(); findIn.select();
+    if (withReplace === true && !ro()) showRep(true);
+    repTog.hidden = ro();
+    if (ro()) showRep(false);
+    if (withReplace === true && !ro() && findIn.value) { repIn.focus(); repIn.select(); } else { findIn.focus(); findIn.select(); }
     if (findIn.value) runFind();
   }
-  function runFind() {
-    var q = findIn.value.trim().toLowerCase(), s = S();
-    findList = []; foundSet = null; findAt = -1;
-    if (q) {
-      foundSet = {};
-      for (var k in s.cells) {
-        var d = display(s, k, valueOf(s, k)).toLowerCase();
-        if (d.indexOf(q) >= 0 || String(s.cells[k]).toLowerCase().indexOf(q) >= 0) { var p = parseKey(k); if (p) { findList.push(p); foundSet[k] = 1; } }
-      }
-      findList.sort(function (a, b) { return a.r - b.r || a.c - b.c; });
-    }
+  // The texts a cell is found by: what it shows, what it was typed as, and its formula when asked.
+  function findHit(s, k, q) {
+    var raw = s.cells[k], fx = isFormula(raw);
+    if (PURE.matches(display(s, k, valueOf(s, k)), q, findOpt)) return true;
+    if (fx) return findOpt.fx && PURE.matches(raw, q, findOpt);
+    return PURE.matches(rawText(raw), q, findOpt);
+  }
+  function markFound() {
+    var s = S();
+    foundSet = null;
+    findList.forEach(function (e) { if (e.s === s) (foundSet || (foundSet = {}))[key(e.r, e.c)] = 1; });
+  }
+  /** Search again. stay: do not move the selection to the first match. */
+  function runFind(stay) {
+    var q = findIn ? findIn.value : "", cur0 = S();
+    findList = []; findAt = -1;
+    if (q) (findOpt.all && !preview ? book : [cur0]).forEach(function (s0) {
+      var s = s0 === book[cur] ? cur0 : s0, list = [];
+      for (var k in s.cells) { var p = parseKey(k); if (p && !hid(s, p.r) && findHit(s, k, q)) list.push({ s: s, r: p.r, c: p.c }); }
+      list.sort(function (a, b) { return a.r - b.r || a.c - b.c; });
+      findList = findList.concat(list);
+    });
+    markFound();
     findN.textContent = q ? (findList.length ? "0/" + findList.length : T.noMatch) : "";
     renderAll(true);
-    if (findList.length) findGo(1, true);
+    if (findList.length && stay !== true) {
+      // the first match of the sheet in view, else the first of all
+      for (var i = 0; i < findList.length; i++) if (findList[i].s === cur0) { findAt = i - 1; break; }
+      findGo(1, true);
+    }
   }
   function findGo(d, keepFocus) {
     if (!findList.length) return;
     findAt = (findAt + d + findList.length) % findList.length;
-    var p = findList[findAt];
-    select(p.r, p.c, false);
+    var e = findList[findAt];
+    if (e.s !== S()) { var i = book.indexOf(e.s); if (i < 0) return runFind(); findNav = true; try { switchTo(i); } finally { findNav = false; } }
+    select(e.r, e.c, false);
     findN.textContent = findAt + 1 + "/" + findList.length;
-    if (!keepFocus) findIn.focus();
+    if (!keepFocus && !findEl.contains(document.activeElement)) findIn.focus();
   }
-  function closeFind() { if (findEl) findEl.remove(); foundSet = null; findList = []; renderAll(true); grid.focus(); }
+  // The sheet in view changed: the marks follow; a search of this sheet alone runs again.
+  function findSheet() {
+    if (!findEl || !findEl.parentNode) return;
+    if (findNav || findOpt.all) markFound();
+    else setTimeout(function () { if (findEl.parentNode) runFind(true); }, 0);
+  }
+  // What a cell holds after the replacement; undefined: nothing to replace there (a computed value, a tick).
+  function replaced(s, k, q, rep) {
+    var raw = s.cells[k], fx = isFormula(raw);
+    if (raw === undefined || raw === null || typeof raw === "boolean" || fx && !findOpt.fx) return undefined;
+    var src = fx ? raw : rawText(raw), out = PURE.replace(src, q, rep, findOpt);
+    return out === src ? undefined : parseText(out).value;
+  }
+  function replaceOne() {
+    if (ro() || !findIn.value) return;
+    if (findAt < 0 || !findList[findAt]) return findGo(1);
+    var e = findList[findAt], k = key(e.r, e.c), v = e.s === S() ? replaced(e.s, k, findIn.value, repIn.value) : undefined;
+    if (v === undefined) return findGo(1);
+    setBlock(e.s, e.r, e.c, [[v]]);
+    runFind(true);
+    if (!findList.length) return;
+    // on to the match after the cell just changed
+    findAt = -1;
+    for (var i = 0; i < findList.length; i++) { var x = findList[i]; if (x.s === e.s && (x.r > e.r || x.r === e.r && x.c > e.c)) { findAt = i - 1; break; } }
+    findGo(1);
+  }
+  // Every match that can be replaced, as one edit per sheet (one Undo brings a sheet's cells back).
+  function replaceEvery() {
+    var q = findIn.value, rep = repIn.value, n = 0, bySheet = [];
+    if (ro() || !q) return;
+    findList.forEach(function (e) {
+      var v = replaced(e.s, key(e.r, e.c), q, rep);
+      if (v === undefined) return;
+      var g = bySheet.filter(function (x) { return x.s === e.s; })[0];
+      if (!g) bySheet.push(g = { s: e.s, fwd: [], inv: [] });
+      g.fwd.push({ op: "set", range: key(e.r, e.c), values: [[v]] });
+      g.inv.push({ op: "set", range: key(e.r, e.c), values: [[oldRaw(e.s, e.r, e.c)]] });
+      n++;
+    });
+    bySheet.forEach(function (g) { doEdit(g.s, g.fwd, g.inv); });
+    kit.toast(n ? fill(T.repDone, { n: n }) : T.repNone);
+    runFind(true);
+  }
+  function closeFind() { if (findEl) findEl.remove(); foundSet = null; findList = []; findAt = -1; renderAll(true); grid.focus(); }
 
   // ------------------------------------------------------------------ history: list, preview in place, restore
   var banner = h("div", { "class": "sh-preview", hidden: true });
@@ -1765,7 +2569,7 @@
     if (!X || !X.write) return kit.toast(T.noXlsx);
     busy(true);
     lib("fflate.umd.js", "fflate").then(function () {
-      var bytes = X.write({ sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze }; }) });
+      var bytes = X.write({ sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze, merges: s.merges, rules: s.rules }; }) });
       var type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       kit.download(kit.slug(bookTitle()) + ".xlsx", new Blob([bytes], { type: type }), type);
     }).catch(function (e) { kit.toast(String(e && e.message || e)); }).then(function () { busy(false); });
@@ -1834,9 +2638,9 @@
       while (i < cs.length) {
         var sig = JSON.stringify(fmt[key(r, cs[i])]), j = i;
         while (j + 1 < cs.length && cs[j + 1] === cs[j] + 1 && JSON.stringify(fmt[key(r, cs[j + 1])]) === sig) j++;
-        var o = JSON.parse(sig) || {}, op = { op: "format", range: rangeName({ r1: r, c1: cs[i], r2: r, c2: cs[j] }) };
-        FMT_KEYS.forEach(function (x) { if (o[x] != null) op[x] = o[x]; });
-        ops.push(op);
+        var o = JSON.parse(sig) || {}, op = { op: "format", range: rangeName({ r1: r, c1: cs[i], r2: r, c2: cs[j] }) }, any = false;
+        FMT_KEYS.forEach(function (x) { if (o[x] != null && x !== "options" && x !== "colors") { op[x] = o[x]; any = true; } });
+        if (any) ops.push(op);
         i = j + 1;
       }
     });
@@ -1844,8 +2648,14 @@
   }
   function extrasOf(sh) {
     var ops = fmtOpsOf(sh.fmt);
+    // dropdowns: one op for each run down a column, not one for each row
+    (X && X.listRuns ? X.listRuns(sh.fmt || {}) : []).forEach(function (x) {
+      if (x.r1 < MAXR && x.c < MAXC) ops.push({ op: "format", range: rangeName({ r1: x.r1, c1: x.c, r2: Math.min(x.r2, MAXR - 1), c2: x.c }), options: x.options });
+    });
     Object.keys(sh.cols || {}).forEach(function (c) { ops.push({ op: "col_width", col: c, w: clamp(Math.round(sh.cols[c]), 40, 800) }); });
     if (sh.freeze && (sh.freeze.rows || sh.freeze.cols)) ops.push({ op: "freeze", rows: sh.freeze.rows || 0, cols: sh.freeze.cols || 0 });
+    (sh.merges || []).forEach(function (m) { ops.push({ op: "merge", range: m }); });
+    if (sh.rules && sh.rules.length) ops.push({ op: "rules", rules: sh.rules });
     return ops;
   }
   function inChunks(s, ops) {
@@ -1857,8 +2667,10 @@
     if (!sheets.length) return Promise.resolve();
     if (importMode === "replace") {
       var s = S(), sh = sheets[0], u = used(s), ops = [];
+      if (s.merges.length) ops.push({ op: "unmerge", range: "A1:" + key(MAXR - 1, MAXC - 1) });
+      if (s.rules.length) ops.push({ op: "rules", rules: [] });
       if (u.r >= 0) ops.push({ op: "clear", range: rangeName({ r1: 0, c1: 0, r2: u.r, c2: Math.max(0, u.c) }) });
-      ops.push(fmtOp({ r1: 0, c1: 0, r2: Math.max(0, u.r + 1), c2: Math.max(0, u.c) }, { bold: null, italic: null, underline: null, align: null, num: null, bg: null, fg: null, wrap: null }));
+      ops.push(fmtOp({ r1: 0, c1: 0, r2: Math.max(0, u.r + 1), c2: Math.max(0, u.c) }, noFmt()));
       var rows = rowsOf(sh.cells);
       if (rows.length) ops.push({ op: "set", range: "A1", values: rows });
       return inChunks(s, ops.concat(extrasOf(sh)));
@@ -1876,7 +2688,14 @@
   }
 
   // ------------------------------------------------------------------ live: Hermes' edits arrive, computed values go back
-  function setHermes(on) { if (on !== hermesActive) { hermesActive = on; drawFoot(); } }
+  // The pill goes when Hermes' window runs out (hermes_left seconds, else the server's 5 minutes) even
+  // when no read comes then (reads pause while a cell is typed in, or one hangs); every read sets it afresh.
+  var hermesTimer = hermesUntil ? setTimeout(function () { setHermes(false); }, hermesUntil - Date.now()) : null;
+  function setHermes(on, left) {
+    clearTimeout(hermesTimer);
+    if (on) hermesTimer = setTimeout(function () { setHermes(false); }, (left > 0 ? left : 300) * 1000 + 500);
+    if (on !== hermesActive) { hermesActive = on; drawFoot(); }
+  }
   function flashCells(s, keys) {
     if (!keys.length || s !== S()) return;
     keys.slice(0, 300).forEach(function (k) { flashSet[k] = 1; });
@@ -1895,6 +2714,9 @@
     Object.keys(r.changed || {}).forEach(function (k) { s.cells[k] = r.changed[k]; keys.push(k); });
     (r.removed || []).forEach(function (k) { delete s.cells[k]; delete s.vals[k]; keys.push(k); });
     Object.keys(r.fmt || {}).forEach(function (k) { if (r.fmt[k]) s.fmt[k] = r.fmt[k]; else delete s.fmt[k]; });
+    if (r.fmt) { bindLists(s.fmt, r.lists, Object.keys(r.fmt), r.list_colors); s._bd = undefined; }
+    if (r.rules) { s.rules = r.rules; s._cf = null; }
+    if (r.merges) s.merges = r.merges;
     Object.keys(r.values || {}).forEach(function (k) { s.vals[k] = r.values[k]; });
     if (r.cols) s.cols = r.cols;
     if (r.freeze) s.freeze = { rows: r.freeze.rows || 0, cols: r.freeze.cols || 0 };
@@ -1916,7 +2738,7 @@
       var s = book[cur];
       return hm.sheet.read(s.id, s.rev).then(function (r) {
         if (!r || r.ok === false) return;
-        if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active);
+        if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
         if (r.sheets) syncOverview(r.sheets);
         if (byId(s.id) !== s || pending()) return;
         var keys;
@@ -1924,6 +2746,7 @@
           if (r.rev === s.rev && !r.since) return;
           keys = diffKeys(s, r).slice(0, 300);
           loadRead(s, r);
+          refit(s);
           if (r.since === "unavailable") { undoS = undoS.filter(function (e) { return e.id !== s.id; }); redoS = redoS.filter(function (e) { return e.id !== s.id; }); drawUndo(); }
         } else {
           if (r.rev === s.rev) return;
@@ -1965,8 +2788,11 @@
   // ------------------------------------------------------------------ comments and asking Hermes
   var canComment = !!(hm && hm.comment) && !C.thumb;
   function commentSel() {
-    var s = book[cur], k = key(sr, sc);
-    hm.comment({ selector: "cell:" + s.id + "!" + k, text: (k + ": " + display(s, k, valueOf(s, k))).slice(0, 200), label: (s.name + " · " + k).slice(0, 40) });
+    // This only opens the host's comment form at the cell (its anchor: the cell and what it shows); the
+    // comment itself is what the user types there, and an empty one is never sent (the form and the
+    // server both refuse it).
+    var s = book[cur], k = key(sr, sc), shown = String(display(s, k, valueOf(s, k)) || "").trim();
+    hm.comment({ selector: "cell:" + s.id + "!" + k, text: (shown ? k + ": " + shown : k).slice(0, 200), label: (s.name + " · " + k).slice(0, 40) });
   }
   function askSel() {
     commitIfEditing();
@@ -2008,33 +2834,57 @@
     });
   }
 
-  // ------------------------------------------------------------------ status bar: Sum / Average / Count
+  // ------------------------------------------------------------------ status bar: one number of the selection (Sum, Average, Min, Max or Count: the viewer's pick)
   var foot = document.getElementById("sh-foot");
   var tabsEl = h("div", { "class": "sh-tabs", role: "tablist", "aria-label": T.sheetWord });
   var statsEl = h("div", { "class": "sh-stats", "aria-live": "off" });
-  var pill = h("span", { "class": "sh-pill", text: T.working });
+  var pill = h("span", { "class": "sh-pill", text: T.working, hidden: true });
+  var aggBtn = h("button", { type: "button", "class": "sh-agg", "aria-haspopup": "menu", title: T.aggPick, hidden: true });
+  var AGGS = ["sum", "avg", "min", "max", "count"], aggNow = null;
+  statsEl.append(aggBtn, pill);
   function statNum(v) {
     if (F && F.format) { try { return F.format(Math.round(v * 1e6) / 1e6, null, L); } catch (e) {} }
     return fmtNum.format(Math.round(v * 1e6) / 1e6);
   }
+  // One aggregate of the selection as text; null when it has no numbers to give it.
+  function aggText(a) {
+    var g = aggNow;
+    if (!g) return null;
+    if (a === "count") return String(g.cnt);
+    if (!g.n) return null;
+    return statNum(a === "sum" ? g.sum : a === "avg" ? g.sum / g.n : a === "min" ? g.min : g.max);
+  }
+  aggBtn.addEventListener("click", function () {
+    if (!aggNow) return;
+    kit.menu(aggBtn, AGGS.map(function (a) {
+      var v = aggText(a);
+      return { label: (a === prefs.agg ? "✓ " : "  ") + T[a] + (v === null ? "" : ": " + v), onClick: function () { setPref("agg", a); stats(); aggBtn.focus(); } };
+    }));
+  });
+  // Under a filter the hidden rows count for nothing.
   function stats() {
     if (C.thumb) return;
-    var s = S(), R = selR(), u = used(s), sum = 0, n = 0, cnt = 0;
+    var s = S(), R = selR(), u = used(s), g = { sum: 0, n: 0, cnt: 0, min: Infinity, max: -Infinity };
     R.r2 = Math.min(R.r2, u.r); R.c2 = Math.min(R.c2, u.c);
-    function one(k) { var v = valueOf(s, k); if (v === null || v === "") return; cnt++; if (typeof v === "number") { sum += v; n++; } }
+    function one(k) {
+      var v = valueOf(s, k);
+      if (v === null || v === "") return;
+      g.cnt++;
+      if (typeof v === "number") { g.sum += v; g.n++; if (v < g.min) g.min = v; if (v > g.max) g.max = v; }
+    }
     if (multi() && R.r2 >= R.r1 && R.c2 >= R.c1) {
-      if (area(R) <= Object.keys(s.cells).length) eachIn(R, function (r, c, k) { if (s.cells[k] !== undefined) one(k); });
-      else for (var k in s.cells) { var p = parseKey(k); if (p && inR(R, p.r, p.c)) one(k); }
+      if (area(R) <= Object.keys(s.cells).length) eachIn(R, function (r, c, k) { if (s.cells[k] !== undefined && !hid(s, r)) one(k); });
+      else for (var k in s.cells) { var p = parseKey(k); if (p && inR(R, p.r, p.c) && !hid(s, p.r)) one(k); }
     }
-    statsEl.innerHTML = "";
-    if (cnt > 1 || n > 0 && multi()) {
-      if (n) {
-        statsEl.appendChild(h("span", { html: kit.esc(T.sum) + ": <b>" + kit.esc(statNum(sum)) + "</b>" }));
-        statsEl.appendChild(h("span", { "class": "sh-avg", html: kit.esc(T.avg) + ": <b>" + kit.esc(statNum(sum / n)) + "</b>" }));
-      }
-      statsEl.appendChild(h("span", { "class": "sh-cnt", html: kit.esc(T.count) + ": <b>" + cnt + "</b>" }));
+    aggNow = g.cnt > 1 || g.n > 0 && multi() ? g : null;
+    if (aggNow) {
+      var a = AGGS.indexOf(prefs.agg) >= 0 ? prefs.agg : "sum", v = aggText(a);
+      if (v === null) { a = "count"; v = String(g.cnt); }
+      var html = kit.esc(T[a]) + ": <b>" + kit.esc(v) + "</b>" + CARET;
+      if (aggBtn._t !== html) { aggBtn.innerHTML = html; aggBtn._t = html; }
     }
-    if (hermesActive) statsEl.appendChild(pill);
+    if (aggBtn.hidden === !!aggNow) aggBtn.hidden = !aggNow;
+    if (pill.hidden === hermesActive) pill.hidden = !hermesActive;
   }
 
   // ------------------------------------------------------------------ sheet tabs: switch, add, rename inline, delete, reorder
@@ -2048,7 +2898,7 @@
     var s = book[cur], v = s._view || { sr: 0, sc: 0, er: 0, ec: 0, selMode: "cells", sl: 0, st: 0 };
     sr = v.sr; sc = v.sc; er = v.er; ec = v.ec; selMode = v.selMode;
     nRows = 50; nCols = 26;
-    if (findEl && findEl.parentNode) closeFind();
+    findSheet();
     refresh();
     grid.scrollLeft = v.sl; grid.scrollTop = v.st; sl = grid.scrollLeft; st = grid.scrollTop; translate(); renderAll(true);
     drawTabs(); afterSel();
@@ -2124,7 +2974,209 @@
   }
   function drawFoot() { stats(); }
 
-  // ------------------------------------------------------------------ the toolbar (an overflow menu when narrow)
+  // ------------------------------------------------------------------ view: zoom, formulas shown, layout, theme (this viewer's own, kept in localStorage when there is one)
+  var PREF_KEY = "hermes-sheet-view", ZOOMS = [50, 75, 100, 125, 150, 200];
+  var prefs = { zoom: 100, fx: false, compact: false, theme: "auto", agg: "sum" };
+  if (!C.thumb) {
+    try {
+      var p0 = JSON.parse(localStorage.getItem(PREF_KEY) || "null");
+      if (p0 && typeof p0 === "object") {
+        if (ZOOMS.indexOf(p0.zoom) >= 0) prefs.zoom = p0.zoom;
+        prefs.fx = p0.fx === true; prefs.compact = p0.compact === true;
+        if (p0.theme === "light" || p0.theme === "dark") prefs.theme = p0.theme;
+        if (AGGS.indexOf(p0.agg) >= 0) prefs.agg = p0.agg;
+      }
+    } catch (e) {}
+  }
+  function setPref(k, v) {
+    prefs[k] = v;
+    try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {}
+  }
+  // The grid's measures follow the zoom and the layout: every position is computed from these, so
+  // the panes, the headers and the editor stay aligned at any zoom.
+  function applyMetrics() {
+    var de = document.documentElement;
+    ZM = prefs.zoom / 100; showFx = prefs.fx;
+    RH = HH = Math.round((prefs.compact ? 20 : 24) * ZM); HW = Math.round(46 * ZM);
+    de.style.setProperty("--sh-z", String(ZM)); de.style.setProperty("--sh-rh", RH + "px");
+    de.classList.toggle("sh-compact", prefs.compact);
+  }
+  // A view setting changed: the cell at the top left stays there.
+  function setView(k, v) {
+    if (prefs[k] === v) return;
+    commitIfEditing();
+    var place = Math.round(st / RH), col = colAt(FW + sl);
+    setPref(k, v);
+    applyMetrics();
+    layout();
+    grid.scrollTop = place * RH; grid.scrollLeft = Math.max(0, colX[col] - FW);
+    refresh();
+    barSync(true);
+  }
+  function zoomStep(d) { var i = ZOOMS.indexOf(prefs.zoom); setView("zoom", ZOOMS[clamp((i < 0 ? 2 : i) + d, 0, ZOOMS.length - 1)]); }
+  function toggleFx() { setView("fx", !prefs.fx); }
+  // The sheet's own theme: "auto" follows the host; light or dark sets the page's mode and puts the
+  // host's colours aside (they belong to the host's mode) until the choice is Automatic again.
+  var THEME_VARS = ["--color-bg", "--color-panel", "--color-fg", "--color-fg-secondary", "--color-fg-muted", "--color-border-line", "--color-border-strong",
+    "--color-hover", "--color-bad", "--color-ok", "--color-warn", "--color-elevated"];
+  var hostAttr = document.documentElement.getAttribute("data-theme"), themeStash = null, themeObs = null;
+  function applyTheme() {
+    var de = document.documentElement, want = prefs.theme, known = (kit.hostTheme && kit.hostTheme() || {}).mode || hostAttr;
+    var hostMode = known || (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    if (want !== "auto" && want !== hostMode) {
+      themeStash = themeStash || {};
+      THEME_VARS.forEach(function (n) { var v = de.style.getPropertyValue(n); if (v) { themeStash[n] = v; de.style.removeProperty(n); } });
+      de.setAttribute("data-theme", want);
+    } else {
+      if (themeStash) { for (var k in themeStash) if (!de.style.getPropertyValue(k)) de.style.setProperty(k, themeStash[k]); themeStash = null; }
+      if (want !== "auto") de.setAttribute("data-theme", want);
+      else if (known) de.setAttribute("data-theme", known);
+      else de.removeAttribute("data-theme");
+    }
+    if (themeObs) themeObs.takeRecords();
+  }
+  if (!C.thumb && window.MutationObserver) {
+    // the host's theme arriving later (kit.js writes the mode and the colours) goes under the viewer's choice
+    themeObs = new MutationObserver(function () {
+      var a = document.documentElement.getAttribute("data-theme");
+      if (prefs.theme === "auto") { hostAttr = a; return; }
+      if (a !== prefs.theme) hostAttr = a;
+      applyTheme();
+    });
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "style"] });
+  }
+  function viewPop(anchor) {
+    commitIfEditing();
+    var el = h("div", { "class": "sh-pop sh-view", role: "dialog", "aria-label": T.view });
+    function head(t) { return h("div", { "class": "sh-flt-h", text: t }); }
+    function seg(label, items, now, pick) {
+      var g = h("div", { "class": "sh-seg", role: "radiogroup", "aria-label": label });
+      items.forEach(function (it) {
+        var b = h("button", { type: "button", role: "radio", "aria-checked": it[0] === now ? "true" : "false", text: it[1] });
+        b.addEventListener("click", function () { pick(it[0]); [].forEach.call(g.children, function (x) { x.setAttribute("aria-checked", x === b ? "true" : "false"); }); draw(); });
+        g.appendChild(b);
+      });
+      return g;
+    }
+    var zl = h("span", { "class": "sh-zl", "aria-live": "polite" });
+    var out = h("button", { type: "button", "class": "sh-b", title: T.zoomOut, "aria-label": T.zoomOut, text: "−", onclick: function () { zoomStep(-1); draw(); } });
+    var inn = h("button", { type: "button", "class": "sh-b", title: T.zoomIn, "aria-label": T.zoomIn, text: "+", onclick: function () { zoomStep(1); draw(); } });
+    var reset = h("button", { type: "button", "class": "sh-b", text: T.zoomReset, onclick: function () { setView("zoom", 100); draw(); } });
+    var levels = seg(T.zoom, ZOOMS.map(function (z) { return [z, z + "%"]; }), prefs.zoom, function (z) { setView("zoom", z); });
+    var fx = h("input", { type: "checkbox" });
+    fx.checked = prefs.fx;
+    fx.addEventListener("change", function () { setView("fx", fx.checked); });
+    function draw() {
+      zl.textContent = prefs.zoom + "%";
+      out.disabled = prefs.zoom <= ZOOMS[0]; inn.disabled = prefs.zoom >= ZOOMS[ZOOMS.length - 1]; reset.disabled = prefs.zoom === 100;
+      [].forEach.call(levels.children, function (x, i) { x.setAttribute("aria-checked", ZOOMS[i] === prefs.zoom ? "true" : "false"); });
+    }
+    el.append(head(T.zoom), h("div", { "class": "sh-view-row" }, [out, zl, inn, reset]), levels,
+      h("label", { "class": "sh-view-chk" }, [fx, h("span", { text: T.showFx }), h("small", { text: "Ctrl+`" })]),
+      head(T.layout), seg(T.layout, [[false, T.layComfy], [true, T.layCompact]], prefs.compact, function (v) { setView("compact", v); }),
+      head(T.theme), seg(T.theme, [["auto", T.thAuto], ["light", T.thLight], ["dark", T.thDark]], prefs.theme, function (v) { setPref("theme", v); applyTheme(); }));
+    draw();
+    openPop(el, anchor);
+    el.style.left = Math.max(8, Math.min(anchor.getBoundingClientRect().right - el.offsetWidth, innerWidth - el.offsetWidth - 8)) + "px";
+    (el.querySelector('[aria-checked="true"]') || out).focus();
+  }
+
+  // ------------------------------------------------------------------ errors: a sentence for each, and asking Hermes to fix them (never sent unasked)
+  function canFix() { return live && !!(hm.sheet && hm.sheet.ask) && !ro() && !C.thumb; }
+  /** Why a cell shows an error, in a sentence. */
+  function errSentence(s, k, v) {
+    var i = PURE.errInfo(v && v.error, s.cells[k], FNAMES);
+    return fill(T["err_" + i.kind] || T.err_other, { f: i.fn });
+  }
+  // The error cells of the workbook, the sheet in view first: [{s, k, code}] (at most max; n counts them all).
+  function errCells(max) {
+    var out = [], n = 0, order = [book[cur]].concat(book.filter(function (x, i) { return i !== cur; }));
+    order.forEach(function (s) {
+      var here = [];
+      for (var k in s.cells) { if (!isFormula(s.cells[k])) continue; var v = valueOf(s, k); if (isErr(v)) { n++; here.push({ s: s, k: k, code: String(v.error) }); } }
+      here.sort(function (a, b) { var p = parseKey(a.k), q = parseKey(b.k); return p.r - q.r || p.c - q.c; });
+      out = out.concat(here);
+    });
+    return { list: out.slice(0, max), n: n };
+  }
+  // The request goes the way "Ask Hermes" does (hermes.sheet.ask); cells, formulas and codes are quoted as data.
+  function askFix(cells, total) {
+    if (!canFix() || !cells.length) return;
+    commitIfEditing();
+    var first = cells[0], lines = cells.map(function (x) { return x.s.name + "!" + x.k + ": " + String(x.s.cells[x.k]).slice(0, 200) + " -> " + x.code; });
+    var text = (cells.length === 1 ? T.fixMsg1 : fill(T.fixMsgN, { n: cells.length })) + (total > cells.length ? " " + fill(T.fixMsgMore, { n: total }) : "") + "\n" + lines.join("\n");
+    var sameSheet = cells.filter(function (x) { return x.s === first.s; }), R = null;
+    sameSheet.forEach(function (x) { var p = parseKey(x.k); R = R ? { r1: Math.min(R.r1, p.r), c1: Math.min(R.c1, p.c), r2: Math.max(R.r2, p.r), c2: Math.max(R.c2, p.c) } : { r1: p.r, c1: p.c, r2: p.r, c2: p.c }; });
+    hm.sheet.ask({ text: text.slice(0, 3500), sheet: first.s.id, tab: first.s.name, range: rangeName(R), selection: lines.join("\n").slice(0, 2000) })
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); })
+      .catch(function (e) { kit.toast(String(e && e.message || e)); });
+  }
+  // The error cells of the selection (the active cell first), for the toolbar's button.
+  function selErrs() {
+    var s = S(), out = [], R = selUsed(), v = valueOf(s, key(sr, sc));
+    if (isErr(v)) out.push({ s: s, k: key(sr, sc), code: String(v.error) });
+    if (multi() && area(R) <= 4000) eachIn(R, function (r, c, k) {
+      if (out.length >= 8 || r === sr && c === sc || hid(s, r) || !isFormula(s.cells[k])) return;
+      var x = valueOf(s, k);
+      if (isErr(x)) out.push({ s: s, k: k, code: String(x.error) });
+    });
+    return out;
+  }
+  // The bubble by an error cell: under the active one, or the one the pointer rests on.
+  var errTip = h("div", { "class": "sh-errtip", role: "status", hidden: true }), errAt = null, errTimer = null;
+  var errText = h("span"), errBtn = h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk });
+  errTip.append(errText, errBtn);
+  errBtn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+  errBtn.addEventListener("click", function () { var a = errAt; hideErr(); if (a) askFix([{ s: a.s, k: a.k, code: a.code }], 1); });
+  if (!C.thumb) document.body.appendChild(errTip);
+  function hideErr() { clearTimeout(errTimer); errAt = null; if (!errTip.hidden) errTip.hidden = true; }
+  function showErr(r, c, hover) {
+    var s = S(), k = key(r, c), v = valueOf(s, k);
+    if (!isErr(v) || ed || pop || r >= nRows || c >= nCols) return hideErr();
+    if (errAt && errAt.s === s && errAt.k === k && !errTip.hidden) { errAt.hover = hover; return; }
+    errAt = { s: s, k: k, code: String(v.error), hover: hover };
+    errText.textContent = errSentence(s, k, v);
+    errBtn.hidden = !canFix();
+    errTip.hidden = false;
+    var b = cellBox(r, c), vr = vp.getBoundingClientRect(), x = vr.left + b.x, y = vr.top + b.y + b.h + 4;
+    if (b.x < HW - b.w || b.y < 0 || b.x > vpW || b.y > vpH) return hideErr();
+    errTip.style.left = Math.max(8, Math.min(x, innerWidth - errTip.offsetWidth - 8)) + "px";
+    errTip.style.top = (y + errTip.offsetHeight > innerHeight - 8 ? Math.max(8, vr.top + b.y - errTip.offsetHeight - 4) : y) + "px";
+  }
+  function errSync() { if (C.thumb) return; if (!multi() && !ed) showErr(sr, sc, false); else hideErr(); }
+  if (!C.thumb) {
+    grid.addEventListener("mousemove", function (e) {
+      if (drag || ed || !vp.contains(e.target)) return;
+      var p = hit(e.clientX, e.clientY);
+      clearTimeout(errTimer);
+      if (p.r < 0 || p.c < 0) return;
+      if (isErr(valueOf(S(), key(p.r, p.c)))) errTimer = setTimeout(function () { showErr(p.r, p.c, true); }, 350);
+      else if (errAt && errAt.hover) errTimer = setTimeout(errSync, 250);
+    });
+    grid.addEventListener("mouseleave", function (e) { if (errAt && errAt.hover && !errTip.contains(e.relatedTarget)) { clearTimeout(errTimer); errTimer = setTimeout(errSync, 250); } });
+    errTip.addEventListener("mouseenter", function () { clearTimeout(errTimer); });
+    errTip.addEventListener("mouseleave", function () { if (errAt && errAt.hover) errTimer = setTimeout(errSync, 250); });
+    // typing, scrolling or opening the editor puts the bubble away (the selection moving brings the next one)
+    grid.addEventListener("keydown", function (e) { if (!/^(Shift|Control|Alt|Meta)$/.test(e.key)) hideErr(); }, true);
+    grid.addEventListener("scroll", hideErr, { passive: true });
+    grid.addEventListener("dblclick", hideErr, true);
+    fxTa.addEventListener("focus", hideErr);
+  }
+  // Once after the sheet opens: how many errors it holds, and the same request for the first of them.
+  function errToast() {
+    if (C.thumb || preview) return;
+    var e = errCells(8);
+    if (!e.n) return;
+    var el = h("div", { "class": "sh-errtoast", role: "status" }), close = h("button", { type: "button", "class": "sh-chip-x", title: T.close, "aria-label": T.close, text: "×" });
+    el.appendChild(h("span", { text: e.n === 1 ? T.errOne : fill(T.errMany, { n: e.n }) }));
+    if (canFix()) el.appendChild(h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk, onclick: function () { el.remove(); var now = errCells(8); askFix(now.list, now.n); } }));
+    close.addEventListener("click", function () { el.remove(); grid.focus(); });
+    el.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { el.remove(); grid.focus(); } });
+    el.appendChild(close);
+    document.body.appendChild(el);
+  }
+
+  // ------------------------------------------------------------------ the toolbar: what it offers follows the selection; what does not fit goes into More
   function barBtn(label, html, fn, cls) {
     var b = h("button", { type: "button", "class": "kit-btn" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: html });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); }); // the grid or the editor keeps the focus
@@ -2132,13 +3184,29 @@
     return b;
   }
   var CARET = '<svg class="sh-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
+  ICO.borders = "M4 4h16v16H4zM12 4v16M4 12h16";
+  ICO.merge = "M4 5h16v14H4zM6.5 12h4M8.5 10l2 2-2 2M17.5 12h-4M15.5 10l-2 2 2 2";
+  ICO.unmerge = "M4 5h16v14H4zM12 5v14M10 12H6.5M8.5 10l-2 2 2 2M14 12h3.5M15.5 10l2 2-2 2";
+  ICO.rules = "M4 4h16v16H4zM4 10h16M10 4v16M13 13h4v4h-4z";
+  ICO.date = "M5 6h14v14H5zM5 10h14M9 4v4M15 4v4";
+  ICO.replace = "M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3";
+  function txtIco(t) { return '<span class="sh-ico sh-txt">' + kit.esc(t) + "</span>"; }
   var bar = document.getElementById("sh-bar");
   bar.className = "kit-bar";
+  var DATE_FMT = L === "hu" ? "yyyy.mm.dd." : "yyyy-mm-dd", CUR_FMT = L === "hu" ? '#,##0 "Ft"' : "$#,##0.00";
   var NUMS = [
     { label: T.nGeneral, num: null }, { label: T.nNumber, num: "0.00" }, { label: T.nThousands, num: "#,##0" }, { label: T.nPercent, num: "0%" },
     { label: T.nFt, num: '#,##0 "Ft"' }, { label: T.nEur, num: "#,##0.00 €" }, { label: T.nUsd, num: "$#,##0.00" },
-    { label: T.nDate, num: L === "hu" ? "yyyy.mm.dd." : "yyyy-mm-dd" }, { label: T.nText, num: "@" }];
-  function numMenu(anchor) { commitIfEditing(); var c = curFmt().num || null; kit.menu(anchor, NUMS.map(function (x) { return { label: (x.num === c ? "✓ " : "   ") + x.label, onClick: function () { fmtSel({ num: x.num }); } }; })); }
+    { label: T.nDate, num: DATE_FMT }, { label: T.nText, num: "@" }];
+  function tick(on, label) { return (on ? "✓ " : "  ") + label; }
+  function numMenu(anchor) { commitIfEditing(); var c = curFmt().num || null; kit.menu(anchor, NUMS.map(function (x) { return { label: tick(x.num === c, x.label), onClick: function () { fmtSel({ num: x.num }); } }; })); }
+  function alignMenu(anchor) {
+    commitIfEditing();
+    var f = curFmt();
+    kit.menu(anchor, [["left", T.alignL], ["center", T.alignC], ["right", T.alignR]].map(function (x) {
+      return { label: tick(f.align === x[0], x[1]), onClick: function () { fmtSel({ align: f.align === x[0] ? null : x[0] }); } };
+    }).concat([{ label: tick(!!f.wrap, T.wrap), onClick: function () { toggleFmt("wrap"); } }]));
+  }
   function insMenu(anchor) {
     commitIfEditing();
     kit.menu(anchor, [{ label: T.rowAbove, onClick: function () { insRows(false); } }, { label: T.rowBelow, onClick: function () { insRows(true); } },
@@ -2152,73 +3220,188 @@
       { label: T.freezeHere, onClick: function () { setFreeze(Math.min(sr, 50), Math.min(sc, 20)); } }, { label: T.unfreeze, onClick: function () { setFreeze(0, 0); } }]);
   }
   function chartMenu(anchor) { commitIfEditing(); kit.menu(anchor, [{ label: T.cBar, onClick: function () { addChart("bar"); } }, { label: T.cLine, onClick: function () { addChart("line"); } }, { label: T.cPie, onClick: function () { addChart("pie"); } }]); }
-  function expMenu(anchor) { kit.menu(anchor, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); }
+  // The CSV holds every row, also the ones a filter hides: its entry says so then.
+  function expMenu(anchor) { kit.menu(anchor, exportList.map(function (x) { return { label: x.id === "csv" && S()._hid ? T.csvAll : x.label, onClick: x.run }; })); }
+  function filterMenu(anchor) {
+    var s = S(), items = [{ label: T.fltCol, onClick: filterHere }];
+    if (s._flt) items.push({ label: T.fltClear, onClick: clearFilter });
+    if (s._fon && s.freeze.rows < 1) items.push({ label: T.fltHide, onClick: function () { s._fon = false; s._flt = null; applyFilter(s); } });
+    kit.menu(anchor, items);
+  }
   function impMenu(anchor) { kit.menu(anchor, [{ label: T.impNew, onClick: function () { pickImport("new"); } }, { label: T.impReplace, onClick: function () { pickImport("replace"); } }]); }
   var exportList = [{ id: "xlsx", label: T.xlsx, run: exportXlsx }, { id: "csv", label: T.csv, run: exportCsv }];
-  // [label, icon html, action, edits?, wide (into the overflow menu when narrow), id]
-  var TOOLS = [
-    [T.undo, kit.icon("undo"), function () { undo(); grid.focus(); }, true, false, "undo"],
-    [T.redo, kit.icon("redo"), function () { redo(); grid.focus(); }, true, false, "redo"],
-    "|",
-    [T.bold + " (Ctrl+B)", kit.icon("bold"), function () { toggleFmt("bold"); }, true, false, "bold"],
-    [T.italic + " (Ctrl+I)", kit.icon("italic"), function () { toggleFmt("italic"); }, true, false, "italic"],
-    [T.underline + " (Ctrl+U)", kit.icon("underline"), function () { toggleFmt("underline"); }, true, true, "underline"],
-    "|w",
-    [T.alignL, kit.icon("alignL"), function () { fmtSel({ align: curFmt().align === "left" ? null : "left" }); }, true, true, "alignL"],
-    [T.alignC, kit.icon("alignC"), function () { fmtSel({ align: curFmt().align === "center" ? null : "center" }); }, true, true, "alignC"],
-    [T.alignR, kit.icon("alignR"), function () { fmtSel({ align: curFmt().align === "right" ? null : "right" }); }, true, true, "alignR"],
-    [T.wrap, ico("wrap"), function () { toggleFmt("wrap"); }, true, true, "wrap"],
-    "|",
-    [T.numFmt, ico("num") + CARET, function (e, b) { numMenu(b); }, true, false, "num"],
-    [T.fill, '<span class="sh-ico">' + ico("bucket") + '</span>' + CARET, function (e, b) { colorPop(b, "bg"); }, true, true, "bg"],
-    [T.textColor, '<span class="sh-ico">' + ico("fcolor") + '</span>' + CARET, function (e, b) { colorPop(b, "fg"); }, true, true, "fg"],
-    "|w",
-    [T.insert, ico("rows") + CARET, function (e, b) { insMenu(b); }, true, true, "ins"],
-    [T.sort, ico("sort") + CARET, function (e, b) { sortMenu(b); }, true, true, "sort"],
-    [T.freeze, ico("freeze") + CARET, function (e, b) { freezeMenu(b); }, true, true, "freeze"],
-    [T.chart, ico("chart") + CARET, function (e, b) { chartMenu(b); }, true, true, "chart"],
-    "|w",
-    [T.comment, kit.icon("comment"), function () { commitIfEditing(); commentSel(); }, "comment", true, "comment"],
-    [T.ask, kit.icon("sparkle"), function () { askSel(); }, "ask", false, "ask"]
-  ];
-  var toolEls = {}, moreItems = [];
-  function hasTool(t) { return t[3] === "comment" ? canComment && live : t[3] === "ask" ? live && !!hm.sheet.ask : t[3] ? editable : true; }
-  if (!C.thumb) {
-    var lastSep = null;
-    TOOLS.forEach(function (t) {
-      if (typeof t === "string") { lastSep = h("span", { "class": "sh-sep" + (t === "|w" ? " sh-wide" : "") }); return; }
-      if (!hasTool(t)) return;
-      if (lastSep) { bar.appendChild(lastSep); lastSep = null; }
-      var b = barBtn(t[0], t[1], t[2], t[4] ? "sh-wide" : "");
-      toolEls[t[5]] = b; bar.appendChild(b);
-      if (t[4]) moreItems.push(t);
-    });
-    if (bar.lastChild && bar.lastChild.classList.contains("sh-sep")) bar.lastChild.remove();
-    bar.appendChild(h("span", { "class": "sh-gap" }));
-    bar.appendChild(status);
-    bar.appendChild(barBtn(T.find + " (Ctrl+F)", ico("search"), function () { openFind(); }));
-    if (live && hm.sheet.history) bar.appendChild(barBtn(T.hist, kit.icon("history"), function (e, b) { openHistory(b); }, "sh-wide"));
-    if (editable) bar.appendChild(barBtn(T.imp, ico("upload"), function (e, b) { impMenu(b); }, "sh-wide"));
-    bar.appendChild(kit.labelled(barBtn(T.exp, kit.icon("download") + "<span></span>", function (e, b) { expMenu(b); }), T.exp));
-    var moreBtn = barBtn(T.more, kit.icon("more"), function (e, b) {
-      var items = moreItems.map(function (t) {
-        return { label: t[0].replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { var tb = toolEls[t[5]]; t[2](null, /^(bg|fg|ins|sort|freeze|chart)$/.test(t[5]) ? b : tb); } };
+  // Decimals, currency, percent: the selection's number format, from the active cell's.
+  function stepDecimals(d) {
+    var s = S(), k = key(sr, sc), cur0 = curFmt().num || null, m = /[.,](\d+)\D*$/.exec(display(s, k, valueOf(s, k)));
+    var f = PURE.decimals(cur0, d, cur0 ? 0 : m ? m[1].length : 0);
+    if (f && f !== cur0) fmtSel({ num: f });
+  }
+  function toggleNum(f) { fmtSel({ num: curFmt().num === f ? null : f }); }
+  // Today's date into the active cell, the date format over the selection (one step to undo).
+  function insertDate() {
+    commitIfEditing();
+    if (ro()) return;
+    var s = S(), R = selR(), d = new Date(), k = key(sr, sc);
+    var iso = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    R = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, MAXR - 1), c2: Math.min(R.c2, MAXC - 1) };
+    var fi = invFmt(s, R, ["num"]), inv = [{ op: "set", range: k, values: [[oldRaw(s, sr, sc)]] }];
+    doEdit(s, [{ op: "set", range: k, values: [[iso]] }, fmtOp(R, { num: DATE_FMT })], fi ? inv.concat(fi) : null);
+  }
+  // What the selection is, for the tools it brings: a dropdown, a checkbox, numbers, nothing yet, an error, merged cells.
+  function sheetUI() { return window.__sheetUI || {}; }
+  function uiCall(name, a) { var f = sheetUI()[name]; if (typeof f !== "function") return undefined; try { return f(a); } catch (e) { console.error("sheet ui " + name, e); return undefined; } }
+  function ctxOf() {
+    var s = S(), k = key(sr, sc), f = s.fmt[k] || {}, v = valueOf(s, k), R = selR(), u = used(s), any = false, numHere = typeof v === "number";
+    var cx = { dd: !!f.options && sr !== hdrRow(s), check: !!f.check, num: false, empty: false, err: isErr(v), merged: uiCall("canUnmerge") === true, on: v === true };
+    R = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, u.r), c2: Math.min(R.c2, u.c) };
+    if (R.r2 >= R.r1 && R.c2 >= R.c1) {
+      if (area(R) > 4000) any = true;
+      else eachIn(R, function (r, c, k2) {
+        var raw = s.cells[k2];
+        if (raw === undefined || raw === null || raw === "") return;
+        any = true;
+        if (!numHere && typeof valueOf(s, k2) === "number") numHere = true;
       });
-      if (live && hm.sheet.history) items.push({ label: T.hist, onClick: function () { openHistory(b); } });
-      if (editable) items.push({ label: T.imp, onClick: function () { impMenu(b); } });
-      kit.menu(b, items);
-    }, "sh-more");
+    }
+    cx.num = numHere && !cx.dd && !cx.check;
+    cx.empty = !any && !cx.dd && !cx.check;
+    return cx;
+  }
+  // The tools, left to right. edit: needs an editable sheet ("comment", "ask": those paths); pri: the
+  // higher, the sooner it moves into More when the bar is short; on(cx): "bar", "more" (in More only)
+  // or false for this selection; menu: it opens under its button (under More when it sits in there).
+  var TOOLS = [
+    { id: "undo", label: T.undo, html: kit.icon("undo"), run: function () { undo(); grid.focus(); }, edit: true, pri: 1 },
+    { id: "redo", label: T.redo, html: kit.icon("redo"), run: function () { redo(); grid.focus(); }, edit: true, pri: 1 },
+    "|",
+    { id: "bold", label: T.bold + " (Ctrl+B)", html: kit.icon("bold"), run: function () { toggleFmt("bold"); }, edit: true, pri: 1, pressed: function () { return !!curFmt().bold; } },
+    { id: "italic", label: T.italic + " (Ctrl+I)", html: kit.icon("italic"), run: function () { toggleFmt("italic"); }, edit: true, pri: 1, pressed: function () { return !!curFmt().italic; } },
+    { id: "underline", label: T.underline + " (Ctrl+U)", html: kit.icon("underline"), run: function () { toggleFmt("underline"); }, edit: true, pri: 5, pressed: function () { return !!curFmt().underline; } },
+    "|",
+    { id: "align", label: T.align, html: kit.icon("alignL") + CARET, run: function (e, b) { alignMenu(b); }, edit: true, pri: 5, menu: true },
+    { id: "fg", label: T.textColor, html: '<span class="sh-ico">' + ico("fcolor") + "</span>" + CARET, run: function (e, b) { colorPop(b, "fg"); }, edit: true, pri: 6, menu: true },
+    { id: "bg", label: T.fill, html: '<span class="sh-ico">' + ico("bucket") + "</span>" + CARET, run: function (e, b) { colorPop(b, "bg"); }, edit: true, pri: 6, menu: true },
+    { id: "borders", label: T.borders, html: ico("borders") + CARET, run: function (e, b) { commitIfEditing(); uiCall("openBorders", b); }, edit: true, pri: 6, menu: true,
+      on: function () { return typeof sheetUI().openBorders === "function" ? "bar" : false; } },
+    { id: "merge", label: T.merge, html: ico("merge"), run: function () { commitIfEditing(); uiCall("mergeSel"); }, edit: true, pri: 6,
+      on: function (cx) { return typeof sheetUI().mergeSel === "function" && !cx.merged ? "bar" : false; } },
+    { id: "unmerge", label: T.unmerge, html: ico("unmerge"), run: function () { commitIfEditing(); uiCall("unmergeSel"); }, edit: true, pri: 6,
+      on: function (cx) { return typeof sheetUI().unmergeSel === "function" && cx.merged ? "bar" : false; } },
+    "|",
+    { id: "num", label: T.numFmt, html: ico("num") + CARET, run: function (e, b) { numMenu(b); }, edit: true, pri: 1, menu: true },
+    { id: "decLess", label: T.decLess, html: txtIco("←.0"), run: function () { stepDecimals(-1); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; } },
+    { id: "decMore", label: T.decMore, html: txtIco(".00→"), run: function () { stepDecimals(1); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; } },
+    { id: "cur", label: T.currency, html: txtIco(L === "hu" ? "Ft" : "$"), run: function () { toggleNum(CUR_FMT); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; },
+      pressed: function () { return curFmt().num === CUR_FMT; } },
+    { id: "pct", label: T.nPercent, html: txtIco("%"), run: function () { toggleNum("0%"); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; },
+      pressed: function () { return curFmt().num === "0%"; } },
+    "|",
+    { id: "dd", label: T.dropdown, html: ico("dropdown"), run: function () { dropdownDlg(); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : cx.dd ? false : "more"; } },
+    { id: "ddOpts", label: T.ddOptions, html: ico("dropdown") + "<span></span>", text: T.ddOptions, run: function () { dropdownDlg(); }, edit: true, pri: 3, on: function (cx) { return cx.dd ? "bar" : false; } },
+    { id: "check", label: T.checkbox, html: ico("checkbox"), run: function () { toggleFmt("check"); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : cx.check ? false : "more"; } },
+    { id: "ckTick", label: T.ckTick, html: '<span class="sh-ico sh-ckb"></span>', run: function () { toggleChecks(selR()); }, edit: true, pri: 3, on: function (cx) { return cx.check ? "bar" : false; },
+      pressed: function (cx) { return cx.on; } },
+    { id: "ckOff", label: T.ckRemove, html: ico("checkbox"), run: function () { toggleFmt("check"); }, edit: true, pri: 7, on: function (cx) { return cx.check ? "more" : false; } },
+    { id: "date", label: T.dateToday, html: ico("date"), run: function () { insertDate(); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : false; } },
+    { id: "fix", label: T.fixAsk, html: kit.icon("sparkle") + "<span></span>", text: T.fixAsk, run: function () { var e = selErrs(); askFix(e, e.length); }, edit: "ask", pri: 3,
+      on: function (cx) { return cx.err && canFix() ? "bar" : false; } },
+    "|",
+    { id: "ins", label: T.insert, html: ico("rows") + CARET, run: function (e, b) { insMenu(b); }, edit: true, pri: 8, menu: true },
+    { id: "sort", label: T.sort, html: ico("sort") + CARET, run: function (e, b) { sortMenu(b); }, edit: true, pri: 8, menu: true },
+    { id: "freeze", label: T.freeze, html: ico("freeze") + CARET, run: function (e, b) { freezeMenu(b); }, edit: true, pri: 8, menu: true },
+    { id: "chart", label: T.chart, html: ico("chart") + CARET, run: function (e, b) { chartMenu(b); }, edit: true, pri: 6, menu: true },
+    { id: "filter", label: T.filter, html: ico("filter") + CARET, run: function (e, b) { filterMenu(b); }, edit: false, pri: 7, menu: true },
+    { id: "rules", label: T.rules, html: ico("rules"), run: function () { commitIfEditing(); uiCall("openRules"); }, edit: true, pri: 7,
+      on: function () { return typeof sheetUI().openRules === "function" ? "bar" : false; } },
+    "|",
+    { id: "comment", label: T.comment, html: kit.icon("comment"), run: function () { commitIfEditing(); commentSel(); }, edit: "comment", pri: 9 },
+    { id: "ask", label: T.ask, html: kit.icon("sparkle"), run: function () { askSel(); }, edit: "ask", pri: 4 },
+    "gap",
+    { id: "find", label: T.find + " (Ctrl+F)", html: ico("search"), run: function () { openFind(); }, edit: false, pri: 2 },
+    { id: "view", label: T.view, html: '<span class="sh-ico sh-txt sh-zoom"></span>' + CARET, run: function (e, b) { viewPop(b); }, edit: false, pri: 4, menu: true },
+    { id: "hist", label: T.hist, html: kit.icon("history"), run: function (e, b) { openHistory(b); }, edit: "hist", pri: 9, menu: true },
+    { id: "imp", label: T.imp, html: ico("upload"), run: function (e, b) { impMenu(b); }, edit: true, pri: 9, menu: true },
+    { id: "exp", label: T.exp, html: kit.icon("download") + "<span></span>", text: T.exp, run: function (e, b) { expMenu(b); }, edit: false, pri: 4, menu: true }
+  ];
+  var toolEls = {}, tools = [], moreBtn = null, barSig = "", barOver = [], barTight = false;
+  function hasTool(t) {
+    return t.edit === "comment" ? canComment && live : t.edit === "ask" ? live && !!hm.sheet.ask : t.edit === "hist" ? live && !!hm.sheet.history : t.edit ? editable : true;
+  }
+  if (!C.thumb) {
+    TOOLS.forEach(function (t) {
+      if (t === "|") { var sp = h("span", { "class": "sh-sep" }); bar.appendChild(sp); return tools.push({ sep: sp }); }
+      if (t === "gap") { bar.appendChild(h("span", { "class": "sh-gap" })); bar.appendChild(status); return tools.push({ gap: true }); }
+      if (!hasTool(t)) return;
+      t.el = barBtn(t.label, t.html, t.run);
+      if (t.text) kit.labelled(t.el, t.text);
+      if (t.pressed) t.el.setAttribute("aria-pressed", "false");
+      if (t.menu) t.el.setAttribute("aria-haspopup", "true");
+      toolEls[t.id] = t.el; bar.appendChild(t.el); tools.push(t);
+    });
+    moreBtn = barBtn(T.more, kit.icon("more"), function (e, b) {
+      kit.menu(b, barOver.map(function (t) {
+        var on = t.pressed ? t.pressed(ctxOf()) : false;
+        return { label: (on ? "✓ " : "") + t.label.replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { t.run(null, t.menu ? b : t.el); } };
+      }));
+    });
+    moreBtn.setAttribute("aria-haspopup", "true");
     bar.appendChild(moreBtn);
     if (!live) setStatus(T.offline);
     foot.append(tabsEl);
     if (editable) foot.appendChild(barBtn(T.addSheet, kit.icon("plus"), function () { addSheet(); }, "sh-addtab"));
     foot.appendChild(statsEl);
     kit.exports(exportList);
+    if (window.ResizeObserver) new ResizeObserver(function () { barSync(true); }).observe(bar);
+    else window.addEventListener("resize", function () { barSync(true); });
   }
+  // Lay the bar out for the selection: the tools it brings, as many as fit by priority, the rest under More.
+  function barSync(force) {
+    if (C.thumb || !moreBtn) return;
+    var cx = ctxOf(), zl = toolEls.view && toolEls.view.querySelector(".sh-zoom"), W = bar.clientWidth;
+    var sig = [W, ro() ? 1 : 0, cx.dd, cx.check, cx.num, cx.empty, cx.err && canFix(), cx.merged, Object.keys(sheetUI()).join(",")].join("|");
+    if (zl && zl.textContent !== prefs.zoom + "%") { zl.textContent = prefs.zoom + "%"; toolEls.view.w = 0; force = true; }
+    tools.forEach(function (t) { if (t.el && t.pressed) { var p = t.pressed(cx) ? "true" : "false"; if (t.el.getAttribute("aria-pressed") !== p) t.el.setAttribute("aria-pressed", p); } });
+    if (!force && sig === barSig) return;
+    barSig = sig;
+    var list = tools.filter(function (t) { return t.el; }), onBar = [];
+    // a short bar drops the buttons' text labels; their widths are measured again then
+    if (W < 700 !== barTight) { barTight = W < 700; bar.classList.toggle("sh-tight", barTight); list.forEach(function (t) { t.el.w = 0; }); }
+    list.forEach(function (t) {
+      t.where = preview && t.edit && t.edit !== "hist" ? false : t.on ? t.on(cx) : "bar";
+      if (t.where === "bar") { t.el.classList.remove("sh-off"); onBar.push(t); } else t.el.classList.add("sh-off");
+    });
+    tools.forEach(function (t) { if (t.sep) t.sep.classList.remove("sh-off"); });
+    moreBtn.classList.remove("sh-off");
+    // widths, measured once each while shown (a hidden button has none)
+    onBar.forEach(function (t) { if (!t.el.w) t.el.w = t.el.offsetWidth; });
+    if (!moreBtn.w) moreBtn.w = moreBtn.offsetWidth;
+    var seps = tools.filter(function (t) { return t.sep; }).length;
+    var room = W - 16 - moreBtn.w - 2 - Math.min(status.scrollWidth, 90) - 6 - seps * 11;
+    var need = 0, byPri = onBar.slice().sort(function (a, b) { return b.pri - a.pri || list.indexOf(b) - list.indexOf(a); });
+    onBar.forEach(function (t) { need += t.el.w + 2; });
+    barOver = [];
+    for (var i = 0; i < byPri.length && need > room; i++) {
+      if (byPri[i].pri <= 1) break;  // the essentials stay: the status text gives way first
+      byPri[i].el.classList.add("sh-off"); byPri[i].where = "over"; need -= byPri[i].el.w + 2;
+    }
+    barOver = list.filter(function (t) { return t.where === "over" || t.where === "more"; });
+    // a separator stands between two shown groups only
+    var seen1 = false, pend1 = null;
+    tools.forEach(function (t) {
+      if (t.gap) { if (pend1) pend1.classList.add("sh-off"); pend1 = null; seen1 = false; return; }
+      if (t.sep) { if (!seen1 || pend1) t.sep.classList.add("sh-off"); else pend1 = t.sep; return; }
+      if (t.el && !t.el.classList.contains("sh-off")) { seen1 = true; pend1 = null; }
+    });
+    if (pend1) pend1.classList.add("sh-off");
+    moreBtn.classList.toggle("sh-off", !barOver.length);
+  }
+  // After the selection or the sheet changed: the bar, the error bubble.
+  function uiSync() { if (C.thumb) return; barSync(false); errSync(); }
   function drawUndo() {
     if (toolEls.undo) toolEls.undo.disabled = !undoS.length;
     if (toolEls.redo) toolEls.redo.disabled = !redoS.length;
   }
+  if (!C.thumb) { applyMetrics(); if (prefs.theme !== "auto") applyTheme(); setTimeout(errToast, 700); }
   function cellMenu(x, y) {
     var a = h("div", { style: "position:fixed;width:1px;height:1px;left:" + x + "px;top:" + y + "px" });
     document.body.appendChild(a);
@@ -2237,11 +3420,712 @@
       { label: T.delRows, onClick: delRows }, { label: T.delCols, onClick: delCols },
       { label: T.sortAsc, onClick: function () { sortSel(false); } }, { label: T.sortDesc, onClick: function () { sortSel(true); } },
       { label: T.clear, onClick: clearSel }, { label: T.clearFmt, onClick: clearFormats }]);
-    if (!ro()) items.push({ label: T.chart + "…", onClick: function () { chartMenu(a.isConnected ? a : grid); } });
+    if (!ro()) items.push({ label: T.chart + "…", onClick: function () { chartMenu(a.isConnected ? a : grid); } },
+      { label: T.dropdown + "…", onClick: dropdownDlg }, { label: T.checkbox, onClick: function () { toggleFmt("check"); } },
+      { label: T.cfTitle + "…", onClick: function () { openRules(); } }, { label: T.borders + "…", onClick: function () { openBorders(null); } },
+      canUnmerge() ? { label: T.unmerge, onClick: unmergeSel } : { label: T.merge, onClick: mergeSel });
+    if (!preview) items.push({ label: T.fltCol, onClick: filterHere });
     if (canComment && live) items.push({ label: T.comment, onClick: commentSel });
     if (live && hm.sheet.ask) items.push({ label: T.ask, onClick: askSel });
     kit.menu(a, items);
   }
+
+  // ==================================================================== merged cells, borders, conditional formatting, dropdown colours
+  // One block. The grid's own functions call into it (renderQ, the selection, applyLocal); its commands
+  // are on window.__sheetUI for the toolbar: openRules(), openBorders(anchor), mergeSel(), unmergeSel(), canUnmerge().
+  var T2 = pickLang({
+    en: { cfTitle: "Conditional formatting", borders: "Borders", merge: "Merge cells", unmerge: "Unmerge cells",
+      mergeNeeds: "Select two or more cells to merge",
+      bAll: "All borders", bInner: "Inner borders", bHorizontal: "Horizontal inner borders", bVertical: "Vertical inner borders", bOuter: "Outer border",
+      bLeft: "Left border", bTop: "Top border", bRight: "Right border", bBottom: "Bottom border", bNone: "No borders",
+      cfAdd: "Add rule", cfNone: "No rules on this sheet yet. A rule colours the cells that meet a condition.", cfHighlight: "Highlight", cfScale: "Colour scale",
+      cfApplies: "Applies to", cfUseSel: "Use the selection", cfWhen: "Format cells if the value", cfAndCol: "And", cfAddAnd: "+ And another column",
+      cfNoAnd: "Remove the second condition", cfFormat: "Format", cfFill: "Fill", cfText: "Text", cfBold: "Bold", cfStrike: "Strikethrough", cfNoColor: "None",
+      cfLow: "Low", cfMid: "Midpoint", cfHigh: "High", cfSave: "Save", cfDelete: "Delete rule", cfRules: "Rules", cfSample: "Sample 123",
+      cfBadRange: "Enter a range like C2:C20", cfBadFormula: "Enter a formula like =C2>10", cfNeedsValue: "Enter a value to compare with",
+      cfNoFormat: "Pick a format", cfMax: "A sheet holds at most 50 rules", cfCell: "Cell", cfAndWord: "and", cfValue: "Value", cfTo: "and", cfFormula: "Formula",
+      opIs: "is", opNot: "is not", opGt: "is greater than", opLt: "is less than", opBetween: "is between", opContains: "contains", opBlank: "is blank",
+      opFilled: "is not blank", opBefore: "is before today", opAfter: "is after today", opCustom: "Custom formula",
+      fRed: "Red", fOrange: "Orange", fGreen: "Green", fBlue: "Blue",
+      ddOpt: "Option", ddAdd: "Add option", ddPresets: "Presets", ddRename: "Name", ddColor: "Colour", ddNoColor: "No colour", ddDelOpt: "Delete option", ddNewPh: "New option",
+      pStatus: "Status", pPriority: "Priority", pYesNo: "Yes / No", pApproval: "Approval",
+      pTodo: "To do", pDoing: "In progress", pDone: "Done", pLow: "Low", pMedium: "Medium", pHigh: "High", pYes: "Yes", pNo: "No",
+      pPending: "Pending", pApproved: "Approved", pRejected: "Rejected",
+      c_gray: "Gray", c_red: "Red", c_orange: "Orange", c_yellow: "Yellow", c_green: "Green", c_teal: "Teal", c_blue: "Blue", c_purple: "Purple", c_magenta: "Magenta" },
+    hu: { cfTitle: "Feltételes formázás", borders: "Szegélyek", merge: "Cellák egyesítése", unmerge: "Egyesítés megszüntetése",
+      mergeNeeds: "Az egyesítéshez jelölj ki legalább két cellát",
+      bAll: "Minden szegély", bInner: "Belső szegélyek", bHorizontal: "Vízszintes belső szegélyek", bVertical: "Függőleges belső szegélyek", bOuter: "Külső szegély",
+      bLeft: "Bal szegély", bTop: "Felső szegély", bRight: "Jobb szegély", bBottom: "Alsó szegély", bNone: "Nincs szegély",
+      cfAdd: "Új szabály", cfNone: "Ezen a munkalapon még nincs szabály. Egy szabály kiszínezi a feltételnek megfelelő cellákat.", cfHighlight: "Kiemelés", cfScale: "Színskála",
+      cfApplies: "Tartomány", cfUseSel: "A kijelölés használata", cfWhen: "Formázás, ha az érték", cfAndCol: "És", cfAddAnd: "+ És egy másik oszlop",
+      cfNoAnd: "Második feltétel törlése", cfFormat: "Formátum", cfFill: "Kitöltés", cfText: "Szöveg", cfBold: "Félkövér", cfStrike: "Áthúzott", cfNoColor: "Nincs",
+      cfLow: "Alsó", cfMid: "Középpont", cfHigh: "Felső", cfSave: "Mentés", cfDelete: "Szabály törlése", cfRules: "Szabályok", cfSample: "Minta 123",
+      cfBadRange: "Adj meg egy tartományt, például C2:C20", cfBadFormula: "Adj meg egy képletet, például =C2>10", cfNeedsValue: "Adj meg egy értéket az összehasonlításhoz",
+      cfNoFormat: "Válassz formátumot", cfMax: "Egy munkalapon legfeljebb 50 szabály lehet", cfCell: "Cella", cfAndWord: "és", cfValue: "Érték", cfTo: "és", cfFormula: "Képlet",
+      opIs: "egyenlő", opNot: "nem egyenlő", opGt: "nagyobb, mint", opLt: "kisebb, mint", opBetween: "a két érték között van", opContains: "tartalmazza", opBlank: "üres",
+      opFilled: "nem üres", opBefore: "a mai nap előtti", opAfter: "a mai nap utáni", opCustom: "Egyéni képlet",
+      fRed: "Piros", fOrange: "Narancs", fGreen: "Zöld", fBlue: "Kék",
+      ddOpt: "Elem", ddAdd: "Új elem", ddPresets: "Kész listák", ddRename: "Név", ddColor: "Szín", ddNoColor: "Nincs szín", ddDelOpt: "Elem törlése", ddNewPh: "Új elem",
+      pStatus: "Állapot", pPriority: "Prioritás", pYesNo: "Igen / Nem", pApproval: "Jóváhagyás",
+      pTodo: "Teendő", pDoing: "Folyamatban", pDone: "Kész", pLow: "Alacsony", pMedium: "Közepes", pHigh: "Magas", pYes: "Igen", pNo: "Nem",
+      pPending: "Függőben", pApproved: "Jóváhagyva", pRejected: "Elutasítva",
+      c_gray: "Szürke", c_red: "Piros", c_orange: "Narancs", c_yellow: "Sárga", c_green: "Zöld", c_teal: "Türkiz", c_blue: "Kék", c_purple: "Lila", c_magenta: "Magenta" }
+  }, L);
+  Object.keys(T2).forEach(function (k) { if (T[k] == null) T[k] = T2[k]; });
+
+  // ---- merges
+  // s.merges: ranges ("A1:C1"); a merged cell holds content in its top-left cell only, and is one cell
+  // to the selection, the keyboard and the editor. The boxes are parsed once for each list.
+  function mgBoxes(s) {
+    var m = s._mg;
+    if (!m || m.src !== s.merges) m = s._mg = { src: s.merges, boxes: (s.merges || []).map(parseRange).filter(Boolean) };
+    return m.boxes;
+  }
+  function mergeAt(s, r, c) {
+    if (!s.merges || !s.merges.length) return null;
+    for (var b = mgBoxes(s), i = 0; i < b.length; i++) if (r >= b[i].r1 && r <= b[i].r2 && c >= b[i].c1 && c <= b[i].c2) return b[i];
+    return null;
+  }
+  function covered(s, r, c) { var m = mergeAt(s, r, c); return !!m && (m.r1 !== r || m.c1 !== c); }
+  function mgTouch(b, R) { return !(b.r2 < R.r1 || b.r1 > R.r2 || b.c2 < R.c1 || b.c1 > R.c2); }
+  // The merged cells a pane's window shows (rr: places, cc: columns), or null.
+  function mgIn(s, rr, cc) {
+    if (!s.merges || !s.merges.length) return null;
+    var W = { r1: rowOf(rr[0]), r2: rowOf(rr[1]), c1: cc[0], c2: cc[1] }, out = null;
+    for (var b = mgBoxes(s), i = 0; i < b.length; i++) if (mgTouch(b[i], W)) (out = out || []).push(b[i]);
+    return out;
+  }
+  function mgHit(vm, r, c) {
+    for (var i = 0; i < vm.length; i++) if (r >= vm[i].r1 && r <= vm[i].r2 && c >= vm[i].c1 && c <= vm[i].c2) return vm[i];
+    return null;
+  }
+  // A cell's box in viewport pixels, the whole merged cell when it is one.
+  function mBox(r, c) {
+    var m = mergeAt(S(), r, c);
+    if (!m) return cellBox(r, c);
+    var b = cellBox(m.r1, m.c1);
+    b.w = colX[Math.min(m.c2 + 1, nCols)] - colX[m.c1]; b.h = rowY(m.r2 + 1) - rowY(m.r1);
+    return b;
+  }
+  // The selection after any change: the active cell is a merged cell's top-left one, and the selection
+  // holds the whole of every merged cell it reaches into.
+  function snapSel() {
+    var s = S();
+    if (rpOn) rpSync();
+    if (!s.merges || !s.merges.length || selMode !== "cells") return;
+    var m = mergeAt(s, sr, sc), one = sr === er && sc === ec;
+    if (m) { sr = m.r1; sc = m.c1; if (one) { er = m.r2; ec = m.c2; } }
+    var R = { r1: Math.min(sr, er), c1: Math.min(sc, ec), r2: Math.max(sr, er), c2: Math.max(sc, ec) }, b = mgBoxes(s), grew = true, any = false;
+    while (grew) {
+      grew = false;
+      for (var i = 0; i < b.length; i++) {
+        var x = b[i];
+        if (!mgTouch(x, R)) continue;
+        if (x.r1 < R.r1) { R.r1 = x.r1; grew = true; } if (x.r2 > R.r2) { R.r2 = x.r2; grew = true; }
+        if (x.c1 < R.c1) { R.c1 = x.c1; grew = true; } if (x.c2 > R.c2) { R.c2 = x.c2; grew = true; }
+      }
+      any = any || grew;
+    }
+    if (!any) return;
+    var top = sr === R.r1, left = sc === R.c1, bottom = sr === R.r2, right = sc === R.c2;
+    if ((top || bottom) && (left || right)) { er = top ? R.r2 : R.r1; ec = left ? R.c2 : R.c1; }
+    else { sr = R.r1; sc = R.c1; er = R.r2; ec = R.c2; }  // the anchor is no corner any more: the top-left cell is
+  }
+  // One step from a cell, leaving the merged cell it is in by the side the step points to.
+  function stepOut(r, c, dr, dc) {
+    var m = mergeAt(S(), r, c);
+    if (m) { if (dr > 0) r = m.r2; else if (dr < 0) r = m.r1; if (dc > 0) c = m.c2; else if (dc < 0) c = m.c1; }
+    return [dr ? stepRow(r, dr) : r, c + dc];
+  }
+  function mgApply(s, R) {
+    var keep = s.merges.filter(function (m) { var b = parseRange(m); return !b || !(b.r1 >= R.r1 && b.r2 <= R.r2 && b.c1 >= R.c1 && b.c2 <= R.c2); });
+    for (var k in s.cells) {
+      var p = parseKey(k);
+      if (p && inR(R, p.r, p.c) && (p.r !== R.r1 || p.c !== R.c1)) { delete s.cells[k]; delete s.vals[k]; touch(s, k); usedAfter(s, p.r, p.c, false); }
+    }
+    s.merges = keep.concat([rangeName(R)]);
+  }
+  function selBox() { var R = selR(); return { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, MAXR - 1), c2: Math.min(R.c2, MAXC - 1) }; }
+  function canUnmerge() { var s = S(), R = selR(); return !!(s.merges && s.merges.length) && mgBoxes(s).some(function (b) { return mgTouch(b, R); }); }
+  // Merge the selection: the top-left cell's content stays, the rest is emptied (undo brings it back).
+  function mergeSel() {
+    commitIfEditing();
+    if (ro()) return;
+    var s = S(), R = selBox();
+    if (selMode !== "cells" || area(R) < 2 || area(R) > 200000) return kit.toast(T.mergeNeeds);
+    var inside = s.merges.filter(function (m) { var b = parseRange(m); return b && mgTouch(b, R); }), old = oldMatrix(s, R);
+    if (inside.length === 1 && inside[0] === rangeName(R)) return;
+    var inv = old ? [{ op: "unmerge", range: rangeName(R) }, { op: "set", range: key(R.r1, R.c1), values: old }].concat(inside.map(function (m) { return { op: "merge", range: m }; })) : null;
+    doEdit(s, [{ op: "merge", range: rangeName(R) }], inv);
+    sr = R.r1; sc = R.c1; er = R.r2; ec = R.c2; afterSel();
+  }
+  function unmergeSel() {
+    commitIfEditing();
+    if (ro()) return;
+    var s = S(), R = selBox(), hitM = s.merges.filter(function (m) { var b = parseRange(m); return b && mgTouch(b, R); });
+    if (!hitM.length) return;
+    doEdit(s, [{ op: "unmerge", range: rangeName(R) }], hitM.map(function (m) { return { op: "merge", range: m }; }));
+    afterSel();
+  }
+
+  // ---- borders
+  // fmt.bd: the edges a cell draws, of "tblr" (thin, in the theme's line colour). A cell's right and
+  // bottom lines are its own box's; its top and left ones are drawn by the cells above and to the
+  // left (as their bottom and right), so two cells sharing a line draw it once.
+  function hasBd(s) {
+    if (s._bd === undefined) { s._bd = false; for (var k in s.fmt) if (s.fmt[k].bd) { s._bd = true; break; } }
+    return s._bd;
+  }
+  function bdOf(s, r, c) { var f = r >= 0 && c >= 0 ? s.fmt[key(r, c)] : null; return f && f.bd || ""; }
+  function bdCss(s, mg, r, c) {
+    var r1 = mg ? mg.r1 : r, c1 = mg ? mg.c1 : c, r2 = mg ? mg.r2 : r, c2 = mg ? mg.c2 : c, own = bdOf(s, r1, c1), css = "", sh = "";
+    if ((mg ? bdOf(s, r1, c2) : own).indexOf("r") >= 0 || bdOf(s, r1, c2 + 1).indexOf("l") >= 0) css += "border-right-color:var(--sh-bd);";
+    if ((mg ? bdOf(s, r2, c1) : own).indexOf("b") >= 0 || bdOf(s, r2 + 1, c1).indexOf("t") >= 0) css += "border-bottom-color:var(--sh-bd);";
+    if (r1 === 0 && own.indexOf("t") >= 0) sh = "inset 0 1px 0 var(--sh-bd)";
+    if (c1 === 0 && own.indexOf("l") >= 0) sh += (sh ? "," : "") + "inset 1px 0 0 var(--sh-bd)";
+    return sh ? css + "box-shadow:" + sh + ";" : css;
+  }
+  // A range's border preset as the edges of its cells, as the server resolves it (sheets.py _apply_border).
+  function bdLocal(fmt, kind, R) {
+    function put(r, c, add, drop) {
+      if (r < 0 || c < 0 || r >= MAXR || c >= MAXC) return;
+      var k = key(r, c), f = fmt[k], have = f && f.bd || "", bd = "";
+      for (var i = 0; i < 4; i++) { var ch = "tblr".charAt(i); if ((have.indexOf(ch) >= 0 || add.indexOf(ch) >= 0) && drop.indexOf(ch) < 0) bd += ch; }
+      if (bd === have) return;
+      if (!f) f = fmt[k] = {};
+      if (bd) f.bd = bd; else { delete f.bd; if (!Object.keys(f).length) delete fmt[k]; }
+    }
+    var r, c;
+    if (kind === "none") {
+      for (r = R.r1; r <= R.r2; r++) { for (c = R.c1; c <= R.c2; c++) put(r, c, "", "tblr"); put(r, R.c1 - 1, "", "r"); put(r, R.c2 + 1, "", "l"); }
+      for (c = R.c1; c <= R.c2; c++) { put(R.r1 - 1, c, "", "b"); put(R.r2 + 1, c, "", "t"); }
+      return;
+    }
+    for (r = R.r1; r <= R.r2; r++) for (c = R.c1; c <= R.c2; c++) {
+      var e = "";
+      if (kind === "all") e = "tblr";
+      else if (kind === "inner" || kind === "horizontal" || kind === "vertical")
+        e = (kind !== "vertical" ? (r > R.r1 ? "t" : "") + (r < R.r2 ? "b" : "") : "") + (kind !== "horizontal" ? (c > R.c1 ? "l" : "") + (c < R.c2 ? "r" : "") : "");
+      else e = ((kind === "outer" || kind === "top") && r === R.r1 ? "t" : "") + ((kind === "outer" || kind === "bottom") && r === R.r2 ? "b" : "") +
+        ((kind === "outer" || kind === "left") && c === R.c1 ? "l" : "") + ((kind === "outer" || kind === "right") && c === R.c2 ? "r" : "");
+      if (e) put(r, c, e, "");
+    }
+  }
+  var BD_KINDS = [["all", "bAll"], ["inner", "bInner"], ["horizontal", "bHorizontal"], ["vertical", "bVertical"], ["outer", "bOuter"],
+    ["left", "bLeft"], ["top", "bTop"], ["right", "bRight"], ["bottom", "bBottom"], ["none", "bNone"]];
+  var BD_PATH = { all: "M3 3h18v18H3zM12 3v18M3 12h18", inner: "M12 3v18M3 12h18", horizontal: "M3 12h18", vertical: "M12 3v18", outer: "M3 3h18v18H3z",
+    left: "M3 3v18", top: "M3 3h18", right: "M21 3v18", bottom: "M3 21h18", none: "" };
+  function bdIcon(kind) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 3h18v18H3zM12 3v18M3 12h18" stroke-width="1" stroke-dasharray="1.5 2.6" opacity=".5"/>' +
+      (BD_PATH[kind] ? '<path d="' + BD_PATH[kind] + '" stroke-width="2" stroke-linecap="square"/>' : "") + "</svg>";
+  }
+  function setBorder(kind) {
+    commitIfEditing();
+    if (ro()) return;
+    var s = S(), R = selBox();
+    // "none" also takes the facing edges of the cells around: undo brings those back too
+    var G = kind === "none" ? { r1: Math.max(0, R.r1 - 1), c1: Math.max(0, R.c1 - 1), r2: Math.min(MAXR - 1, R.r2 + 1), c2: Math.min(MAXC - 1, R.c2 + 1) } : R;
+    doEdit(s, [{ op: "format", range: rangeName(R), border: kind }], invFmt(s, G, ["bd"]));
+  }
+  // The borders popover: ten presets over the selection. anchor: the toolbar's button, or none (then by the active cell).
+  function openBorders(anchor) {
+    commitIfEditing();
+    if (ro()) return;
+    var el = h("div", { "class": "sh-pop sh-bdp", role: "dialog", "aria-label": T.borders });
+    BD_KINDS.forEach(function (x) {
+      el.appendChild(h("button", { type: "button", title: T[x[1]], "aria-label": T[x[1]], html: bdIcon(x[0]), onclick: function () { closePop(); setBorder(x[0]); grid.focus(); } }));
+    });
+    el.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    openPop(el, anchor && anchor.getBoundingClientRect ? anchor : null);
+    if (!anchor || !anchor.getBoundingClientRect) popAtCell(el);
+    var first = el.querySelector("button");
+    if (first) first.focus();
+  }
+  function popAtCell(el) {
+    var b = mBox(sr, sc), vr = vp.getBoundingClientRect(), top = vr.top + b.y + b.h + 4;
+    el.style.left = Math.max(8, Math.min(vr.left + b.x, innerWidth - el.offsetWidth - 8)) + "px";
+    el.style.top = Math.max(8, top + el.offsetHeight > innerHeight - 8 ? vr.top + b.y - el.offsetHeight - 4 : top) + "px";
+  }
+
+  // ---- conditional formatting
+  // s.rules: [{range, if: "=formula", bg, fg, bold, strike} | {range, scale: [low, (mid,) high]}]. A rule's formula is
+  // written for its range's top-left cell and shifted for the others; later rules win, and all win over the
+  // cell's own format. Only the cells drawn are computed, and kept until a value changes (cfGen).
+  function cfState(s) {
+    var st = s._cf;
+    if (!st || st.src !== s.rules) {
+      st = s._cf = { src: s.rules, gen: -1, cache: null, rules: [] };
+      s.rules.forEach(function (r) { var R = r && parseRange(r.range); if (R) st.rules.push({ R: R, rule: r, stat: null }); });
+    }
+    if (st.gen !== cfGen) { st.gen = cfGen; st.cache = Object.create(null); st.rules.forEach(function (x) { x.stat = null; }); }
+    return st;
+  }
+  // What the rules give a cell: {bg, fg, bold, strike} or null.
+  function cfAt(s, r, c, k) {
+    var st = cfState(s), hitC = st.cache[k];
+    if (hitC !== undefined) return hitC || null;
+    var out = null;
+    for (var i = 0; i < st.rules.length; i++) {
+      var x = st.rules[i], ru = x.rule;
+      if (!inR(x.R, r, c)) continue;
+      if (ru.scale) { var col = cfScaleAt(s, x, k); if (col) (out = out || {}).bg = col; }
+      else if (cfTrue(s, x, r, c, k)) {
+        out = out || {};
+        if (ru.bg) out.bg = ru.bg; if (ru.fg) out.fg = ru.fg; if (ru.bold) out.bold = true; if (ru.strike) out.strike = true;
+      }
+    }
+    st.cache[k] = out || 0;
+    return out;
+  }
+  function cfMix(f, x) {
+    if (!x) return f;
+    var o = {}, k;
+    for (k in f || {}) o[k] = f[k];
+    for (k in x) o[k] = x[k];
+    return o;
+  }
+  function cfTrue(s, x, r, c, k) {
+    if (!wb || !wb.evalAt) return false;
+    var f = x.rule["if"], dr = r - x.R.r1, dc = c - x.R.c1, v;
+    try { v = wb.evalAt(s.name, k, dr || dc ? shift(f, dr, dc) : f); } catch (e) { return false; }
+    return v === true || typeof v === "number" && v !== 0;
+  }
+  function cfNum(v) { return typeof v === "number" ? v : isDate(v) && F && F.toSerial ? F.toSerial(v) : null; }
+  // The lowest, middle and highest number of a colour scale's range.
+  function cfStat(s, x) {
+    if (x.stat) return x.stat;
+    var xs = [], R = x.R, k, p, n;
+    for (k in s.cells) { p = parseKey(k); if (p && inR(R, p.r, p.c)) { n = cfNum(valueOf(s, k)); if (n !== null) xs.push(n); } }
+    xs.sort(function (a, b) { return a - b; });
+    var h2 = xs.length >> 1;
+    return (x.stat = xs.length ? { lo: xs[0], hi: xs[xs.length - 1], mid: xs.length % 2 ? xs[h2] : (xs[h2 - 1] + xs[h2]) / 2 } : { none: true });
+  }
+  function hexMix(a, b, t) {
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), out = "#";
+    t = clamp(t, 0, 1);
+    for (var sft = 16; sft >= 0; sft -= 8) { var v = Math.round((x >> sft & 255) + ((y >> sft & 255) - (x >> sft & 255)) * t).toString(16); out += v.length < 2 ? "0" + v : v; }
+    return out;
+  }
+  function cfScaleAt(s, x, k) {
+    var n = cfNum(valueOf(s, k)), cs = x.rule.scale;
+    if (n === null) return null;
+    var st = cfStat(s, x);
+    if (st.none) return null;
+    if (st.hi === st.lo) return cs[0];
+    if (cs.length === 2) return hexMix(cs[0], cs[1], (n - st.lo) / (st.hi - st.lo));
+    return n <= st.mid ? hexMix(cs[0], cs[1], st.mid === st.lo ? 1 : (n - st.lo) / (st.mid - st.lo)) : hexMix(cs[1], cs[2], st.hi === st.mid ? 1 : (n - st.mid) / (st.hi - st.mid));
+  }
+
+  // A condition of the builder <-> the formula it stands for. ref: "C3" (the range's first cell) or "$D3" (another column of the row).
+  var CF_OPS = ["is", "not", "gt", "lt", "between", "contains", "blank", "filled", "before", "after"];
+  var CF_OPT = { is: "opIs", not: "opNot", gt: "opGt", lt: "opLt", between: "opBetween", contains: "opContains", blank: "opBlank", filled: "opFilled", before: "opBefore", after: "opAfter", custom: "opCustom" };
+  var CF_ARGS = { is: 1, not: 1, gt: 1, lt: 1, between: 2, contains: 1, blank: 0, filled: 0, before: 0, after: 0 };
+  function cfQuote(t) { return '"' + String(t).replace(/"/g, '""') + '"'; }
+  function cfLit(t) {
+    var p = parseText(String(t).trim()).value;
+    return typeof p === "number" ? String(p) : typeof p === "boolean" ? (p ? "TRUE" : "FALSE") : cfQuote(p);
+  }
+  function cfCond(ref, op, a, b) {
+    switch (op) {
+      case "is": return ref + "=" + cfLit(a);
+      case "not": return ref + "<>" + cfLit(a);
+      case "gt": return ref + ">" + cfLit(a);
+      case "lt": return "AND(" + ref + '<>"",' + ref + "<" + cfLit(a) + ")";  // an empty cell is not "less than"
+      case "between": return "AND(" + ref + ">=" + cfLit(a) + "," + ref + "<=" + cfLit(b) + ")";
+      case "contains": return "ISNUMBER(SEARCH(" + cfQuote(String(a).trim()) + "," + ref + "))";
+      case "blank": return ref + '=""';
+      case "filled": return ref + '<>""';
+      case "before": return "AND(" + ref + '<>"",' + ref + "<TODAY())";
+      case "after": return ref + ">TODAY()";
+    }
+    return "FALSE";
+  }
+  var CF_REF = "(\\$?[A-Z]{1,3}\\$?[0-9]+)", CF_LIT = '("(?:[^"]|"")*"|-?[0-9]+(?:\\.[0-9]+)?|TRUE|FALSE)';
+  var CF_RE = [
+    ["before", new RegExp("^AND\\(" + CF_REF + '<>"",\\1<TODAY\\(\\)\\)$')], ["after", new RegExp("^" + CF_REF + ">TODAY\\(\\)$")],
+    ["lt", new RegExp("^AND\\(" + CF_REF + '<>"",\\1<' + CF_LIT + "\\)$")], ["between", new RegExp("^AND\\(" + CF_REF + ">=" + CF_LIT + ",\\1<=" + CF_LIT + "\\)$")],
+    ["contains", new RegExp('^ISNUMBER\\(SEARCH\\(("(?:[^"]|"")*"),' + CF_REF + "\\)\\)$")], ["blank", new RegExp("^" + CF_REF + '=""$')],
+    ["filled", new RegExp("^" + CF_REF + '<>""$')], ["is", new RegExp("^" + CF_REF + "=" + CF_LIT + "$")], ["not", new RegExp("^" + CF_REF + "<>" + CF_LIT + "$")],
+    ["gt", new RegExp("^" + CF_REF + ">" + CF_LIT + "$")],
+    // as Hermes or a file writes them, without the guard against empty cells
+    ["before", new RegExp("^" + CF_REF + "<TODAY\\(\\)$")], ["lt", new RegExp("^" + CF_REF + "<" + CF_LIT + "$")]];
+  function cfUnlit(t) { return t.charAt(0) === '"' ? t.slice(1, -1).replace(/""/g, '"') : L === "hu" && /^-?[0-9]/.test(t) ? t.replace(".", ",") : t; }
+  function cfCondParse(t) {
+    for (var i = 0; i < CF_RE.length; i++) {
+      var m = CF_RE[i][1].exec(t), op = CF_RE[i][0];
+      if (!m) continue;
+      if (op === "contains") return { ref: m[2], op: op, a: cfUnlit(m[1]), b: "" };
+      return { ref: m[1], op: op, a: m[2] !== undefined ? cfUnlit(m[2]) : "", b: m[3] !== undefined ? cfUnlit(m[3]) : "" };
+    }
+    return null;
+  }
+  // A rule's formula as one or two conditions, or null (a formula of the user's own).
+  function cfParse(f) {
+    var t = String(f || "").slice(1), one = cfCondParse(t);
+    if (one) return [one];
+    if (!/^AND\(.*\)$/.test(t)) return null;
+    var inner = t.slice(4, -1), depth = 0, q = false, cut = -1;
+    for (var i = 0; i < inner.length; i++) {
+      var ch = inner.charAt(i);
+      if (ch === '"') q = !q;
+      else if (q) continue;
+      else if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      else if (ch === "," && depth === 0) { if (cut >= 0) return null; cut = i; }
+    }
+    if (cut < 0) return null;
+    var a = cfCondParse(inner.slice(0, cut)), b = cfCondParse(inner.slice(cut + 1));
+    return a && b ? [a, b] : null;
+  }
+  // What a column is called: its header's text (the row above the range, else the header row), else its letter.
+  function cfColName(s, c, R) {
+    var rows = [R.r1 - 1, hdrRow(s)];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] < 0 || rows[i] >= R.r1) continue;
+      var v = valueOf(s, key(rows[i], c));
+      if (typeof v === "string" && v.trim() && !isDate(v)) return v.trim().slice(0, 30);
+    }
+    return null;
+  }
+  // A rule in words: "Due is before today and Status is not “Done”".
+  function cfTitleOf(s, rule) {
+    if (rule.scale) return T.cfScale;
+    var R = parseRange(rule.range), conds = cfParse(rule["if"]);
+    if (!conds || !R) return String(rule["if"] || "");
+    return conds.map(function (x) {
+      var p = parseKey(x.ref), name = p && cfColName(s, p.c, R) || (p && R.c1 !== R.c2 || !p ? x.ref.replace(/\$/g, "") : T.cfCell);
+      var n = CF_ARGS[x.op], word = T[CF_OPT[x.op]], txt = function (t) { return /^-?[0-9]/.test(t) || /^(TRUE|FALSE)$/.test(t) ? t : "“" + t + "”"; };
+      return name + " " + word + (n ? " " + txt(x.a) + (n > 1 ? " " + T.cfTo + " " + txt(x.b) : "") : "");
+    }).join(" " + T.cfAndWord + " ");
+  }
+  function cfSwatch(rule) {
+    var st = "";
+    if (rule.scale) st = "background:linear-gradient(90deg," + rule.scale.join(",") + ");color:transparent;";
+    else {
+      if (rule.bg) st += "background:" + rule.bg + ";color:" + (rule.fg || inkOn(rule.bg)) + ";"; else if (rule.fg) st += "color:" + rule.fg + ";";
+      if (rule.bold) st += "font-weight:700;"; if (rule.strike) st += "text-decoration:line-through;";
+    }
+    return h("span", { "class": "sh-rc-sw", style: st, text: "Aa", "aria-hidden": "true" });
+  }
+  var CF_LOOKS = [["fRed", { bg: "#fde2e1", fg: "#b42318" }], ["fOrange", { bg: "#fdecc8", fg: "#9a5b00" }], ["fGreen", { bg: "#d3f9d8", fg: "#1b6e2d" }],
+    ["fBlue", { bg: "#d0ebff", fg: "#1557a0" }], ["cfStrike", { fg: "#999999", strike: true }], ["cfBold", { bold: true }]];
+  var CF_FILLS = ["#fde2e1", "#fdecc8", "#fff3bf", "#d3f9d8", "#d0ebff", "#e5dbff", "#efefef"];
+  var CF_INKS = ["#b42318", "#9a5b00", "#1b6e2d", "#1557a0", "#7048e8", "#999999", "#000000"];
+  var CF_SCALES = [["#ffffff", "#57bb8a"], ["#f8696b", "#ffeb84", "#63be7b"], ["#ffffff", "#e67c73"], ["#63be7b", "#ffeb84", "#f8696b"]];
+
+  // The panel: docked at the right of the grid (over it when the page is narrow), a list of the sheet's rules, or one rule's editor.
+  var rpEl = null, rpOn = false, rpSig = "", rpView = "list", rpTimer = null;
+  function setRules(s, rules) { doEdit(s, [{ op: "rules", rules: rules }], [{ op: "rules", rules: s.rules }]); }
+  function rpPlace() {
+    if (!rpOn) return;
+    var g = grid.getBoundingClientRect();
+    rpEl.style.top = g.top + "px"; rpEl.style.height = g.height + "px";
+  }
+  function openRules() {
+    commitIfEditing();
+    if (C.thumb) return;
+    if (!rpEl) {
+      rpEl = h("aside", { "class": "sh-rp", "aria-label": T.cfTitle });
+      document.body.appendChild(rpEl);
+      rpEl.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); if (rpView === "edit") rpList(); else closeRules(); } });
+      if (window.ResizeObserver) new ResizeObserver(rpPlace).observe(grid);
+      window.addEventListener("resize", rpPlace);
+    }
+    rpOn = true; rpEl.hidden = false;
+    document.documentElement.classList.add("sh-rp-on");
+    rpList();
+    rpPlace();
+    clearInterval(rpTimer);
+    rpTimer = setInterval(rpSync, 1200);  // Hermes or another window may change the rules
+    var first = rpEl.querySelector(".sh-rc, .sh-rp-add");
+    if (first) first.focus();
+  }
+  function closeRules() {
+    if (!rpOn) return;
+    rpOn = false; rpEl.hidden = true; clearInterval(rpTimer);
+    document.documentElement.classList.remove("sh-rp-on");
+    grid.focus();
+  }
+  // The list again when the sheet shown or its rules changed under it.
+  function rpSync() {
+    if (!rpOn || rpView !== "list") return;
+    var s = S(), sig = s.id + "|" + (preview ? 1 : 0) + "|" + JSON.stringify(s.rules);
+    if (sig !== rpSig) rpList();
+  }
+  function rpHead(title, back) {
+    var x = h("button", { type: "button", "class": "sh-rp-x", title: T.close, "aria-label": T.close, html: kit.icon("close"), onclick: closeRules });
+    var bk = back ? h("button", { type: "button", "class": "sh-rp-x", title: T.cfRules, "aria-label": T.cfRules, html: kit.icon("prev"), onclick: rpList }) : null;
+    return h("div", { "class": "sh-rp-h" }, [bk, h("span", { text: title }), x]);
+  }
+  function rpList() {
+    var s = S(), body = h("div", { "class": "sh-rp-b" });
+    rpView = "list"; rpSig = s.id + "|" + (preview ? 1 : 0) + "|" + JSON.stringify(s.rules);
+    rpEl.innerHTML = "";
+    if (!s.rules.length) body.appendChild(h("p", { "class": "sh-rp-none", text: T.cfNone }));
+    s.rules.forEach(function (rule, i) {
+      var card = h("div", { "class": "sh-rc", role: "button", tabindex: "0" }, [cfSwatch(rule),
+        h("span", { "class": "sh-rc-t" }, [h("b", { text: cfTitleOf(s, rule) }), h("small", { text: rule.range })])]);
+      function open() { var R = parseRange(rule.range); if (R) { sr = R.r1; sc = R.c1; selMode = "cells"; select(Math.min(R.r2, MAXR - 1), R.c2, true); } if (!ro()) rpEdit(i); }
+      card.addEventListener("click", open);
+      card.addEventListener("keydown", function (e) { if (e.target === card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); } });
+      if (!ro()) card.appendChild(h("button", { type: "button", "class": "sh-rc-x", title: T.cfDelete, "aria-label": T.cfDelete, html: kit.icon("close"),
+        onclick: function (e) { e.stopPropagation(); setRules(s, s.rules.filter(function (x, j) { return j !== i; })); rpList(); } }));
+      body.appendChild(card);
+    });
+    rpEl.append(rpHead(T.cfTitle, false), body);
+    if (!ro()) body.appendChild(h("button", { type: "button", "class": "sh-b sh-rp-add", text: "+ " + T.cfAdd, onclick: function () { rpEdit(-1); } }));
+  }
+  function rpField(label, kids) { return h("label", { "class": "sh-rp-f" }, [h("span", { text: label })].concat(kids)); }
+  // One rule's editor (i: its place in the list, -1: a new one).
+  function rpEdit(i) {
+    var s = S(), old = i >= 0 ? s.rules[i] : null, R0 = old ? parseRange(old.range) : selBox();
+    if (!old && s.rules.length >= 50) return kit.toast(T.cfMax);
+    if (!old && selMode !== "cells") R0 = { r1: R0.r1, c1: R0.c1, r2: Math.max(R0.r1, Math.min(R0.r2, used(s).r)), c2: Math.max(R0.c1, Math.min(R0.c2, used(s).c)) };
+    var conds = old && old["if"] ? cfParse(old["if"]) : null, first = R0 ? key(R0.r1, R0.c1) : "A1";
+    // the builder holds a rule only when its conditions are about the range's first cell and (at most) one other column of that row
+    if (conds && (conds[0].ref !== first || conds[1] && !/^\$[A-Z]+[0-9]+$/.test(conds[1].ref))) conds = null;
+    var st = { kind: old && old.scale ? "scale" : "hl", op: old && old["if"] && !conds ? "custom" : conds ? conds[0].op : "gt", a: conds ? conds[0].a : "", b: conds ? conds[0].b : "",
+      formula: old && old["if"] || "", and: conds && conds[1] ? { col: parseKey(conds[1].ref).c, op: conds[1].op, a: conds[1].a, b: conds[1].b } : null,
+      look: old && !old.scale ? { bg: old.bg || null, fg: old.fg || null, bold: !!old.bold, strike: !!old.strike } : { bg: CF_LOOKS[0][1].bg, fg: CF_LOOKS[0][1].fg, bold: false, strike: false },
+      scale: old && old.scale ? old.scale.slice() : CF_SCALES[0].slice() };
+    rpView = "edit";
+    var body = h("div", { "class": "sh-rp-b" }), rangeIn = h("input", { type: "text", "class": "sh-q-in", spellcheck: "false", value: R0 ? rangeName(R0) : "", "aria-label": T.cfApplies });
+    var useSel = h("button", { type: "button", "class": "sh-b", title: T.cfUseSel, "aria-label": T.cfUseSel, text: "⌖", onclick: function () { rangeIn.value = rangeName(selBox()); draw(); } });
+    var kindSeg = h("div", { "class": "sh-seg", role: "radiogroup", "aria-label": T.cfTitle });
+    [["hl", T.cfHighlight], ["scale", T.cfScale]].forEach(function (x) {
+      kindSeg.appendChild(h("button", { type: "button", role: "radio", "data-k": x[0], text: x[1], onclick: function () { st.kind = x[0]; draw(); } }));
+    });
+    var part = h("div", { "class": "sh-rp-part" }), err = h("div", { "class": "sh-rp-err", role: "alert" });
+    var save = h("button", { type: "button", "class": "sh-b pri", text: T.cfSave }), no = h("button", { type: "button", "class": "sh-b", text: T.cancel, onclick: rpList });
+    var del = old ? h("button", { type: "button", "class": "sh-b sh-left", text: T.del, title: T.cfDelete, onclick: function () { setRules(s, s.rules.filter(function (x, j) { return j !== i; })); rpList(); } }) : null;
+    function rangeOf() { var R = parseRange(rangeIn.value.trim().toUpperCase()); return R && R.r2 < MAXR && R.c2 < MAXC ? R : null; }
+    function opSelect(now, custom, pick) {
+      var sel = h("select", { "aria-label": T.cfWhen });
+      CF_OPS.concat(custom ? ["custom"] : []).forEach(function (o) { var op = h("option", { value: o, text: T[CF_OPT[o]] }); if (o === now) op.selected = true; sel.appendChild(op); });
+      sel.addEventListener("change", function () { pick(sel.value); draw(); });
+      return sel;
+    }
+    function valIn(o, name, label) {
+      var inp = h("input", { type: "text", "class": "sh-q-in", value: o[name] || "", placeholder: label, "aria-label": label });
+      inp.addEventListener("input", function () { o[name] = inp.value; });
+      return inp;
+    }
+    function condRow(o, custom) {
+      var n = CF_ARGS[o.op] || 0, row = h("div", { "class": "sh-rp-cond" }, [opSelect(o.op, custom, function (v) { o.op = v; })]);
+      if (n >= 1) row.appendChild(valIn(o, "a", T.cfValue));
+      if (n >= 2) row.append(h("span", { "class": "sh-muted", text: T.cfTo }), valIn(o, "b", T.cfValue));
+      return row;
+    }
+    function swatches(list, now, none, pick) {
+      var g = h("div", { "class": "sh-rp-sw" });
+      g.appendChild(h("button", { type: "button", "class": "none" + (now ? "" : " on"), title: none, "aria-label": none, onclick: function () { pick(null); draw(); } }));
+      list.forEach(function (c) { g.appendChild(h("button", { type: "button", "class": now === c ? "on" : null, title: c, "aria-label": c, style: "background:" + c, onclick: function () { pick(c); draw(); } })); });
+      var own = h("input", { type: "color", value: now || "#ffffff", title: T.cfFormat, "aria-label": T.cfFormat });
+      own.addEventListener("change", function () { pick(own.value.toLowerCase()); draw(); });
+      g.appendChild(own);
+      return g;
+    }
+    function toggle(label, name, cls) {
+      return h("button", { type: "button", "class": "sh-b sh-rp-tg " + cls, "aria-pressed": st.look[name] ? "true" : "false", title: label, "aria-label": label, text: name === "bold" ? "B" : "S",
+        onclick: function () { st.look[name] = !st.look[name]; draw(); } });
+    }
+    function draw() {
+      var R = rangeOf();
+      [].forEach.call(kindSeg.children, function (b) { b.setAttribute("aria-checked", b.getAttribute("data-k") === st.kind ? "true" : "false"); });
+      part.innerHTML = ""; err.textContent = "";
+      if (st.kind === "scale") {
+        var pre = h("div", { "class": "sh-rp-looks" });
+        CF_SCALES.forEach(function (cs) {
+          pre.appendChild(h("button", { type: "button", "class": "sh-rp-grad" + (JSON.stringify(cs) === JSON.stringify(st.scale) ? " on" : ""), title: cs.join(" → "), "aria-label": cs.join(" → "),
+            style: "background:linear-gradient(90deg," + cs.join(",") + ")", onclick: function () { st.scale = cs.slice(); draw(); } }));
+        });
+        var stops = h("div", { "class": "sh-rp-stops" }), has3 = st.scale.length === 3;
+        [[T.cfLow, 0], [T.cfMid, 1], [T.cfHigh, has3 ? 2 : 1]].forEach(function (x, j) {
+          var mid = j === 1, inp = h("input", { type: "color", value: mid && !has3 ? "#ffeb84" : st.scale[x[1]], "aria-label": x[0] });
+          inp.addEventListener("change", function () { if (mid && !has3) st.scale.splice(1, 0, inp.value.toLowerCase()); else st.scale[x[1]] = inp.value.toLowerCase(); draw(); });
+          var lab = h("label", { "class": "sh-rp-stop" }, [h("span", { text: x[0] }), inp]);
+          if (mid) {
+            var on = h("input", { type: "checkbox", "aria-label": x[0] });
+            on.checked = has3;
+            on.addEventListener("change", function () { if (on.checked) st.scale.splice(1, 0, "#ffeb84"); else st.scale.splice(1, 1); draw(); });
+            lab.insertBefore(on, inp); inp.disabled = !has3;
+          }
+          stops.appendChild(lab);
+        });
+        part.append(h("div", { "class": "sh-rp-l", text: T.cfFormat }), pre, stops);
+        return;
+      }
+      part.appendChild(h("div", { "class": "sh-rp-l", text: T.cfWhen }));
+      part.appendChild(condRow(st, true));
+      if (st.op === "custom") {
+        var fx = h("textarea", { "class": "sh-q-in sh-rp-fx", rows: 2, spellcheck: "false", placeholder: "=" + (R ? key(R.r1, R.c1) : "A1") + ">10", "aria-label": T.cfFormula });
+        fx.value = st.formula;
+        fx.addEventListener("input", function () { st.formula = fx.value; });
+        part.appendChild(fx);
+      } else if (st.and) {
+        var cols = h("select", { "aria-label": T.cfAndCol }), u = used(s), last = Math.max(u.c, R ? R.c2 : 0, st.and.col);
+        for (var c = 0; c <= Math.min(last, MAXC - 1); c++) {
+          var nm = R ? cfColName(s, c, R) : null, op = h("option", { value: String(c), text: colName(c) + (nm ? " · " + nm : "") });
+          if (c === st.and.col) op.selected = true;
+          cols.appendChild(op);
+        }
+        cols.addEventListener("change", function () { st.and.col = +cols.value; });
+        part.append(h("div", { "class": "sh-rp-and" }, [h("span", { "class": "sh-rp-l", text: T.cfAndCol }), cols,
+          h("button", { type: "button", "class": "sh-rp-x", title: T.cfNoAnd, "aria-label": T.cfNoAnd, html: kit.icon("close"), onclick: function () { st.and = null; draw(); } })]), condRow(st.and, false));
+      } else {
+        part.appendChild(h("button", { type: "button", "class": "sh-flt-add", text: T.cfAddAnd, onclick: function () {
+          var Rn = rangeOf(), base = Rn ? Rn.c2 : 0;
+          st.and = { col: Math.min(base + 1, MAXC - 1), op: "is", a: "", b: "" }; draw();
+        } }));
+      }
+      var looks = h("div", { "class": "sh-rp-looks" });
+      CF_LOOKS.forEach(function (x) {
+        var lk = x[1], same2 = (lk.bg || null) === st.look.bg && (lk.fg || null) === st.look.fg && !!lk.bold === st.look.bold && !!lk.strike === st.look.strike;
+        looks.appendChild(h("button", { type: "button", "class": "sh-rp-look" + (same2 ? " on" : ""), text: T[x[0]],
+          style: (lk.bg ? "background:" + lk.bg + ";" : "") + (lk.fg ? "color:" + lk.fg + ";" : "") + (lk.bold ? "font-weight:700;" : "") + (lk.strike ? "text-decoration:line-through;" : ""),
+          onclick: function () { st.look = { bg: lk.bg || null, fg: lk.fg || null, bold: !!lk.bold, strike: !!lk.strike }; draw(); } }));
+      });
+      var sample = h("div", { "class": "sh-rp-sample", text: T.cfSample, style: (st.look.bg ? "background:" + st.look.bg + ";color:" + (st.look.fg || inkOn(st.look.bg)) + ";" : st.look.fg ? "color:" + st.look.fg + ";" : "") +
+        (st.look.bold ? "font-weight:700;" : "") + (st.look.strike ? "text-decoration:line-through;" : "") });
+      part.append(h("div", { "class": "sh-rp-l", text: T.cfFormat }), looks,
+        h("div", { "class": "sh-rp-row" }, [h("span", { "class": "sh-rp-k", text: T.cfFill }), swatches(CF_FILLS, st.look.bg, T.cfNoColor, function (c2) { st.look.bg = c2; })]),
+        h("div", { "class": "sh-rp-row" }, [h("span", { "class": "sh-rp-k", text: T.cfText }), swatches(CF_INKS, st.look.fg, T.cfNoColor, function (c2) { st.look.fg = c2; })]),
+        h("div", { "class": "sh-rp-row" }, [h("span", { "class": "sh-rp-k" }), toggle(T.cfBold, "bold", "b"), toggle(T.cfStrike, "strike", "s"), sample]));
+    }
+    function build() {
+      var R = rangeOf();
+      if (!R) { err.textContent = T.cfBadRange; rangeIn.focus(); return null; }
+      var rule = { range: rangeName(R) };
+      if (st.kind === "scale") { rule.scale = st.scale.slice(); return rule; }
+      if (st.op === "custom") {
+        var f = parseText(st.formula.trim()).value;
+        if (!isFormula(f) || f.length > 500) { err.textContent = T.cfBadFormula; return null; }
+        rule["if"] = f;
+      } else {
+        var need = function (o) { var n = CF_ARGS[o.op]; return n >= 1 && !String(o.a).trim() || n >= 2 && !String(o.b).trim(); };
+        if (need(st) || st.and && need(st.and)) { err.textContent = T.cfNeedsValue; return null; }
+        var c1 = cfCond(key(R.r1, R.c1), st.op, st.a, st.b);
+        rule["if"] = "=" + (st.and ? "AND(" + c1 + "," + cfCond("$" + colName(st.and.col) + (R.r1 + 1), st.and.op, st.and.a, st.and.b) + ")" : c1);
+        if (rule["if"].length > 500) { err.textContent = T.cfBadFormula; return null; }
+      }
+      if (st.look.bg) rule.bg = st.look.bg; if (st.look.fg) rule.fg = st.look.fg; if (st.look.bold) rule.bold = true; if (st.look.strike) rule.strike = true;
+      if (!rule.bg && !rule.fg && !rule.bold && !rule.strike) { err.textContent = T.cfNoFormat; return null; }
+      return rule;
+    }
+    save.addEventListener("click", function () {
+      if (ro()) return;
+      var rule = build();
+      if (!rule) return;
+      var rules = s.rules.slice();
+      if (i >= 0) rules[i] = rule; else rules.push(rule);
+      setRules(s, rules);
+      rpList();
+    });
+    rangeIn.addEventListener("change", draw);
+    body.append(kindSeg, rpField(T.cfApplies, [h("div", { "class": "sh-rp-rng" }, [rangeIn, useSel])]), part, err, h("div", { "class": "sh-dlg-bar" }, [del, no, save]));
+    rpEl.innerHTML = "";
+    rpEl.append(rpHead(old ? cfTitleOf(s, old) : T.cfAdd, true), body);
+    draw();
+    rangeIn.focus();
+  }
+
+  // ---- dropdown options: colours, rename, delete, add, presets (the list a dropdown cell opens; see openDd)
+  var PILLS = ["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "magenta"];
+  var DD_PRESETS = [
+    { name: T.pStatus, options: [T.pTodo, T.pDoing, T.pDone], colors: ["gray", "blue", "green"] },
+    { name: T.pPriority, options: [T.pLow, T.pMedium, T.pHigh], colors: ["green", "yellow", "red"] },
+    { name: T.pYesNo, options: [T.pYes, T.pNo], colors: ["green", "red"] },
+    { name: T.pApproval, options: [T.pPending, T.pApproved, T.pRejected], colors: ["yellow", "green", "red"] }];
+  // The class of an option's pill: its own colour, else one by its place among the options.
+  function pillCls(f, i) { var c = f.colors && f.colors[i]; return c && PILLS.indexOf(c) >= 0 ? "c-" + c : "p" + i % 8; }
+  // The cells that share a dropdown's list, as runs down each column.
+  function ddRuns(s, f) {
+    var j = JSON.stringify([f.options, f.colors || []]), cols = {}, out = [];
+    for (var k in s.fmt) {
+      var x = s.fmt[k];
+      if (!x.options || !(x.options === f.options && x.colors === f.colors || JSON.stringify([x.options, x.colors || []]) === j)) continue;
+      var p = parseKey(k);
+      if (p) (cols[p.c] = cols[p.c] || []).push(p.r);
+    }
+    Object.keys(cols).forEach(function (c) {
+      var rs = cols[c].sort(function (a, b) { return a - b; }), a = 0;
+      for (var b = 1; b <= rs.length; b++) if (b === rs.length || rs[b] !== rs[b - 1] + 1) { out.push({ r1: rs[a], c1: +c, r2: rs[b - 1], c2: +c }); a = b; }
+    });
+    return out;
+  }
+  // A dropdown's list changed for every cell that shares it; rename: [old, new] rewrites the cells holding the old name.
+  function ddChange(s, f, opts, cols, rename) {
+    closePop(); grid.focus();
+    if (ro()) return;
+    var colors = opts.length && cols && cols.some(Boolean) ? cols : null, patch = { options: opts.length ? opts : null, colors: colors }, fwd = [], inv = [];
+    ddRuns(s, f).forEach(function (R) {
+      var fi = invFmt(s, R, ["options", "colors"]);
+      fwd.push(fmtOp(R, patch));
+      if (inv && fi) inv = inv.concat(fi); else inv = null;
+      if (!rename) return;
+      var rows = [], was = [], any = false;
+      for (var r = R.r1; r <= R.r2; r++) {
+        var v = s.cells[key(r, R.c1)], hitV = v !== undefined && v !== null && String(v) === rename[0];
+        rows.push([hitV ? rename[1] : null]); was.push([hitV ? v : null]); any = any || hitV;
+      }
+      if (any) { fwd.push({ op: "set", range: key(R.r1, R.c1), values: rows }); if (inv) inv.push({ op: "set", range: key(R.r1, R.c1), values: was }); }
+    });
+    if (fwd.length) doEdit(s, fwd, inv);
+  }
+  // One option's own view inside the open list: its name, its colour, delete (i < 0: a new option).
+  function ddOptView(list, s, f, i) {
+    var opts = f.options, cols = opts.map(function (o, j) { return f.colors && f.colors[j] || null; }), isNew = i < 0, color = isNew ? null : cols[i];
+    list.innerHTML = ""; list.classList.add("sh-ddv"); list.removeAttribute("tabindex"); list.removeAttribute("role");
+    var name = h("input", { type: "text", "class": "sh-q-in", maxlength: "60", value: isNew ? "" : opts[i], placeholder: T.ddNewPh, "aria-label": isNew ? T.ddAdd : T.ddRename });
+    var dots = h("div", { "class": "sh-dots", role: "radiogroup", "aria-label": T.ddColor });
+    function mark() { [].forEach.call(dots.children, function (b) { b.setAttribute("aria-checked", (b.getAttribute("data-c") || null) === color ? "true" : "false"); }); }
+    [null].concat(PILLS).forEach(function (c) {
+      dots.appendChild(h("button", { type: "button", role: "radio", "class": "sh-dot" + (c ? " sh-pl c-" + c : " none"), "data-c": c || "", title: c ? T["c_" + c] : T.ddNoColor, "aria-label": c ? T["c_" + c] : T.ddNoColor,
+        onclick: function () { color = c; mark(); } }));
+    });
+    function apply() {
+      var v = name.value.trim().slice(0, 60), no = opts.slice(), nc = cols.slice();
+      if (!v || opts.some(function (o, j) { return o === v && j !== i; }) || isNew && no.length >= 50) return name.focus();
+      if (isNew) { no.push(v); nc.push(color); } else { no[i] = v; nc[i] = color; }
+      ddChange(s, f, no, nc, !isNew && v !== opts[i] ? [opts[i], v] : null);
+    }
+    var ok = h("button", { type: "button", "class": "sh-b pri", text: T.ok, onclick: apply });
+    var del = isNew ? null : h("button", { type: "button", "class": "sh-b sh-left", text: T.ddDelOpt, onclick: function () {
+      var no = opts.slice(), nc = cols.slice();
+      no.splice(i, 1); nc.splice(i, 1);
+      ddChange(s, f, no, nc, null);
+    } });
+    name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); apply(); } });
+    list.append(name, dots, h("div", { "class": "sh-dlg-bar" }, [del, ok]));
+    mark(); ddFit(list);
+    name.focus(); name.select();
+  }
+  // The list's new view kept inside the window.
+  function ddFit(list) {
+    var r = list.getBoundingClientRect();
+    if (r.right > innerWidth - 8) list.style.left = Math.max(8, innerWidth - r.width - 8) + "px";
+    if (r.bottom > innerHeight - 8) list.style.top = Math.max(8, innerHeight - r.height - 8) + "px";
+  }
+  // The ready-made lists, inside the open list.
+  function ddPresetView(list, pick) {
+    list.innerHTML = ""; list.classList.add("sh-ddv"); list.removeAttribute("tabindex"); list.removeAttribute("role");
+    DD_PRESETS.forEach(function (p) {
+      var row = h("button", { type: "button", "class": "sh-ddp", "aria-label": p.name + ": " + p.options.join(", ") }, [h("small", { text: p.name })].concat(
+        p.options.map(function (o, j) { return h("span", { "class": "sh-pl c-" + p.colors[j], text: o }); })));
+      row.addEventListener("click", function (e) { e.stopPropagation(); pick(p); });
+      list.appendChild(row);
+    });
+    ddFit(list);
+    var first = list.querySelector("button");
+    if (first) first.focus();
+  }
+
+  window.__sheetUI = window.__sheetUI || {};
+  window.__sheetUI.openRules = openRules;
+  window.__sheetUI.openBorders = openBorders;
+  window.__sheetUI.mergeSel = mergeSel;
+  window.__sheetUI.unmergeSel = unmergeSel;
+  window.__sheetUI.canUnmerge = canUnmerge;
 
   // ------------------------------------------------------------------ start
   if (!editable) document.documentElement.classList.add("sh-ro");

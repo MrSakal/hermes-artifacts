@@ -724,8 +724,29 @@
     }
     function volatile() { var f = reader(); if (f) vol[f] = 1; }
     var W = { cell: cell, mat: mat, resolve: resolve, ext: ext, volatile: volatile, L: L };
+    // A formula that stands in no cell (a conditional format's rule), computed as if it stood in
+    // that one; nothing is kept, and what it reads is not noted.
+    function evalAt(sheet, key, text) {
+      var sh = resolve(sheet), m = /^([A-Z]{1,3})([0-9]+)$/.exec(String(key).toUpperCase().replace(/\$/g, ''));
+      if (!sh || !m) return E['#REF!'];
+      var cx = { W: W, sheet: sh, r: +m[2] - 1, c: colIndex(m[1]), L: L };
+      for (var tries = 0; tries < 50; tries++) {
+        reading.push(null);
+        try { return finish(ev(parse(text), cx), { W: W }); }
+        catch (e) {
+          if (isErr(e)) return e;
+          if (!(e instanceof Deep)) throw e;
+          depth = 0; reading.length = 0;
+          value(e.s, e.key);  // a long chain it reads: computed first, from the explicit stack
+          continue;
+        }
+        finally { if (reading.length) reading.pop(); }
+      }
+      return E['#VALUE!'];
+    }
     return {
       value: value,
+      evalAt: evalAt,
       invalidate: reset,
       invalidateCells: invalidateCells,
       generation: function () { return gen; },

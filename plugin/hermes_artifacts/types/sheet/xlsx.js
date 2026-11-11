@@ -199,6 +199,29 @@
     var fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'],
       fillIx = {"": 0};
     var numFmts = [], numIx = {}, xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'], xfIx = {};
+    var borders = ["<border><left/><right/><top/><bottom/><diagonal/></border>"], borderIx = {"": 0}, dxfs = [], dxfIx = {};
+    // A cell's edges (fmt.bd: of "tblr") as a border of thin lines in the automatic colour.
+    function borderId(bd) {
+      var k = "", i, E = {l: "left", r: "right", t: "top", b: "bottom"};
+      for (i = 0; i < 4; i++) if (typeof bd === "string" && bd.indexOf("tblr".charAt(i)) >= 0) k += "tblr".charAt(i);
+      if (!own(borderIx, k)) {
+        borderIx[k] = borders.length;
+        var x = "<border>";
+        for (i = 0; i < 4; i++) { var e = "lrtb".charAt(i); x += k.indexOf(e) >= 0 ? "<" + E[e] + ' style="thin"><color auto="1"/></' + E[e] + ">" : "<" + E[e] + "/>"; }
+        borders.push(x + "<diagonal/></border>");
+      }
+      return borderIx[k];
+    }
+    // A conditional-format rule's look ({bg, fg, bold, strike}) as a differential format.
+    function dxf(rule) {
+      var fg = argb(rule.fg), bg = argb(rule.bg), k = (rule.bold ? "b" : "") + (rule.strike ? "s" : "") + "|" + (fg || "") + "|" + (bg || "");
+      if (!own(dxfIx, k)) {
+        dxfIx[k] = dxfs.length;
+        dxfs.push("<dxf>" + (rule.bold || rule.strike || fg ? "<font>" + (rule.bold ? "<b/>" : "") + (rule.strike ? "<strike/>" : "") + (fg ? '<color rgb="' + fg + '"/>' : "") + "</font>" : "") +
+          (bg ? '<fill><patternFill><bgColor rgb="' + bg + '"/></patternFill></fill>' : "") + "</dxf>");
+      }
+      return dxfIx[k];
+    }
     function numId(code) {
       if (own(NUM_ID, code)) return NUM_ID[code];
       if (!own(numIx, code)) { numIx[code] = 164 + numFmts.length; numFmts.push(code); }
@@ -223,13 +246,14 @@
         fills.push('<fill><patternFill patternType="solid"><fgColor rgb="' + bg + '"/><bgColor indexed="64"/></patternFill></fill>');
       }
       var al = fm.align === "left" || fm.align === "center" || fm.align === "right" ? fm.align : null;
-      var key = nid + "|" + fontIx[fk] + "|" + fillIx[lk] + "|" + (al || "") + "|" + (fm.wrap ? 1 : 0);
+      var bid = fm.bd ? borderId(fm.bd) : 0;
+      var key = nid + "|" + fontIx[fk] + "|" + fillIx[lk] + "|" + (al || "") + "|" + (fm.wrap ? 1 : 0) + (bid ? "|" + bid : "");
       if (key === "0|0|0||0") return 0;
       if (!own(xfIx, key)) {
         xfIx[key] = xfs.length;
         var align = al || fm.wrap ? "<alignment" + (al ? ' horizontal="' + al + '"' : "") + (fm.wrap ? ' wrapText="1"' : "") + "/>" : "";
-        xfs.push('<xf numFmtId="' + nid + '" fontId="' + fontIx[fk] + '" fillId="' + fillIx[lk] + '" borderId="0" xfId="0"' +
-          (nid ? ' applyNumberFormat="1"' : "") + (fontIx[fk] ? ' applyFont="1"' : "") + (fillIx[lk] ? ' applyFill="1"' : "") +
+        xfs.push('<xf numFmtId="' + nid + '" fontId="' + fontIx[fk] + '" fillId="' + fillIx[lk] + '" borderId="' + bid + '" xfId="0"' +
+          (nid ? ' applyNumberFormat="1"' : "") + (fontIx[fk] ? ' applyFont="1"' : "") + (fillIx[lk] ? ' applyFill="1"' : "") + (bid ? ' applyBorder="1"' : "") +
           (align ? ' applyAlignment="1">' + align + "</xf>" : "/>"));
       }
       return xfIx[key];
@@ -241,14 +265,15 @@
         (nf ? '<numFmts count="' + numFmts.length + '">' + nf + "</numFmts>" : "") +
         '<fonts count="' + fonts.length + '">' + fonts.join("") + "</fonts>" +
         '<fills count="' + fills.length + '">' + fills.join("") + "</fills>" +
-        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<borders count="' + borders.length + '">' + borders.join("") + "</borders>" +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
         '<cellXfs count="' + xfs.length + '">' + xfs.join("") + "</cellXfs>" +
         '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
-        '<dxfs count="0"/><tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>' +
+        (dxfs.length ? '<dxfs count="' + dxfs.length + '">' + dxfs.join("") + "</dxfs>" : '<dxfs count="0"/>') +
+        '<tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>' +
         "</styleSheet>";
     }
-    return {xf: xf, xml: xml};
+    return {xf: xf, xml: xml, dxf: dxf};
   }
   function sheetNames(src) {
     var used = {}, out = [];
@@ -267,6 +292,81 @@
       out.push(n);
     }
     return out;
+  }
+  // A format that shows in the file's cell style (a dropdown or a checkbox alone does not).
+  function styled(f) { return !!(f.bold || f.italic || f.underline || f.align || f.num || f.bg || f.fg || f.wrap || f.bd); }
+  // "A1:C2" (or "A1") -> {r1, c1, r2, c2}, or null
+  function parseBox(s) {
+    var p = String(s || "").replace(/\$/g, "").split(":"), a = parseCell(p[0]), b = parseCell(p[1] || p[0]);
+    if (!a || !b || p.length > 2) return null;
+    return {r1: Math.min(a.r, b.r), c1: Math.min(a.c, b.c), r2: Math.max(a.r, b.r), c2: Math.max(a.c, b.c)};
+  }
+  function boxName(b) { var a = colName(b.c1) + (b.r1 + 1), z = colName(b.c2) + (b.r2 + 1); return a === z ? a : a + ":" + z; }
+  // Merged cells and conditional formats, as they stand between sheetData and the validations.
+  // The last rule wins in the page: in the file that is priority 1.
+  function mergesXml(merges) {
+    var out = "", n = 0;
+    for (var i = 0; i < (merges || []).length; i++) {
+      var b = parseBox(merges[i]);
+      if (b && (b.r1 !== b.r2 || b.c1 !== b.c2)) { out += '<mergeCell ref="' + boxName(b) + '"/>'; n++; }
+    }
+    return n ? '<mergeCells count="' + n + '">' + out + "</mergeCells>" : "";
+  }
+  function rulesXml(rules, st) {
+    var out = "", n = (rules || []).length;
+    for (var i = 0; i < n; i++) {
+      var r = rules[i], b = r && parseBox(r.range), body = "";
+      if (!b) continue;
+      if (Array.isArray(r.scale) && (r.scale.length === 2 || r.scale.length === 3)) {
+        var cols = "", ok = true;
+        for (var j = 0; j < r.scale.length; j++) { var c = argb(r.scale[j]); if (!c) ok = false; cols += '<color rgb="' + c + '"/>'; }
+        if (!ok) continue;
+        body = '<cfRule type="colorScale" priority="' + (n - i) + '"><colorScale><cfvo type="min"/>' +
+          (r.scale.length === 3 ? '<cfvo type="percentile" val="50"/>' : "") + '<cfvo type="max"/>' + cols + "</colorScale></cfRule>";
+      } else if (isFormula(r["if"])) {
+        body = '<cfRule type="expression" dxfId="' + st.dxf(r) + '" priority="' + (n - i) + '"><formula>' + esc(toFileFormula(r["if"])) + "</formula></cfRule>";
+      } else continue;
+      out += '<conditionalFormatting sqref="' + boxName(b) + '">' + body + "</conditionalFormatting>";
+    }
+    return out;
+  }
+  // Dropdown cells (fmt.options) as runs down each column: [{c, r1, r2, options}], top to bottom.
+  function listRuns(fmt) {
+    var cols = {}, out = [], k, p, c;
+    for (k in fmt) if (own(fmt, k) && fmt[k] && Array.isArray(fmt[k].options) && fmt[k].options.length && (p = parseCell(k)))
+      (cols[p.c] = cols[p.c] || []).push({r: p.r, o: fmt[k].options, j: JSON.stringify(fmt[k].options)});
+    for (c in cols) if (own(cols, c)) {
+      var cs = cols[c].sort(function (a, b) { return a.r - b.r; }), a = 0;
+      for (var b = 1; b <= cs.length; b++) {
+        if (b < cs.length && cs[b].r === cs[b - 1].r + 1 && cs[b].j === cs[a].j) continue;
+        out.push({c: +c, r1: cs[a].r, r2: cs[b - 1].r, options: cs[a].o, j: cs[a].j});
+        a = b;
+      }
+    }
+    return out;
+  }
+  // The dropdowns as list validations with their items inline ("a,b,c": at most 255 characters and
+  // no comma inside an item, else that dropdown is left out and its cells stay plain values).
+  function validations(fmt) {
+    var runs = listRuns(fmt), by = {}, order = [], out = "", i;
+    for (i = 0; i < runs.length; i++) {
+      if (!own(by, runs[i].j)) { by[runs[i].j] = {options: runs[i].options, refs: []}; order.push(runs[i].j); }
+      by[runs[i].j].refs.push(colName(runs[i].c) + (runs[i].r1 + 1) + (runs[i].r2 > runs[i].r1 ? ":" + colName(runs[i].c) + (runs[i].r2 + 1) : ""));
+    }
+    var n = 0;
+    for (i = 0; i < order.length; i++) {
+      var g = by[order[i]], items = [], ok = true;
+      for (var j = 0; j < g.options.length; j++) {
+        var o = clean(String(g.options[j])).trim();
+        if (!o || o.indexOf(",") >= 0) ok = false;
+        items.push(o.replace(/"/g, '""'));
+      }
+      var f1 = '"' + items.join(",") + '"';
+      if (!ok || f1.length > 255) continue;
+      n++;
+      out += '<dataValidation type="list" allowBlank="1" showInputMessage="1" sqref="' + g.refs.join(" ") + '"><formula1>' + esc(f1) + "</formula1></dataValidation>";
+    }
+    return n ? '<dataValidations count="' + n + '">' + out + "</dataValidations>" : "";
   }
   function numText(n) { return String(n); }
   function errCode(e) { return ERRORS.indexOf(e) >= 0 ? e : "#VALUE!"; }
@@ -302,7 +402,7 @@
         if (p.c < minC) minC = p.c; if (p.c > maxC) maxC = p.c;
       }
       for (k in cells) if (own(cells, k) && cells[k] !== null && cells[k] !== undefined && cells[k] !== "") add(k, false);
-      for (k in fmt) if (own(fmt, k) && fmt[k] && typeof fmt[k] === "object") add(k, true);
+      for (k in fmt) if (own(fmt, k) && fmt[k] && typeof fmt[k] === "object" && styled(fmt[k])) add(k, true);
       rowKeys.sort(function (a, b) { return a - b; });
       var data = "";
       for (var ri = 0; ri < rowKeys.length; ri++) {
@@ -355,7 +455,7 @@
       return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="' + NS_MAIN + '" xmlns:r="' + NS_R + '">' +
         '<dimension ref="' + dim + '"/><sheetViews>' + view + "</sheetViews>" + '<sheetFormatPr defaultColWidth="13" defaultRowHeight="15"/>' +
         (colsXml ? "<cols>" + colsXml + "</cols>" : "") + (data ? "<sheetData>" + data + "</sheetData>" : "<sheetData/>") +
-        '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>';
+        mergesXml(sh.merges) + rulesXml(sh.rules, st) + validations(fmt) + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>';
     }
 
     var files = {}, sheetsXml = "", relsXml = "", ctXml = "", n = src.length;
@@ -591,6 +691,27 @@
       var pf = kid(list[i], "patternFill"), bg = pf && pf.a.patternType === "solid" ? rgb(kid(pf, "fgColor")) : null;
       fills.push(bg === "#ffffff" ? null : bg);
     }
+    // borders: the edges that have a line (any style reads as the thin one); dxfs: the looks conditional formats name
+    var edges = [], dxfs = [];
+    list = kids(kid(ss, "borders"), "border");
+    for (i = 0; i < list.length; i++) {
+      var bd = "", EN = {t: "top", b: "bottom", l: "left", r: "right"};
+      for (var ei = 0; ei < 4; ei++) { var en = kid(list[i], EN["tblr".charAt(ei)]); if (en && en.a.style && en.a.style !== "none") bd += "tblr".charAt(ei); }
+      edges.push(bd);
+    }
+    list = kids(kid(ss, "dxfs"), "dxf");
+    for (i = 0; i < list.length; i++) {
+      var dfo = kid(list[i], "font"), dpf = kid(kid(list[i], "fill"), "patternFill"), look = {};
+      if (dfo) {
+        if (onOff(kid(dfo, "b"))) look.bold = true;
+        if (onOff(kid(dfo, "strike"))) look.strike = true;
+        var dfg = rgb(kid(dfo, "color"));
+        if (dfg) look.fg = dfg;
+      }
+      var dbg = dpf ? rgb(kid(dpf, "bgColor")) || rgb(kid(dpf, "fgColor")) : null;
+      if (dbg) look.bg = dbg;
+      dxfs.push(look);
+    }
     list = kids(kid(ss, "cellXfs"), "xf");
     for (i = 0; i < list.length; i++) xfs.push(list[i]);
     var styleCache = {};
@@ -609,6 +730,7 @@
           if (h === "left" || h === "center" || h === "right") f.align = h;
           if (truthy(al.a.wrapText)) f.wrap = true;
         }
+        if (edges[+x.a.borderId || 0]) f.bd = edges[+x.a.borderId || 0];
         var nid = +x.a.numFmtId || 0, code = own(numFmts, nid) ? numFmts[nid] : BUILTIN[nid];
         out.kind = dateKind(nid, code);
         out.num = nid === 14 || nid === 22 ? null : normNum(code);
@@ -693,7 +815,67 @@
           break;
         }
       }
-      return {name: name, cells: cells, fmt: fmt, vals: vals, cols: cols, freeze: freeze};
+      // dropdowns: list validations with their items inline, over at most 200 rows past the data
+      var dv = kids(kid(ws, "dataValidations"), "dataValidation");
+      for (i = 0; i < dv.length; i++) {
+        var src = txt(kid(dv[i], "formula1")).trim(), refs = String(dv[i].a.sqref || "").split(/\s+/);
+        if (dv[i].a.type !== "list" || src.length < 3 || src.charAt(0) !== '"' || src.charAt(src.length - 1) !== '"') continue;
+        var opts = [], parts = src.slice(1, -1).replace(/""/g, '"').split(",");
+        for (var oi = 0; oi < parts.length && opts.length < 50; oi++) {
+          var o = xstr(parts[oi]).trim().slice(0, 60);
+          if (o && opts.indexOf(o) < 0) opts.push(o);
+        }
+        for (var qi = 0; qi < refs.length && opts.length; qi++) {
+          var ends = refs[qi].split(":"), p1 = parseCell(ends[0].replace(/\$/g, "")), p2 = parseCell((ends[1] || ends[0]).replace(/\$/g, ""));
+          if (!p1 || !p2) continue;
+          for (var rr = p1.r; rr <= Math.min(p2.r, Math.max(rc, p1.r) + 200, 4999); rr++)
+            for (var c2 = p1.c; c2 <= Math.min(p2.c, 99); c2++) {
+              var dk = colName(c2) + (rr + 1);
+              (fmt[dk] = fmt[dk] || {}).options = opts;
+            }
+        }
+      }
+      // merged cells; conditional formats: expression rules with a look we model, 2- and 3-colour scales
+      var merges = [], mc = kids(kid(ws, "mergeCells"), "mergeCell");
+      for (i = 0; i < mc.length && merges.length < 500; i++) {
+        var mb = clip(parseBox(mc[i].a.ref));
+        if (mb && (mb.r1 !== mb.r2 || mb.c1 !== mb.c2)) merges.push(boxName(mb));
+      }
+      var found = [], cfs = kids(ws, "conditionalFormatting");
+      for (i = 0; i < cfs.length; i++) {
+        var boxes = [], sq = String(cfs[i].a.sqref || "").split(/\s+/), crs = kids(cfs[i], "cfRule");
+        for (var bi = 0; bi < sq.length; bi++) { var cb = clip(parseBox(sq[bi])); if (cb) boxes.push(cb); }
+        for (var ki = 0; ki < crs.length && boxes.length; ki++) {
+          var cr = crs[ki], one = null;
+          if (cr.a.type === "expression") {
+            var ft = txt(kid(cr, "formula")).trim(), lk = dxfs[+cr.a.dxfId];
+            if (ft && cr.a.dxfId !== undefined && lk && (lk.bg || lk.fg || lk.bold || lk.strike)) { one = {"if": fromFileFormula(ft)}; for (var lk2 in lk) one[lk2] = lk[lk2]; }
+          } else if (cr.a.type === "colorScale") {
+            var cc2 = kids(kid(cr, "colorScale"), "color"), scale = [];
+            for (var si2 = 0; si2 < cc2.length; si2++) scale.push(rgb(cc2[si2]));
+            if ((scale.length === 2 || scale.length === 3) && scale.indexOf(null) < 0) one = {scale: scale};
+          }
+          for (bi = 0; one && bi < boxes.length; bi++) {
+            var rule = {range: boxName(boxes[bi])}, rk;
+            for (rk in one) rule[rk] = one[rk];
+            if (rule["if"]) {  // the formula is written for the first range's first cell
+              var moved = shiftFormula(rule["if"].slice(1), boxes[bi].r1 - boxes[0].r1, boxes[bi].c1 - boxes[0].c1);
+              if (moved === null || moved.length > 499) continue;
+              rule["if"] = "=" + moved;
+            }
+            found.push({p: +cr.a.priority || 0, i: found.length, r: rule});
+          }
+        }
+      }
+      found.sort(function (a, b) { return b.p - a.p || a.i - b.i; });
+      var rules = [];
+      for (i = Math.max(0, found.length - 50); i < found.length; i++) rules.push(found[i].r);
+      return {name: name, cells: cells, fmt: fmt, vals: vals, cols: cols, freeze: freeze, merges: merges, rules: rules};
+    }
+    // A box cut to what a sheet holds (null: outside it).
+    function clip(b) {
+      if (!b || b.r1 > 4999 || b.c1 > 99) return null;
+      return {r1: b.r1, c1: b.c1, r2: Math.min(b.r2, 4999), c2: Math.min(b.c2, 99)};
     }
   }
 
@@ -801,7 +983,7 @@
 
   var api = {write: write, read: read, toCsv: toCsv, fromCsv: fromCsv,
     // small helpers, exposed for tests and the page
-    shiftFormula: shiftFormula, isoToSerial: isoToSerial, serialToIso: serialToIso, parseXml: parseXml};
+    shiftFormula: shiftFormula, isoToSerial: isoToSerial, serialToIso: serialToIso, parseXml: parseXml, listRuns: listRuns};
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window !== "undefined") window.sheetXlsx = api;
 })();
