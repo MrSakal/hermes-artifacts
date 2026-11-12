@@ -22,31 +22,38 @@ SPEC = {"title": "Live", "params": {"region": "", "n": 5},
             "rules": {"region": {"pattern": "^[A-Za-z ]{0,20}$"}, "n": {"type": "number", "minimum": 1, "maximum": 100}}}}}}
 
 
-class FakeRegistry:
-    def __init__(self):
-        self.calls = []
-        self.tools = {"mcp_db_query": "mcp-db", "terminal": "terminal"}
+class FakeCtx:
+    """ctx.call_mcp as Hermes hands it to the plugin: (server, tool, args) in, an envelope out."""
 
-    def get_entry(self, name, scope=None):
-        t = self.tools.get(name)
-        return types.SimpleNamespace(toolset=t) if t else None
+    def __init__(self, answer=None, allow=("db",)):
+        self.calls, self.allow = [], set(allow)
+        self.answer = answer if answer is not None else {"rows": [{"region": "South", "n": 3}]}
 
-    def dispatch(self, name, args, scope=None):
-        self.calls.append((name, args))
-        return json.dumps({"content": [{"type": "text", "text": json.dumps({"rows": [{"region": "South", "n": 3}]})}]})
+    def call_mcp(self, server, tool, arguments=None, timeout=30):
+        if server not in self.allow:
+            raise PermissionError(f"not allowed: {server}")
+        self.calls.append((server, tool, arguments))
+        return {"ok": True, "result": json.dumps(self.answer)}
+
+
+def use_ctx(test, ctx, servers=("db", "other")):
+    """Route live.py's MCP calls to a fake ctx; the configured servers are these."""
+    saved = live._CTX, live._known_servers
+    live.set_ctx(ctx)
+    live._known_servers = lambda: list(servers)
+
+    def restore():
+        live._CTX, live._known_servers = saved
+    test.addCleanup(restore)
 
 
 class LiveTests(unittest.TestCase):
     def setUp(self):
-        self.reg = FakeRegistry()
-        self._orig = live._registry_entry
-        live._registry_entry = lambda tool: (self.reg, self.reg.get_entry(tool), None)
+        self.reg = FakeCtx()
+        use_ctx(self, self.reg)
         live._cache.clear()
         self.aid = store.publish(title="live", type="dashboard",
                                  files={"dashboard.json": SPEC, "index.html": "<p>x</p>"})["id"]
-
-    def tearDown(self):
-        live._registry_entry = self._orig
 
     def test_fill_and_rules(self):
         a = live.fill(SPEC["datasets"]["sales"]["source"]["args"], {"region": "South", "n": 7},
@@ -80,7 +87,8 @@ class LiveTests(unittest.TestCase):
         r = live.run_dataset(self.aid, "sales", {"region": "South"})
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["rows"], [{"region": "South", "n": 3}])
-        self.assertIn("LIMIT 5", self.reg.calls[0][1]["sql"])  # default from dashboard.json params
+        self.assertEqual(self.reg.calls[0][:2], ("db", "query"))  # through ctx.call_mcp: server, its own tool name
+        self.assertIn("LIMIT 5", self.reg.calls[0][2]["sql"])  # default from dashboard.json params
         # live (open, refresh, filter change) always runs the call, like Claude's dashboards
         self.assertFalse(live.run_dataset(self.aid, "sales", {"region": "South"})["cached"])
         self.assertEqual(len(self.reg.calls), 2)
@@ -96,7 +104,7 @@ class LiveTests(unittest.TestCase):
         # cached with no answer yet runs once
         live.run_dataset(self.aid, "sales", {"region": "West"}, mode="cached")
         self.assertEqual(len(self.reg.calls), 3)
-        self.assertEqual(live.run_dataset(self.aid, "sales", {"region": "Pe'st"})["status"], "error")
+        self.assertEqual(live.run_dataset(self.aid, "sales", {"region": "Pe'st"})["status"], "refused")  # a quote in SQL text
 
     def test_old_answers_expire_after_24h(self):
         d = live.dataset(self.aid, "sales")
@@ -157,36 +165,45 @@ class GuardTests(unittest.TestCase):
 
 
 class LoaderCallTests(unittest.TestCase):
-    """A loader's call(tool, args): only the dataset's own connector, only once it is allowed, read-only."""
+    """A loader's call(tool, args): only the dataset's stored tool or its poll tool, only once it is
+    allowed, read-only."""
 
     def setUp(self):
-        self.reg = FakeRegistry()
-        self.reg.tools.update({"mcp_db_poll": "mcp-db", "mcp_other_x": "mcp-other"})
-        self._orig = live._registry_entry
-        live._registry_entry = lambda tool: (self.reg, self.reg.get_entry(tool), None)
-        self.aid = store.publish(title="lc", type="dashboard", files={"dashboard.json": SPEC, "index.html": "<p>x</p>"})["id"]
-
-    def tearDown(self):
-        live._registry_entry = self._orig
+        self.reg = FakeCtx(allow=("db", "other"))
+        use_ctx(self, self.reg)
+        spec = json.loads(json.dumps(SPEC))
+        spec["datasets"]["sales"]["source"]["poll"] = {"tool": "mcp_db_poll", "args": {"id": "{{answer.id}}"}}
+        self.aid = store.publish(title="lc", type="dashboard", files={"dashboard.json": spec, "index.html": "<p>x</p>"})["id"]
 
     def allow(self):
         d = live.dataset(self.aid, "sales")
-        store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"]), d["tool"], True)
+        store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"], d["poll"]), d["tool"], True)
 
     def test_needs_the_dataset_allowed(self):
         self.assertEqual(live.loader_call(self.aid, "sales", "poll", {"id": 1})["status"], "approval")
         self.assertEqual(self.reg.calls, [])
 
-    def test_same_connector_by_its_short_or_hermes_name(self):
+    def test_stored_and_poll_tool_by_its_short_or_hermes_name(self):
         self.allow()
         r = live.loader_call(self.aid, "sales", "poll", {"id": 1})
         self.assertEqual((r["status"], r["tool"]), ("ok", "mcp_db_poll"))
         self.assertEqual(r["answer"], {"rows": [{"region": "South", "n": 3}]})
-        self.assertEqual(live.loader_call(self.aid, "sales", "mcp_db_poll", {})["status"], "ok")
+        self.assertEqual(live.loader_call(self.aid, "sales", "mcp_db_poll", {"id": "j-2"})["status"], "ok")
+        filled = live.fill(live.dataset(self.aid, "sales")["args"], {"region": "South", "n": 7}, SPEC["datasets"]["sales"]["source"]["rules"])
+        self.assertEqual(live.loader_call(self.aid, "sales", "query", filled)["status"], "ok")
+        self.assertEqual([c[:2] for c in self.reg.calls], [("db", "poll"), ("db", "poll"), ("db", "query")])
+
+    def test_a_tool_not_stored_is_refused_even_on_the_same_server(self):
+        self.allow()
+        for name in ("drop_everything", "mcp_db_drop_everything", "mcp__db__drop_everything"):
+            r = live.loader_call(self.aid, "sales", name, {})
+            self.assertEqual(r["status"], "refused", name)
+            self.assertIn("stored tool", r["message"])
+        self.assertEqual(self.reg.calls, [])
 
     def test_refuses_other_connectors_and_writes(self):
         self.allow()
         self.assertEqual(live.loader_call(self.aid, "sales", "mcp_other_x", {})["status"], "refused")
         self.assertEqual(live.loader_call(self.aid, "sales", "terminal", {"command": "rm -rf /"})["status"], "refused")
         self.assertEqual(live.loader_call(self.aid, "sales", "query", {"sql": "DELETE FROM t"})["status"], "refused")
-        self.assertEqual([c[0] for c in self.reg.calls], [])
+        self.assertEqual(self.reg.calls, [])

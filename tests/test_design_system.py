@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -75,7 +76,7 @@ class RenderTests(unittest.TestCase):
         for kind in ("page", "dashboard", "slides", "doc", "sheet", "design", "motion", "design-system"):
             out = json.loads(plugin._guide({"type": kind}))
             self.assertIn("language the user asked in", out["language"], kind)
-        pub = [t for t in plugin.TOOLS if t[0] == "artifact_publish"][0][1]
+        pub = [t for t in plugin.TOOLS if t[0] == "ha_publish"][0][1]
         self.assertIn("language the user asked in", json.dumps(pub))
 
     def test_the_system_while_coding(self):
@@ -98,7 +99,9 @@ class RenderTests(unittest.TestCase):
             self.assertTrue(ds["default"])
             self.assertIn("--ink", ds["tokens_css"])
             self.assertIn("components/bundle.js", ds["files"])
-            out = Path(tempfile.mkdtemp()) / "src" / "design-system"
+            work, saved = Path(tempfile.mkdtemp()), plugin._ctx
+            plugin._ctx = types.SimpleNamespace(session_cwd=lambda: str(work))  # the chat's working directory
+            out = work / "src" / "design-system"
             r = json.loads(plugin._ds_export({"dir": str(out)}))
             self.assertTrue(r["ok"], r)
             self.assertTrue((out / "tokens.css").is_file() and (out / "components" / "bundle.js").is_file())
@@ -107,9 +110,28 @@ class RenderTests(unittest.TestCase):
             r = json.loads(plugin._ds_export({"dir": str(out), "overwrite": True, "only": ["tokens.css"]}))
             self.assertEqual(r["files"], ["tokens.css"])
             self.assertEqual((out / "mine.txt").read_text(encoding="utf-8"), "keep")
-            self.assertIn("design_system_get", [t[0] for t in plugin.TOOLS])
+            self.assertIn("ha_design_system_get", [t[0] for t in plugin.TOOLS])
         finally:
+            plugin._ctx = saved if "saved" in locals() else plugin._ctx
             store.settings_set("default_design_system", None)
+
+    def test_a_card_saved_before_the_rename_reads_with_the_new_tool_name(self):
+        import importlib.util
+        plugin = sys.modules.get("hermes_artifacts_plugin")
+        if plugin is None:
+            spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                          submodule_search_locations=[str(PLUGIN)])
+            plugin = importlib.util.module_from_spec(spec)
+            sys.modules["hermes_artifacts_plugin"] = plugin
+            spec.loader.exec_module(plugin)
+        kiln = store.publish(path=str(EXAMPLE), title="Kiln", type="design-system")["id"]
+        card = next(p for p in store.list_files(kiln) if p.startswith("api/assets/"))
+        f = store.version_dir(kiln, 1) / card
+        self.assertIn("(`ha_read` with `path`)", f.read_text("utf-8"))  # a new save writes the new name
+        f.write_text(f.read_text("utf-8").replace("`ha_read`", "`artifact_read`"), encoding="utf-8")
+        text = json.loads(plugin._read({"id": kiln, "path": card}))["content"]
+        self.assertIn("(`ha_read` with `path`)", text)
+        self.assertNotIn("artifact_read", text)
 
     def test_an_artifact_keeps_the_version_it_was_built_on(self):
         import importlib.util

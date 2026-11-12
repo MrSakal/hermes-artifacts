@@ -26,7 +26,7 @@ stretch, hand retype/recolor/refont/retime, export MP4 (with sound)/GIF/PNG. 10�
 
 ## A new film
 
-No subject: ask for one in a plain line, stop. Else, before any write: `artifact_guide type=motion
+No subject: ask for one in a plain line, stop. Else, before any write: `ha_guide type=motion
 topic=questions` (ask Style, Colors and Length, or decide them when nobody can answer).
 
 ## The files
@@ -46,7 +46,7 @@ topic=questions` (ask Style, Colors and Length, or decide them when nobody can a
 name no other module so. Assets only from the film's own files: no external URL, `<iframe>` or fetch.
 `modules/retyped.json`, `recolored.json`, `refaced.json`, `recut.json`, `retouched.json` are **the page's own
 records** of hand changes: never write or delete them. A film defined by `modules/script.js` instead of a scene list:
-`artifact_guide type=motion topic=script` before changing it.
+`ha_guide type=motion topic=script` before changing it.
 
 ## Making it: the user watches it arrive
 
@@ -54,14 +54,14 @@ Answer → last write: one turn, no question. Think briefly; never draft code in
 the draft). A good film that arrives beats a perfect one that doesn't.
 
 1. **Rough cut, one publish, before designing scenes:**
-   `artifact_publish type=motion title="…" files={"film.json":…, "modules/scenes.json":…, "modules/base.css":…}`
+   `ha_publish type=motion title="…" files={"film.json":…, "modules/scenes.json":…, "modules/base.css":…}`
    with `"stage":"rough"`. Plays at once, a plain name card per pending scene.
-2. **World, one publish:** `artifact_publish id=<id> base=true files={"modules/base.css":…, "modules/shared.js":…}`
+2. **World, one publish:** `ha_publish id=<id> base=true files={"modules/base.css":…, "modules/shared.js":…}`
    (`base.css` whole: variables and stacks unchanged, then type sizes/weights as classes).
-3. **Each scene its own publish, in film order:** `artifact_publish id=<id> base=true files={"modules/scene-<id>.js":…}`,
+3. **Each scene its own publish, in film order:** `ha_publish id=<id> base=true files={"modules/scene-<id>.js":…}`,
    finished first time, sent once written; replaces its name card. Showing a product's UI (screens, cursor,
-   callouts): `artifact_guide type=motion topic=product` first.
-4. **Last publish:** `modules/score.js` (none if silence asked; write it by `artifact_guide type=motion
+   callouts): `ha_guide type=motion topic=product` first.
+4. **Last publish:** `modules/score.js` (none if silence asked; write it by `ha_guide type=motion
    topic=score`) + `modules/scenes.json` whole with `"stage":"final"`, nothing else changed.
 5. **Stop.** Whole reply: "Here's your animation. It starts muted: the speaker button turns the
    sound on. Tell me if the music doesn't fit, or what else to change." (no score: "Here's your
@@ -95,16 +95,16 @@ the draft). A good film that arrives beats a perfect one that doesn't.
   typed + "rich" or "plain".
 - `palettes`: every palette offered, picked or not, in shown order, role order; `theirs`: how many from the
   first are the user's. The page re-offers them: keep both keys.
-- `designSystems` (optional): `["<id>"]` (`artifact_guide`'s `design_system`: the default, taken without
+- `designSystems` (optional): `["<id>"]` (`ha_guide`'s `design_system`: the default, taken without
   asking, or one the user names); publishing copies it into the film (`ds/<name>/`) and fills the record;
   its tokens are CSS variables under `base.css`. `[{"artifact": "<id>", "update": true}]` takes its latest
-  (asked, or changing the film anyway and `artifact_read` reports `design_system_changed`).
+  (asked, or changing the film anyway and `ha_read` reports `design_system_changed`).
 
 ### Fonts
 
 **Default: `"fonts":{"display":"space-grotesk","sans":{"family":"Inter","or":"instrument-sans"}}`** unless
 the brief wants other lettering or a design system brings faces. Any other face, a named family or their
-font files: `artifact_guide type=motion topic=fonts` first. Chinese/Japanese/Korean: omit `fonts`.
+font files: `ha_guide type=motion topic=fonts` first. Chinese/Japanese/Korean: omit `fonts`.
 Counting figures: `font-variant-numeric: tabular-nums`.
 
 ### `modules/base.css`, six lines at first
@@ -224,9 +224,9 @@ they asked to show or say appears, in their words and figures.
 
 ## Later turns
 
-Read first: `artifact_read id=<id> path=modules/scenes.json`, then modules you'll change. If the film has any
-of those hand-edit records, read `artifact_guide type=motion
-topic=hand-edits` before changing it. Change only what was asked via `artifact_publish id=<id> base=true
+Read first: `ha_read id=<id> path=modules/scenes.json`, then modules you'll change. If the film has any
+of those hand-edit records, read `ha_guide type=motion
+topic=hand-edits` before changing it. Change only what was asked via `ha_publish id=<id> base=true
 files={…}`: scene module; `scenes.json` for order, names, seconds, `desc`; `base.css`/`shared.js` for
 film-wide things. Keep ids stable. Scene added/dropped/retimed: refit `score.js` (`topic=score`; no `T.` of a
 dropped id). Color changes go in `base.css`'s variables (and `background`). Add to `base.css`/`shared.js`;
@@ -234,12 +234,12 @@ rename nothing scenes on show use. Never make video or audio files yourself; a s
 asked. Export questions (formats, sizes, fps): `topic=export`.
 
 **"Continue the animation. Scenes left: …"** or **"Finalize the animation."** (page buttons on a rough
-cut), or a rough scene to write: `artifact_guide type=motion topic=rough` first.
+cut), or a rough scene to write: `ha_guide type=motion topic=rough` first.
 
-**Comments** arrive as `On 0:12 “at 12.40 s · The pour”: …`; `artifact_comments` anchors: `selector`
+**Comments** arrive as `On 0:12 “at 12.40 s · The pour”: …`; `ha_comments` anchors: `selector`
 `@t=12.40` (moment), `@t=2.10-5.40` (stretch) or `@t=12.40 @xy=42.29%,40.74%` (point, % of frame: 42.29% of
 1920 = 812 px), in **film's own seconds**; `label` = time as played. Map time → scene and beat, point →
-element, before answering. Reply with `artifact_comments action=reply`, then resolve.
+element, before answering. Reply with `ha_comments action=reply`, then resolve.
 
 **View context:** with the film open, user messages carry `time`, `filmTime`, `scene` (`id`, `name`, `n`,
 `local` seconds), `playing`, `range` (marked stretch), `stage`, `failing`/`missing` scene ids, `selected`

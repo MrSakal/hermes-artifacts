@@ -22,7 +22,7 @@ class EditTests(unittest.TestCase):
     def setUp(self):
         self.aid = store.publish(title="e", type="dashboard", files={"dashboard.json": SPEC, "index.html": "x"})["id"]
 
-    def test_edit_keeps_tool_and_is_approved_by_the_save(self):
+    def test_edit_keeps_tool_and_waits_for_the_hosts_yes(self):
         d = live.dataset(self.aid, "q")
         store.set_approval(self.aid, live.call_id(d["tool"], d["args"], d["rules"]), d["tool"], True)
         r = live.edit_args(self.aid, "q", {"sql": "SELECT 2", "tool": "terminal"}, base_version=1)
@@ -32,21 +32,9 @@ class EditTests(unittest.TestCase):
         self.assertEqual(spec["datasets"]["q"]["source"]["args"]["sql"], "SELECT 2")
         self.assertEqual(spec["datasets"]["q"]["edit"]["via"], "user")
         d2 = live.dataset(self.aid, "q")
-        self.assertTrue(store.approved(self.aid, live.call_id(d2["tool"], d2["args"], d2["rules"])))  # the save is the approval
-
-    def test_edit_with_require_approval_waits_for_a_click(self):
-        live.edit_args(self.aid, "q", {"sql": "SELECT 9"}, auto_approve=False)
+        # The save came from the page: it is not consent. The changed query waits for Hermes Desktop's dialog.
+        self.assertFalse(store.approved(self.aid, live.call_id(d2["tool"], d2["args"], d2["rules"])))
         self.assertEqual(live.run_dataset(self.aid, "q", {})["status"], "approval")
-
-    def test_publishing_through_the_tool_approves_its_queries(self):
-        sys.path.insert(0, str(ROOT / "tests"))
-        from test_types import load_plugin
-        p = load_plugin()
-        out = json.loads(p._publish({"type": "dashboard", "title": "t", "open": False,
-                                     "files": {"dashboard.json": SPEC, "index.html": "x"}}))
-        self.assertEqual(out["live_queries_approved"], 1)
-        d = live.dataset(out["id"], "q")
-        self.assertTrue(store.approved(out["id"], live.call_id(d["tool"], d["args"], d["rules"])))
 
     def test_conflict_and_refusals(self):
         self.assertTrue(live.edit_args(self.aid, "q", {"sql": "SELECT 3"}, base_version=7)["conflict"])
@@ -80,19 +68,27 @@ class HistoryAndTestTests(unittest.TestCase):
         self.assertEqual(h[0]["via"], "agent")
         self.assertEqual(h[-1]["via"], "user")
 
-    def test_test_runs_without_saving(self):
+    def test_test_runs_without_saving_once_the_user_allowed_those_args(self):
         calls = []
-        reg = type("R", (), {"get_entry": lambda s, n, scope=None: type("E", (), {"toolset": "mcp-db"})(),
-                             "get_toolset_for_tool": lambda s, n: "mcp-db",
-                             "dispatch": lambda s, n, a, scope=None: (calls.append(a), json.dumps([{"n": 1}, {"n": 2}]))[1]})()
-        orig = live._registry_entry
-        live._registry_entry = lambda tool: (reg, reg.get_entry(tool), None)
+        ctx = type("C", (), {"call_mcp": lambda s, server, tool, a=None, timeout=30:
+                             (calls.append(a), {"ok": True, "result": json.dumps([{"n": 1}, {"n": 2}])})[1]})()
+        saved = live._CTX, live._known_servers
+        live.set_ctx(ctx)
+        live._known_servers = lambda: ["db"]
         try:
+            r = live.test_args(self.aid, "q", {"sql": "SELECT 7"})
+            self.assertEqual(r["status"], "approval")  # args the page made up: the host asks first
+            self.assertEqual(calls, [])
+            live.decide(self.aid, "q", r["call"], True, args={"sql": "SELECT 7"})  # the host dialog's yes
             r = live.test_args(self.aid, "q", {"sql": "SELECT 7"})
             self.assertEqual((r["status"], r["total"]), ("ok", 2))
             self.assertEqual(calls[0]["sql"], "SELECT 7")
             spec = json.loads(store.read_file(self.aid, "dashboard.json").decode())
             self.assertEqual(spec["datasets"]["q"]["source"]["args"]["sql"], "SELECT 1")  # nothing saved
-            self.assertEqual(live.test_args(self.aid, "q", {"sql": "DELETE FROM t"})["status"], "refused")
+            with self.assertRaises(live.LiveError):  # a write is never offered in the dialog
+                live.pending(self.aid, "q", args={"sql": "DELETE FROM t"})
+            p = live.pending(self.aid, "q", args={"sql": "DELETE FROM t"}, dialog=False)
+            store.set_approval(self.aid, p["call"], p["tool"], True)  # even if it were allowed
+            self.assertEqual(live.test_args(self.aid, "q", {"sql": "DELETE FROM t"})["status"], "refused")  # still read-only
         finally:
-            live._registry_entry = orig
+            live._CTX, live._known_servers = saved

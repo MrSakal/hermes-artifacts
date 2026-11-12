@@ -1,4 +1,4 @@
-"""The page's check and runs reports, and artifact_check reading them."""
+"""The page's check and runs reports, and ha_check reading them."""
 
 import json
 import os

@@ -1,0 +1,14 @@
+{
+  "name": "hermes-artifacts-three-bundle",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builds plugin/hermes_artifacts/types/vendor/three.bundle.js from npm three@0.187.0.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.187.0"
+  }
+}

@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.15.0
+version: 0.16.0
 description: >
   Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
@@ -15,27 +15,28 @@ provides_hooks:
   - pre_llm_call
   - on_session_end
   - post_compaction
+  - post_tool_call
 provides_tools:
-  - artifact_publish
-  - artifact_guide
-  - artifact_check
-  - artifact_live_read
-  - artifact_live_edit
-  - artifact_list
-  - artifact_read
-  - artifact_open
-  - artifact_inbox
-  - artifact_delete
-  - artifact_comments
-  - artifact_reply
-  - design_system_get
-  - design_system_export
+  - ha_publish
+  - ha_guide
+  - ha_check
+  - ha_live_read
+  - ha_live_edit
+  - ha_list
+  - ha_read
+  - ha_open
+  - ha_inbox
+  - ha_delete
+  - ha_comments
+  - ha_reply
+  - ha_design_system_get
+  - ha_design_system_export
 config_schema:
   shell_port:
     type: int
     default: 8797
     label: Browser viewer port
-    description: Loopback port of the optional browser viewer (started only by artifact_open where=browser or `hermes artifacts serve`).
+    description: Loopback port of the optional browser viewer (started only by ha_open where=browser or `hermes artifacts serve`).
   content_port:
     type: int
     default: 8798
@@ -45,9 +46,14 @@ config_schema:
     type: bool
     default: false
     label: Ask before every live dashboard query
-    description: Off, a live query that Hermes published, or that you saved in Sources, runs without a click; only queries that came in some other way ask first. On, every new or changed query waits for your click.
+    description: Off, a live query runs without asking when Hermes ran exactly that call in the chat before publishing it; any other query asks first, in Hermes Desktop's own dialog. On, every new or changed query asks.
   bridge_tools:
     type: str
     default: ""
     label: Bridge tool allowlist
     description: Comma-separated tool names an artifact may call through window.hermes.callTool in the browser viewer. Empty means none.
+  frame_ancestors:
+    type: str
+    default: "'self'"
+    label: Browser viewer frame-ancestors
+    description: Space-separated CSP sources that may show the browser viewer in a frame. 'self' (the default) lets no other site frame it; artifact content always lets the viewer frame it.

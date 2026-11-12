@@ -7,7 +7,7 @@ artboards and follow links between them; each change = new version. Exports: PNG
 
 Tell the user what happens on the canvas, never the mechanism.
 
-Read a topic (`artifact_guide type=design topic=<name>`) BEFORE the work it covers:
+Read a topic (`ha_guide type=design topic=<name>`) BEFORE the work it covers:
 - `topic=interactive`: any working control, prototype, state or link between artboards (`is_interactive`);
 - `topic=print`: anything meant as PDF/print pages (poster, flyer, résumé, certificate, one-pager, document);
 - `topic=canvas`: adding notes (row titles, stickies, link cards), pages, layout guides, or a diagram
@@ -18,7 +18,7 @@ Read a topic (`artifact_guide type=design topic=<name>`) BEFORE the work it cove
 
 ## Creating a canvas
 
-1. **Design system first.** `artifact_guide` returns `design_system`: the user's default; build on it
+1. **Design system first.** `ha_guide` returns `design_system`: the user's default; build on it
    unasked, however small the request, unless the user names another or declines. None set: it lists
    systems; name them and ask, when someone can answer. Match its exact colors, type, spacing, radii,
    fonts. Record in `canvas.json`: `"designSystems": ["<id>"]`; publishing copies it onto the canvas
@@ -31,8 +31,8 @@ Read a topic (`artifact_guide type=design topic=<name>`) BEFORE the work it cove
    Themes in a Theme menu. No system: one nameable look, stated in one line. Then settle static vs
    interactive.
 2. **Index + first artboard in one publish**:
-   `artifact_publish type=design title="Spring Menu Poster" files={"canvas.json": {...}, "Main.dc.html": "<!doctype html>..."}`
-3. Each later artboard: `artifact_publish id=<id> base=true files={"Next.dc.html": "..."}` (+ `canvas.json`
+   `ha_publish type=design title="Spring Menu Poster" files={"canvas.json": {...}, "Main.dc.html": "<!doctype html>..."}`
+3. Each later artboard: `ha_publish id=<id> base=true files={"Next.dc.html": "..."}` (+ `canvas.json`
    when `boards`/`order` gain it). Then the link + one line on what you made and assumed. No render,
    screenshot or re-read unless asked.
 
@@ -161,7 +161,7 @@ Rules that bite (each fails silently):
 ## Revising
 
 User hand-edits are new versions.
-1. `artifact_read id=<id> path=canvas.json`, then each artboard you'll change. Never from memory.
+1. `ha_read id=<id> path=canvas.json`, then each artboard you'll change. Never from memory.
 2. Republish `id=<id> base=true`, changed files only; `canvas.json` only on layout change (artboards,
    notes, pages, `launch`, title, design system), keeping untouched keys incl. user `props`/positions.
 3. Add: file + `boards` entry + `order` path. Remove: `"Old.dc.html": null`, both entries out.

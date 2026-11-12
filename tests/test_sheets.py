@@ -391,7 +391,7 @@ class ToolTests(unittest.TestCase):
         aid = out["id"]
         r = json.loads(p._doc_read({"id": aid, "tab": "Costs"}))
         self.assertEqual(r["rows"][1][3], "=B2*C2")
-        self.assertIn("artifact_live_edit", r["note"])
+        self.assertIn("ha_live_edit", r["note"])
         self.assertNotIn("fmt", r)
         r2 = json.loads(p._doc_read({"id": aid, "range": "A1:B1"}))
         self.assertEqual(r2["rows"], [["Item", "Unit price"]])
@@ -419,9 +419,9 @@ class ToolTests(unittest.TestCase):
 
     def test_tool_schemas_name_sheets(self):
         tools = {t[0]: t[1] for t in self.p.TOOLS}
-        self.assertIn("sheet", tools["artifact_publish"]["parameters"]["properties"]["type"]["enum"])
-        self.assertIn("range", tools["artifact_live_read"]["parameters"]["properties"])
-        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7245 + 48 + 102)  # + the model type (spec: at most + 60), + the board type (102)
+        self.assertIn("sheet", tools["ha_publish"]["parameters"]["properties"]["type"]["enum"])
+        self.assertIn("range", tools["ha_live_read"]["parameters"]["properties"])
+        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7311)  # 7385 before the ha_ names
 
 
 def _xlsx(path):

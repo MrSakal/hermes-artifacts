@@ -704,7 +704,7 @@ def asset_card(group: str, paths: list[str], files: dict) -> str:
         size = len(v) if isinstance(v, (bytes, bytearray)) else len(str(v).encode("utf-8"))
         out.append(f"| `{p}` | {p.rsplit('.', 1)[-1].lower() if '.' in p else ''} | {size} B |")
     out.append("")
-    out.append("Read a file by its path (`artifact_read` with `path`). An image shows only through `<img>`; a single-ink "
+    out.append("Read a file by its path (`ha_read` with `path`). An image shows only through `<img>`; a single-ink "
                "mark's ink is named in this group's README.")
     return "\n".join(out) + "\n"
 

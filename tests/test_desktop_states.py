@@ -350,10 +350,10 @@ await S('the placeholder says the type and the step', () => {
   if (!ts.includes('type_slides') || !ts.some(x => x.startsWith('stepGuide:'))) throw new Error('placeholder text ' + ts.join(' | '))
 }, { split: true, making: 'chatC' })
 await S('writing, then publishing with its title', async () => {
-  tool('tool.generating', 'artifact_publish')
+  tool('tool.generating', 'ha_publish')
   await settle()
   if (!texts(tileEl()).some(x => x.startsWith('stepWrite:'))) throw new Error('no writing step')
-  tool('tool.start', 'tool_call', { calls: [{ name: 'artifact_publish', arguments: { type: 'slides', title: 'Deck' } }] })
+  tool('tool.start', 'tool_call', { calls: [{ name: 'ha_publish', arguments: { type: 'slides', title: 'Deck' } }] })
   await settle()
   const ts = texts(tileEl())
   if (!ts.includes('Deck') || !ts.includes('stepPublish')) throw new Error('no title or publishing step ' + ts.join(' | '))
@@ -388,7 +388,7 @@ await S('chat G ends', async () => { making('chatG', 'ended'); delete makingSrv.
 await S('a chat not busy shows nothing from the backend', async () => { host.state.busy.set(false); makingSrv.chatH = { type: 'page' }; routerNav('/chatH') }, { split: false })
 await S('a doc gets no placeholder', async () => { routerNav('/chatI'); await settle(); making('chatI', 'guide', { type: 'doc' }) }, { split: false })
 await S('a publish with no guide this turn: a placeholder from the tool event', async () => {
-  routerNav('/chatJ'); await settle(); host.state.busy.set(true); await settle(); tool('tool.generating', 'artifact_publish')
+  routerNav('/chatJ'); await settle(); host.state.busy.set(true); await settle(); tool('tool.generating', 'ha_publish')
 }, { split: true, making: 'chatJ' })
 await S('that turn ends: it goes', () => host.state.busy.set(false), { split: false, closed: false })
 

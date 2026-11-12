@@ -928,7 +928,7 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
 
 
 def dump(aid: str) -> str:
-    """The live workbook as compact JSON (artifact_read without a path): each sheet as capped rows."""
+    """The live workbook as compact JSON (ha_read without a path): each sheet as capped rows."""
     st = load(aid)
     meta = store.get_meta(aid) or {}
     sheets = []
@@ -970,7 +970,7 @@ def _extras(sh: dict, rng: Optional[str], whole: bool = False) -> dict:
 def extras(aid: str, sheet: Optional[str], rng: Optional[str] = None) -> dict:
     """What Hermes' read adds for a sheet with merged cells or conditional formats: ``merges`` (the
     merged ranges reaching into what was read, at most 20) and ``rules`` (the sheet's rules, all of
-    them as the ``rules`` op replaces them all; just their count past 10: artifact_read lists them)."""
+    them as the ``rules`` op replaces them all; just their count past 10: ha_read lists them)."""
     return _extras(_sheet(load(aid), sheet), rng)
 
 
@@ -1115,7 +1115,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
         nonempty |= ne and o.get("op") in _GUARDED
     if by == "hermes" and base_rev is None and nonempty:
         raise SheetError("missing_guard", "writing over cells that hold values needs base_rev: the rev you read "
-                                          "(artifact_live_read)", rev=sh["rev"])
+                                          "(ha_live_read)", rev=sh["rev"])
     if base_rev is not None:
         base = int(base_rev)
         cell_ops = any(o.get("op") in _CELL_OPS for o in ops)

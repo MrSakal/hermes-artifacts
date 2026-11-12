@@ -323,7 +323,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
             except DocError:
                 return False  # gone: the op itself says so
         if by == "hermes" and base_rev is None and any(guarded(o) for o in ops):
-            raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (artifact_live_read)",
+            raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (ha_live_read)",
                            rev=t["rev"])
         if base_rev is not None:
             touched = {o.get("block") for o in ops if o.get("block")}

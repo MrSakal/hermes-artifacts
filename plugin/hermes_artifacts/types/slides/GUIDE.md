@@ -6,7 +6,7 @@ each slide from a layout in one theme. HTML only for a slide no layout fits.
 
 ## One file: `deck.json`
 
-`artifact_publish type=slides files={"deck.json": {...}}`, plus any images (`img/x.jpg`).
+`ha_publish type=slides files={"deck.json": {...}}`, plus any images (`img/x.jpg`).
 
 ```json
 {
@@ -45,13 +45,13 @@ rest fades. Build two slides differing in position or size (a title moving to th
 growing) and set `"transition": "magic"` on the first; pair elements whose text differs with the same
 `data-key`.
 
-**Design system first**: `artifact_guide` returns `design_system`: the user's default (build on it
+**Design system first**: `ha_guide` returns `design_system`: the user's default (build on it
 without asking) or, if none, the systems to name and ask about. Record it in deck.json:
 `"designSystems": ["<id>"]`; publishing copies it into the deck (`ds/<name>/`: tokens, fonts,
 pictures) and fills the record. Its colors, fonts and tokens replace the default look; no `theme`
 then. Several themes: the first, or `[{"artifact": "<id>", "theme": "<theme id>"}]`. The copy never
 changes by itself; `[{"artifact": "<id>", "update": true}]` takes the system's latest, only when asked
-or when changing the deck anyway and `artifact_read` reports `design_system_changed`. None: no key.
+or when changing the deck anyway and `ha_read` reports `design_system_changed`. None: no key.
 
 **`theme`** (whole deck): leave it out for the layouts' default look (dark slate, teal accent), the
 same for everyone: a deck never takes Hermes' app theme (only the editor around it does). Set it for a
@@ -98,7 +98,7 @@ element.
 
 ## Changing it
 
-Every user edit is a new version, so always `artifact_read` first (`deck.json`, then
+Every user edit is a new version, so always `ha_read` first (`deck.json`, then
 `slides/<id>.html` for slides you change). User-added slides are HTML files with ids like `s-ab12cd`;
 user-added images are `img/<name>`. Republish with the same `id` and `base=true`, passing only changed
 files. Remove a slide from `order` and `slides`, or delete its file with `"slides/<id>.html": null`.

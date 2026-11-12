@@ -16,7 +16,7 @@ require(process.argv[1]);
 const calls = [];
 const replies = JSON.parse(process.argv[2]);
 const call = async (tool, args) => { calls.push({ tool, args }); return replies[tool]; };
-const read = window.dashReads({ call, args: { projectId: 'p1' } });
+const read = window.dashReads({ call, args: { projectId: 'p1' }, poll: process.argv[4] ? JSON.parse(process.argv[4]) : null });
 (async () => {
   const out = {};
   for (const [name, answer] of Object.entries(JSON.parse(process.argv[3]))) {
@@ -29,9 +29,10 @@ const read = window.dashReads({ call, args: { projectId: 'p1' } });
 
 @unittest.skipIf(NODE is None, "node not installed")
 class ReadsTests(unittest.TestCase):
-    def run_reads(self, answers, replies=None):
+    def run_reads(self, answers, replies=None, poll=None):
         r = subprocess.run([NODE, "-e", HARNESS, str(PLUGIN / "hermes_artifacts" / "types" / "dashboard" / "reads.js"),
-                            json.dumps(replies or {}), json.dumps(answers)], capture_output=True, text=True, timeout=60)
+                            json.dumps(replies or {}), json.dumps(answers)] + ([json.dumps(poll)] if poll else []),
+                           capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)
 
@@ -47,6 +48,19 @@ class ReadsTests(unittest.TestCase):
         self.assertEqual(b["meta"], [{"label": "Job", "value": "p1:EU.j1"}])
         self.assertEqual(r["calls"][0]["tool"], "get_query_results")
         self.assertEqual(r["calls"][0]["args"]["jobId"], "j1")
+
+    def test_a_stored_poll_call_sends_its_own_args_filled_from_the_answer(self):
+        # The server accepts only the stored poll.args (with {{answer.…}} filled): the readers send exactly those.
+        done = {"jobComplete": True, "schema": {"fields": [{"name": "n", "type": "INTEGER"}]}, "rows": [{"f": [{"v": "1"}]}]}
+        poll = {"tool": "mcp_bq_get_query_results", "args": {"jobId": "{{answer.jobReference.jobId}}", "timeoutMs": 20000}}
+        r = self.run_reads({"bigquery": {"jobComplete": False, "jobReference": {"jobId": "j7", "location": "EU"}}},
+                           {"get_query_results": done}, poll)
+        self.assertEqual(r["calls"], [{"tool": "get_query_results", "args": {"jobId": "j7", "timeoutMs": 20000}}])
+        dbx_done = {"statement_id": "s1", "status": {"state": "SUCCEEDED"}, "manifest": {"schema": {"columns": [{"name": "a", "type_name": "INT"}]}},
+                    "result": {"data_array": [["5"]]}}
+        r = self.run_reads({"databricks": {"statement_id": "s1", "status": {"state": "RUNNING"}}}, {"poll_sql_result": dbx_done},
+                           {"tool": "mcp_dbx_poll_sql_result", "args": {"statement_id": "{{answer.statement_id}}"}})
+        self.assertEqual(r["calls"], [{"tool": "poll_sql_result", "args": {"statement_id": "s1"}}])
 
     def test_bigquery_error_in_the_connectors_words(self):
         r = self.run_reads({"bigquery": {"error": {"message": "Access Denied"}}})

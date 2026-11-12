@@ -1303,7 +1303,7 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
 
 
 def dump(aid: str) -> str:
-    """The live board as board.json (artifact_read without a path)."""
+    """The live board as board.json (ha_read without a path)."""
     st = load(aid)
     return json.dumps({"title": st["title"], "items": st["items"]}, ensure_ascii=False, separators=(",", ":"))
 
@@ -1458,7 +1458,7 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
             _one(work, o, ctx, f"ops[{i}]", guarded)
         if by == "hermes" and base_rev is None and guarded:
             raise BoardError("missing_guard", "changing items that are on the board needs base_rev: the rev you read "
-                                              "(artifact_live_read)", rev=st["rev"])
+                                              "(ha_live_read)", rev=st["rev"])
         if base_rev is not None and guarded:
             _guard(st, by, int(base_rev), guarded)
         _check_refs(work["items"])

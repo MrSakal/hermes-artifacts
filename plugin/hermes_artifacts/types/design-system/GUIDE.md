@@ -4,11 +4,11 @@ A brand's reference in files, browsed by people and built on by agents: brand bo
 theme, type, spacing, radii, shadows), live component previews, assets, fonts. People edit tokens, notes
 and markdown and upload images on its page; each save is a new version.
 
-One system can be the **default** (toggle on its page). `artifact_list type=design-system` returns
+One system can be the **default** (toggle on its page). `ha_list type=design-system` returns
 `default_design_system`, which designs, decks, films and dashboards build on; use it unless the user names
 another.
 
-Read a topic (`artifact_guide type=design-system topic=<name>`) BEFORE its work: `topic=from-code` (a system
+Read a topic (`ha_guide type=design-system topic=<name>`) BEFORE its work: `topic=from-code` (a system
 from a code repository, or re-syncing one), `topic=components` (anything under `components/` but the cover),
 `topic=cover` (`components/Cover/preview.html`: every system has one, written last).
 
@@ -99,21 +99,21 @@ breaks a rule is dropped (the page lists each in a "values dropped" note):
    icons, fonts, images as files, never redraw a mark. No sources: a SMALL first system (6–10 colours, one
    theme, 5–7 text styles, 4 spacing steps, 3 radii, one-paragraph README, no components) and say so.
    From a code repository: `topic=from-code`.
-2. `artifact_publish type=design-system title="Acme" files={"design-system.json": {...}, "tokens.json":
+2. `ha_publish type=design-system title="Acme" files={"design-system.json": {...}, "tokens.json":
    {...}, "README.md": "...", "components/Cover/preview.html": "...", ...}` (binaries as `{"base64": "..."}`).
 3. Tell the user what you built from, assumed, and what remains of the inventory; offer to make it default
    if none is.
 
 ## Changing one
 
-People edit live: `artifact_read id=<id> path=design-system.json`, then each file you'll change; change
+People edit live: `ha_read id=<id> path=design-system.json`, then each file you'll change; change
 only what was asked. Republish `id=<id> base=true` with ONLY changed files (`tokens.json` whole; `null`
 removes a file), `lastChange` updated, every other index key as just read. Regenerate the cover only when
 name, palette, display face or scales change.
 
 ## How other agents read a system
 
-`artifact_list type=design-system` → `default_design_system` (or the named one), then `artifact_read
+`ha_list type=design-system` → `default_design_system` (or the named one), then `ha_read
 id=<id> path=README.md` FIRST and use files as it says: `tokens.json` for values,
 `components/<Comp>/README.md` for guidelines, `components/bundle.js` + `bundle.css` to run components
 (`<x-import component-from-global-scope="<ns>.<Comp>">` mounts one on a canvas). Decks, canvases and films

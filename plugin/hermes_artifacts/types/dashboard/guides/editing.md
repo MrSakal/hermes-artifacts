@@ -28,7 +28,7 @@ each part:
   shows, never typed into a sentence.
 
 Open such a page's `index.html` with `<meta name="dash-one-writer">`. Before changing a page that has it,
-re-read the file (`artifact_read`): the person may have edited it by hand, and their edits stay.
+re-read the file (`ha_read`): the person may have edited it by hand, and their edits stay.
 
 A dashboard drawn from `dashboard.json` `layout` can't be edited by hand. Asked by the page to make it
 editable: rewrite it as an `index.html` by these rules, keeping what it shows and how it looks; never

@@ -38,6 +38,8 @@
       reauthTitle: "Sign in to {s} again", reauthBody: "Its login has expired, so these numbers can't be fetched until you sign in.",
       absentTitle: "{s} is not connected", absentBody: "Connect it in Hermes to fetch these numbers.",
       offTitle: "{s} is turned off", offBody: "Turn it on in Hermes to fetch these numbers.",
+      deniedTitle: "Hermes doesn’t let this dashboard reach {s}", deniedBody: "One command in a terminal allows it; Hermes shows it to copy.",
+      howAllow: "Show the command",
       affected: "Waiting", signIn: "Sign in", openConnectors: "Open connectors", retry: "Try again",
       editQuery: "Edit query", editHint: "The call's arguments as JSON. Saving makes a new version and runs the changed query.",
       save: "Save", cancel: "Cancel", saving: "Saving…", badJson: "Not valid JSON", conflict: "Changed meanwhile: reload first", querySaved: "Query saved",
@@ -60,7 +62,7 @@
       fileSaved: "File replaced.", fileTooBig: "The file is too large to attach. Choose a smaller one.",
       editPage: "Edit the page",
       look: "Look", lookCustom: "custom", lookDefault: "default", lookChange: "Change",
-      lookMsg: "[dashboard look] The user wants to change this dashboard's look (dashboard.json \"look\"; now: {now}). List the design systems (artifact_list type=design-system), offer them and the default look, ask which, then record the chosen one as artifact_guide type=dashboard topic=look says.",
+      lookMsg: "[dashboard look] The user wants to change this dashboard's look (dashboard.json \"look\"; now: {now}). List the design systems (ha_list type=design-system), offer them and the default look, ask which, then record the chosen one as ha_guide type=dashboard topic=look says.",
       editAsk: "Edit",
       fmt_dashboard: "Dashboard",
       "fmt_scrollyteller": "Scrollyteller",
@@ -98,6 +100,8 @@
       reauthTitle: "Jelentkezz be újra: {s}", reauthBody: "Lejárt a bejelentkezés, ezért amíg újra be nem lépsz, ezeket a számokat nem tudja lekérni.",
       absentTitle: "{s} nincs csatlakoztatva", absentBody: "Csatlakoztasd a Hermesben, hogy le tudja kérni ezeket a számokat.",
       offTitle: "{s} ki van kapcsolva", offBody: "Kapcsold be a Hermesben, hogy le tudja kérni ezeket a számokat.",
+      deniedTitle: "A Hermes nem engedi, hogy ez a dashboard elérje: {s}", deniedBody: "Egy terminálparancs engedélyezi; a Hermes megmutatja másolásra.",
+      howAllow: "Parancs megjelenítése",
       affected: "Erre vár", signIn: "Bejelentkezés", openConnectors: "Kapcsolatok megnyitása", retry: "Újrapróbálás",
       editQuery: "Lekérdezés szerkesztése", editHint: "A hívás argumentumai JSON-ként. A mentés új verziót készít, és lefuttatja a módosított lekérdezést.",
       save: "Mentés", cancel: "Mégse", saving: "Mentés…", badJson: "Nem érvényes JSON", conflict: "Közben megváltozott: előbb töltsd újra", querySaved: "Lekérdezés elmentve",
@@ -252,7 +256,7 @@
     if (st.status === "loading") return { status: "loading" };
     if (st.status === "approval") return { status: "connect", message: T.waiting };
     if (st.status === "declined") return { status: "declined", message: T.declined };
-    if (st.status === "reauth" || st.status === "absent" || st.status === "off") {
+    if (st.status === "reauth" || st.status === "absent" || st.status === "off" || st.status === "denied") {
       // Keep the last numbers on screen (dimmed) while the connector is out; say why in the banner.
       if (st.stale && st.stale.rows) return Object.assign({ status: "ok", stale: true }, { columns: st.stale.columns || [], rows: st.stale.rows });
       return { status: st.status, message: st.message };
@@ -351,7 +355,8 @@
     };
     var ctx = { answer: answer, call: call, args: JSON.parse(JSON.stringify(args)), rows: raw.rows, columns: raw.columns,
       params: JSON.parse(JSON.stringify(params)) };
-    ctx.read = window.dashReads ? window.dashReads({ call: call, args: ctx.args }) : {};
+    var src = (datasets[id] && datasets[id].source) || {};
+    ctx.read = window.dashReads ? window.dashReads({ call: call, args: ctx.args, poll: src.poll || null }) : {};
     var done = function (result) {
       if (loads[id] !== rec) return;
       rec.result = result; gen++; redraw();
@@ -544,7 +549,7 @@
         var r = cache[ids[j]] && cache[ids[j]].r;
         var s = r ? r.status : "loading";
         if (live[ids[j]] && live[ids[j]].refreshing) { st = st || "refreshing"; continue; }
-        if (/^(error|missing|declined|connect|reauth|absent|off)$/.test(s)) { st = "error"; break; }
+        if (/^(error|missing|declined|connect|reauth|absent|off|denied)$/.test(s)) { st = "error"; break; }
         if (s === "loading") st = "loading";
       }
       if (!st && !m.children.length && /^\s*[—-]?\s*$/.test(m.textContent)) st = "empty";
@@ -1352,7 +1357,7 @@
     lastRetry = Date.now();
     liveIds().forEach(function (id) {
       var st = live[id];
-      if (st && !st.running && /^(error|failed|reauth|absent|off)$/.test(st.status)) loadLive(id);
+      if (st && !st.running && /^(error|failed|reauth|absent|off|denied)$/.test(st.status)) loadLive(id);
     });
   }
   window.addEventListener("focus", retryFailed);
@@ -1408,7 +1413,7 @@
     });
     var failures = Object.keys(used).filter(function (id) {
       var s = statusOf(id).status;
-      return /^(error|failed|reauth|absent|off|refused|missing)$/.test(s);
+      return /^(error|failed|reauth|absent|off|denied|refused|missing)$/.test(s);
     });
     return { mode: srcOpen ? "data" : "page", place: placeName,
       selected: picked ? [picked.id] : [], field: picked && picked.field || null, filters: filters,
@@ -1464,13 +1469,26 @@
     var by = {};
     liveIds().forEach(function (id) {
       var st = live[id];
-      if (!st || !/^(reauth|absent|off)$/.test(st.status)) return;
+      if (!st || !/^(reauth|absent|off|denied)$/.test(st.status)) return;
       var key = (st.server || datasets[id].source.tool) + "|" + st.status;
       (by[key] = by[key] || { server: st.server, status: st.status, message: st.message, ids: [] }).ids.push(id);
     });
     var list = Object.keys(by).map(function (k) { return by[k]; });
     if (!list.length || C.thumb) { if (connEl) { connEl.remove(); connEl = null; } return; }
     var box = h("div", { "class": "dash-ask dash-conn" }, list.map(function (c) {
+      if (c.status === "denied") {
+        // The command is never drawn here: Hermes Desktop shows it in its own dialog, from the server.
+        return h("div", { "class": "dash-conn-row" }, [
+          h("div", { style: "flex:1;min-width:0" }, [
+            h("b", { text: T.deniedTitle.replace("{s}", c.server || "MCP") }),
+            h("p", { text: T.deniedBody + " " + T.affected + ": " + c.ids.map(function (id) { return datasets[id].title || id; }).join(", ") })
+          ]),
+          window.hermes && window.hermes.allowlist ? kit.labelled(kit.button(T.howAllow, "data", function () {
+            window.hermes.allowlist().catch(function () {});
+          }), T.howAllow) : null,
+          kit.labelled(kit.button(T.retry, "refresh", function () { c.ids.forEach(function (id) { loadLive(id); }); }), T.retry)
+        ].filter(Boolean));
+      }
       var title = c.status === "reauth" ? T.reauthTitle : c.status === "off" ? T.offTitle : T.absentTitle;
       return h("div", { "class": "dash-conn-row" }, [
         h("div", { style: "flex:1;min-width:0" }, [
@@ -1523,8 +1541,9 @@
       })),
       h("div", { "class": "src-actions" }, [
         kit.labelled(kit.button(T.allow, "data", function () {
-          Promise.all(pending.map(function (id) { return window.hermes.dataset.approve(id, C.version); }))
-            .then(function () { pending.forEach(function (id) { loadLive(id); }); })
+          // One dialog in Hermes Desktop for all of them; the answer is given there, not by this click.
+          window.hermes.dataset.approve(pending, C.version)
+            .then(function (r) { if (r && r.allowed) pending.forEach(function (id) { loadLive(id); }); })
             .catch(function (e) { kit.toast(String(e && e.message || e)); });
         }), T.allow),
         kit.labelled(kit.button(T.decline, "", function () {

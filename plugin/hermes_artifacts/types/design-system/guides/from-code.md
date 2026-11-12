@@ -13,7 +13,7 @@ The system mirrors the code: its names, its values, its files. Never invent or r
    code's token names; a usage note on each, from how the code uses it.
 4. **Files, never through the conversation**: build the system in a scratch folder (`cp` fonts to
    `fonts/`, marks to `assets/Logos/`, icons to `assets/Icons/`) and publish the folder:
-   `artifact_publish type=design-system title="Acme" path="<folder>"`. No base64, no pasted file bodies.
+   `ha_publish type=design-system title="Acme" path="<folder>"`. No base64, no pasted file bodies.
 5. **Components**: ask which. Default is read-only: `components/<Comp>/README.md` (what it is, props,
    what the consumer provides), `index.d.ts` copied or reduced from the source types, and a static
    `preview.html` in plain markup with the system's tokens. A runnable `bundle.js` only if the user

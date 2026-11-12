@@ -5,7 +5,7 @@ architecture, brainstorm, plan on a wall, comparison. Prose is a doc; a polished
 
 ## Creating one
 
-`artifact_publish type=board title="Release flow" files={"board.json": {...}}`
+`ha_publish type=board title="Release flow" files={"board.json": {...}}`
 
 ```json
 {"title": "Release flow", "items": [
@@ -56,9 +56,9 @@ Text is plain: `\n`, `**bold**`, `*italic*`, `` `code` ``, `[label](https://…)
 
 Live: the user edits it too. Never publish it again.
 
-1. `artifact_live_read id=<id>`: `rev`, `items` (bulky fields as a length; `range` = ids in full),
+1. `ha_live_read id=<id>`: `rev`, `items` (bulky fields as a length; `range` = ids in full),
    `search`, `since_rev`.
-2. `artifact_live_edit id=<id> base_rev=<rev> ops=[…]`:
+2. `ha_live_edit id=<id> base_rev=<rev> ops=[…]`:
    - `{"op":"add","items":[…],"near":"<id>"}`
    - `{"op":"set","id":"a","text":"…"}` only what changes (`null` removes a field)
    - `{"op":"move","ids":["a"],"dx":40,"dy":0}` (a section takes its members)

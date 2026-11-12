@@ -6,11 +6,11 @@ tokens from them for light and dark; the page, written on the tokens (`--color-*
 colors, fonts or corners and has no dark-mode rule. The look dresses the dashboard's own area only;
 the bar, the Sources panel and menus around it keep Hermes' theme.
 
-**Design system first.** `artifact_guide` returns `design_system` with its tokens card. A default, or
+**Design system first.** `ha_guide` returns `design_system` with its tokens card. A default, or
 one the user names: record its look in the first build, without asking; read nothing else of it. None set but systems listed: name them and ask, when someone can answer; else the
 dashboard's own look (no `look`). The look is a copy: a later edit of the system changes no dashboard
 until you record it again, when the person asks, or when you change the dashboard anyway and
-`artifact_read` reports `design_system_changed` (then say so in a line).
+`ha_read` reports `design_system_changed` (then say so in a line).
 
 ```json
 "look": {
@@ -39,6 +39,6 @@ until you record it again, when the person asks, or when you change the dashboar
   black, far outside drops its set. `text` needs 4.5:1 on ground and card, `muted` 3:1 (else worked
   out), a chart color 1.5:1.
 - Ready-made looks, only when the person asks by name: Clay (warm paper, clay and ink), Ocean (cool
-  blue-white, deep blues and teal), Meadow (soft green-white, greens and ochre). `artifact_guide
+  blue-white, deep blues and teal), Meadow (soft green-white, greens and ochre). `ha_guide
   type=dashboard topic=looks` gives each whole.
 - Asked to drop the look: remove `look`.

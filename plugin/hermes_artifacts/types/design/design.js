@@ -29,7 +29,7 @@
       properties: "Properties", outline: "Outline", code: "Code", copyCode: "Copy", copied: "Copied", nothing: "Select an artboard or an element.",
       noteTitle: "Title", noteSticky: "Note", noteShape: "Shape", noteLink: "Link", noteDraw: "Drawing",
       fixIt: "Ask Hermes to fix",
-      fixMsg: function (path, err) { return "The artboard " + path + " fails with: " + err + ". Fix it (artifact_read the canvas first)."; },
+      fixMsg: function (path, err) { return "The artboard " + path + " fails with: " + err + ". Fix it (ha_read the canvas first)."; },
       fit: "Zoom to fit", zoomIn: "Zoom in", zoomOut: "Zoom out", sel: "Zoom to selection", play: "Play", stop: "Stop",
       tweaks: "Tweaks", expand: "Full window", back: "Canvas", prev: "Previous artboard", next: "Next artboard",
       save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved", conflict: "Changed meanwhile: the new version loads",

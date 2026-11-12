@@ -100,6 +100,66 @@ class ServerTests(unittest.TestCase):
                             json.dumps({"name": "terminal"}).encode())
         self.assertEqual(code, 403)
 
+    def _csp(self, url):
+        with urllib.request.urlopen(url, timeout=5) as r:
+            return r.headers.get("Content-Security-Policy", "")
+
+    def test_frame_ancestors_default_self(self):
+        """No other site frames the viewer; the viewer still frames the artifact content."""
+        shell = self._csp(f"{self.cfg.shell_origin}/a/{self.aid}")
+        self.assertIn("frame-ancestors 'self'", shell)
+        self.assertIn(f"frame-src {self.cfg.content_origin}", shell)
+        content = self._csp(f"{self.cfg.content_origin}/c/{self.aid}/v1/index.html")
+        self.assertEqual(content, "frame-ancestors http://127.0.0.1:18797 http://localhost:18797")
+        self.assertNotIn("'self'", content)  # 'self' on the content port would mean the content origin
+
+    def test_frame_ancestors_ignores_the_old_env_var(self):
+        os.environ["HERMES_ARTIFACTS_FRAME_ANCESTORS"] = "*"
+        try:
+            self.assertEqual(Config().frame_ancestors, "'self'")
+        finally:
+            del os.environ["HERMES_ARTIFACTS_FRAME_ANCESTORS"]
+
+    def test_frame_ancestors_override(self):
+        cfg = Config(shell_port=18799, content_port=18800, frame_ancestors=" 'self'  https://hub.example ")
+        srv = ArtifactServer(cfg).start()
+        try:
+            self.assertIn("frame-ancestors 'self' https://hub.example", self._csp(f"{cfg.shell_origin}/"))
+            self.assertEqual(self._csp(f"{cfg.content_origin}/c/{self.aid}/v1/index.html"),
+                             "frame-ancestors http://127.0.0.1:18799 http://localhost:18799 https://hub.example")
+        finally:
+            srv.stop()
+        anyone = Config(frame_ancestors="*")
+        self.assertIsNone(anyone.content_frame_ancestors())  # any framer of the shell: content sends none
+
+
+class PluginConfigTests(unittest.TestCase):
+    def test_frame_ancestors_is_a_plugin_setting(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_artifacts_plugin", PLUGIN / "__init__.py",
+                                                      submodule_search_locations=[str(PLUGIN)])
+        p = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = p
+        spec.loader.exec_module(p)
+
+        class Ctx:
+            def __init__(self, conf):
+                self.conf = conf
+
+            def get_config(self, key):
+                return self.conf.get(key)
+
+        old = p._ctx
+        try:
+            p._ctx = Ctx({})
+            self.assertEqual(p._cfg().frame_ancestors, "'self'")
+            p._ctx = Ctx({"frame_ancestors": "https://hub.example"})
+            self.assertEqual(p._cfg().frame_ancestors, "https://hub.example")
+        finally:
+            p._ctx = old
+        yml = (PLUGIN / "plugin.yaml").read_text("utf-8")
+        self.assertIn("  frame_ancestors:\n    type: str\n    default: \"'self'\"\n", yml.replace("\r\n", "\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

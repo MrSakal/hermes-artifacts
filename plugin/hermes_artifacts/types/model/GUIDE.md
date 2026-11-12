@@ -6,7 +6,7 @@ from parts you describe or meshes brought in from files. You write a description
 
 ## Creating one
 
-`artifact_publish type=model title="Cassette panel" files={"model.json": {...}}`
+`ha_publish type=model title="Cassette panel" files={"model.json": {...}}`
 
 ```json
 {"title": "Cassette panel", "units": "mm",
@@ -48,7 +48,7 @@ from parts you describe or meshes brought in from files. You write a description
 - Build it the way it is made: one part per real piece, named, tagged by trade or layer, repeated
   pieces as an `array`, symmetric ones with `mirror`. A figure is parts too: `lathe` for turned
   bodies, `sweep` for limbs and tubes, primitives for the rest.
-- A mesh from a file: `artifact_publish type=model path="<file.glb|stl|obj|ply|3mf>"`, or add it to
+- A mesh from a file: `ha_publish type=model path="<file.glb|stl|obj|ply|3mf>"`, or add it to
   `files` under `meshes/` (base64) with a `file` part. Sculpted, organic shapes come only from files.
 - Limits: 2000 parts, 100 000 array instances, a mesh file 12 MB.
 
@@ -58,8 +58,8 @@ Then the link and one line on what you built and assumed (sizes, materials).
 
 The user edits in the page (moves parts, drags parameters, adds parts, brings in files).
 
-1. `artifact_read id=<id>` gives the current `model.json`.
-2. `artifact_publish id=<id> base=true files={"model.json": {...}}` with the whole updated model;
+1. `ha_read id=<id>` gives the current `model.json`.
+2. `ha_publish id=<id> base=true files={"model.json": {...}}` with the whole updated model;
    mesh files stay as they are. Change only what was asked; keep the user's positions, values and
    unknown keys. A size change is usually one `params` value.
 

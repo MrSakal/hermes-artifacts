@@ -15,18 +15,6 @@ from . import boards, docs, history, live, render, sheets, store
 from .server import inject_bridge
 
 
-def require_approval() -> bool:
-    """The plugin setting: true makes every live query wait for the user's click, even ones the
-    agent published or the user saved. Read from Hermes' config; off when it can't be read."""
-    try:
-        from hermes_cli.config import load_config_readonly
-        cfg = load_config_readonly() or {}
-        v = (((cfg.get("plugins") or {}).get("entries") or {}).get("hermes-artifacts") or {}).get("settings", {}).get("require_approval")
-        return v is True or str(v).lower() in ("true", "1", "yes")
-    except Exception:
-        return False
-
-
 class ApiError(Exception):
     def __init__(self, status: int, detail: str):
         super().__init__(detail)
@@ -214,21 +202,22 @@ def _op(aid: str, op: str, a: dict) -> dict:
         return history.restore(aid, _int(a.get("version")) or 0)
     if op == "dataset.call":
         return live.loader_call(aid, str(a.get("id", "")), str(a.get("tool", "")), a.get("args"), version=_int(a.get("version")))
-    if op in ("dataset.approve", "dataset.decline"):
-        # The page names a dataset; what gets approved is the call stored in the artifact, never one
-        # the page describes. The host only forwards this on a user gesture.
-        d = live.dataset(aid, str(a.get("id", "")), _int(a.get("version")))
-        cid = live.call_id(d["tool"], d["args"], d["rules"])
-        store.set_approval(aid, cid, d["tool"], op == "dataset.approve")
-        return {"ok": True, "call": cid, "allowed": op == "dataset.approve"}
+    if op == "dataset.approve":
+        # Consent is never the page's: Hermes Desktop asks in its own dialog (the approval route below).
+        raise ApiError(403, "allowing live data is Hermes Desktop's: it asks the user in its own dialog")
+    if op == "dataset.decline":
+        # Declining only ever takes a permission away, so the page may.
+        p = live.pending(aid, str(a.get("id", "")), _int(a.get("version")), dialog=False)
+        store.set_approval(aid, p["call"], p["tool"], False)
+        return {"ok": True, "call": p["call"], "allowed": False}
     if op == "dataset.test":
         params = a.get("params") if isinstance(a.get("params"), dict) else {}
         return live.test_args(aid, str(a.get("id", "")), a.get("args"), params)
     if op == "dataset.history":
         return {"entries": store.history(aid, str(a.get("id", "")))[-50:]}
     if op == "dataset.edit":
-        return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")),
-                              auto_approve=not require_approval())
+        # Saved, not approved: the changed query waits for the user's yes in Hermes Desktop's dialog.
+        return live.edit_args(aid, str(a.get("id", "")), a.get("args"), _int(a.get("base_version")))
     if op == "view":
         # The host adds the chat session; the context itself is the page's (data, bounded).
         store.view_set(str(a.get("session", "")), aid if not a.get("closed") else None,
@@ -250,7 +239,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
         except docs.DocError as e:
             raise ValueError(e.message)
     if op == "doc.edit":
-        # The doc's own editor (the user typing). Hermes edits through its artifact_live_edit tool.
+        # The doc's own editor (the user typing). Hermes edits through its ha_live_edit tool.
         try:
             return docs.apply(aid, a.get("ops") or [], by="user", tab=a.get("tab") or None, base_rev=_int(a.get("base_rev")))
         except docs.DocError as e:
@@ -287,7 +276,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
 
 
 def _sheet_op(aid: str, op: str, a: dict) -> dict:
-    """The sheet page's own ops (the user editing). Hermes edits through artifact_live_edit."""
+    """The sheet page's own ops (the user editing). Hermes edits through ha_live_edit."""
     sheet = a.get("sheet") or None
     try:
         if op == "sheet.read":
@@ -322,7 +311,7 @@ def _sheet_op(aid: str, op: str, a: dict) -> dict:
 
 
 def _board_op(aid: str, op: str, a: dict) -> dict:
-    """The board page's own ops (the user editing). Hermes edits through artifact_live_edit."""
+    """The board page's own ops (the user editing). Hermes edits through ha_live_edit."""
     try:
         if op == "board.read":
             return boards.read(aid, since_rev=_int(a.get("since_rev")))
@@ -399,6 +388,20 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             elif name not in have:
                 store.settings_set("folders", have + [name])
             return {"folders": store.settings().get("folders") or []}
+        if parts == ["trash"] and method == "GET":
+            # Deleted artifacts, kept store.TRASH_DAYS days (newest deletion first).
+            return {"trash": store.trash_list(), "days": store.TRASH_DAYS}
+        if parts == ["trash", "restore"] and method == "POST":
+            # Bring one back: {"name": <trash folder name>} (the gallery: that very copy) or
+            # {"id": <id or trash folder name>} (the newest deletion of that id).
+            try:
+                if body.get("name"):
+                    return {"artifact": _view(store.restore(str(body["name"]), entry=True))}
+                return {"artifact": _view(store.restore(str(body.get("id") or "")))}
+            except FileNotFoundError as e:
+                raise ApiError(404, str(e))
+            except (FileExistsError, ValueError) as e:
+                raise ApiError(409, str(e))
         if len(parts) == 2 and parts[0] == "vendor" and method == "GET":
             p = (_VENDOR / parts[1]).resolve()
             if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
@@ -452,6 +455,20 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 return _view(store.update_meta(aid, title=body.get("title"), pinned=body.get("pinned"),
                                                session=body.get("session"), folder=body.get("folder"),
                                                opened=body.get("opened")))
+            elif rest == ["approval"] and method == "POST":
+                # Host only (a page reaches nothing but /op): the live query Hermes Desktop shows in its own
+                # approval dialog, then the user's answer. {id, version, args?} shows it; with `allowed` and
+                # the `call` shown it decides, refused when the query changed in between.
+                _meta(aid)
+                dsid, v, args = str(body.get("id", "")), _int(body.get("version")), body.get("args")
+                if "allowed" not in body:
+                    return live.pending(aid, dsid, v, args)
+                return live.decide(aid, dsid, body.get("call"), body.get("allowed") is True, v, args)
+            elif rest == ["allowlist"] and method == "GET":
+                # Host only (a page reaches nothing but /op): the servers this dashboard needs that the MCP
+                # allowlist lacks and the command that adds them, for Hermes Desktop's own dialog to show.
+                _meta(aid)
+                return live.allow_help(aid)
             elif rest == ["chat"] and method == "GET":
                 # Host only (a page reaches nothing but /op): is the artifact's chat still there?
                 return chat_status(_meta(aid).get("session"))

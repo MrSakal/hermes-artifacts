@@ -143,7 +143,7 @@
         var s = o.statusOf(id);
         datasets[id] = { status: s.status, message: s.message || undefined, rows: s.rows, ms: s.ms, at: s.at, cached: s.cached || undefined };
       });
-      var failedSources = Object.keys(datasets).filter(function (id) { return /^(error|failed|missing|reauth|absent|off|refused)$/.test(datasets[id].status); });
+      var failedSources = Object.keys(datasets).filter(function (id) { return /^(error|failed|missing|reauth|absent|off|denied|refused)$/.test(datasets[id].status); });
       var check = {
         version: o.version, at: new Date().toISOString(),
         status: page.length || marks.length || failedSources.length ? "failed" : "passed",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import secrets
@@ -43,6 +44,145 @@ def root() -> Path:
     if not os.path.isdir(r):  # one stat when it is there (every path below starts here)
         r.mkdir(parents=True, exist_ok=True)
     return r
+
+
+class PathRefused(ValueError):
+    """A host path the agent named lies where the plugin may not read or write; the message says why.
+    ``no_project``: the chat itself has no project folder (none known, or home, or a drive root)."""
+
+    def __init__(self, message: str, no_project: bool = False):
+        super().__init__(message)
+        self.no_project = no_project
+
+
+_HIDDEN_ATTRS = 0x2 | 0x4  # FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM (Windows)
+
+
+def _hidden_attr(st) -> bool:
+    """A Windows hidden or system file or folder (AppData, desktop.ini, ...), from its stat."""
+    return bool(getattr(st, "st_file_attributes", 0) & _HIDDEN_ATTRS)
+
+
+def _homes() -> list[Path]:
+    """The user's home folder, as each way of naming it says (Path.home(), USERPROFILE, HOME)."""
+    out = []
+    for h in (os.environ.get("USERPROFILE"), os.environ.get("HOME"), str(Path.home())):
+        if h:
+            try:
+                out.append(Path(h).expanduser().resolve())
+            except (OSError, RuntimeError):
+                pass
+    return out
+
+
+def _within(p: Path, base: Path) -> bool:
+    a, b = os.path.normcase(str(p)), os.path.normcase(str(base))
+    return a == b or a.startswith(b.rstrip("\\/") + os.sep)
+
+
+def _guarded() -> list[Path]:
+    """Hermes' home and the plugin's own data: never read from or written into for the agent."""
+    out = []
+    for g in (hermes_home, root):
+        try:
+            out.append(Path(g()).resolve())
+        except OSError:
+            pass
+    return out
+
+
+def confine(path, base) -> Path:
+    """``path`` (a relative one starts at ``base``, the session's working directory) with symlinks
+    resolved, when it lies inside ``base``, outside Hermes' home and the plugin's data, with no hidden
+    name below ``base`` (a dot name, or Windows' hidden or system attribute) and, for a file already
+    there, no second hard link. Else PathRefused naming why. A ``base`` that is the user's home, above
+    it, or a drive root is no project folder: everything is refused. The one check for every host path
+    the agent chooses (ha_publish path=, ha_design_system_export dir=)."""
+    if not base:
+        raise PathRefused("this chat has no project folder (no working directory is known)", no_project=True)
+    b = Path(base).expanduser().resolve()
+    if b == Path(b.anchor):
+        raise PathRefused(f"this chat has no project folder (its working directory {b} is a drive root)",
+                          no_project=True)
+    if any(_within(h, b) for h in _homes()):
+        raise PathRefused(f"this chat has no project folder (its working directory {b} is your home folder "
+                          "or above it)", no_project=True)
+    p = Path(str(path)).expanduser()
+    p = (p if p.is_absolute() else b / p).resolve()
+    for g in _guarded():
+        if _within(p, g):
+            raise PathRefused(f"{p} is inside Hermes' own data")
+    if not _within(p, b):
+        raise PathRefused(f"{p} is outside the working directory {b}")
+    cur = b
+    for part in p.relative_to(b).parts:
+        cur = cur / part
+        try:
+            st = os.stat(cur, follow_symlinks=False)
+        except OSError:
+            st = None
+        if part.startswith(".") or (st is not None and _hidden_attr(st)):
+            raise PathRefused(f"{p} is in a hidden file or folder ({part})")
+    try:
+        st = os.stat(p)
+    except OSError:
+        st = None
+    if st is not None and stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+        raise PathRefused(f"{p} is a hard link (it has {st.st_nlink} names)")
+    return p
+
+
+def _is_link(p: str) -> bool:
+    return os.path.islink(p) or bool(getattr(os.path, "isjunction", lambda _: False)(p))
+
+
+def _copy_folder(src: Path, dest: Path, have: int = 0, have_bytes: int = 0) -> None:
+    """Copy a folder brought in, counting as it goes: past MAX_FILES files or 16 MB it stops at once
+    (ValueError), before reading the rest. Not copied: hidden entries (a dot name, Windows' hidden or
+    system attribute), symlinks and junctions (a link copied as a link would still be followed by every
+    later read), files with a second hard link, and what resolves outside the folder or into Hermes' own
+    data. A folder already in Hermes' data (an artifact version the plugin copies: its files are hard
+    links between versions) keeps its files: the agent's path never gets here, confine refuses it.
+    ``have``/``have_bytes``: files already in ``dest`` (a version started as a copy of the last)."""
+    top = src.resolve()
+    ours = any(_within(top, g) for g in _guarded())
+    guarded = [] if ours else _guarded()
+    count, size = have, have_bytes
+
+    def walk(d: str, out: Path) -> None:
+        nonlocal count, size
+        with os.scandir(d) as it:
+            entries = sorted(it, key=lambda e: e.name)
+        for e in entries:
+            if e.name.startswith(".") or _is_link(e.path):
+                continue
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if not ours and _hidden_attr(st):
+                continue
+            r = Path(e.path).resolve()
+            if not _within(r, top) or any(_within(r, g) for g in guarded):
+                continue
+            if stat.S_ISDIR(st.st_mode):
+                walk(e.path, out / e.name)
+            elif stat.S_ISREG(st.st_mode):
+                # (a DirEntry's stat has no link count on Windows: ask the file itself)
+                if not ours and os.stat(e.path, follow_symlinks=False).st_nlink > 1:
+                    continue
+                target = out / e.name
+                if not target.exists():
+                    count += 1
+                size += st.st_size
+                if count > MAX_FILES:
+                    raise ValueError(f"at most {MAX_FILES} files")
+                if size > MAX_HTML_BYTES:
+                    raise ValueError("artifact exceeds 16 MB")
+                out.mkdir(parents=True, exist_ok=True)
+                _copy_fresh(e.path, str(target))
+    dest.mkdir(parents=True, exist_ok=True)
+    walk(str(src), dest)
 
 
 def slugify(title: str) -> str:
@@ -397,7 +537,10 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             if path is not None:
                 src = Path(path)
                 if src.is_dir():
-                    shutil.copytree(src, vdir, dirs_exist_ok=True, copy_function=_copy_fresh)
+                    had = [e for _, e in walk_files(vdir)] if vdir.is_dir() else []
+                    _copy_folder(src, vdir, len(had), sum(e.stat().st_size for e in had))
+                elif src.is_file() and kind not in ("sheet", "model") and src.stat().st_size > MAX_HTML_BYTES:
+                    raise ValueError("artifact exceeds 16 MB")
                 elif src.is_file() and kind == "sheet" and src.suffix.lower() in (".xlsx", ".csv", ".tsv"):
                     # A spreadsheet file becomes the sheet's sheet.json (the original is not kept).
                     from . import xlsx_in
@@ -501,44 +644,131 @@ def update_meta(aid: str, **fields) -> dict:
         return meta
 
 
-def delete(aid: str) -> None:
-    """Delete an artifact for good (Claude's): every version, file, comment, stored value and record
-    goes at once, and nothing can bring it back. A design system that was the default stops being it."""
+TRASH_MARK = ".deleted.json"
+TRASH_DAYS = 30  # a trashed artifact is deleted for good this many days after its own deletion
+
+
+def _trash() -> Path:
+    return root() / ".trash"
+
+
+def delete(aid: str) -> Path:
+    """Move an artifact, with every version, comment and stored value, to <root>/.trash/: it leaves every
+    list at once and ``restore`` brings it back until it is purged (TRASH_DAYS after its deletion). A
+    design system that was the default stops being it (a restore does not make it the default again).
+    Returns the trash folder; trash older than TRASH_DAYS goes on the way."""
     with _LOCK:
         d = _dir(aid)
         meta = get_meta(aid)
         if meta is None:
             raise FileNotFoundError(aid)
-        shutil.rmtree(d)
+        trash = _trash()
+        trash.mkdir(exist_ok=True)
+        now = time.time()
+        dest = trash / f"{aid}-{int(now)}"
+        n = 1
+        while dest.exists():
+            n += 1
+            dest = trash / f"{aid}-{int(now)}-{n}"
+        shutil.move(str(d), str(dest))
         if d.exists():
             raise OSError(f"could not delete {aid}")
+        _write_json(dest / TRASH_MARK, {"id": aid, "title": meta.get("title", aid), "deleted_at": now})
         if settings().get("default_design_system") == aid:
             settings_set("default_design_system", None)
         per = settings().get("design_system_for")
         if isinstance(per, dict) and aid in per.values():
             settings_set("design_system_for", {k: v for k, v in per.items() if v != aid} or None)
+    purge_trash()
+    return dest
 
 
-def empty_trash() -> list[str]:
-    """Delete for good what versions before 0.13 moved to <root>/.trash/ (deleting is for good now, so
-    nothing new goes there). Returns the folder names removed."""
-    trash = root() / ".trash"
+def _deleted_at(item: Path) -> Optional[float]:
+    """When a trashed item was deleted: its mark, else the time in its folder name, else its mtime."""
+    try:
+        return float(json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))["deleted_at"])
+    except Exception:
+        pass
+    m = re.search(r"-(\d{9,11})(?:-\d+)?$", item.name)
+    if m:
+        return float(m.group(1))
+    try:
+        return item.stat().st_mtime
+    except OSError:
+        return None
+
+
+def trash_list() -> list[dict]:
+    """What the trash holds, newest deletion first: {name, id, title, type, deleted_at, days_left}
+    (days_left: whole days, rounded up, until purge_trash deletes it for good)."""
+    trash = _trash()
     if not trash.is_dir():
         return []
-    gone = []
+    now = time.time()
+    out = []
+    for item in trash.iterdir():
+        if not item.is_dir() or item.is_symlink():
+            continue
+        mark, meta = {}, {}
+        try:
+            mark = json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        try:
+            meta = json.loads((item / "meta.json").read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        aid = str(mark.get("id") or meta.get("id") or re.sub(r"-\d{9,11}(?:-\d+)?$", "", item.name))
+        at = _deleted_at(item)
+        left = max(0, math.ceil((at + TRASH_DAYS * 86400 - now) / 86400)) if at is not None else None
+        out.append({"name": item.name, "id": aid, "title": mark.get("title") or meta.get("title") or aid,
+                    "type": meta.get("type", "page"), "deleted_at": at, "days_left": left})
+    return sorted(out, key=lambda x: x["deleted_at"] or 0, reverse=True)
+
+
+def restore(which: str, entry: bool = False) -> dict:
+    """Bring a trashed artifact back as it was (``which``: its id, the newest deletion of it, or its trash
+    folder name; with ``entry`` only the folder name, so the gallery restores the very copy it shows when
+    two share an id). Refused while another artifact has that id. Returns its meta."""
+    with _LOCK:
+        listed = trash_list()
+        items = [t for t in listed if t["name"] == which]
+        if not items and not entry:
+            items = [t for t in listed if t["id"] == which]
+        if not items:
+            raise FileNotFoundError(f"{which!r} is not in the trash")
+        item = items[0]
+        d = _dir(item["id"])
+        if d.exists():
+            raise FileExistsError(f"an artifact {item['id']!r} exists again; delete or rename it first")
+        src = _trash() / item["name"]
+        if not (src / "meta.json").is_file():
+            raise ValueError(f"{item['name']!r} in the trash holds no artifact")
+        (src / TRASH_MARK).unlink(missing_ok=True)
+        shutil.move(str(src), str(d))
+        return get_meta(item["id"])
+
+
+def purge_trash(days: float = TRASH_DAYS, now: Optional[float] = None) -> list[str]:
+    """Delete for good every trashed item deleted more than ``days`` ago (each counted from its own
+    deletion). Returns the purged folder names."""
+    trash = _trash()
+    if not trash.is_dir():
+        return []
+    now = time.time() if now is None else now
+    purged = []
     with _LOCK:
         for item in list(trash.iterdir()):
-            if item.is_dir():
+            at = _deleted_at(item)
+            if at is None or now - at < float(days) * 86400:
+                continue
+            if item.is_dir() and not item.is_symlink():
                 shutil.rmtree(item, ignore_errors=True)
             else:
                 item.unlink(missing_ok=True)
             if not item.exists():
-                gone.append(item.name)
-        try:
-            trash.rmdir()
-        except OSError:
-            pass
-    return gone
+                purged.append(item.name)
+    return purged
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:
@@ -718,7 +948,7 @@ def inbox_get(item_id: str) -> Optional[dict]:
     return next((i for i in inbox_list(include_acked=True) if i["id"] == item_id), None)
 
 
-# --- replies (window.hermes.ask -> the agent answers with artifact_reply) ----
+# --- replies (window.hermes.ask -> the agent answers with ha_reply) ----
 
 def _replies_path(aid: str) -> Path:
     return _dir(aid) / "replies.json"

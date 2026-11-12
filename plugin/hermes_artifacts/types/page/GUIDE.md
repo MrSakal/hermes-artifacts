@@ -11,7 +11,7 @@ The page runs sandboxed and gets `window.hermes`:
 |---|---|
 | `hermes.storage.get/set/remove/list` | Per-artifact data that persists. |
 | `hermes.send(text, data, opts)` | Puts a message in the chat box (and the artifact inbox) for the user to send; `{deliver: "send"}` sends it once the user confirms. |
-| `hermes.ask(text, data)` | Asks you (after the user confirms sending it) and returns `Promise<{text, data}>`. Answer it with `artifact_reply`. |
+| `hermes.ask(text, data)` | Asks you (after the user confirms sending it) and returns `Promise<{text, data}>`. Answer it with `ha_reply`. |
 | `hermes.download(name, content, type)` | Saves a file the page made. |
 
 When the request is a dashboard, a slide deck or a doc, use that type instead.

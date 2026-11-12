@@ -7,7 +7,7 @@ table in it is a doc.
 
 ## Creating one
 
-`artifact_publish type=sheet title="Budget 2026" files={"sheet.json": {...}}`
+`ha_publish type=sheet title="Budget 2026" files={"sheet.json": {...}}`
 
 ```json
 {"title": "Budget 2026",
@@ -22,7 +22,7 @@ table in it is a doc.
 
 - `rows` from A1, row by row: numbers as numbers (never `"1 200"`), text, `true`/`false`, `null` for
   empty, a date as `"YYYY-MM-DD"`, a formula as `"=…"`. Only `name` and `rows` are required.
-- From a file: `artifact_publish type=sheet path="<file.xlsx | .csv>"`, never its contents pasted.
+- From a file: `ha_publish type=sheet path="<file.xlsx | .csv>"`, never its contents pasted.
 - **Formulas, not typed results**: every total, sum, share or difference is a formula, so it follows
   when the user changes a number. English function names, `,` between arguments, `.` decimals:
   `=SUM(D2:D9)`, `=IF(C2>0, B2/C2, "")`, `=VLOOKUP(A2, Prices!A:B, 2, FALSE)`, another sheet as
@@ -49,10 +49,10 @@ Then the link and one line on what is in it and what you assumed.
 
 A sheet is live: the user types in it. Never publish it again.
 
-1. `artifact_live_read id=<id>` (`tab` = sheet name; `range` for a part; `search`; `since_rev`).
+1. `ha_live_read id=<id>` (`tab` = sheet name; `range` for a part; `search`; `since_rev`).
    It returns `rows` (what is typed, formulas as text), `values` (what the formulas show; `stale`:
    not recalculated since your last edit) and `rev`.
-2. `artifact_live_edit id=<id> tab=<sheet> base_rev=<rev> ops=[…]`:
+2. `ha_live_edit id=<id> tab=<sheet> base_rev=<rev> ops=[…]`:
    - `{"op":"set","range":"B2","values":[[1200,3],[900,2]]}` a block from the top-left cell;
      `null` leaves a cell, `""` clears it
    - `{"op":"clear","range":"A2:D9"}`, `{"op":"format","range":"A1:D1","bold":true,"num":"0.00"}`

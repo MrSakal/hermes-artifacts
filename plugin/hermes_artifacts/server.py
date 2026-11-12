@@ -33,8 +33,9 @@ class Config:
         self.content_port = content_port
         self.token = secrets.token_urlsafe(24)
         self.bridge_tools = set(bridge_tools)
-        # Who may frame the shell (the Hermes Desktop preview pane). Space-separated CSP sources.
-        self.frame_ancestors = frame_ancestors or os.environ.get("HERMES_ARTIFACTS_FRAME_ANCESTORS", "*")
+        # Who may frame the shell: space-separated CSP sources (the frame_ancestors setting). 'self' by
+        # default: the viewer is a top-level page, and nothing of Hermes' own frames it.
+        self.frame_ancestors = " ".join(str(frame_ancestors or "").split()) or "'self'"
         self.on_send = None  # optional callback(item) -> wake agent
 
     @property
@@ -44,6 +45,16 @@ class Config:
     @property
     def content_origin(self) -> str:
         return f"http://{HOST}:{self.content_port}"
+
+    def content_frame_ancestors(self) -> str | None:
+        """frame-ancestors for artifact content. It checks *every* ancestor: the shell (either loopback
+        spelling) and whoever may frame the shell. 'self' there means the shell's origin, not the
+        content's. None when any origin may frame the shell."""
+        srcs = self.frame_ancestors.split()
+        if "*" in srcs:
+            return None
+        shells = [f"http://{h}" for h in sorted(_allowed_hosts(self.shell_port))]
+        return " ".join(shells + [s for s in srcs if s.lower() != "'self'" and s not in shells])
 
 
 def _allowed_hosts(port: int) -> set[str]:
@@ -147,6 +158,10 @@ class ShellHandler(_Base):
                     except Exception:  # wake is best-effort; inbox already has it
                         woke = False
                 return self._json(200, {"ok": True, "id": item["id"], "delivered": woke})
+            if op.startswith("dataset."):
+                # Live dashboard queries need consent drawn outside the page; only Hermes Desktop has that dialog.
+                return self._json(403, {"error": "live data runs in Hermes Desktop only: open this dashboard there "
+                                                 "(the browser viewer can't ask you to allow its queries)"})
             if op == "callTool":
                 return self._json(403, {"error": f"tool {body.get('name')!r} is not on the bridge allowlist"}) \
                     if body.get("name") not in self.cfg.bridge_tools else \
@@ -245,11 +260,10 @@ class ContentHandler(_Base):
             return self._send(404, b"not found", "text/plain")
         ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
         data = f.read_bytes()
-        # frame-ancestors checks *every* ancestor, so whoever frames the shell must be listed too.
         headers = {"Referrer-Policy": "no-referrer"}
-        if self.cfg.frame_ancestors != "*":
-            headers["Content-Security-Policy"] = \
-                f"frame-ancestors {self.cfg.shell_origin} {self.cfg.frame_ancestors}"
+        ancestors = self.cfg.content_frame_ancestors()
+        if ancestors:
+            headers["Content-Security-Policy"] = f"frame-ancestors {ancestors}"
         if ctype == "text/html":
             data = inject_bridge(data)
             ctype += "; charset=utf-8"

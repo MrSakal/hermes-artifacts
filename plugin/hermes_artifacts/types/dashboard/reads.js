@@ -48,6 +48,27 @@
   function fail(msg, meta) { var e = new Error(msg); e.meta = meta || []; return e; }
   function meta(list) { return list.filter(function (m) { return m && m.value !== "" && m.value != null; }); }
   function slowCheck(started) { return function () { return Date.now() - started < 14 * 60 * 1000; }; }
+  // The source's stored poll args with their {{answer.…}} filled from this answer, as the server's own
+  // polling fills them: call() must send exactly the stored args (the server refuses any others).
+  var ANSWER_REF = /\{\{\s*answer((?:\.[A-Za-z_][\w-]*|\[\d+\])+)\s*\}\}/g;
+  function answerAt(a, path) {
+    var cur = a, re = /\.([A-Za-z_][\w-]*)|\[(\d+)\]/g, m;
+    while ((m = re.exec(path))) {
+      if (typeof cur === "string") { try { cur = JSON.parse(cur); } catch (e) { return null; } }
+      cur = m[1] !== undefined ? (obj(cur) ? cur[m[1]] : null) : (Array.isArray(cur) ? cur[+m[2]] : null);
+      if (cur === undefined) cur = null;
+    }
+    return cur;
+  }
+  function fillAnswer(v, a) {
+    if (Array.isArray(v)) return v.map(function (x) { return fillAnswer(x, a); });
+    if (obj(v)) { var o = {}; Object.keys(v).forEach(function (k) { o[k] = fillAnswer(v[k], a); }); return o; }
+    if (typeof v !== "string") return v;
+    var whole = new RegExp("^" + ANSWER_REF.source + "$").exec(v.trim());
+    if (whole) return answerAt(a, whole[1]);
+    return v.replace(ANSWER_REF, function (_, p) { var x = answerAt(a, p); return x == null || x === false || x === 0 ? "" : String(x); });
+  }
+  function pollArgs(ctx, a, fallback) { return ctx.poll && obj(ctx.poll.args) ? fillAnswer(ctx.poll.args, a) : fallback; }
 
   // --- Google Cloud BigQuery (its JSON: schema.fields, rows[].f[].v; jobComplete false = still running)
   function bqOnce(a) {
@@ -84,15 +105,15 @@
       if (!obj(a)) throw fail(NOT_ROWS);
       var err = bqError(a);
       if (err) throw fail(err);
-      var r = bqOnce(a), job = null;
+      var r = bqOnce(a), job = null, last = a;
       if (r === null) throw fail(NOT_ROWS);
       while (r.pending) {
         if (r.pending.jobId) job = r.pending;
         if (!job) throw fail(NO_JOB);
         if (!alive()) throw fail(TOO_LONG);
-        var next = await ctx.call("get_query_results", Object.assign({ jobId: job.jobId, timeoutMs: 20000 },
-          ctx.args && ctx.args.projectId ? { projectId: ctx.args.projectId } : {}, job.location ? { location: job.location } : {}));
-        next = unwrap(next);
+        var next = await ctx.call("get_query_results", pollArgs(ctx, last, Object.assign({ jobId: job.jobId, timeoutMs: 20000 },
+          ctx.args && ctx.args.projectId ? { projectId: ctx.args.projectId } : {}, job.location ? { location: job.location } : {})));
+        next = last = unwrap(next);
         err = bqError(next);
         if (err) throw fail(err);
         r = obj(next) ? bqOnce(next) : null;
@@ -177,7 +198,7 @@
       while (state(a) === "PENDING" || state(a) === "RUNNING") {
         if (!id) throw fail(NO_STMT);
         if (!alive()) throw fail(TOO_LONG, m);
-        a = unwrap(await ctx.call("poll_sql_result", { statement_id: id }));
+        a = unwrap(await ctx.call("poll_sql_result", pollArgs(ctx, a, { statement_id: id })));
         if (!obj(a) || state(a) === "") throw fail(NOT_ROWS, m);
       }
       if (state(a) !== "SUCCEEDED") {

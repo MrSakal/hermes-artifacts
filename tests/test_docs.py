@@ -184,7 +184,7 @@ class ApiAndToolTests(unittest.TestCase):
         # A live doc is never published again: that would replace what the person typed.
         pub = json.loads(self.p._publish({"id": self.aid, "type": "doc", "files": {"doc.md": "# over"}, "open": False}))
         self.assertFalse(pub["ok"])
-        self.assertIn("artifact_live_edit", pub["error"])
+        self.assertIn("ha_live_edit", pub["error"])
         self.assertIn("user again", json.loads(self.p._read({"id": self.aid}))["content"])
 
     def test_hermes_adds_an_anchored_comment(self):

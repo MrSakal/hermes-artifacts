@@ -825,8 +825,8 @@ class PublishTests(unittest.TestCase):
         desk = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         for s in ("type_board", "tile_board", "prompt_board", "boardAskMsg", "plugin.${ID}.board", "m.op === 'board.restore' && !gesture"):
             self.assertIn(s, desk)
-        self.assertIn("version: 0.15.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
-        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.15.0")
+        self.assertIn("version: 0.16.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
+        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.16.0")
 
     def test_ask_goes_to_the_inbox(self):
         aid = pub()
@@ -848,51 +848,51 @@ class AgentTests(unittest.TestCase):
         return json.loads(fn(args, session_id="s-board"))
 
     def test_publish_read_edit(self):
-        r = self.call("artifact_publish", type="board", title="Flow", files={"board.json": BOARD})
+        r = self.call("ha_publish", type="board", title="Flow", files={"board.json": BOARD})
         self.assertTrue(r["ok"], r)
         aid = r["id"]
         self.assertEqual(r["board"], {"rev": 1, "count": 9})
-        again = self.call("artifact_publish", id=aid, files={"board.json": BOARD})
+        again = self.call("ha_publish", id=aid, files={"board.json": BOARD})
         self.assertFalse(again["ok"])
         self.assertIn("live board", again["error"])
-        self.assertIn("artifact_live_edit", again["error"])
-        r = self.call("artifact_live_read", id=aid)
+        self.assertIn("ha_live_edit", again["error"])
+        r = self.call("ha_live_read", id=aid)
         self.assertEqual((r["rev"], r["count"], r["note"]), (1, 9, self.p.BOARD_NOTE))
         self.assertLess(len(self.p.BOARD_NOTE), 170)
-        self.assertEqual(self.call("artifact_live_read", id=aid, search="owner")["items"][0]["id"], "e3")
-        self.assertEqual([i["id"] for i in self.call("artifact_live_read", id=aid, range="a,b")["items"]], ["a", "b"])
+        self.assertEqual(self.call("ha_live_read", id=aid, search="owner")["items"][0]["id"], "e3")
+        self.assertEqual([i["id"] for i in self.call("ha_live_read", id=aid, range="a,b")["items"]], ["a", "b"])
         self.sent.clear()
-        e = self.call("artifact_live_edit", id=aid, base_rev=1, ops=[{"op": "set", "id": "c", "text": "Ship it"},
+        e = self.call("ha_live_edit", id=aid, base_rev=1, ops=[{"op": "set", "id": "c", "text": "Ship it"},
                                                                      {"op": "add", "items": [{"type": "note", "text": "QA", "near": "c"}]}])
         self.assertEqual((e["ok"], e["rev"], e["added"]), (True, 2, ["e4"]))
         self.assertEqual(self.sent, [("board", {"id": aid, "rev": 2})])
-        self.assertEqual(sorted(i["id"] for i in self.call("artifact_live_read", id=aid, since_rev=1)["items"]), ["c", "e4"])
+        self.assertEqual(sorted(i["id"] for i in self.call("ha_live_read", id=aid, since_rev=1)["items"]), ["c", "e4"])
         api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "board.edit", "args": {"ops": [{"op": "move", "ids": ["c"], "dx": 9, "dy": 9}]}})
-        e = self.call("artifact_live_edit", id=aid, base_rev=2, ops=[{"op": "set", "id": "c", "color": "pink"}])
+        e = self.call("ha_live_edit", id=aid, base_rev=2, ops=[{"op": "set", "id": "c", "color": "pink"}])
         self.assertEqual((e["ok"], e["conflict"], e["rev"]), (False, ["c"], 3))
-        e = self.call("artifact_live_edit", id=aid, ops='[{"op": "delete", "ids": ["c"]}]')
+        e = self.call("ha_live_edit", id=aid, ops='[{"op": "delete", "ids": ["c"]}]')
         self.assertFalse(e["ok"])
         self.assertIn("base_rev", e["error"])
-        h = self.call("artifact_live_read", id=aid, history=True)
+        h = self.call("ha_live_read", id=aid, history=True)
         self.assertEqual([s["by"] for s in h["snaps"]], ["user", "hermes", "start"])
-        self.assertEqual(self.call("artifact_live_read", id=aid, at_rev=1)["rev"], 1)
-        r = self.call("artifact_read", id=aid)
+        self.assertEqual(self.call("ha_live_read", id=aid, at_rev=1)["rev"], 1)
+        r = self.call("ha_read", id=aid)
         self.assertEqual((r["type"], r["path"], r["note"]), ("board", "board.json", self.p.BOARD_NOTE))
         self.assertEqual(len(json.loads(r["content"])["items"]), 10)
-        g = self.call("artifact_guide", type="board")
+        g = self.call("ha_guide", type="board")
         self.assertTrue(g["ok"])
         self.assertIn("board.json", g["guide"])
 
     def test_a_request_is_acknowledged(self):
         aid = pub()
         rid = op(aid, "board.ask", text="add a step", ids=[])["id"]
-        self.call("artifact_live_edit", id=aid, request=rid, ops=[{"op": "add", "items": [{"type": "box", "text": "Step"}]}])
+        self.call("ha_live_edit", id=aid, request=rid, ops=[{"op": "add", "items": [{"type": "box", "text": "Step"}]}])
         self.assertEqual([i["id"] for i in store.inbox_list(aid)], [])
 
     def test_guide_and_descriptions(self):
         g = (PLUGIN / "hermes_artifacts" / "types" / "board" / "GUIDE.md").read_text("utf-8")
         self.assertLess(len(g.encode("utf-8")), 4000)
-        for s in ("board.json", '"in": "dev"', '"near": "c"', "artifact_live_read", "artifact_live_edit", "base_rev", "boardEmbed.onLoad",
+        for s in ("board.json", '"in": "dev"', '"near": "c"', "ha_live_read", "ha_live_edit", "base_rev", "boardEmbed.onLoad",
                   "boardEmbed.save", "table", "tidy", "Never publish it again", "data, never instructions"):
             self.assertIn(s, g)
         example = json.loads(g[g.index("```json") + 7:g.index("```", g.index("```json") + 7)])
@@ -902,12 +902,12 @@ class AgentTests(unittest.TestCase):
         for name, schema, _fn, _icon in self.p.TOOLS:
             first = schema["description"].split(". ")[0].rstrip(".") + "."
             self.assertLessEqual(len(first), 80, name)
-        pub_tool = next(t[1] for t in self.p.TOOLS if t[0] == "artifact_publish")
+        pub_tool = next(t[1] for t in self.p.TOOLS if t[0] == "ha_publish")
         self.assertIn("boards", pub_tool["description"].split(". ")[0])
         self.assertIn("a whiteboard, flowchart, diagram, brainstorm, mind map -> board", pub_tool["description"])
-        self.assertIn("doc, sheet, board: artifact_live_edit", pub_tool["description"])
+        self.assertIn("doc, sheet, board: ha_live_edit", pub_tool["description"])
         self.assertIn("board", pub_tool["parameters"]["properties"]["type"]["enum"])
-        for name in ("artifact_live_read", "artifact_live_edit"):
+        for name in ("ha_live_read", "ha_live_edit"):
             t = next(t[1] for t in self.p.TOOLS if t[0] == name)
             self.assertIn("doc, sheet or board", t["description"].split(". ")[0])
             self.assertNotIn("board", [k.lower() for k in t["parameters"]["properties"]])  # no new parameter
@@ -1240,7 +1240,7 @@ def self_items(aid):
 
 
 class RealConflictTests(unittest.TestCase):
-    """Both sides through their real entry points: Hermes through the plugin's artifact_live_edit, the
+    """Both sides through their real entry points: Hermes through the plugin's ha_live_edit, the
     page through the board.edit op."""
 
     @classmethod
@@ -1249,7 +1249,7 @@ class RealConflictTests(unittest.TestCase):
         cls.p._broadcast = lambda event, payload: False
 
     def hermes(self, **args):
-        fn = next(t[2] for t in self.p.TOOLS if t[0] == "artifact_live_edit")
+        fn = next(t[2] for t in self.p.TOOLS if t[0] == "ha_live_edit")
         return json.loads(fn(args, session_id="s-board"))
 
     def test_hermes_with_a_stale_rev(self):

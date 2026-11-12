@@ -39,6 +39,16 @@ def node_path() -> Optional[str]:
     return _node["path"]
 
 
+# The only variables node is started with: none of Hermes' (provider keys, tokens) reach the child.
+_ENV_KEEP = ("PATH", "HOME", "LANG") + (("SYSTEMROOT", "TEMP", "TMP", "USERPROFILE") if os.name == "nt" else ())
+
+
+def child_env() -> dict:
+    """The environment node runs in: the few variables in _ENV_KEEP that are set, nothing else."""
+    up = {k.upper(): v for k, v in os.environ.items()}
+    return {k: up[k] for k in _ENV_KEEP if up.get(k)}
+
+
 def run(book: list, locale: str = "en") -> Optional[list]:
     """``book``: [{"name", "cells": {A1: raw}, "charts": [anchor, ...]}] -> the computed values of
     the formula cells, one {A1: value} per sheet in the same order; None when it could not be done."""
@@ -47,8 +57,8 @@ def run(book: list, locale: str = "en") -> Optional[list]:
         return None
     try:
         data = json.dumps({"locale": locale, "sheets": book}, separators=(",", ":")).encode("utf-8")
-        env = {k: v for k, v in os.environ.items() if k.upper() not in ("NODE_OPTIONS", "NODE_PATH")}
-        kw = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+        env = child_env()
+        kw ={"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
         p = subprocess.Popen([node, f"--max-old-space-size={MAX_HEAP_MB}", str(RUNNER), str(FORMULA), str(MAX_OUT)],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                              cwd=str(_DIR), env=env, shell=False, **kw)

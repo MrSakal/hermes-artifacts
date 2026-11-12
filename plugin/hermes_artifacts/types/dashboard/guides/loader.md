@@ -8,11 +8,14 @@
 - **Loader** (in `index.html`): `dash.loader(id, {description, fn})` turns a query's answer into the rows its
   page reads, as Claude's does. `fn({answer, call, args, read})`, may be async:
   - `answer`: the tool's answer as you saw it; `args`: call arguments with filters filled in;
-  - `await call(tool, args)`: another tool of the same connector (a query left running, a further page;
-    read-only, only once the dataset is allowed);
+  - `await call(tool, args)`: the source's `tool` with its stored `args` (filters filled in), or `poll.tool`
+    with `poll.args` (`{{answer.…}}` filled, one plain token each); other args are refused. SQL: one
+    read-only `SELECT`/`WITH`, filters placed as the guide says; only once the dataset is allowed. The
+    readers below fill `poll.args` themselves;
   - `read.bigquery(answer)` (waits on a running job via `get_query_results`), `read.governed(answer)`
     (`<query_result>` XML), `read.snowflake(answer)` (`result_set`), `read.databricks(answer)` (waits via
-    `poll_sql_result`);
+    `poll_sql_result`); a reader that waits needs that tool as `poll.tool`, e.g. `"args": {"statement_id":
+    "{{answer.statement_id}}"}`;
   - returns rows, `{columns, rows, cut}` or `{data, columns, meta}`; `meta` =
     `[{label, value, type: "text"|"code", lang?: "sql"}]`, shown under Result in Sources; `cut: true` =
     rows missing. `throw new Error(<the connector's words>)` fails the source.

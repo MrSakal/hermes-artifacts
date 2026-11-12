@@ -175,13 +175,16 @@
     download: function (name, content, type) {
       return call("download", { name: String(name), content: content, type: type || "application/octet-stream" });
     },
-    /** Dashboards only: run a live dataset's stored call; approve/decline it (approve needs a click). */
+    /** Dashboards only: run a live dataset's stored call; decline it; approve(id or [ids]) asks Hermes Desktop,
+     *  which shows the stored calls in its own dialog and resolves {allowed} with the user's answer. */
     dataset: Object.freeze({
       run: function (id, params, force, version, mode) {
         return call("dataset.run", { id: String(id), params: params || {}, force: !!force, version: version || null,
           mode: mode === "cached" ? "cached" : "live" });
       },
-      approve: function (id, version) { return call("dataset.approve", { id: String(id), version: version || null }); },
+      approve: function (id, version) {
+        return call("dataset.approve", Array.isArray(id) ? { ids: id.map(String), version: version || null } : { id: String(id), version: version || null });
+      },
       decline: function (id, version) { return call("dataset.decline", { id: String(id), version: version || null }); },
       /** Sources' Test: run edited args without saving (needs a click). */
       test: function (id, args, params) { return call("dataset.test", { id: String(id), args: args, params: params || {} }); },
@@ -260,6 +263,9 @@
     report: function (kind, data) { return call("report", { kind: String(kind), data: data || {} }); },
     /** Dashboards: open Hermes' Connectors page at a server, to sign in again or turn it on. */
     connectors: function (server) { return call("connectors", { server: server ? String(server) : "" }); },
+    /** Dashboards: show, in the host's own dialog, the command that lets this plugin call the MCP servers
+     *  the dashboard needs (the host gets it from the server; nothing the page passes goes into it). */
+    allowlist: function () { return call("allowlist", {}); },
     /** Slides: present full screen (the host makes the frame fill the window and goes full screen). */
     present: function (on) { return call("present", { on: !!on }); },
     /** Host events for type runtimes (e.g. "theme"). */
