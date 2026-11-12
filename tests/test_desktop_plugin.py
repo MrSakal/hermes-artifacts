@@ -60,14 +60,43 @@ class DesktopPluginTests(unittest.TestCase):
         self.assertEqual(out, {"id": "hermes-artifacts", "register": "function"})
 
 
-TRASH_KEYS = ["delConfirm", "delConfirmSub", "trashChip", "trashNote", "deletedAgo", "daysLeft", "restore", "restoreTip", "restored"]
+TRASH_KEYS = ["delConfirm", "delConfirmSub", "trashChip", "trashNote", "deletedAgo", "daysLeft", "restore", "restoreTip", "restored",
+              "deleteForever", "deleteForeverTip", "foreverConfirm", "foreverConfirmSub", "deletedForever"]
 
 
 @unittest.skipIf(NODE is None, "node not installed")
 class GalleryTrashTests(unittest.TestCase):
     """The gallery's Trash: a chip with the count, rows with Restore, restore by the entry's folder name."""
 
-    EXPORTS = "\nexport { STRINGS, restoreFromTrash, $trash, $trashOpen, $toast }\n"
+    EXPORTS = "\nexport { STRINGS, restoreFromTrash, deleteFromTrash, $trash, $trashOpen, $toast }\n"
+
+    def test_delete_forever_posts_the_entry_name_and_reloads_the_trash(self):
+        body = """
+        const calls = []
+        let left = [{ name: 'x-1', id: 'x', title: 'X', type: 'page', deleted_at: 1, days_left: 3 },
+                    { name: 'y-2', id: 'y', title: 'Y', type: 'page', deleted_at: 2, days_left: 4 }]
+        const ctx = { storage: { get: () => null, set() {} }, rest: async (url, opts) => {
+          calls.push({ url, opts: opts || null })
+          if (url === '/trash/delete') { left = left.filter(x => x.name !== opts.body.name); return { deleted: opts.body.name } }
+          if (url === '/trash') return { trash: left, days: 30 }
+          return { artifacts: [] }
+        } }
+        m.$trash.set(left); m.$trashOpen.set(true)
+        await m.deleteFromTrash(ctx, { name: 'x-1', id: 'x', title: 'X' })
+        console.log(JSON.stringify({ calls, n: m.$trash.get().length, open: m.$trashOpen.get(), toast: m.$toast.get() }))
+        """
+        out = run_node(stub_module(self.EXPORTS), body)
+        post = [c for c in out["calls"] if c["url"] == "/trash/delete"]
+        self.assertEqual(post, [{"url": "/trash/delete", "opts": {"method": "POST", "body": {"name": "x-1"}}}])
+        self.assertIn("/trash", [c["url"] for c in out["calls"]])
+        self.assertEqual((out["n"], out["open"], out["toast"]), (1, True, "deletedForever"))
+
+    def test_the_trash_row_confirms_delete_forever_in_two_lines(self):
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        row = src[src.index("function TrashRow("):src.index("function sortTime(")]
+        self.assertIn("label: t('foreverConfirm')", row)
+        self.assertIn("sub2: t('foreverConfirmSub')", row)
+        self.assertIn("deleteFromTrash(ctx, item)", row)
 
     def test_the_gallery_has_a_trash_chip_only_while_the_trash_holds_something(self):
         src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
@@ -125,8 +154,11 @@ class GalleryTrashTests(unittest.TestCase):
         self.assertNotEqual(out["en"]["restore"], out["hu"]["restore"])
         self.assertIn("Trash", out["en"]["delConfirmSub"])
         self.assertIn("Kukából", out["hu"]["delConfirmSub"])
+        self.assertEqual((out["hu"]["deleteForever"], out["hu"]["foreverConfirm"], out["hu"]["foreverConfirmSub"]),
+                         ("Végleges törlés", "Végleg törlöd?", "Ez nem vonható vissza."))
+        self.assertIn("undone", out["en"]["foreverConfirmSub"])
         for lang in ("en", "hu"):
-            for k in ("delConfirm", "delConfirmSub"):
+            for k in ("delConfirm", "delConfirmSub", "foreverConfirm", "foreverConfirmSub"):
                 self.assertNotIn("hermes artifacts", out[lang][k])
                 self.assertLessEqual(len(out[lang][k]), 34)  # fits the 240 px menu row
 
@@ -230,9 +262,12 @@ class DownloadTests(unittest.TestCase):
 
 
 VERSION_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker",
-                "versionRestartCli", "versionServerOlder", "versionDesktopOlder", "versionHide"]
+                "versionRestartCompute", "versionRestartCli", "versionServerOlder", "versionDesktopOlder", "versionHide"]
 # The keys that name the old and the installed version (args: loaded, disk[, role]).
-RESTART_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker", "versionRestartCli"]
+RESTART_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker",
+                "versionRestartCompute", "versionRestartCli"]
+# The keys whose first fix is the reload (disable, then enable), a restart only if the line stays.
+RELOAD_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker", "versionRestartMany"]
 # jsx that keeps the tree, so a component's output can be read.
 TREE_JSX = "export const jsx = (type, props) => ({ type, props }), jsxs = jsx, Fragment = Symbol('Fragment')\n"
 
@@ -260,7 +295,7 @@ class VersionNoticeTests(unittest.TestCase):
         cases = [
             (stale(("serve", "0.16.0"), ("gateway", "0.16.1")), "versionRestartServe", ["0.16.0", "0.16.1", "serve"]),
             (stale(("gateway", "0.16.0"), ("serve", "0.16.1")), "versionRestartGateway", ["0.16.0", "0.16.1", "gateway"]),
-            (stale(("compute-host", "0.16.0")), "versionRestartWorker", ["0.16.0", "0.16.1", "compute-host"]),
+            (stale(("compute-host", "0.16.0")), "versionRestartCompute", ["0.16.0", "0.16.1", "compute-host"]),
             (stale(("plugin-host", "0.16.0")), "versionRestartWorker", ["0.16.0", "0.16.1", "plugin-host"]),
             (stale(("cli", "0.16.0")), "versionRestartCli", ["0.16.0", "0.16.1", "cli"]),
             (stale(("serve", "0.15.0"), ("gateway", "0.16.0")), "versionRestartMany", [2, "0.15.0", "0.16.1"]),
@@ -335,10 +370,24 @@ class VersionNoticeTests(unittest.TestCase):
             self.assertIn("hermes serve / dashboard", out[lang]["versionRestartServe"])
             self.assertIn("hermes gateway restart", out[lang]["versionRestartServe"])  # ...is not enough
             self.assertIn("compute-host", out[lang]["versionRestartWorker"])
+            self.assertIn("dashboard.turn_isolation", out[lang]["versionRestartCompute"])
+            self.assertNotIn("disable", out[lang]["versionRestartCompute"])  # it takes no reload
+            for k in RELOAD_KEYS:
+                text = out[lang][k]
+                self.assertIn("hermes plugins disable hermes-artifacts", text, (lang, k))
+                self.assertLess(text.index("hermes plugins disable hermes-artifacts"),
+                                text.index("hermes plugins enable hermes-artifacts"), (lang, k))
+                self.assertIn("Desktop › Plugins", text, (lang, k))
+                low = text.lower()
+                first_restart = min(i for i in (low.find("restart"), low.find("újra")) if i >= 0)
+                self.assertLess(text.index("hermes plugins enable"), first_restart, (lang, k))  # restart only after
             self.assertIn("2", out[lang]["versionRestartMany"])
             self.assertIn("hermes serve / dashboard", out[lang]["versionRestartMany"])
-            self.assertIn("(hermes plugins update hermes-artifacts)", out[lang]["versionServerOlder"])
+            self.assertIn("hermes plugins update hermes-artifacts", out[lang]["versionServerOlder"])
+            self.assertIn("Desktop › Plugins", out[lang]["versionServerOlder"])
             self.assertNotIn("gateway", out[lang]["versionRestart"])
         self.assertEqual(out["en"]["versionRestartServe"],
                          "The Hermes backend this Desktop connects to (hermes serve / dashboard) still runs hermes-artifacts "
-                         "0.15.0; 0.16.1 is installed. Restart that process on the server: hermes gateway restart alone doesn’t.")
+                         "0.15.0; 0.16.1 is installed. On the server run hermes plugins disable hermes-artifacts, then hermes plugins "
+                         "enable hermes-artifacts (next time, update from Desktop › Plugins). Still shown? Restart that process: "
+                         "hermes gateway restart alone doesn’t.")

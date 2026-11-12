@@ -53,6 +53,19 @@ def ensure_server() -> tuple[str, str]:
     return cfg.shell_origin, cfg.content_origin
 
 
+def _stop_server() -> None:
+    """On unload (Hermes disabling or reloading the plugin in this process): the browser viewer stops, so
+    it never keeps serving the old code; the next ha_open starts it again on the new. Never raises."""
+    global _server
+    with _server_lock:
+        s, _server = _server, None
+    if s is not None:
+        try:
+            s.stop()
+        except Exception:
+            logger.debug("stopping the artifact host failed", exc_info=True)
+
+
 def _broadcast(event: str, payload: dict) -> bool:
     try:
         from hermes_cli.plugin_events import broadcast_plugin_event
@@ -912,7 +925,8 @@ def _cli(args):
 
 def _empty_old_trash() -> None:
     """Deleted artifacts wait in .trash/ for TRASH_DAYS; what is older goes for good when the plugin
-    starts (in the background: a large trash must not hold up Hermes) and on every later delete."""
+    starts (in the background: a large trash must not hold up Hermes), on every later delete, and from the
+    gallery's own list and trash requests at most once a day (store.purge_trash_due): no timer of its own."""
     def run():
         try:
             gone = store.purge_trash()
@@ -1083,6 +1097,10 @@ def register(ctx) -> None:
     from .hermes_artifacts import live
     live.set_ctx(ctx)  # dashboards call MCP through ctx.call_mcp (the web server finds it by PLUGIN_ID)
     _empty_old_trash()
+    try:
+        ctx.on_unload(_stop_server)  # a reload in this process must not leave the viewer on the old code
+    except Exception:  # an older Hermes without on_unload: the viewer runs until the process ends
+        logger.debug("on_unload unavailable", exc_info=True)
     try:
         ctx.register_hook("pre_llm_call", _view_context)
     except Exception:  # an older Hermes without this hook: no view context, everything else works

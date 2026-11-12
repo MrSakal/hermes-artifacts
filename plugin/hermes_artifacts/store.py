@@ -698,6 +698,11 @@ def _deleted_at(item: Path) -> Optional[float]:
         return None
 
 
+def _expired(at: float, now: float, days: float = TRASH_DAYS) -> bool:
+    """A trashed item deleted at ``at`` is past its time (purge_trash deletes it) at ``now``."""
+    return now - at >= float(days) * 86400
+
+
 def trash_list() -> list[dict]:
     """What the trash holds, newest deletion first: {name, id, title, type, deleted_at, days_left}
     (days_left: whole days, rounded up, until purge_trash deletes it for good)."""
@@ -720,6 +725,8 @@ def trash_list() -> list[dict]:
             pass
         aid = str(mark.get("id") or meta.get("id") or re.sub(r"-\d{9,11}(?:-\d+)?$", "", item.name))
         at = _deleted_at(item)
+        if at is not None and _expired(at, now):
+            continue  # past its time: purge_trash deletes it, and until then nobody sees or restores it
         left = max(0, math.ceil((at + TRASH_DAYS * 86400 - now) / 86400)) if at is not None else None
         out.append({"name": item.name, "id": aid, "title": mark.get("title") or meta.get("title") or aid,
                     "type": meta.get("type", "page"), "deleted_at": at, "days_left": left})
@@ -760,7 +767,7 @@ def purge_trash(days: float = TRASH_DAYS, now: Optional[float] = None) -> list[s
     with _LOCK:
         for item in list(trash.iterdir()):
             at = _deleted_at(item)
-            if at is None or now - at < float(days) * 86400:
+            if at is None or not _expired(at, now, days):
                 continue
             if item.is_dir() and not item.is_symlink():
                 shutil.rmtree(item, ignore_errors=True)
@@ -769,6 +776,60 @@ def purge_trash(days: float = TRASH_DAYS, now: Optional[float] = None) -> list[s
             if not item.exists():
                 purged.append(item.name)
     return purged
+
+
+PURGE_EVERY = 86400  # the gallery's own requests purge the trash at most this often (seconds) per process
+_PURGED_AT: Optional[float] = None  # when this process last started such a purge
+_PURGE_LOCK = threading.Lock()
+
+
+def purge_trash_due(now: Optional[float] = None) -> Optional[threading.Thread]:
+    """Purge the trash in the background when this process has not done so for PURGE_EVERY: the gallery's
+    list and trash requests call it, so a long-running server purges with no timer of its own (the plugin
+    also purges when it starts and after every delete). Cheap when not due; never raises; the request
+    never waits on the deletion. Returns the thread it started, or None."""
+    global _PURGED_AT
+    try:
+        now = time.time() if now is None else now
+        with _PURGE_LOCK:
+            if _PURGED_AT is not None and now - _PURGED_AT < PURGE_EVERY:
+                return None
+            _PURGED_AT = now
+
+        def run():
+            try:
+                purge_trash()
+            except Exception:
+                pass  # a locked file: the next purge tries again
+
+        t = threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True)
+        t.start()
+        return t
+    except Exception:
+        return None
+
+
+def trash_delete(name: str) -> str:
+    """Delete one trashed item for good: the user's own act in the gallery's trash (the agent has no way to
+    it; ha_delete only moves to the trash). ``name``: its trash folder name exactly as trash_list names it,
+    never an id. Only ever a direct child of .trash/ that is a real folder. Returns the name."""
+    if (not isinstance(name, str) or not name or name in (".", "..") or ".." in name
+            or any(c in name for c in "/\\:\0")):
+        raise ValueError("not a trash entry name")
+    with _LOCK:
+        if name not in {t["name"] for t in trash_list()}:
+            raise FileNotFoundError(f"{name!r} is not in the trash")
+        trash = _trash()
+        item = trash / name
+        is_junction = getattr(item, "is_junction", lambda: False)()
+        if item.is_symlink() or is_junction or not item.is_dir():
+            raise ValueError(f"{name!r} in the trash is not a folder")
+        if item.resolve().parent != trash.resolve():
+            raise ValueError(f"{name!r} is not inside the trash")
+        shutil.rmtree(item)
+        if item.exists():
+            raise OSError(f"could not delete {name!r}")
+    return name
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:

@@ -38,7 +38,7 @@ import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 const ID = 'hermes-artifacts'
 // This Desktop half's version. Tests keep it equal to plugin.yaml, dashboard/manifest.json and VERSION in
 // hermes_artifacts/running.py: a bump touches all four.
-const PLUGIN_VERSION = '0.16.2'
+const PLUGIN_VERSION = '0.16.3'
 const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
 // The built-in view opened on purpose: the router ignores the query, the redirect does not.
@@ -46,6 +46,12 @@ const CORE_KEEP = `${CORE}?from=${'hermes-artifacts'}`
 // allow-scripts must be listed: SandboxedFrame falls back to its default posture only when no token is given.
 const SANDBOX = 'allow-scripts allow-forms allow-downloads'
 const ASK_TIMEOUT_MS = 15 * 60 * 1000
+// The version notice's first fix: Hermes re-imports a plugin in its running backend and gateway when it is
+// enabled again (and when Desktop › Plugins updates it); a restart only if that does not take.
+const RELOAD = {
+  en: 'On the server run hermes plugins disable hermes-artifacts, then hermes plugins enable hermes-artifacts (next time, update from Desktop › Plugins).',
+  hu: 'A szerveren futtasd: hermes plugins disable hermes-artifacts, majd hermes plugins enable hermes-artifacts (legközelebb a Desktop › Plugins oldalon frissíts).'
+}
 
 const STRINGS = {
   en: {
@@ -191,19 +197,21 @@ const STRINGS = {
     trashChip: n => `Trash ${n}`,
     trashNote: n => `Deleted artifacts wait here ${n} days, then go for good.`,
     versionRestart: (loaded, disk) =>
-      `The Hermes server is still running hermes-artifacts ${loaded}; ${disk} is installed. Restart Hermes on the server entirely to load it.`,
+      `The Hermes server still runs hermes-artifacts ${loaded}; ${disk} is installed. ${RELOAD.en} Still shown? Restart Hermes there.`,
     versionRestartGateway: (loaded, disk) =>
-      `The Hermes gateway on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. Restart it: hermes gateway restart.`,
+      `The Hermes gateway on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. ${RELOAD.en} Still shown? Run hermes gateway restart.`,
     versionRestartServe: (loaded, disk) =>
-      `The Hermes backend this Desktop connects to (hermes serve / dashboard) still runs hermes-artifacts ${loaded}; ${disk} is installed. Restart that process on the server: hermes gateway restart alone doesn’t.`,
+      `The Hermes backend this Desktop connects to (hermes serve / dashboard) still runs hermes-artifacts ${loaded}; ${disk} is installed. ${RELOAD.en} Still shown? Restart that process: hermes gateway restart alone doesn’t.`,
     versionRestartWorker: (loaded, disk, role) =>
-      `A Hermes ${role} process on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. Restart Hermes on the server entirely.`,
+      `A Hermes ${role} process on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. ${RELOAD.en} Still shown? Restart Hermes there.`,
+    versionRestartCompute: (loaded, disk) =>
+      `The Hermes compute host (dashboard.turn_isolation) on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. It loads plugins only when it starts: restart Hermes there.`,
     versionRestartCli: (loaded, disk) =>
       `A hermes command left running on the server still runs hermes-artifacts ${loaded}; ${disk} is installed. Close it and start it again.`,
     versionRestartMany: (n, loaded, disk) =>
-      `${n} Hermes processes on the server still run older hermes-artifacts code (${loaded}); ${disk} is installed. Restart Hermes there entirely: the backend this Desktop connects to (hermes serve / dashboard) and the gateway (hermes gateway restart).`,
+      `${n} Hermes processes on the server still run older hermes-artifacts code (${loaded}); ${disk} is installed. ${RELOAD.en} Still shown? Restart Hermes there: hermes serve / dashboard and the gateway.`,
     versionServerOlder: (server, mine) =>
-      `The Hermes server has hermes-artifacts ${server}; this Desktop has ${mine}. Update the plugin on the server (hermes plugins update hermes-artifacts); this line then says what to restart.`,
+      `The Hermes server has hermes-artifacts ${server}; this Desktop has ${mine}. Update it from Desktop › Plugins, which also loads it into the running server (or on the server: hermes plugins update hermes-artifacts, then this line says what to do).`,
     versionDesktopOlder: (mine, server) =>
       `This Desktop has hermes-artifacts ${mine}; the Hermes server runs ${server}. Update the plugin’s Desktop half on this computer to ${server}, then restart Hermes Desktop.`,
     versionHide: 'Hide until Hermes Desktop starts again',
@@ -212,6 +220,11 @@ const STRINGS = {
     restore: 'Restore',
     restoreTip: n => `Bring ${n} back to the gallery`,
     restored: n => `Restored ${n}`,
+    deleteForever: 'Delete forever',
+    deleteForeverTip: n => `Delete ${n} for good`,
+    foreverConfirm: 'Delete forever?',
+    foreverConfirmSub: 'This can’t be undone.',
+    deletedForever: n => `Deleted ${n} for good`,
     comments: 'Comments',
     addComment: 'Comment',
     pickHint: 'Click the part of the page you want to comment on.',
@@ -453,19 +466,21 @@ const STRINGS = {
     trashChip: n => `Kuka ${n}`,
     trashNote: n => `A törölt artifactok ${n} napig várnak itt, utána végleg törlődnek.`,
     versionRestart: (loaded, disk) =>
-      `A Hermes szerver még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Indítsd újra a szerveren az egész Hermest, hogy betöltse.`,
+      `A Hermes szerver még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. ${RELOAD.hu} Ha még látszik, indítsd újra ott a Hermest.`,
     versionRestartGateway: (loaded, disk) =>
-      `A szerveren a Hermes gateway még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Indítsd újra: hermes gateway restart.`,
+      `A szerveren a Hermes gateway még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. ${RELOAD.hu} Ha még látszik: hermes gateway restart.`,
     versionRestartServe: (loaded, disk) =>
-      `A Hermes backend, amelyhez ez a Desktop kapcsolódik (hermes serve / dashboard), még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Ezt a folyamatot indítsd újra a szerveren: a hermes gateway restart egymagában nem elég.`,
+      `A Hermes backend, amelyhez ez a Desktop kapcsolódik (hermes serve / dashboard), még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. ${RELOAD.hu} Ha még látszik, ezt a folyamatot indítsd újra: a hermes gateway restart egymagában nem elég.`,
     versionRestartWorker: (loaded, disk, role) =>
-      `A szerveren egy Hermes ${role} folyamat még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Indítsd újra a szerveren az egész Hermest.`,
+      `A szerveren egy Hermes ${role} folyamat még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. ${RELOAD.hu} Ha még látszik, indítsd újra ott a Hermest.`,
+    versionRestartCompute: (loaded, disk) =>
+      `A szerveren a Hermes compute host (dashboard.turn_isolation) még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Csak induláskor tölti be a pluginokat: indítsd újra ott a Hermest.`,
     versionRestartCli: (loaded, disk) =>
       `A szerveren futva hagyott hermes parancs még a hermes-artifacts ${loaded} kódját futtatja, de már ${disk} van telepítve. Zárd be, és indítsd újra.`,
     versionRestartMany: (n, loaded, disk) =>
-      `A szerveren ${n} Hermes folyamat még régebbi hermes-artifacts kódot futtat (${loaded}), de már ${disk} van telepítve. Indítsd újra ott az egész Hermest: a backendet, amelyhez ez a Desktop kapcsolódik (hermes serve / dashboard), és a gatewayt (hermes gateway restart).`,
+      `A szerveren ${n} Hermes folyamat még régebbi hermes-artifacts kódot futtat (${loaded}), de már ${disk} van telepítve. ${RELOAD.hu} Ha még látszik, indítsd újra ott a Hermest: a hermes serve / dashboard folyamatot és a gatewayt.`,
     versionServerOlder: (server, mine) =>
-      `A Hermes szerveren hermes-artifacts ${server} van, ebben a Desktopban ${mine}. Frissítsd a plugint a szerveren (hermes plugins update hermes-artifacts); utána ez a sor megmondja, mit kell újraindítani.`,
+      `A Hermes szerveren hermes-artifacts ${server} van, ebben a Desktopban ${mine}. Frissítsd a Desktop › Plugins oldalon: az a futó szerverbe is betölti (vagy a szerveren: hermes plugins update hermes-artifacts, utána ez a sor megmondja, mi a teendő).`,
     versionDesktopOlder: (mine, server) =>
       `Ebben a Desktopban hermes-artifacts ${mine} van, a Hermes szerveren ${server} fut. Frissítsd a plugin Desktop-felét ezen a gépen ${server} verzióra, aztán indítsd újra a Hermes Desktopot.`,
     versionHide: 'Elrejtés a Hermes Desktop következő indításáig',
@@ -474,6 +489,11 @@ const STRINGS = {
     restore: 'Visszaállítás',
     restoreTip: n => `${n} visszakerül a galériába`,
     restored: n => `Visszaállítva: ${n}`,
+    deleteForever: 'Végleges törlés',
+    deleteForeverTip: n => `${n} végleges törlése`,
+    foreverConfirm: 'Végleg törlöd?',
+    foreverConfirmSub: 'Ez nem vonható vissza.',
+    deletedForever: n => `Véglegesen törölve: ${n}`,
     comments: 'Kommentek',
     addComment: 'Komment',
     pickHint: 'Kattints az oldal arra a részére, amihez kommentet írnál.',
@@ -1117,6 +1137,18 @@ async function restoreFromTrash(ctx, item) {
     toast(String(err?.message || err), 'error') // e.g. the id is taken again: the server says so
   }
   await Promise.all([refresh(ctx), loadTrash(ctx)])
+  if (!$trash.get().length) $trashOpen.set(false)
+}
+
+/** Delete one trashed copy for good by its entry name (the user's own act; the agent has no way to it). */
+async function deleteFromTrash(ctx, item) {
+  try {
+    await ctx.rest('/trash/delete', { method: 'POST', body: { name: item.name } })
+    toast(T('deletedForever', item.title))
+  } catch (err) {
+    toast(String(err?.message || err), 'error')
+  }
+  await loadTrash(ctx)
   if (!$trash.get().length) $trashOpen.set(false)
 }
 
@@ -2012,18 +2044,21 @@ function ListRow({ ctx, art }) {
   })
 }
 
-/** One deleted artifact in the trash: type, title, when it was deleted, days left, Restore. */
+/** One deleted artifact in the trash: type, title, when it was deleted, days left, Restore, and a quiet
+ *  Delete forever (an icon) behind the gallery's two-line confirm. */
 function TrashRow({ ctx, item }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   const [busy, setBusy] = useState(false)
+  const [forever, setForever] = useState(false) // the confirm is open
   const cell = { fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
   return jsxs('div', {
     ...hp,
     style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '6px 6px 6px 12px', borderRadius: C.rMd, background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
     children: [
       jsx(TypeBadge, { type: item.type, size: 28 }),
-      jsx('div', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
+      // A narrow gallery shortens the cells beside it first: the title stays readable.
+      jsx('div', { style: { flex: 1, minWidth: 96, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
       jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${item.type}`) || item.type }),
       jsx('span', {
         title: item.deleted_at ? new Date(item.deleted_at * 1000).toLocaleString() : undefined,
@@ -2041,7 +2076,30 @@ function TrashRow({ ctx, item }) {
           await restoreFromTrash(ctx, item)
           setBusy(false)
         }
-      })
+      }),
+      jsxs('span', { style: { position: 'relative', display: 'flex', flexShrink: 0 }, children: [
+        jsx(IconButton, { icon: 'trash', title: t('deleteForeverTip', item.title), active: forever, onClick: () => setForever(!forever) }),
+        forever
+          ? jsx(PopMenu, {
+              align: 'right',
+              width: 240,
+              onClose: () => setForever(false),
+              items: [{
+                icon: 'trash',
+                label: t('foreverConfirm'),
+                sub2: t('foreverConfirmSub'),
+                danger: true,
+                onClick: async () => {
+                  setForever(false)
+                  if (busy) return
+                  setBusy(true)
+                  await deleteFromTrash(ctx, item)
+                  setBusy(false)
+                }
+              }]
+            })
+          : null
+      ] })
     ]
   })
 }
@@ -2135,7 +2193,7 @@ function NewMenu({ ctx, onClose }) {
 }
 const VERSION_RE = /^[0-9A-Za-z.+-]{1,40}$/
 // The roles hermes_artifacts/running.py records, each with its own advice.
-const ROLE_NOTICE = { gateway: 'versionRestartGateway', serve: 'versionRestartServe', 'compute-host': 'versionRestartWorker',
+const ROLE_NOTICE = { gateway: 'versionRestartGateway', serve: 'versionRestartServe', 'compute-host': 'versionRestartCompute',
   'plugin-host': 'versionRestartWorker', cli: 'versionRestartCli' }
 function compareVersions(a, b) {
   const x = a.match(/\d+/g) || [], y = b.match(/\d+/g) || []
@@ -2146,15 +2204,16 @@ function compareVersions(a, b) {
   return 0
 }
 /** What the gallery's version notice says, or null when the server and this Desktop half agree.
- *  {id, key, args}. A server process still running older code than its files comes first (a restart
- *  there, and only then is the version on disk the server's); else the side that is older. */
+ *  {id, key, args}. A server process still running older code than its files comes first (disable and
+ *  enable the plugin there, a restart only if that does not take; only then is the version on disk the
+ *  server's); else the side that is older. */
 function versionNotice(server, mine = PLUGIN_VERSION) {
   if (!server || typeof server !== 'object') return null
   const ok = v => typeof v === 'string' && VERSION_RE.test(v)
   const note = (key, ...args) => ({ id: [key, ...args].join(' '), key, args })
   if (server.stale === true && ok(server.loaded) && ok(server.disk)) {
     // Name the process that is behind, so the advice fits it (hermes gateway restart misses the backend
-    // Desktop connects to); several: restart all of Hermes there.
+    // Desktop connects to; the compute host takes no reload, only a restart); several: one line for all.
     const behind = (Array.isArray(server.processes) ? server.processes : [])
       .filter(x => x && typeof x.role === 'string' && Object.hasOwn(ROLE_NOTICE, x.role) && ok(x.version) && x.version !== server.disk)
     if (behind.length > 1) return note('versionRestartMany', behind.length, server.loaded, server.disk)

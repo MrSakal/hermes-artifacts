@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # The version of THIS code, fixed when the module is imported. Tests keep it equal to plugin.yaml,
 # dashboard/manifest.json and PLUGIN_VERSION in desktop/plugin.js: a bump touches all four.
-VERSION = "0.16.2"
+VERSION = "0.16.3"
 
 ROLES = ("gateway", "serve", "compute-host", "plugin-host", "cli")
 MAX_AGE = 7 * 86400  # a record not rewritten for a week is ignored and removed
@@ -193,10 +193,16 @@ def status(base: Optional[Path] = None) -> dict:
     return {"loaded": pick[0] if pick else None, "disk": disk, "stale": bool(off), "processes": procs}
 
 
+# Hermes re-imports a plugin in its running backend and gateway when it is enabled again (or updated from
+# Desktop › Plugins): that comes first; a restart only if the note stays. The compute host takes no reload.
+_RELOAD = "on the server, hermes plugins disable hermes-artifacts, then hermes plugins enable hermes-artifacts"
+_RESTART = {
+    "gateway": "hermes gateway restart",
+    "serve": "restart hermes serve / dashboard (not just the gateway)",
+}
 _ADVICE = {
-    "gateway": "restart the gateway (hermes gateway restart)",
-    "serve": ("restart the Hermes backend Desktop connects to (hermes serve / hermes dashboard); "
-              "hermes gateway restart alone does not"),
+    "compute-host": "restart Hermes on the server (the compute host loads plugins only when it starts)",
+    "cli": "close that hermes command and start it again",
 }
 
 
@@ -206,6 +212,6 @@ def restart_note() -> Optional[str]:
     if not disk or disk == VERSION:
         return None
     role = _role()
-    advice = _ADVICE.get(role, "restart Hermes on the server entirely")
-    return (f"Server restart pending: this Hermes process ({role}) runs hermes-artifacts {VERSION}, "
-            f"{disk} installed. Tell the user to {advice}.")
+    advice = _ADVICE.get(role) or f"{_RELOAD}; if this note stays, {_RESTART.get(role, 'restart Hermes there')}"
+    return (f"Stale code: this process ({role}) runs hermes-artifacts {VERSION}, {disk} installed. "
+            f"Tell the user: {advice}.")

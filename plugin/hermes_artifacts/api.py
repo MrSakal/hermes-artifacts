@@ -347,6 +347,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
     body = body if isinstance(body, dict) else {}
     try:
         if parts == ["artifacts"] and method == "GET":
+            # The gallery polls this while it is open: it also purges the trash, at most once a day.
+            store.purge_trash_due()
             base = store.root()
             arts = [_view(m, base) for m in store.list_all()]
             settings = store.settings()
@@ -392,8 +394,25 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 store.settings_set("folders", have + [name])
             return {"folders": store.settings().get("folders") or []}
         if parts == ["trash"] and method == "GET":
-            # Deleted artifacts, kept store.TRASH_DAYS days (newest deletion first).
+            # Deleted artifacts, kept store.TRASH_DAYS days (newest deletion first). What is past its time
+            # goes first, here and now (purge_trash deletes nothing else), so the list never shows it.
+            try:
+                store.purge_trash()
+            except Exception:
+                pass
+            store.purge_trash_due()
             return {"trash": store.trash_list(), "days": store.TRASH_DAYS}
+        if parts == ["trash", "delete"] and method == "POST":
+            # Host only (a page reaches nothing but /op; the agent has no tool for it): delete one trashed
+            # copy for good, the user's own act in the gallery. {"name": <trash folder name>}, never an id.
+            name = str(body.get("name") or "")
+            try:
+                store.trash_delete(name)
+            except FileNotFoundError as e:
+                raise ApiError(404, str(e))
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            return {"deleted": name}
         if parts == ["trash", "restore"] and method == "POST":
             # Bring one back: {"name": <trash folder name>} (the gallery: that very copy) or
             # {"id": <id or trash folder name>} (the newest deletion of that id).

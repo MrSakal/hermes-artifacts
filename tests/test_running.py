@@ -253,10 +253,87 @@ class PluginSideTests(unittest.TestCase):
             self.assertIn(f"({role})", note)
             self.assertIn(running.VERSION, note)
             self.assertIn("0.99.0", note)
-            self.assertLess(len(note), 260)
-        self.assertIn("hermes gateway restart alone does not", notes["serve"])
-        self.assertIn("(hermes gateway restart)", notes["gateway"])
-        self.assertIn("restart Hermes on the server entirely", notes["compute-host"])
+            self.assertLess(len(note), 280)  # only while stale; the two commands in full are most of it
+        reload = "hermes plugins disable hermes-artifacts, then hermes plugins enable hermes-artifacts"
+        for role in ("serve", "gateway"):  # the reload first, a restart only if the note stays
+            self.assertIn(reload, notes[role])
+            self.assertLess(notes[role].index(reload), notes[role].index("if this note stays"))
+        self.assertIn("restart hermes serve / dashboard (not just the gateway)", notes["serve"])
+        self.assertIn("if this note stays, hermes gateway restart", notes["gateway"])
+        self.assertNotIn("disable", notes["compute-host"])  # it takes no reload
+        self.assertIn("restart Hermes on the server", notes["compute-host"])
+
+    def test_register_twice_in_one_process_is_safe(self):
+        """Hermes may unload and register the plugin again in a live process (disable/enable, Desktop's
+        Update): each register() records its version again, registers the same things once, leaves no
+        looping thread behind, and hands Hermes a cleanup that stops the browser viewer."""
+        import threading
+
+        class Ctx:
+            def __init__(self):
+                self.calls, self.unload = [], []
+
+            def register_hook(self, name, *a, **kw):
+                self.calls.append(("hook", name))
+
+            def register_tool(self, **kw):
+                self.calls.append(("tool", kw["name"]))
+
+            def register_cli_command(self, name, *a, **kw):
+                self.calls.append(("cli", name))
+
+            def register_skill(self, name, *a, **kw):
+                self.calls.append(("skill", name))
+
+            def on_unload(self, cb):
+                self.unload.append(cb)
+
+            def get_config(self, key):
+                return None
+
+        f = store.root() / ".run" / f"loaded-{os.getpid()}.json"
+        before = {t.name for t in threading.enumerate()}
+        first, second = Ctx(), Ctx()
+        self.p.register(first)
+        f.unlink()
+        self.p.register(second)
+        self.assertEqual(json.loads(f.read_text("utf-8"))["version"], self.p.running.VERSION)  # recorded again
+        self.assertEqual(first.calls, second.calls)
+        self.assertEqual(len(second.calls), len(set(second.calls)))  # nothing twice in one register()
+        self.assertEqual(len(second.unload), 1)
+        self.assertIs(self.p._ctx, second)
+        for t in threading.enumerate():  # the one-shot startup threads end
+            if t.name.startswith("hermes-artifacts") and t.name not in before:
+                t.join(10)
+                self.assertFalse(t.is_alive(), t.name)
+
+        class Srv:
+            stopped = 0
+
+            def stop(self):
+                Srv.stopped += 1
+
+        self.p._server = Srv()
+        second.unload[0]()
+        self.assertEqual((Srv.stopped, self.p._server), (1, None))
+        second.unload[0]()  # a second unload: nothing to stop, no error
+        self.assertEqual(Srv.stopped, 1)
+
+    def test_an_older_hermes_without_on_unload_still_registers(self):
+        class Ctx:
+            def register_hook(self, *a, **kw):
+                pass
+
+            def register_tool(self, **kw):
+                pass
+
+            def register_cli_command(self, *a, **kw):
+                pass
+
+            def get_config(self, key):
+                return None
+
+        self.p.register(Ctx())
 
 
 if __name__ == "__main__":

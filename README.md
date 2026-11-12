@@ -150,15 +150,13 @@ hermes plugins install MrSakal/hermes-artifacts/plugin --enable
 hermes gateway restart
 ```
 
-**After updating:** a running Hermes process keeps the plugin code it loaded until it restarts, so the
-new files alone change nothing for its tools. On a server that is often two processes: the gateway, which
-`hermes gateway restart` restarts, and the backend Hermes Desktop connects to (`hermes serve` or
-`hermes dashboard`), which `hermes gateway restart` does not touch. So `hermes gateway restart` alone is
-not enough when Desktop connects through `hermes serve` or the dashboard: restart that process too, by
-its service if you set one up (for example `systemctl --user restart hermes-dashboard`), else stop it
-with `hermes dashboard --stop` and start it again as before. Then update the desktop half in Hermes
-Desktop (**Capabilities → Plugins**). While anything is behind, a line under the gallery's title says
-which process still runs the old version and what to do, or which side is older.
+**After updating:** update from Hermes Desktop (**Capabilities → Plugins**, **Update**) when you can: it
+also loads the new code into the running backend and gateway, no restart needed. After the CLI
+`hermes plugins update`, a running process keeps the old code until you run
+`hermes plugins disable hermes-artifacts` and then `hermes plugins enable hermes-artifacts` on the server.
+Restart only for a `dashboard.turn_isolation` compute host (it loads plugins only when it starts) or if
+the gallery's version line stays: it names the process still behind and what to do. Chats already open
+keep the old tool descriptions; new chats get the new ones.
 
 ### Uninstall
 
@@ -223,7 +221,7 @@ trust gates as the agent. What a dashboard may run within it is narrowed by the 
 | Design systems | `plugin/hermes_artifacts/dsbuild.py` | Compiles a design system's generated files (`tokens.css`, `manifest.json`, `api/` cards) on every publish and save |
 | Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, board, design, model, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
 | Desktop page | `plugin/desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
-| Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send; `artifacts/<id>/approval` for the host's query dialog; `trash`, `trash/restore` by entry `name` or `id`) |
+| Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send; `artifacts/<id>/approval` for the host's query dialog; `trash`, `trash/restore` by entry `name` or `id`, `trash/delete` by entry `name` only: host only, an artifact page reaches none of these) |
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
 | Browser viewer | `plugin/hermes_artifacts/server.py` | Optional loopback viewer: a shell origin plus a separate content origin |
 
@@ -266,7 +264,11 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   days it has left, and its **Restore** puts that very copy back. From a terminal, `hermes artifacts trash`
   lists the trash (each entry with its folder name and deletion time) and `hermes artifacts restore`
   brings one back: by id (its newest deletion) or by that folder name. Each is deleted for good 30 days
-  after its deletion, checked when the plugin starts and on every delete.
+  after its deletion, checked when the plugin starts, on every delete, when the gallery's Trash opens, and
+  at most once a day from the gallery's own list requests (no timer of its own); an item past its time is
+  never listed or restorable even before that. You can also delete one copy for good sooner: **Delete
+  forever** (the trash icon on its row, then the confirm) in the gallery's Trash. The agent cannot:
+  `ha_delete` only moves to the trash, and no tool deletes from it.
 - **Design system export:** `ha_design_system_export` writes a design system's files into a folder in the
   chat's working directory (`dir`). It refuses a non-empty folder unless `overwrite=true`, never writes
   outside that folder or through a symlink out of it, so `overwrite` replaces files there and nowhere else.
