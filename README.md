@@ -411,7 +411,8 @@ python -m unittest discover -s tests        # from the repo root; stdlib only
 hermes plugins validate plugin              # the catalog admission checks
 ```
 
-The JS tests need Node on the `PATH`; without it they skip. [`examples/`](examples) holds one artifact of
+CI runs both on every pull request, `hermes plugins validate plugin --install-deps` against a pinned Hermes
+release. The JS tests need Node on the `PATH`; without it they skip. [`examples/`](examples) holds one artifact of
 each type (`counter` is a page that uses the bridge).
 
 ## Licence
