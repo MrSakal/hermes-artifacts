@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its superseded run; pushes to main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -17,13 +22,13 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python: ["3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python }}
       - name: Unit tests (stdlib only)
         run: python -m unittest discover -s tests -v
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
       - name: Syntax-check browser and desktop JS
@@ -33,3 +38,72 @@ jobs:
           node --check plugin/hermes_artifacts/assets/bridge.js
           node --check plugin/hermes_artifacts/assets/shell.js
           for f in plugin/hermes_artifacts/types/_kit/kit.js plugin/hermes_artifacts/types/*/*.js; do node --check "$f"; done
+
+  # The catalog admission check, the way the Hermes plugin-catalog CI runs it
+  # (hermes-agent .github/workflows/plugin-catalog-ci.yml, scripts/ci/catalog_validate_pinned_entries.py):
+  # Hermes from a checkout at a pinned commit, its locked toolchain prepared through PM
+  # (.github/actions/setup-pm: scripts/ci/setup_toolchain.py prepare / install / dependencies, extras []),
+  # then `hermes plugins validate --install-deps`. A plain `pip install` of hermes-agent does not work:
+  # its core pins hold only on Python 3.14 and uv.lock carries overrides pip cannot apply.
+  hermes-validate:
+    name: hermes-validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Bump both together: the tag is for humans, the sha is what runs.
+      HERMES_TAG: v0.23.1
+      HERMES_SHA: 3b421578588243f920886e6fe79a6faa87ea026e
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check out Hermes at the pinned commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ env.HERMES_SHA }}
+          path: .hermes-agent
+          persist-credentials: false
+      - name: Confirm the pinned commit is the release tag
+        run: |
+          set -euo pipefail
+          test "$(git -C .hermes-agent rev-parse HEAD)" = "$HERMES_SHA"
+          tagged="$(git ls-remote https://github.com/NousResearch/hermes-agent.git "refs/tags/$HERMES_TAG^{}" | cut -f1)"
+          if [ "$tagged" != "$HERMES_SHA" ]; then
+            echo "::error::$HERMES_TAG resolves to '$tagged', not the pinned $HERMES_SHA"
+            exit 1
+          fi
+      # The three phases of Hermes' setup-pm action, run directly (no caches). `prepare` points
+      # HERMES_HOME at a fresh directory under RUNNER_TEMP, so no user configuration exists.
+      - name: Prepare the Hermes toolchain (PM)
+        run: python3 -S .hermes-agent/scripts/ci/setup_toolchain.py prepare --toolchain python --extras '[]' --home "$RUNNER_TEMP/hermes-home"
+      - name: Install the pinned Python and uv (PM)
+        run: python3 -S .hermes-agent/scripts/ci/setup_toolchain.py install --toolchain python --home "$HERMES_HOME"
+      - name: Install Hermes' locked core dependencies (PM)
+        run: '"$HERMES_PYTHON" -S .hermes-agent/scripts/ci/setup_toolchain.py dependencies --toolchain python --extras "[]" --home "$HERMES_HOME"'
+      - name: hermes plugins validate plugin --install-deps
+        env:
+          COLUMNS: "200"
+        run: |
+          set -euo pipefail
+          hermes plugins validate plugin --install-deps < /dev/null 2>&1 | tee "$RUNNER_TEMP/validate.txt"
+      - name: Fail on any caution except the known one
+        run: |
+          python3 -I - "$RUNNER_TEMP/validate.txt" <<'EOF'
+          import sys
+          sys.stdout.reconfigure(encoding="utf-8")
+          # Allowed: plugin/hermes_artifacts/types/vendor/pptxgen.bundle.js is the vendored, unmodified
+          # PptxGenJS 3.12.0 bundle; upstream's line 2 contains invisible Unicode, which the security
+          # scan reports as a caution. Editing the vendored file to silence it is not an option.
+          # "\u26a0" is the warning sign, "\u2713" the check mark, "\u2014" the em dash.
+          allowed = {
+              "\u26a0 security scan caution: invisible_unicode (pptxgen.bundle.js:2)",
+              "\u2713 security scan \u2014 caution",
+          }
+          lines = [line.strip().replace("\ufe0f", "") for line in open(sys.argv[1], encoding="utf-8")]
+          flagged = [line for line in lines if "\u26a0" in line or "caution" in line.lower()]
+          unexpected = [line for line in flagged if line not in allowed]
+          for line in unexpected:
+              print(f"::error::unexpected caution: {line}")
+          sys.exit(1 if unexpected else 0)
+          EOF

@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Actions are pinned to commit shas; Dependabot bumps the sha and the version comment together.
+  # npm in tools/three-bundle is left out on purpose: three and esbuild are pinned exactly so that
+  # the committed three.bundle.js can be rebuilt byte for byte.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
