@@ -227,3 +227,118 @@ class DownloadTests(unittest.TestCase):
         branch = src[src.index("m.op === 'download'"):]
         branch = branch[:branch.index("return reply")]
         self.assertIn("instanceof Blob", branch)
+
+
+VERSION_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker",
+                "versionRestartCli", "versionServerOlder", "versionDesktopOlder", "versionHide"]
+# The keys that name the old and the installed version (args: loaded, disk[, role]).
+RESTART_KEYS = ["versionRestart", "versionRestartGateway", "versionRestartServe", "versionRestartWorker", "versionRestartCli"]
+# jsx that keeps the tree, so a component's output can be read.
+TREE_JSX = "export const jsx = (type, props) => ({ type, props }), jsxs = jsx, Fragment = Symbol('Fragment')\n"
+
+
+def stale(*procs, disk="0.16.1"):
+    """A server field: these (role, version) processes live, ``disk`` installed."""
+    ps = [{"role": r, "version": v} for r, v in procs]
+    off = sorted(p["version"] for p in ps if p["version"] != disk)
+    return {"loaded": off[0] if off else None, "disk": disk, "stale": bool(off), "processes": ps}
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class VersionNoticeTests(unittest.TestCase):
+    """The gallery's one line when a server process runs older code than its files (named, with the
+    restart that fits it), or the server and this Desktop half are different versions (update the older
+    side); nothing when they agree."""
+
+    EXPORTS = "\nexport { STRINGS, PLUGIN_VERSION, versionNotice, VersionNotice, $server, $versionClosed }\n"
+
+    def notices(self, servers, mine="0.16.1"):
+        return run_node(stub_module(self.EXPORTS),
+                        f"console.log(JSON.stringify({json.dumps(servers)}.map(s => m.versionNotice(s, {json.dumps(mine)}))))")
+
+    def test_each_case(self):
+        cases = [
+            (stale(("serve", "0.16.0"), ("gateway", "0.16.1")), "versionRestartServe", ["0.16.0", "0.16.1", "serve"]),
+            (stale(("gateway", "0.16.0"), ("serve", "0.16.1")), "versionRestartGateway", ["0.16.0", "0.16.1", "gateway"]),
+            (stale(("compute-host", "0.16.0")), "versionRestartWorker", ["0.16.0", "0.16.1", "compute-host"]),
+            (stale(("plugin-host", "0.16.0")), "versionRestartWorker", ["0.16.0", "0.16.1", "plugin-host"]),
+            (stale(("cli", "0.16.0")), "versionRestartCli", ["0.16.0", "0.16.1", "cli"]),
+            (stale(("serve", "0.15.0"), ("gateway", "0.16.0")), "versionRestartMany", [2, "0.15.0", "0.16.1"]),
+            # No roles (or none known): the general advice.
+            ({"loaded": "0.16.0", "disk": "0.16.1", "stale": True}, "versionRestart", ["0.16.0", "0.16.1"]),
+            ({"loaded": "0.16.0", "disk": "0.16.1", "stale": True, "processes": [{"role": "constructor", "version": "0.16.0"}]},
+             "versionRestart", ["0.16.0", "0.16.1"]),
+            # A restart comes first: only then is the version on disk what the server runs.
+            (stale(("serve", "0.15.0"), disk="0.17.0"), "versionRestartServe", ["0.15.0", "0.17.0", "serve"]),
+            ({"loaded": "0.15.2", "disk": "0.15.2", "stale": False}, "versionServerOlder", ["0.15.2", "0.16.1"]),
+            ({"loaded": None, "disk": "0.9.0", "stale": False}, "versionServerOlder", ["0.9.0", "0.16.1"]),
+            ({"loaded": "0.16.10", "disk": "0.16.10", "stale": False}, "versionDesktopOlder", ["0.16.1", "0.16.10"]),
+        ]
+        out = self.notices([c[0] for c in cases])
+        for (server, key, args), got in zip(cases, out):
+            self.assertEqual((got["key"], got["args"]), (key, args), server)
+            self.assertEqual(got["id"], " ".join(str(a) for a in [key, *args]))
+
+    def test_nothing_when_they_agree_or_nothing_is_known(self):
+        servers = [stale(("serve", "0.16.1"), ("gateway", "0.16.1")), {"loaded": None, "disk": "0.16.1", "stale": False},
+                   None, {}, "0.15", {"loaded": "<b>", "disk": "1 2", "stale": True}]
+        self.assertEqual(self.notices(servers), [None] * len(servers))
+
+    def test_shown_in_the_gallery_and_closed_for_the_session(self):
+        d = stub_module(self.EXPORTS)
+        (d / "jsx.mjs").write_text(TREE_JSX, "utf-8")
+        body = f"""
+        const out = {{}}
+        const text = n => n && n.props.children[0].props.children
+        out.equal = (m.$server.set({{ loaded: m.PLUGIN_VERSION, disk: m.PLUGIN_VERSION, stale: false }}), m.VersionNotice())
+        m.$server.set({json.dumps(stale(("serve", "0.1.0"), disk="0.16.1"))})
+        const shown = m.VersionNotice()
+        out.shown = text(shown)
+        out.role = shown.props.role
+        shown.props.children[1].props.onClick()
+        out.closed = m.VersionNotice()
+        m.$server.set({{ loaded: '0.1.0', disk: '0.1.0', stale: false }})
+        out.next = text(m.VersionNotice())
+        console.log(JSON.stringify(out))
+        """
+        out = run_node(d, body)
+        self.assertIsNone(out["equal"])
+        self.assertEqual(out["shown"], "versionRestartServe")  # the stub's t() gives the key
+        self.assertEqual(out["role"], "status")
+        self.assertIsNone(out["closed"])
+        self.assertEqual(out["next"], "versionServerOlder")  # another mismatch shows at once
+
+    def test_the_list_poll_feeds_it(self):
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        load = src[src.index("async function loadList(ctx)"):]
+        load = load[:load.index("\n}\n")]
+        self.assertIn("$server.set(", load)
+        self.assertIn("jsx(VersionNotice, {})", src)
+
+    def test_strings_in_english_and_hungarian(self):
+        body = f"""
+        const keys = {json.dumps(VERSION_KEYS + ["versionRestartMany"])}
+        const args = {{ versionRestartMany: [2, '0.15.0', '0.16.1'], versionRestartWorker: ['0.15.0', '0.16.1', 'compute-host'] }}
+        const call = (k, v) => (typeof v === 'function' ? v(...(args[k] || ['0.15.0', '0.16.1'])) : v)
+        console.log(JSON.stringify(Object.fromEntries(['en', 'hu'].map(l =>
+          [l, Object.fromEntries(keys.map(k => [k, m.STRINGS[l][k] === undefined ? null : call(k, m.STRINGS[l][k])]))]))))
+        """
+        out = run_node(stub_module(self.EXPORTS), body)
+        for k in VERSION_KEYS + ["versionRestartMany"]:
+            self.assertTrue(out["en"][k] and out["hu"][k], k)
+            self.assertNotEqual(out["en"][k], out["hu"][k], k)
+        for lang in ("en", "hu"):
+            for k in RESTART_KEYS + ["versionServerOlder", "versionDesktopOlder", "versionRestartMany"]:
+                self.assertIn("0.15.0", out[lang][k], (lang, k))
+                self.assertIn("0.16.1", out[lang][k], (lang, k))
+            self.assertIn("hermes gateway restart", out[lang]["versionRestartGateway"])
+            self.assertIn("hermes serve / dashboard", out[lang]["versionRestartServe"])
+            self.assertIn("hermes gateway restart", out[lang]["versionRestartServe"])  # ...is not enough
+            self.assertIn("compute-host", out[lang]["versionRestartWorker"])
+            self.assertIn("2", out[lang]["versionRestartMany"])
+            self.assertIn("hermes serve / dashboard", out[lang]["versionRestartMany"])
+            self.assertIn("(hermes plugins update hermes-artifacts)", out[lang]["versionServerOlder"])
+            self.assertNotIn("gateway", out[lang]["versionRestart"])
+        self.assertEqual(out["en"]["versionRestartServe"],
+                         "The Hermes backend this Desktop connects to (hermes serve / dashboard) still runs hermes-artifacts "
+                         "0.15.0; 0.16.1 is installed. Restart that process on the server: hermes gateway restart alone doesn’t.")

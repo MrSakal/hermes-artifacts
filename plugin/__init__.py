@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .hermes_artifacts import store
+from .hermes_artifacts import running, store
 
 logger = logging.getLogger(__name__)
 PLUGIN_ID = "hermes-artifacts"
@@ -305,6 +305,10 @@ def _publish(args: dict, **kw) -> str:
             if view["shown_in_desktop"]:
                 # Hermes Desktop draws this line as a card that opens the artifact (Claude's card in the chat).
                 view["card"] = f'In Hermes Desktop end your reply with this line, alone: ::artifact{{id="{meta["id"]}"}}'
+        running.touch()
+        note = running.restart_note()  # None (nothing added) unless this process runs other code than installed
+        if note:
+            view["note"] = note
         return _ok(**view)
     except Exception as e:
         return _err(str(e))
@@ -935,6 +939,7 @@ def _view_context(**kw):
     design system line here: like Claude, the system comes with the guide of the types that wear it,
     and in code it is files in the project, ha_design_system_export.)"""
     parts = []
+    running.touch()  # this process is in use: keep its loaded-version record fresh (at most every 5 min)
     # A new turn: a making the last one left open is over (a Hermes without on_session_end).
     _making_end(kw.get("session_id"), "ended")
     try:
@@ -1074,6 +1079,7 @@ def _register_skill(ctx) -> None:
 def register(ctx) -> None:
     global _ctx
     _ctx = ctx
+    running.record()  # which code this process runs: the gallery warns when the server needs a restart
     from .hermes_artifacts import live
     live.set_ctx(ctx)  # dashboards call MCP through ctx.call_mcp (the web server finds it by PLUGIN_ID)
     _empty_old_trash()

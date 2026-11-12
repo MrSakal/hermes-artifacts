@@ -150,6 +150,16 @@ hermes plugins install MrSakal/hermes-artifacts/plugin --enable
 hermes gateway restart
 ```
 
+**After updating:** a running Hermes process keeps the plugin code it loaded until it restarts, so the
+new files alone change nothing for its tools. On a server that is often two processes: the gateway, which
+`hermes gateway restart` restarts, and the backend Hermes Desktop connects to (`hermes serve` or
+`hermes dashboard`), which `hermes gateway restart` does not touch. So `hermes gateway restart` alone is
+not enough when Desktop connects through `hermes serve` or the dashboard: restart that process too, by
+its service if you set one up (for example `systemctl --user restart hermes-dashboard`), else stop it
+with `hermes dashboard --stop` and start it again as before. Then update the desktop half in Hermes
+Desktop (**Capabilities → Plugins**). While anything is behind, a line under the gallery's title says
+which process still runs the old version and what to do, or which side is older.
+
 ### Uninstall
 
 ```bash
@@ -235,7 +245,10 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   that folder exists, else `~/.hermes`). Set `HERMES_ARTIFACTS_DIR` to use another folder instead.
   Artifact versions, comments, stored values, the inbox, dataset caches, approvals and card pictures
   (`<id>/previews/`, outside the versions) live there, on the
-  machine the Hermes backend runs on.
+  machine the Hermes backend runs on. So does `.run/`: one small file per Hermes process that loaded the
+  plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
+  `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
+  installed; a file goes when its process has, or after a week without being rewritten.
 - **Reads and writes:** that folder, the file or folder passed to `ha_publish path=`, and the folder
   named in `ha_design_system_export`.
 - **Paths the agent names:** `ha_publish path=` and `ha_design_system_export dir=` accept only paths

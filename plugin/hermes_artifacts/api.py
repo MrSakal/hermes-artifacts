@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any, Optional
 
-from . import boards, docs, history, live, render, sheets, store
+from . import boards, docs, history, live, render, running, sheets, store
 from .server import inject_bridge
 
 
@@ -355,7 +355,10 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             return {"artifacts": arts, "folders": folders,
                     "default_design_system": settings.get("default_design_system"),
                     "design_system_for": settings.get("design_system_for") or {},
-                    "making": store.making_all()}
+                    "making": store.making_all(),
+                    # Host only (a page reaches nothing but /op): the code the server's processes run
+                    # against the installed files; the gallery says when a restart or an update is due.
+                    "server": running.status(base)}
         if parts == ["making"] and method == "GET":
             # What a chat is making now (Hermes read a guide, has not published): after a reload or a chat switch.
             session = str(query.get("session") or "")

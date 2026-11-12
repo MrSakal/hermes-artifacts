@@ -115,6 +115,16 @@ class ViewContextTests(unittest.TestCase):
         self.assertIsNone(self.p._view_context(session_id="sess-child", is_first_turn=True,
                                                parent_session_id="sess-new-1"))
 
+    def test_the_route_hint_arrives_with_the_kwargs_hermes_passes(self):
+        # agent/turn_context.py (0.23.1): the same set in-process and through the plugin host; on a first
+        # turn conversation_history already holds the user's message and parent_session_id is "".
+        first = {"session_id": "20261112_112700_c19c87", "task_id": "t", "turn_id": "u",
+                 "user_message": "Make a small budget spreadsheet", "model": "m", "platform": "desktop",
+                 "conversation_history": [{"role": "user", "content": "Make a small budget spreadsheet"}],
+                 "is_first_turn": True, "parent_session_id": "", "sender_id": ""}
+        self.assertEqual(self.p._view_context(**first), {"context": self.p.ROUTE_HINT})
+        self.assertIsNone(self.p._view_context(**{**first, "is_first_turn": False}))
+
     def test_the_make_skill_is_registered_small_and_points_at_the_tools(self):
         got = []
 
