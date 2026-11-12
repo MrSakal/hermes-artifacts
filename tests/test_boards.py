@@ -256,6 +256,15 @@ class HermesAtWorkTests(unittest.TestCase):
         from hermes_artifacts import sheets
         self.assertIn("hermes_left", sheets.read(sid))
         self.assertNotIn("hermes_left", sheets.read(sid, agent=True))
+        # And how long ago Hermes changed it: the page tells from it whether the change came in the run in
+        # flight (Hermes Desktop says which runs are), so the pill ends with the run, not minutes later.
+        st["hermes_at"] = now - 42.04
+        with mock.patch.object(boards.time, "time", return_value=now):
+            self.assertEqual(boards.ago(st), 42.0)
+        self.assertIsInstance(r["hermes_ago"], float)
+        self.assertIn("hermes_ago", sheets.read(sid))
+        self.assertNotIn("hermes_ago", sheets.read(sid, agent=True))
+        self.assertNotIn("hermes_ago", boards.read(aid, agent=True))
 
 
 class PlacementTests(unittest.TestCase):
@@ -715,7 +724,7 @@ class ReadTests(unittest.TestCase):
 
     def test_the_pages_read(self):
         r = op(self.aid, "board.read")
-        self.assertEqual(sorted(r), ["edits", "hermes_active", "hermes_left", "items", "rev", "title"])
+        self.assertEqual(sorted(r), ["edits", "hermes_active", "hermes_ago", "hermes_left", "items", "rev", "title"])
         self.assertEqual(len(r["items"]), 8)
         self.assertEqual(r["items"][3]["svg"], SVG)  # everything in full
         e = op(self.aid, "board.edit", ops=[{"op": "order", "ids": ["a"], "to": "front"}, {"op": "set", "id": "b", "text": "B"}], base_rev=1)
@@ -794,7 +803,7 @@ class PublishTests(unittest.TestCase):
         html = render.render(m, store.version_dir(m["id"]))
         start = html.index('id="hermes-artifact-content">') + len('id="hermes-artifact-content">')
         c = json.loads(html[start:html.index("</script>", start)])
-        self.assertEqual(sorted(c["board"]), ["hermes_active", "hermes_left", "items", "rev", "title"])
+        self.assertEqual(sorted(c["board"]), ["hermes_active", "hermes_ago", "hermes_left", "items", "rev", "title"])
         self.assertEqual((c["board"]["title"], c["board"]["rev"], len(c["board"]["items"])), ("Release flow", 1, 9))
         self.assertTrue(all("x" in it for it in c["board"]["items"] if it["type"] != "arrow"))
         thumb = render.render(m, store.version_dir(m["id"]), thumb=True)
@@ -825,8 +834,8 @@ class PublishTests(unittest.TestCase):
         desk = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         for s in ("type_board", "tile_board", "prompt_board", "boardAskMsg", "plugin.${ID}.board", "m.op === 'board.restore' && !gesture"):
             self.assertIn(s, desk)
-        self.assertIn("version: 0.16.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
-        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.16.0")
+        self.assertIn("version: 0.16.1", (PLUGIN / "plugin.yaml").read_text("utf-8"))
+        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.16.1")
 
     def test_ask_goes_to_the_inbox(self):
         aid = pub()

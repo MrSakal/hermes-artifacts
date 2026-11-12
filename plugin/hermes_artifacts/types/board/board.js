@@ -809,7 +809,7 @@
     hm.board.read(rev).then(function (r) {
       pulling = false;
       if (!r || r.ok === false || preview) return;
-      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
+      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left, r.hermes_ago);
       if (busy()) { needPull = true; return; }     // the board moved on here meanwhile: read again when it is quiet
       if (r.since === "unavailable") return readAll();
       if (Array.isArray(r.items) && !r.changed) return adopt(r);
@@ -819,7 +819,7 @@
   function readAll() {
     return hm.board.read(null).then(function (r) {
       if (!r || r.ok === false || !Array.isArray(r.items)) return;
-      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
+      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left, r.hermes_ago);
       adopt(r);
     }).catch(function () {});
   }
@@ -881,14 +881,18 @@
     });
   }
   var pill = h("div", { "class": "bd-pill", role: "status", hidden: true, text: T.working });
-  // The pill goes when Hermes' window runs out (hermes_left seconds, else the server's 5 minutes) even
-  // if no read comes then (a read that hangs, a hidden page); every read sets it afresh.
+  // The pill shows while Hermes is at work here (kit.hermesWork: a run in flight that changed the board, as
+  // Hermes Desktop and the reads tell). It goes when that runs out even if no read comes then (a read that
+  // hangs, a hidden page); every read and every word from the host sets it afresh.
   var hermesTimer = null;
-  function setHermes(on, left) {
-    hermesActive = !!on; pill.hidden = !on || ro;
+  function setHermes(active, left, ago) {
+    if (typeof active === "boolean") kit.hermesWork.seen(active, left, ago);
+    var on = kit.hermesWork.on();
+    hermesActive = on; pill.hidden = !on || ro;
     clearTimeout(hermesTimer);
-    if (on) hermesTimer = setTimeout(function () { setHermes(false); }, (left > 0 ? left : 300) * 1000 + 500);
+    if (on) hermesTimer = setTimeout(function () { setHermes(false); }, kit.hermesWork.left() * 1000 + 500);
   }
+  kit.hermesWork.change(function () { setHermes(); });
   /** set ops for several items with their inverses: make(it) gives the fields to change (null removes one). */
   function patch(ids, make) {
     var fwd = [], inv = [];
@@ -2756,7 +2760,7 @@
     }).observe(view);
   } else window.addEventListener("resize", function () { measureView(); cullSoon(); });
   if (!booted) setTimeout(function () { if (!booted) { vw = vw < 2 ? 800 : vw; vh = vh < 2 ? 600 : vh; booted = true; fitAll(true); kit.ready(); } }, 300);
-  setHermes(!!B0.hermes_active, B0.hermes_left);
+  setHermes(!!B0.hermes_active, B0.hermes_left, B0.hermes_ago);
   if (live) {
     hm.on("board", function () { pull(); });
     setInterval(function () { if (!document.hidden && !busy()) pull(); }, 4000);

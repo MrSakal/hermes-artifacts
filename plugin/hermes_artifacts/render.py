@@ -90,6 +90,7 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             st = docs.load(meta["id"])
             data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]],
                            "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
+                           "hermes_left": 0 if thumb else docs.left(st), "hermes_ago": 0 if thumb else docs.ago(st),
                            "selects": st.get("selects") or {}, "settings": st.get("settings") or {},
                            "suggestions": [x for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
         except Exception:
@@ -102,7 +103,7 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             st = sheets.load(meta["id"])
             data["sheet"] = {"sheets": [{k: v for k, v in s.items() if k != "vals_at"} for s in st["sheets"]],
                              "hermes_active": not thumb and sheets.time.time() - st.get("hermes_at", 0) < sheets.ACTIVE_SECS,
-                             "hermes_left": 0 if thumb else sheets.left(st)}
+                             "hermes_left": 0 if thumb else sheets.left(st), "hermes_ago": 0 if thumb else sheets.ago(st)}
         except Exception:
             pass
     if kind == "board":
@@ -113,10 +114,12 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             if data["version"] == meta["versions"][-1]["n"]:
                 st = boards.load(meta["id"])
                 data["board"] = {"title": st["title"], "items": st["items"], "rev": st["rev"],
-                                 "hermes_active": not thumb and boards._active(st), "hermes_left": 0 if thumb else boards.left(st)}
+                                 "hermes_active": not thumb and boards._active(st), "hermes_left": 0 if thumb else boards.left(st),
+                                 "hermes_ago": 0 if thumb else boards.ago(st)}
             else:
                 old = boards.from_spec(json.loads(data["files"].get("board.json") or "{}"), meta["title"])
-                data["board"] = {"title": old["title"], "items": old["items"], "rev": 0, "hermes_active": False, "hermes_left": 0}
+                data["board"] = {"title": old["title"], "items": old["items"], "rev": 0, "hermes_active": False, "hermes_left": 0,
+                                 "hermes_ago": 0}
         except Exception:
             pass
     # </script inside JSON would end the block; < keeps it valid JSON.

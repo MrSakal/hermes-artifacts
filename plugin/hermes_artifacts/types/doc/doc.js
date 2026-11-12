@@ -95,7 +95,8 @@
   function tab() { return tabs[cur]; }
   // A section Hermes is still to write: `<!-- pending: what comes here -->`, shown in place, never exported.
   function pendingOf(s) { var m = /^<!--\s*pending:\s*([\s\S]*?)\s*-->$/.exec(String(s || "").trim()); return m ? m[1] : null; }
-  var hermesActive = !!(C.doc && C.doc.hermes_active); // Hermes changed this doc in the last minutes
+  kit.hermesWork.seen(!!(C.doc && C.doc.hermes_active), C.doc && C.doc.hermes_left, C.doc && C.doc.hermes_ago);
+  var hermesActive = kit.hermesWork.on(); // Hermes is at work in this doc (a run in flight that changed it)
   function tabMd(t) { return t.blocks.filter(function (b) { return pendingOf(b.md) === null; }).map(function (b) { return b.md; }).join("\n\n") + "\n"; }
   function fullText() {
     return tabs.length === 1 ? tabMd(tabs[0]) : tabs.map(function (t) { return "# " + t.title + "\n\n" + tabMd(t); }).join("\n\n");
@@ -1728,16 +1729,22 @@
   }
 
   // ------------------------------------------------------------------ live: Hermes' changes appear here
+  // The "Hermes is here" mark on the section it writes next follows kit.hermesWork (a run in flight that
+  // changed the doc): it goes when that run ends, not minutes later.
+  function hermesNow() {
+    var on = kit.hermesWork.on();
+    if (on === hermesActive) return;
+    hermesActive = on;
+    tab().blocks.forEach(function (b) { if (pendingOf(b.md) !== null && blockEl(b.id)) drawBlock(b, blockEl(b.id)); });
+  }
+  kit.hermesWork.change(hermesNow);
   var pulling = null;
   function pull(force) {
     if (!live) return Promise.resolve();
     if (pulling) return pulling;
     var t = tab();
     pulling = hm.doc.read(t.id, force ? null : t.rev).then(function (r) {
-      if (typeof r.hermes_active === "boolean" && r.hermes_active !== hermesActive) {
-        hermesActive = r.hermes_active;
-        tab().blocks.forEach(function (b) { if (pendingOf(b.md) !== null && blockEl(b.id)) drawBlock(b, blockEl(b.id)); });
-      }
+      if (typeof r.hermes_active === "boolean") { kit.hermesWork.seen(r.hermes_active, r.hermes_left, r.hermes_ago); hermesNow(); }
       if (!force && !(r.changed && r.changed.length) && !(r.removed && r.removed.length) && r.rev === t.rev && r.tabs.length === tabs.length) return;
       var byHermes = (r.changed || []).filter(function (c) { return c.by === "hermes"; }).map(function (c) { return c.id; });
       return (force && r.blocks ? Promise.resolve(r) : hm.doc.read(t.id, null)).then(function (full) { merge(full, byHermes); });

@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import re
 import secrets
 import threading
@@ -248,6 +249,17 @@ def overview(st: dict) -> list[dict]:
     return [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": len(t["blocks"])} for t in st["tabs"]]
 
 
+def left(st: dict) -> int:
+    """Whole seconds until Hermes' last change here leaves its window (0: not now)."""
+    return max(0, math.ceil(ACTIVE_SECS - (time.time() - st.get("hermes_at", 0))))
+
+
+def ago(st: dict) -> float:
+    """Seconds since Hermes last changed it (publishing included): the page tells from it whether that change
+    came in the run now in flight (kit.hermesWork), so its "Hermes is working" ends with the run."""
+    return round(max(0.0, time.time() - st.get("hermes_at", 0)), 1)
+
+
 def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None, search: Optional[str] = None,
          blocks: Optional[list[str]] = None) -> dict:
     """A tab's blocks (id, kind, md), or what changed since ``since_rev``, or the blocks whose text holds
@@ -255,7 +267,8 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
     st = load(aid)
     t = _tab(st, tab)
     out = {"tab": t["id"], "title": t["title"], "rev": t["rev"], "tabs": overview(st), "edits": st.get("edits", 0),
-           "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS}
+           "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS, "hermes_left": left(st),
+           "hermes_ago": ago(st)}
     if st.get("selects"):
         out["selects"] = st["selects"]
     if st.get("settings"):

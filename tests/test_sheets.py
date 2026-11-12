@@ -421,7 +421,7 @@ class ToolTests(unittest.TestCase):
         tools = {t[0]: t[1] for t in self.p.TOOLS}
         self.assertIn("sheet", tools["ha_publish"]["parameters"]["properties"]["type"]["enum"])
         self.assertIn("range", tools["ha_live_read"]["parameters"]["properties"])
-        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7311)  # 7385 before the ha_ names
+        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7305)  # 7385 before the ha_ names
 
 
 def _xlsx(path):

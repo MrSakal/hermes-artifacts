@@ -1206,6 +1206,12 @@ def _active(st: dict) -> bool:
     return left(st) > 0
 
 
+def ago(st: dict) -> float:
+    """Seconds since Hermes last changed it (publishing included): the page tells from it whether that change
+    came in the run now in flight (kit.hermesWork), so its "Hermes is working" ends with the run."""
+    return round(max(0.0, time.time() - st.get("hermes_at", 0)), 1)
+
+
 # ----------------------------------------------------------------------------- reading
 
 def _ints(v):
@@ -1267,7 +1273,8 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
     st = load(aid)
     items = st["items"]
     if not agent:
-        out = {"rev": st["rev"], "title": st["title"], "hermes_active": _active(st), "hermes_left": left(st), "edits": st.get("edits", 0)}
+        out = {"rev": st["rev"], "title": st["title"], "hermes_active": _active(st), "hermes_left": left(st),
+               "hermes_ago": ago(st), "edits": st.get("edits", 0)}
         if since_rev is None:
             out["items"] = items
             return out

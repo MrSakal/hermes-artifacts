@@ -1479,7 +1479,7 @@
       if (c.status === "denied") {
         // The command is never drawn here: Hermes Desktop shows it in its own dialog, from the server.
         return h("div", { "class": "dash-conn-row" }, [
-          h("div", { style: "flex:1;min-width:0" }, [
+          h("div", { "class": "dash-conn-text" }, [
             h("b", { text: T.deniedTitle.replace("{s}", c.server || "MCP") }),
             h("p", { text: T.deniedBody + " " + T.affected + ": " + c.ids.map(function (id) { return datasets[id].title || id; }).join(", ") })
           ]),
@@ -1491,7 +1491,7 @@
       }
       var title = c.status === "reauth" ? T.reauthTitle : c.status === "off" ? T.offTitle : T.absentTitle;
       return h("div", { "class": "dash-conn-row" }, [
-        h("div", { style: "flex:1;min-width:0" }, [
+        h("div", { "class": "dash-conn-text" }, [
           h("b", { text: title.replace("{s}", c.server || "MCP") }),
           h("p", { text: (c.status === "reauth" ? T.reauthBody : c.status === "off" ? T.offBody : T.absentBody) + " " +
             T.affected + ": " + c.ids.map(function (id) { return datasets[id].title || id; }).join(", ") })
@@ -1515,7 +1515,7 @@
     var key = failedIds.join(",") + "|" + staleIds.join(",");
     if (C.thumb || (!failedIds.length && !staleIds.length) || key === noticeDismissed) { if (noticeEl) { noticeEl.remove(); noticeEl = null; } return; }
     var box = h("div", { "class": "dash-notice" + (failedIds.length ? " bad" : "") }, [
-      h("span", { style: "flex:1;min-width:0", text: failedIds.length ? T.someFailed : T.someStale }),
+      h("span", { "class": "dash-notice-text", text: failedIds.length ? T.someFailed : T.someStale }),
       kit.labelled(kit.button(T.seeSources, "panel", function () { toggleSources(true); if (failedIds.length === 1) openSource(failedIds[0]); }), T.seeSources),
       failedIds.length ? kit.labelled(kit.button(T.askWhy, "sparkle", function () {
         var list = failedIds.map(function (id) { var r = cache[id].r; return "“" + sourceTitle(id) + "” (" + id + "): " + String(r.message || r.status).slice(0, 200); }).join("; ");

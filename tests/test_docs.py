@@ -205,6 +205,9 @@ class ApiAndToolTests(unittest.TestCase):
         self.assertEqual(tab["pending"][0]["intent"], "Goals: the three outcomes")
         self.assertEqual(docs.read(aid)["blocks"][1]["kind"], "pending")
         self.assertTrue(docs.read(aid)["hermes_active"])
+        # With how long that window has left, as sheets and boards: the page tells from it whether the change
+        # came in the run now in flight (kit.hermesWork), so its "Hermes is here" ends with the run.
+        self.assertIn(docs.read(aid)["hermes_left"], (299, 300))
         # A pending block is filled without base_rev; what is left comes back in reading order.
         e = json.loads(self.p._doc_edit({"id": aid, "ops": [{"op": "replace", "block": goals, "md": "## Goals\n\n- Ship it"}]}))
         self.assertTrue(e["ok"])

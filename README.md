@@ -234,7 +234,8 @@ which decides what is allowed.
 ## Surfaces, data and disclosures
 
 **Hermes surfaces used:** `ctx.register_tool` (14 tools, toolset `artifacts`), `ctx.register_hook`
-(`pre_llm_call`, `on_session_end`, `post_compaction`, `post_tool_call`), `ctx.call_mcp` (live dashboards,
+(`pre_llm_call`, `on_session_end`, `post_compaction`, `post_tool_call`), `ctx.register_skill` (one skill,
+`hermes-artifacts:make`), `ctx.call_mcp` (live dashboards,
 behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-dashboard router
 (`plugin/dashboard/`), and the Desktop plugin SDK (`plugin/desktop/plugin.js`). No core code is patched.
 
@@ -345,7 +346,13 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   artifact open in the session (within the last 10 minutes), it adds the artifact's id, title, type,
   version and where you are in it (the page's own view context) to the turn, marked as data, not
   instructions, and only when that changed since the last turn. On the first turn of a chat opened for an
-  artifact it adds one line naming that artifact. Nothing else is added to any turn.
+  artifact it adds one line naming that artifact; on the first turn of any other chat (not a delegated
+  child) it adds one line of 176 characters saying that a doc, sheet, deck, board, dashboard or page the
+  user asks for is an artifact (`ha_guide`, then `ha_publish`), not a file, unless they name a file format.
+  Nothing else is added to any turn.
+- **Skill:** the plugin registers one read-only skill, `hermes-artifacts:make` (`plugin/skills/make/SKILL.md`,
+  three lines pointing to `ha_guide` and `ha_publish`). Hermes lists it in the system prompt's skill index
+  with its 54-character description while the plugin is enabled; it is not copied into your skills folder.
 - **Other hooks:** `on_session_end` (and the next `pre_llm_call`) clears the note that a chat is making
   an artifact; `post_compaction` moves a chat's artifacts to the chat's new id when Hermes compresses it;
   `post_tool_call` only observes, keeping the MCP calls a chat ran (above) and changing no result.

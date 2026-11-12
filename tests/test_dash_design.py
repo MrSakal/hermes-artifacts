@@ -121,5 +121,20 @@ class DesignKitTests(unittest.TestCase):
         self.assertEqual(f["charts"][1], "#d97757")
 
 
+class BannerTests(unittest.TestCase):
+    def test_banner_words_wrap_clear_of_their_buttons(self):
+        # Docked beside the chat the pane is narrow: the words of a connector or failure banner wrap in their own
+        # column with a gap, and the buttons ("Show the command", Retry) go under them instead of into them.
+        d = PLUGIN / "hermes_artifacts" / "types" / "dashboard"
+        js, css = (d / "dashboard.js").read_text("utf-8"), (d / "dashboard.css").read_text("utf-8")
+        self.assertEqual(js.count('h("div", { "class": "dash-conn-text" }'), 2)
+        self.assertIn('h("span", { "class": "dash-notice-text"', js)
+        self.assertNotIn('style: "flex:1;min-width:0"', js[js.index("function connBanner("):js.index("function banner(")])
+        self.assertIn(".dash-conn-row { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }", css)
+        self.assertIn(".dash-conn-text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }", css)
+        self.assertIn(".dash-conn-row > .kit-btn { flex-shrink: 0; }", css)
+        self.assertIn(".dash-notice-text { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }", css)
+
+
 if __name__ == "__main__":
     unittest.main()

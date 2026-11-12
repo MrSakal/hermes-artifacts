@@ -416,6 +416,106 @@ await S('reload while expanded: the chat with its artifact beside it', async () 
 await S('reload on the gallery: the gallery', async () => { routerNav(PAGE); await settle(); await reload() }, { page: true, gallery: true, split: false })
 await S('reload on an artifact page: that artifact', async () => { I.openOnPage(ctx, 'b1'); await settle(); await reload() }, { page: true, selected: 'b1', gallery: false })
 
+// ---------------------------------------------------------------- feedback: the tab title, toasts, exports, the step line, Hermes' runs
+const tabTitle = () => [...tiles.values()][0]?.opts.title ?? null
+await S('chat A with its artifact beside it', async () => {
+  routerNav('/chatA'); await settle()
+  if (I.$chat.get() !== 'split') click(titlebar().render(), () => true, 'titlebar')
+  log.length = 0
+}, { split: true, closed: false })
+await S('another artifact of the chat by its card: the tab says that one, not the one before', async () => {
+  const other = I.$selected.get() === 'a1' ? 'a3' : 'a1'
+  click(card(other), () => true, 'card'); await settle()
+  const want = list.find(a => a.id === other).title
+  if (I.$selected.get() !== other || tabTitle() !== want) throw new Error(`tab "${tabTitle()}" over ${I.$selected.get()}`)
+}, { split: true, reopens: 1 })
+await S('renamed: the tab follows', async () => {
+  list = list.map(a => (a.id === I.$selected.get() ? { ...a, title: 'Renamed' } : a)); await I.refresh(ctx)
+  if (tabTitle() !== 'Renamed') throw new Error(`tab "${tabTitle()}"`)
+}, { split: true, reopens: 1 })
+await S('a placeholder retitles its tab once the type is known', async () => {
+  routerNav('/chatK'); await settle(); host.state.busy.set(true); await settle()
+  tool('tool.generating', 'ha_publish'); await settle()
+  if (tabTitle() !== 'makingTab:makingArtifact') throw new Error(`tab "${tabTitle()}"`)
+  tool('tool.start', 'ha_publish', { type: 'sheet', title: 'Budget' }); await settle()
+  if (tabTitle() !== 'makingTab:type_sheet') throw new Error(`tab "${tabTitle()}"`)
+  host.state.busy.set(false)
+}, { split: false, reopens: 1 })
+
+await S('a toast in the pane beside the chat (a Desktop without host.notify): drawn in the pane', async () => {
+  routerNav('/chatA'); await settle()
+  I.toast('hello')
+  if (I.$toast.get() !== 'hello' || !hasEl(tileEl(), 'Toast')) throw new Error('no toast in the pane')
+  const st = I.Toast().props.style
+  if (!String(st.background).includes('--ui-bg-elevated') || String(st.background).includes('foreground') || !String(st.border).includes('--ui-stroke')) throw new Error('toast look ' + JSON.stringify(st))
+  log.length = 0
+}, { split: true })
+const notes = []
+await S('with Hermes\' own notifications: every toast goes there (the docked Copy too), errors as errors', async () => {
+  host.notify = n => notes.push([n.kind, n.message])
+  I.$toast.set(null)
+  I.toast('plain')
+  I.toast('broke', 'error')
+  Object.defineProperty(globalThis.navigator, 'clipboard', { value: { writeText: async () => {} }, configurable: true })
+  const copied = await I.copyCommand("hermes config set plugins.entries.hermes-artifacts.mcp_allowlist '[srv]'", k => k)
+  if (!copied) throw new Error('copy failed')
+  if (JSON.stringify(notes) !== JSON.stringify([['info', 'plain'], ['error', 'broke'], ['info', 'allowCopied']])) throw new Error(JSON.stringify(notes))
+  if (I.$toast.get() !== null) throw new Error('the plugin drew its own toast too')
+}, { split: true })
+await S('an export handed to the browser says "Saved <name>"; one that fails says why', async () => {
+  notes.length = 0
+  const doc = globalThis.document, U = globalThis.URL, made = []
+  const keep = { ce: doc.createElement, body: doc.body, co: U.createObjectURL, rv: U.revokeObjectURL }
+  doc.createElement = () => ({ click() { made.push(this.download) }, remove() {} })
+  doc.body = { appendChild() {} }
+  U.createObjectURL = () => 'blob:x'
+  U.revokeObjectURL = () => {}
+  const ok = I.saveFile('Budget.xlsx', new Blob(['x'], { type: 'application/zip' }))
+  doc.createElement = () => { throw new Error('blocked') }
+  const bad = I.saveFile('Budget.pdf', 'x', 'application/pdf')
+  Object.assign(doc, { createElement: keep.ce, body: keep.body })
+  Object.assign(U, { createObjectURL: keep.co, revokeObjectURL: keep.rv })
+  if (ok !== true || bad !== false || made.join() !== 'Budget.xlsx') throw new Error(`ok=${ok} bad=${bad} made=${made}`)
+  if (JSON.stringify(notes) !== JSON.stringify([['success', 'saved:Budget.xlsx'], ['error', 'saveFailed:Budget.pdf,blocked']])) throw new Error(JSON.stringify(notes))
+}, { split: true })
+
+await S('Hermes makes another artifact in a chat whose artifact is open: the pane keeps it and says the step', async () => {
+  making('chatA', 'guide', { type: 'board' }); await settle()
+  const ts = texts(tileEl())
+  if (!ts.some(x => x === 'makingBand:type_board · stepGuide:type_board')) throw new Error('step line ' + ts.join(' | '))
+}, { split: true, making: null, reopens: 0 })
+await S('the ha_* tool events move the step line (the deferred bridge, MCP-style names)', async () => {
+  const line = () => texts(tileEl()).find(x => x.startsWith('makingBand:')) || ''
+  const seen = []
+  tool('tool.complete', 'ha_guide'); await settle(); seen.push(line())
+  tool('tool.generating', 'mcp__tool_call'); await settle(); seen.push(line())
+  tool('tool.start', 'ha_check'); await settle(); seen.push(line())
+  tool('tool.generating', 'mcp__web_search'); await settle(); seen.push(line())
+  tool('tool.start', 'ha_publish', { type: 'board', title: 'Flow' }); await settle(); seen.push(line())
+  const want = ['stepThink', 'stepWrite:type_board', 'stepTool:check', 'stepTool:web search', 'stepPublish'].map(s => `makingBand:type_board · ${s}`)
+  if (JSON.stringify(seen) !== JSON.stringify(want)) throw new Error(JSON.stringify(seen))
+  making('chatA', 'ended'); await settle()
+  if (texts(tileEl()).some(x => x.startsWith('makingBand:'))) throw new Error('the line stayed after the turn')
+}, { split: true, making: null, reopens: 0 })
+await S('a doc made in that chat says its step there too', async () => {
+  making('chatA', 'guide', { type: 'doc' }); await settle()
+  if (!texts(tileEl()).includes('makingBand:type_doc · stepGuide:type_doc')) throw new Error(texts(tileEl()).join(' | '))
+  making('chatA', 'ended')
+}, { split: true, making: null, reopens: 0 })
+
+await S('Hermes\' runs reach the open pages: on with its age, off when the last one ends', async () => {
+  const seen = [], ref = { current: { postMessage: m => seen.push(m) } }
+  I.themePorts.add(ref)
+  host.state.busy.set(true); await settle()
+  host.state.busyBySession.set({ rt1: true }); host.state.busy.set(false); await settle() // another chat still runs
+  host.state.busyBySession.set({ rt1: false }); await settle()
+  I.themePorts.delete(ref)
+  const runs = seen.filter(m => m.event === 'run').map(m => m.detail)
+  if (JSON.stringify(runs.map(d => d.on)) !== '[true,false]' || typeof runs[0].age !== 'number' || runs[1].age !== null) throw new Error(JSON.stringify(runs))
+}, { split: true })
+await S('the full page draws the toast too', async () => { routerNav(PAGE); await settle(); if (!hasEl(routeEl(), 'Toast')) throw new Error('no Toast on the page') }, { page: true })
+delete host.notify
+
 
 console.log(JSON.stringify({ fails, log }, null, 1))
 process.exit(0)
@@ -429,7 +529,8 @@ class DesktopStateTests(unittest.TestCase):
         src = (PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
                .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
         # The internals the invariants read, exported from the copy only.
-        src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh,"
+        src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh, toast, $toast, Toast,"
+                " saveFile, copyCommand, themePorts,"
                 " $makings, $dockMaking, $dockPos, ChatArtifactCard }\n")
         (d / "plugin.mjs").write_text(src, "utf-8")
         (d / "sdk.mjs").write_text(SDK, "utf-8")

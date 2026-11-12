@@ -103,4 +103,35 @@ class ViewContextTests(unittest.TestCase):
         out = self.p._view_context(session_id="sess-chat-1", is_first_turn=True)
         self.assertEqual(out["context"], f'[This chat is for artifact "Facade film" (id {aid}, dashboard)]')
         self.assertIsNone(self.p._view_context(session_id="sess-chat-1", is_first_turn=False))
-        self.assertIsNone(self.p._view_context(session_id="sess-chat-2", is_first_turn=True))
+
+    def test_a_new_chat_learns_once_that_what_it_makes_is_an_artifact(self):
+        out = self.p._view_context(session_id="sess-new-1", is_first_turn=True)
+        self.assertEqual(out, {"context": self.p.ROUTE_HINT})
+        for word in ("sheet", "deck", "board", "dashboard", "ha_guide", "ha_publish", "file format"):
+            self.assertIn(word, self.p.ROUTE_HINT)
+        self.assertLessEqual(len(self.p.ROUTE_HINT), 180)  # ~46 tokens, once per chat
+        self.assertIsNone(self.p._view_context(session_id="sess-new-1", is_first_turn=False))
+        self.assertIsNone(self.p._view_context(session_id="sess-new-1"))
+        self.assertIsNone(self.p._view_context(session_id="sess-child", is_first_turn=True,
+                                               parent_session_id="sess-new-1"))
+
+    def test_the_make_skill_is_registered_small_and_points_at_the_tools(self):
+        got = []
+
+        class Ctx:
+            def register_skill(self, name, path, description=""):
+                got.append((name, path, description))
+
+        self.p._register_skill(Ctx())
+        (name, path, desc), = got
+        self.assertEqual(name, "make")
+        self.assertTrue(path.is_file())
+        self.assertLessEqual(len(desc), 60)  # Hermes clips skill index lines at 60 characters
+        self.assertIn("spreadsheet", desc)
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(f"description: {desc}", text)
+        body = text.split("---", 2)[2]
+        self.assertLessEqual(len(body), 500)
+        for word in ("ha_guide", "ha_publish", "tool_search", ".xlsx"):
+            self.assertIn(word, body)
+        self.p._register_skill(object())  # a Hermes without register_skill: no error

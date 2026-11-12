@@ -60,6 +60,10 @@ const STRINGS = {
     stepThink: 'Thinking',
     stepWrite: name => `Writing the ${name.toLowerCase()}`,
     stepPublish: 'Publishing',
+    makingBand: name => `Making a new ${name.toLowerCase()}`,
+    saved: name => `Saved ${name}`,
+    saveFailed: (name, err) => `Couldn’t save ${name}: ${err}`,
+    exportFailed: 'The export didn’t come through. Try again.',
     comment: 'Comment',
     moreComment: 'More comment options',
     showComments: 'All comments',
@@ -301,6 +305,10 @@ const STRINGS = {
     stepThink: 'Gondolkodik',
     stepWrite: name => `Írja: ${name.toLowerCase()}`,
     stepPublish: 'Közzététel',
+    makingBand: name => `Új ${name.toLowerCase()} készül`,
+    saved: name => `Mentve: ${name}`,
+    saveFailed: (name, err) => `Nem sikerült menteni: ${name} (${err})`,
+    exportFailed: 'Az exportálás nem sikerült. Próbáld újra.',
     comment: 'Komment',
     moreComment: 'További komment-lehetőségek',
     showComments: 'Összes komment',
@@ -526,6 +534,9 @@ const current = () => $list.get().find(a => a.id === $selected.get()) || null
 const enc = encodeURIComponent
 let CTX = null // the plugin context (set in register)
 let T = k => k // the plugin's translate, kept current by Page
+/** The plugin's strings wherever they are needed (the pane beside a chat, a toast) also before the page ever
+ *  rendered: the host's plugin i18n, else the page's. */
+const tr = (k, ...a) => (CTX?.i18n?.t ? CTX.i18n.t(k, ...a) : T(k, ...a))
 
 // Listeners and timers through the host's scoped ones (dropped when the plugin unloads); a host without
 // them gets the bare ones. Each returns a disposer.
@@ -651,9 +662,11 @@ function dockMaking(ctx, sid) {
   if (dockClose && dockOwner() && dockOwner() !== sid) closeDock()
   closeArtifact() // nothing selected: a card or the titlebar then opens the artifact, not toggles the placeholder
   $dockMaking.set(sid)
-  const tr = (k, ...a) => (ctx?.i18n?.t ? ctx.i18n.t(k, ...a) : T(k, ...a))
-  openTile(ctx, tr('makingTab', m.type ? tr(`type_${m.type}`) : tr('makingArtifact')))
+  openTile(ctx, makingTabTitle(m))
 }
+
+/** The tab title of a being-made placeholder. */
+const makingTabTitle = m => tr('makingTab', m.type ? tr(`type_${m.type}`) : tr('makingArtifact'))
 
 /** The person closed the placeholder: like closing the artifact there (closedIn). */
 function closeMaking(sid) {
@@ -680,7 +693,9 @@ function onMaking(ctx, p) {
   if (!sid) return
   if (p.phase === 'guide') {
     markClosed(sid, false) // something new is being made in this chat: a fresh reason to show it
-    if (!PLACEHOLDER.has(p.type)) return setMaking(sid, null) // a doc: its outline publish opens it
+    // A doc gets no placeholder (its outline publish opens it); while the chat's pane shows one of its
+    // artifacts, that pane says what Hermes is doing until then (Viewer's step line).
+    if (!PLACEHOLDER.has(p.type) && dockOwner() !== sid) return setMaking(sid, null)
     const prev = $makings.get()[sid]
     setMaking(sid, { session: sid, type: p.type, started: prev && prev.type === p.type ? prev.started : Date.now(),
       title: null, step: 'guide', tool: null, local: false })
@@ -741,10 +756,12 @@ function onTool(ctx, ev) {
   const rt = host.state?.focusedSessionId?.get?.()
   if (ev?.session_id && rt && ev.session_id !== rt) return
   const p = payloadOf(ev)
-  let name = String(p.name || ''), args = p.args
+  // tool.generating names every tool MCP-style (mcp__skill_view, mcp__tool_call); tool.start plainly.
+  const plain = s => String(s || '').replace(/^mcp__/, '')
+  let name = plain(p.name), args = p.args
   // A deferred tool runs through the tool_call bridge: its one call is ours.
   if (name === 'tool_call' && Array.isArray(args?.calls) && args.calls.length === 1) {
-    name = String(args.calls[0]?.name || '')
+    name = plain(args.calls[0]?.name)
     args = args.calls[0]?.arguments
     if (typeof args === 'string') try { args = JSON.parse(args) } catch { args = null }
   }
@@ -756,6 +773,9 @@ function onTool(ctx, ev) {
       setMaking(sid, { session: sid, type: null, started: Date.now(), title: null, step: 'write', tool: null, local: true })
       return showMaking(ctx, sid)
     }
+    // The bridge is announced before its arguments, so the tool it runs is not known yet ("tool call" says
+    // nothing): in a making (the guide read) the long one is the publish being written; tool.start corrects it.
+    if (name === 'tool_call') return m && m.step !== 'publish' ? setMaking(sid, { step: 'write' }) : undefined
     if (m) setMaking(sid, name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
   } else if (ev.type === 'tool.start') {
     if (!m) return
@@ -1053,7 +1073,7 @@ async function restoreFromTrash(ctx, item) {
     await ctx.rest('/trash/restore', { method: 'POST', body: { name: item.name } })
     toast(T('restored', item.title))
   } catch (err) {
-    toast(String(err?.message || err)) // e.g. the id is taken again: the server says so
+    toast(String(err?.message || err), 'error') // e.g. the id is taken again: the server says so
   }
   await Promise.all([refresh(ctx), loadTrash(ctx)])
   if (!$trash.get().length) $trashOpen.set(false)
@@ -1127,9 +1147,20 @@ function closeArtifact() {
   $draft.set(null)
 }
 
-function toast(msg) {
-  $toast.set(msg)
-  setTimeout(() => $toast.get() === msg && $toast.set(null), 2600)
+/** A short note to the person: Hermes' own toast (host.notify: its stack and its look, wherever the plugin's
+ *  UI is: the full page, the pane beside a chat, expanded). A Desktop without it gets the plugin's own, drawn in
+ *  the page and in the pane (Toast). kind: info | success | error (an error stays a while, not until closed). */
+function toast(msg, kind = 'info') {
+  const text = String(msg ?? '')
+  if (!text) return
+  if (typeof host.notify === 'function') {
+    try {
+      host.notify({ kind, message: text, ...(kind === 'error' ? { durationMs: 8000 } : {}) })
+      return
+    } catch {} // the plugin's own below
+  }
+  $toast.set(text)
+  setTimeout(() => $toast.get() === text && $toast.set(null), 2600)
 }
 
 /** UTF-8 safe base64 for a data: URL (chunked, so large pages do not hit the argument limit). */
@@ -1249,18 +1280,28 @@ async function toChat(text, gesture, art) {
   return 'none'
 }
 
+/** Hands a file to the browser's download and says so in a toast ("Saved <name>", or why it could not).
+ *  Returns whether it went. */
 function saveFile(name, content, type) {
-  const blob = content instanceof Blob && content.type ? content : new Blob([content], { type: type || 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
   const safe = String(name || 'download').replace(/[\\/:*?"<>|]+/g, '_')
   const ext = (/\.[A-Za-z0-9]{1,8}$/.exec(safe) || [''])[0] // a long name is cut before its extension, not through it
-  a.download = safe.length > 120 ? safe.slice(0, 120 - ext.length) + ext : safe
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 4000)
+  const file = safe.length > 120 ? safe.slice(0, 120 - ext.length) + ext : safe
+  try {
+    const blob = content instanceof Blob && content.type ? content : new Blob([content], { type: type || 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 4000)
+  } catch (err) {
+    toast(tr('saveFailed', file, String(err?.message || err)), 'error')
+    return false
+  }
+  toast(tr('saved', file), 'success')
+  return true
 }
 
 function ago(ts) {
@@ -1524,7 +1565,7 @@ async function setDefaultDs(ctx, art, on) {
     $dsDefault.set(r?.default || null)
     toast(r?.default === art.id ? T('dsOn', art.title) : T('dsOff'))
   } catch (err) {
-    toast(String(err?.message || err))
+    toast(String(err?.message || err), 'error')
   }
 }
 
@@ -1550,7 +1591,7 @@ async function setTileDs(ctx, kind, id) {
     const r = await ctx.rest('/design-system-for', { method: 'POST', body: { type: kind, id } })
     $tileDs.set(r?.design_system_for || {})
   } catch (err) {
-    toast(String(err?.message || err))
+    toast(String(err?.message || err), 'error')
   }
 }
 
@@ -1696,7 +1737,7 @@ function OverlayBtn({ icon, title, active, onClick }) {
 }
 
 async function patchMeta(ctx, art, body) {
-  await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(String(e?.message || e)))
+  await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(String(e?.message || e), 'error'))
   await refresh(ctx)
 }
 
@@ -1764,7 +1805,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
         icon: 'copy',
         label: t('duplicate'),
         onClick: act(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e)), null))
+          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e), 'error'), null))
           if (r) (await refresh(ctx), toast(t('duplicated')))
         })
       },
@@ -2033,7 +2074,7 @@ function NewMenu({ ctx, onClose }) {
           const n = name.trim()
           if (!n) return
           onClose()
-          await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(String(e?.message || e)))
+          await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(String(e?.message || e), 'error'))
           await refresh(ctx)
           showFolder(n)
         } }
@@ -2185,10 +2226,34 @@ function Gallery({ ctx, pageRef }) {
 
 // ---------------------------------------------------------------- viewer
 
+/** Whether Hermes is running a turn in a chat this Desktop has (the focused one, a draft, any other), and for
+ *  how long (age ms; null: it was running before the plugin loaded). Every open page hears it ("run"), so its
+ *  "Hermes is working" mark lasts while a run that changed it is in flight and ends with that run: done,
+ *  failed or stopped (kit.hermesWork). */
+let runSince = null
+let runWatch = null
+const runOn = () => Boolean(host.state?.busy?.get?.()) || Object.values(host.state?.busyBySession?.get?.() || {}).some(Boolean)
+const runInfo = () => { const on = runOn(); return { on, age: on && runSince !== null ? Date.now() - runSince : null } }
+function watchRun() {
+  if (runWatch) return runWatch
+  let was = runOn()
+  const check = () => {
+    const on = runOn()
+    if (on === was) return
+    was = on
+    runSince = on ? Date.now() : null
+    const info = runInfo()
+    themePorts.forEach(ref => postToPage(ref, 'run', info))
+  }
+  const offs = [host.state?.busy?.listen?.(check), host.state?.busyBySession?.listen?.(check)].filter(f => typeof f === 'function')
+  runWatch = () => { offs.forEach(f => f()); runWatch = null; runSince = null }
+  return runWatch
+}
+
 /** Open artifact pages follow a theme or skin change at once: Hermes paints a theme on the root element
  *  (its style and data-hermes-* attributes) and a skin's <style> in <head>; both are only read here, and
  *  when the resolved theme differs, every open page gets it again. */
-const themePorts = new Set()
+const themePorts = new Set() // every mounted page's port: the theme and Hermes' runs reach them all
 let themeWatch = null
 let unwatchTheme = () => {}
 function watchTheme() {
@@ -2257,8 +2322,9 @@ function useBridge(ref, art, ctx, portRef) {
             // JSON.stringify of one is "{}".
             const c = a.content
             const raw = c instanceof Blob || c instanceof ArrayBuffer || ArrayBuffer.isView(c) || typeof c === 'string'
-            saveFile(a.name, raw ? c : JSON.stringify(c), a.type)
-            return reply({ ok: true, value: { ok: true } })
+            // The toast says how it went; a failure is not the page's to retry (its own fallback would save
+            // it after the person was told it failed).
+            return reply({ ok: true, value: { ok: saveFile(a.name, raw ? c : JSON.stringify(c), a.type) } })
           }
           if (m.op === 'chrome') {
             const list = Array.isArray(m.args?.exports) ? m.args.exports : []
@@ -2379,6 +2445,7 @@ function useBridge(ref, art, ctx, portRef) {
       }
       frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: 2 }, '*', [ch.port2])
       postToPage(portRef, 'theme', { mode: hostMode(), vars: hostTheme() })
+      postToPage(portRef, 'run', runInfo())
       const ro = $reopen.get()
       if (ro) {
         $reopen.set(null)
@@ -2581,6 +2648,7 @@ function dock(ctx, art) {
  *  'right' and 'center' closes the tile first (expandDock, collapseDock). */
 function openTile(ctx, title) {
   $chat.set('split')
+  tileTitle = title
   const close = host.openWorkspace(`${ID}:view`, {
     title,
     dock: { pane: 'workspace', pos: $dockPos.get() === 'center' ? 'center' : 'right' },
@@ -2597,6 +2665,25 @@ function openTile(ctx, title) {
     }
   })
   dockClose = close
+}
+
+/** The tile's tab says what the tile shows. Its content follows the atoms (DockView), its title only an open:
+ *  another artifact shown in it (a chat card, the gallery, the chat's newest), a rename, a placeholder's type
+ *  once known all re-open the tile's id, which Hermes retitles in place (openWorkspace). Checked once the
+ *  change has settled, so an open the same change makes (dock) is not doubled. */
+let tileTitle = null // the title the tile was last opened with
+let tileCheck = false
+function syncTileTitle(ctx) {
+  if (tileCheck) return
+  tileCheck = true
+  queueMicrotask(() => {
+    tileCheck = false
+    if (!dockClose || dockClosing || $chat.get() !== 'split') return
+    const dm = $dockMaking.get()
+    const m = dm ? $makings.get()[dm] : null
+    const title = dm ? (m ? makingTabTitle(m) : null) : current()?.title
+    if (title && title !== tileTitle) openTile(ctx, title)
+  })
 }
 
 /** The artifact's own chat, attached without navigating: stored session id -> runtime id. */
@@ -3181,7 +3268,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   const exportItems = exports.length
     ? exports.map(x => ({ key: x.id, label: x.label, onClick: close(() => postToPage(portRef, 'export', { id: x.id })) }))
     : art.type === 'page'
-      ? [{ key: 'html', label: 'HTML', onClick: close(async () => { const r = await ctx.rest(`/artifacts/${enc(art.id)}/html?v=${v}`).catch(() => null); if (r?.html) saveFile(`${art.title}.html`, r.html, 'text/html') }) }]
+      ? [{ key: 'html', label: 'HTML', onClick: close(async () => { const r = await ctx.rest(`/artifacts/${enc(art.id)}/html?v=${v}`).catch(() => null); if (r?.html) saveFile(`${art.title}.html`, r.html, 'text/html'); else toast(t('exportFailed'), 'error') }) }]
       : []
   if (view === 'export') return jsx(PopMenu, { onClose, items: [{ icon: 'back', label: t('exportMenu'), onClick: () => setView('main') }, { sep: true }, ...exportItems] })
   if (view === 'versions')
@@ -3211,14 +3298,14 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         icon: 'copy',
         label: t('duplicate'),
         onClick: close(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e)), null))
+          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e), 'error'), null))
           if (!r) return
           await refresh(ctx)
           openHere(ctx, r.id)
           toast(t('duplicated'))
         })
       },
-      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(String(e?.message || e)) } }) },
+      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(String(e?.message || e), 'error') } }) },
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
@@ -3407,8 +3494,9 @@ function DockView({ ctx }) {
   useValue($selected)
   const dm = useValue($dockMaking)
   const makings = useValue($makings)
-  if (dm) return makings[dm] ? jsx(MakingView, { ctx, m: makings[dm] }) : null
-  return current() ? jsx(Viewer, { ctx, docked: true }) : null
+  const body = dm ? (makings[dm] ? jsx(MakingView, { ctx, m: makings[dm] }) : null) : current() ? jsx(Viewer, { ctx, docked: true }) : null
+  // The pane is its own surface beside the chat: its toasts show here too (the page's Toast is not mounted).
+  return jsxs('div', { style: { position: 'relative', height: '100%', minHeight: 0 }, children: [body, jsx(Toast, {})] })
 }
 
 /** The step line: what Hermes is doing now, from the chat's own tool events. */
@@ -3430,8 +3518,6 @@ const elapsedText = ms => {
 function MakingView({ ctx, m }) {
   const t = usePluginI18n(ID)
   const expanded = useValue($dockPos) === 'center'
-  const [, setTick] = useState(0)
-  useEffect(() => every(ctx, () => setTick(n => n + 1), 1000), [])
   const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
   const one = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
   return jsxs('div', {
@@ -3449,16 +3535,29 @@ function MakingView({ ctx, m }) {
           jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session) })
         ]
       }),
-      jsxs('div', {
-        role: 'status',
-        'aria-live': 'polite',
-        style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, color: C.text2 },
-        children: [
-          jsx('span', { style: { ...one, flex: 1, minWidth: 0 }, children: stepText(t, m, name) }),
-          jsx('span', { style: { flexShrink: 0, color: C.text3, fontVariantNumeric: 'tabular-nums' }, children: elapsedText(Date.now() - (m.started || Date.now())) })
-        ]
-      }),
+      jsx(MakingLine, { ctx, m }),
       jsx(MakingSkeleton, { type: m.type })
+    ]
+  })
+}
+
+/** What Hermes is doing in a making, and the time it has taken: in the placeholder, or as a band under the
+ *  header of the chat's artifact already open in the pane (a second artifact made in that chat). */
+function MakingLine({ ctx, m, band = false }) {
+  const t = usePluginI18n(ID)
+  const [, setTick] = useState(0)
+  useEffect(() => every(ctx, () => setTick(n => n + 1), 1000), [])
+  const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
+  const step = stepText(t, m, name)
+  return jsxs('div', {
+    role: 'status',
+    'aria-live': 'polite',
+    style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, padding: band ? '6px 12px' : '10px 14px', fontSize: band ? 12 : 13,
+      color: C.text2, ...(band ? { borderBottom: `1px solid ${C.line}` } : {}) },
+    children: [
+      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 },
+        children: band ? `${t('makingBand', name)} · ${step}` : step }),
+      jsx('span', { style: { flexShrink: 0, color: C.text3, fontVariantNumeric: 'tabular-nums' }, children: elapsedText(Date.now() - (m.started || Date.now())) })
     ]
   })
 }
@@ -3610,7 +3709,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       onDone()
       loadComments(ctx)
     } catch (err) {
-      toast(String(err?.message || err))
+      toast(String(err?.message || err), 'error')
     } finally {
       setBusy(false)
     }
@@ -3731,7 +3830,10 @@ function Viewer({ ctx, docked = false }) {
   const chat = useValue($chat)
   const picking = useValue($picking)
   const comments = useValue($comments)
+  const makings = useValue($makings)
   const art = current()
+  // Its chat is making another artifact (the placeholder stays away while this one shows): the step line here.
+  const making = art?.session && !$dockMaking.get() ? makings[art.session] || null : null
   // Comment mode and the pins reach the page whether or not the comments list is open.
   useEffect(() => postToPage(portRef, 'comment-mode', { on: picking }), [picking])
   useEffect(() => sendPins(portRef), [comments])
@@ -3767,6 +3869,7 @@ function Viewer({ ctx, docked = false }) {
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
     children: [
       jsx(Header, { ctx, art, v, portRef, docked }),
+      making ? jsx(MakingLine, { ctx, m: making, band: true }) : null,
       jsxs('div', {
         style: { position: 'relative', display: 'flex', flex: 1, minHeight: 0 },
         children: [
@@ -3799,11 +3902,15 @@ function Viewer({ ctx, docked = false }) {
   })
 }
 
+/** The plugin's own toast, for a Desktop without host.notify: a popover of the theme (its elevated surface, line,
+ *  radius and shadow, as the menus and dialogs here), over a dialog. */
 function Toast() {
   const msg = useValue($toast)
   if (!msg) return null
   return jsx('div', {
-    style: { position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 30, padding: '8px 14px', borderRadius: C.rMd, background: C.fg, color: C.bg, fontSize: 13, boxShadow: C.shadowPop },
+    role: 'status',
+    style: { ...font, position: 'absolute', left: '50%', bottom: 48, transform: 'translateX(-50%)', zIndex: 40, maxWidth: 'calc(100% - 32px)',
+      padding: '8px 14px', borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.pop, color: C.fg, fontSize: 13, boxShadow: C.shadowPop },
     children: msg
   })
 }
@@ -3881,6 +3988,8 @@ export default {
     const savedClosed = ctx.storage.get('closedIn')
     if (Array.isArray(savedClosed)) savedClosed.forEach(s => typeof s === 'string' && closedIn.add(s))
     const stopTool = watchChatArtifactTool(ctx)
+    const stopRun = watchRun()
+    const offTile = [$selected, $list, $dockMaking, $makings].map(a => a.listen(() => syncTileTitle(ctx)))
     // The card in the transcript, where this Hermes Desktop has the directive area.
     ctx.register({ id: 'chat-card', area: SDK.TRANSCRIPT_DIRECTIVE_AREA || 'transcript.directives',
       data: { name: 'artifact', render: ({ attrs }) => jsx(ChatArtifactCard, { ctx, attrs }) } })
@@ -3967,6 +4076,8 @@ export default {
 
     return () => {
       stopTool()
+      stopRun()
+      offTile.forEach(off => off())
       offs.forEach(off => off())
       unwatchTheme()
       if (KEY && window[KEY] === redirectCore) delete window[KEY]

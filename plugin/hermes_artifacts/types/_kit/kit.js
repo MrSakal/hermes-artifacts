@@ -218,6 +218,45 @@
   /** The host's theme (null until it arrives); fn runs when it does. */
   function hostTheme(fn) { if (fn) themeListeners.push(fn); return host; }
 
+  // Hermes at work here (the live types' "Hermes is working" marks). The server says that Hermes changed the
+  // artifact lately (hermes_active, for hermes_left more seconds) and how long ago (hermes_ago); Hermes Desktop
+  // says whether a run is in flight and since when ("run": {on, age ms}). With the host's word Hermes is at work
+  // while a run that changed this artifact is in flight, and only then (its end, an error or a stop ends it; a
+  // fresh open with nothing running shows nothing); a change no run here explains (Hermes on another platform)
+  // counts for a moment. Without the host's word (a browser), the server's window alone.
+  var FRESH = 15000;
+  var work = { host: null, start: 0, end: 0, at: null, until: 0, fns: [] };
+  function workSeen(active, left, ago) {
+    var now = Date.now();
+    if (!active) { work.at = null; work.until = 0; return; }
+    work.at = now - (typeof ago === "number" && ago >= 0 ? ago * 1000 : 0); // an older server: as if just now
+    work.until = now + (typeof left === "number" && left > 0 ? left * 1000 : 300000);
+  }
+  function workOn() {
+    var now = Date.now();
+    if (work.at === null || now >= work.until) return false;
+    if (work.host === null) return true;
+    if (work.host) return work.at >= work.start - 2000;
+    return work.at > work.end + 1000 && now - work.at < FRESH;
+  }
+  /** Seconds until workOn() may turn false on its own (no read or host word needed). */
+  function workLeft() {
+    if (work.at === null) return 0;
+    var ms = work.until - Date.now();
+    if (work.host === false) ms = Math.min(ms, FRESH - (Date.now() - work.at));
+    return Math.max(0, ms) / 1000;
+  }
+  if (window.hermes && window.hermes.on) {
+    window.hermes.on("run", function (d) {
+      var on = !!(d && d.on), now = Date.now();
+      if (on && work.host !== true) work.start = now - (d && typeof d.age === "number" && d.age >= 0 ? d.age : 1e12);
+      if (!on && work.host !== false) work.end = now;
+      work.host = on;
+      work.fns.slice().forEach(function (fn) { try { fn(); } catch (e) {} });
+    });
+  }
+  var hermesWork = { seen: workSeen, on: workOn, left: workLeft, change: function (fn) { work.fns.push(fn); } };
+
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 
@@ -346,6 +385,6 @@
     };
   }
 
-  window.kit = { textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
 })();

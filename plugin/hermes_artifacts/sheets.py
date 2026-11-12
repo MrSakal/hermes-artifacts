@@ -867,6 +867,12 @@ def left(st: dict) -> int:
     return max(0, math.ceil(ACTIVE_SECS - (time.time() - st.get("hermes_at", 0))))
 
 
+def ago(st: dict) -> float:
+    """Seconds since Hermes last changed it (publishing included): the page tells from it whether that change
+    came in the run now in flight (kit.hermesWork), so its "Hermes is working" ends with the run."""
+    return round(max(0.0, time.time() - st.get("hermes_at", 0)), 1)
+
+
 def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, since_rev: Optional[int] = None,
          search: Optional[str] = None, agent: bool = False) -> dict:
     """A sheet's cells (2D, from the range's top-left), or what changed since ``since_rev``, or the
@@ -887,7 +893,7 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
     out = {"sheet": sh["id"], "name": sh["name"], "rev": sh["rev"], "edits": st.get("edits", 0),
            "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS, "sheets": overview(st)}
     if not agent:  # the page hides its pill on its own when these run out
-        out["hermes_left"] = left(st)
+        out["hermes_left"], out["hermes_ago"] = left(st), ago(st)
     if since_rev is not None:
         since = int(since_rev)
         mine = [e for e in st["log"] if e["sheet"] == sh["id"]]

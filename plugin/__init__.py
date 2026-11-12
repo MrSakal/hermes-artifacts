@@ -8,6 +8,7 @@ import re
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from .hermes_artifacts import store
@@ -751,9 +752,9 @@ def _schema(name: str, desc: str, props: dict, required: list | None = None) -> 
 TOOLS: list[tuple[str, dict, Any, str]] = [
     ("ha_publish", _schema(
         "ha_publish",
-        "Make artifacts: docs, sheets, boards, decks, dashboards, designs, 3D, films. What the user asks "
+        "Make artifacts, not files: docs, sheets, decks, boards, dashboards, designs, 3D. What the user asks "
         "you to make to look at, use, keep or share is an artifact, NOT a .md, .docx, "
-        ".xlsx, .pptx or .html file you write, unless they name a file format or it belongs in a codebase. Type "
+        ".xlsx, .pptx or .html file, unless they name a file format or it belongs in a codebase. Type "
         "by what they want, named or not: a doc/docs, "
         "document, report, plan, notes -> doc; a deck/presentation -> slides; a spreadsheet, "
         "budget, tracker -> sheet; a whiteboard, flowchart, diagram, brainstorm, mind map -> board; data (KPIs, charts, filters) -> dashboard; screens, websites, mockups, posters "
@@ -921,6 +922,12 @@ def _empty_old_trash() -> None:
 
 _LAST_VIEW: dict = {}
 
+# A new chat's first message gets this one line (Hermes replays the turn as sent, so it costs ~46 tokens
+# per chat, never per turn). Without it a model that obeys Hermes' "load any relevant skill" rule reached
+# for a file skill (openpyxl) on "make a budget spreadsheet" before it looked at the deferred ha_ tools.
+ROUTE_HINT = ("[A doc, sheet, deck, board, dashboard or page the user asks you to make is an artifact "
+              "(ha_guide, then ha_publish), not a file or a file skill, unless they name a file format.]")
+
 
 def _view_context(**kw):
     """pre_llm_call: when the user has an artifact open (reported by Hermes Desktop in the last 10
@@ -946,7 +953,8 @@ def _view_context(**kw):
     except Exception:
         logger.debug("view context failed", exc_info=True)
     # A chat opened for an artifact starts empty (as in Claude). On its first turn the agent gets one line
-    # naming the artifact; Hermes replays that turn as sent, so later turns need nothing more.
+    # naming the artifact; Hermes replays that turn as sent, so later turns need nothing more. Any other
+    # new chat gets ROUTE_HINT once, the same way.
     try:
         session = kw.get("session_id")
         if session and kw.get("is_first_turn"):
@@ -954,6 +962,8 @@ def _view_context(**kw):
             if m:
                 parts.append(f'[This chat is for artifact {json.dumps(m.get("title", m["id"]), ensure_ascii=False)} '
                              f'(id {m["id"]}, {m.get("type", "page")})]')
+            elif not kw.get("parent_session_id"):  # a delegated child gets its task, not the routing line
+                parts.append(ROUTE_HINT)
     except Exception:
         logger.debug("artifact chat context failed", exc_info=True)
     return {"context": "\n".join(parts)} if parts else None
@@ -1046,6 +1056,21 @@ def _ds_export(args: dict, **_kw) -> str:
 
 # ----------------------------------------------------------------------------- entry
 
+SKILL_MD = Path(__file__).resolve().parent / "skills" / "make" / "SKILL.md"
+
+
+def _register_skill(ctx) -> None:
+    """hermes-artifacts:make, listed in the system prompt's skill index beside the file skills (xlsx,
+    docx, pptx) that otherwise answer "make me a spreadsheet". Its body is three lines: ha_guide, then
+    ha_publish."""
+    try:
+        head = SKILL_MD.read_text(encoding="utf-8").split("---")[1]
+        desc = next(ln.split(":", 1)[1].strip() for ln in head.splitlines() if ln.startswith("description:"))
+        ctx.register_skill("make", SKILL_MD, description=desc)
+    except Exception:  # an older Hermes without plugin skills: the pre_llm_call line still routes
+        logger.debug("plugin skill unavailable", exc_info=True)
+
+
 def register(ctx) -> None:
     global _ctx
     _ctx = ctx
@@ -1069,6 +1094,7 @@ def register(ctx) -> None:
     except Exception:
         logger.debug("post_tool_call hook unavailable", exc_info=True)
     _follow_compressed()
+    _register_skill(ctx)
     for name, schema, handler, emoji in TOOLS:
         ctx.register_tool(name=name, toolset="artifacts", schema=schema, handler=handler,
                           description=schema["description"], emoji=emoji)

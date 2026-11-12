@@ -172,12 +172,14 @@ class BoardPageTests(unittest.TestCase):
         self.assertIn('else if (ro) { if (lk === "a") e.preventDefault(); return; }', self.src)
 
     def test_the_working_pill_goes_on_its_own(self):
-        for f, call in ((PAGE, "setHermes(r.hermes_active, r.hermes_left)"),
-                        (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js", "setHermes(r.hermes_active, r.hermes_left)")):
+        for f, call in ((PAGE, "setHermes(r.hermes_active, r.hermes_left, r.hermes_ago)"),
+                        (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js", "setHermes(r.hermes_active, r.hermes_left, r.hermes_ago)")):
             src = f.read_text("utf-8")
             fn = src[src.index("function setHermes("):]
             fn = fn[:fn.index("\n  }\n")]
-            self.assertIn("hermesTimer = setTimeout(function () { setHermes(false); }, (left > 0 ? left : 300) * 1000 + 500);", fn, f.name)
+            self.assertIn("hermesTimer = setTimeout(function () { setHermes(false); }, kit.hermesWork.left() * 1000 + 500);", fn, f.name)
+            self.assertIn("kit.hermesWork.seen(active, left, ago);", fn, f.name)  # every read through the run-aware rule
+            self.assertIn("kit.hermesWork.change(function () { setHermes(); });", src, f.name)  # and every word from the host
             self.assertEqual(src.count(call), 2, f.name)
 
 

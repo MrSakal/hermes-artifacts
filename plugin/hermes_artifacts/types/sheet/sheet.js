@@ -284,7 +284,7 @@
     return fmt;
   }
   var live = !!(hm && hm.sheet && hm.sheet.edit) && !C.thumb && !!C.sheet;
-  var book = [], cur = 0, hermesActive = false, hermesUntil = 0, edits = 0, preview = null;
+  var book = [], cur = 0, hermesActive = false, edits = 0, preview = null;
   function normSheet(o) {
     if (o.lists && o.fmt) bindLists(o.fmt, o.lists, null, o.list_colors);
     return { id: o.id || "local-" + Math.random().toString(36).slice(2, 8), name: o.name || T.sheetWord + " 1", rev: o.rev || 0,
@@ -316,8 +316,8 @@
   }
   if (C.sheet && C.sheet.sheets && C.sheet.sheets.length) {
     book = C.sheet.sheets.map(normSheet);
-    hermesActive = !!C.sheet.hermes_active;
-    hermesUntil = hermesActive ? Date.now() + ((C.sheet.hermes_left > 0 ? C.sheet.hermes_left : 300) * 1000 + 500) : 0;
+    kit.hermesWork.seen(!!C.sheet.hermes_active, C.sheet.hermes_left, C.sheet.hermes_ago);
+    hermesActive = kit.hermesWork.on();
   } else {
     var j0 = null;
     try { j0 = JSON.parse(kit.fileText("sheet.json") || "null"); } catch (e) { j0 = null; }
@@ -1370,7 +1370,7 @@
       var t = byId(r.sheet || s.id) || s;
       loadRead(t, r);
       (pend[t.id] || []).forEach(function (op) { applyLocal(t, op); });
-      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
+      if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left, r.hermes_ago);
       if (typeof r.edits === "number") edits = r.edits;
       invalidate();
       refit(t);
@@ -2688,14 +2688,18 @@
   }
 
   // ------------------------------------------------------------------ live: Hermes' edits arrive, computed values go back
-  // The pill goes when Hermes' window runs out (hermes_left seconds, else the server's 5 minutes) even
-  // when no read comes then (reads pause while a cell is typed in, or one hangs); every read sets it afresh.
-  var hermesTimer = hermesUntil ? setTimeout(function () { setHermes(false); }, hermesUntil - Date.now()) : null;
-  function setHermes(on, left) {
+  // The pill shows while Hermes is at work here (kit.hermesWork: a run in flight that changed the sheet, as
+  // Hermes Desktop and the reads tell). It goes when that runs out even when no read comes then (reads pause
+  // while a cell is typed in, or one hangs); every read and every word from the host sets it afresh.
+  var hermesTimer = hermesActive ? setTimeout(function () { setHermes(false); }, kit.hermesWork.left() * 1000 + 500) : null;
+  function setHermes(active, left, ago) {
+    if (typeof active === "boolean") kit.hermesWork.seen(active, left, ago);
+    var on = kit.hermesWork.on();
     clearTimeout(hermesTimer);
-    if (on) hermesTimer = setTimeout(function () { setHermes(false); }, (left > 0 ? left : 300) * 1000 + 500);
+    if (on) hermesTimer = setTimeout(function () { setHermes(false); }, kit.hermesWork.left() * 1000 + 500);
     if (on !== hermesActive) { hermesActive = on; drawFoot(); }
   }
+  kit.hermesWork.change(function () { setHermes(); });
   function flashCells(s, keys) {
     if (!keys.length || s !== S()) return;
     keys.slice(0, 300).forEach(function (k) { flashSet[k] = 1; });
@@ -2738,7 +2742,7 @@
       var s = book[cur];
       return hm.sheet.read(s.id, s.rev).then(function (r) {
         if (!r || r.ok === false) return;
-        if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left);
+        if (typeof r.hermes_active === "boolean") setHermes(r.hermes_active, r.hermes_left, r.hermes_ago);
         if (r.sheets) syncOverview(r.sheets);
         if (byId(s.id) !== s || pending()) return;
         var keys;
