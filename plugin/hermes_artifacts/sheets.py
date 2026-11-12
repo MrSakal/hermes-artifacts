@@ -777,7 +777,8 @@ def _sheet(st: dict, sheet: Optional[str]) -> dict:
     for s in st["sheets"]:
         if s["name"].casefold() == str(sheet).casefold():
             return s
-    raise SheetError("absent", f"no sheet {sheet!r} (sheets: {', '.join(s['name'] for s in st['sheets'])})")
+    raise SheetError("absent", f"no sheet {sheet!r} (the sheets there are in sheets)",  # their names: data
+                     sheets=[{"id": s["id"], "name": s["name"]} for s in st["sheets"]][:50])
 
 
 def overview(st: dict) -> list:
@@ -1113,6 +1114,24 @@ def apply(aid: str, ops: list, *, by: str, sheet: Optional[str] = None, base_rev
             raise
 
 
+CONFLICT_CELLS = 50  # cells a conflict hands back
+CONFLICT_CELL_CHARS = 200  # of each cell's value or formula
+
+
+def _conflict(aid: str, sh: dict, keys: list, base: int) -> SheetError:
+    """Hermes' edit met the user's: the cells as they are now ({"B4": {"v": value, "f": "=formula"}})."""
+    def cut(v):
+        return v[:CONFLICT_CELL_CHARS] + "…" if isinstance(v, str) and len(v) > CONFLICT_CELL_CHARS else v
+    current = None
+    if len(keys) <= CONFLICT_CELLS:
+        current = {}
+        for k in keys:
+            raw = sh["cells"].get(k)
+            current[k] = {"v": cut(sh["vals"].get(k)), "f": cut(raw)} if _is_formula(raw) else {"v": cut(raw)}
+    return store.conflict(SheetError, "cells", keys, base, sh["rev"], current,
+                          f"ha_live_read id={aid} tab=<tab> range=<ids>", tab=sh["id"])
+
+
 def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[int]) -> dict:
     touched, nonempty = set(), False
     for o in ops:
@@ -1129,14 +1148,24 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
             if e["sheet"] != sh["id"] or e["rev"] <= base or e["by"] == by:
                 continue
             if e.get("struct") and cell_ops:
+                if by == "hermes":  # cell addresses moved: no cells to hand back
+                    err = SheetError("conflict", f"the user changed rows, columns or the sheet after rev {base}, so "
+                                                 "cell addresses moved", rev=sh["rev"], ids=[], tab=sh["id"])
+                    err.next = (f"ha_live_read id={aid} tab=<tab> since_rev={base}, then redo your ops on "
+                                "what is there with its rev as base_rev in one call")
+                    err.dont = store.CONFLICT_DONT
+                    raise err
                 raise SheetError("conflict", "rows, columns or the sheet changed meanwhile: read it again",
                                  rev=sh["rev"], cells=[])
             if not e.get("v", True):
                 continue  # formats only
             hit = touched if e.get("many") else touched & set(e.get("cells", []))
             if hit:
+                hit = sorted(hit, key=parse_key)
+                if by == "hermes":
+                    raise _conflict(aid, sh, hit, base)
                 raise SheetError("conflict", "cells you change were changed meanwhile: read them again",
-                                 rev=sh["rev"], cells=sorted(hit, key=parse_key)[:50])
+                                 rev=sh["rev"], cells=hit[:50])
     before = _snap(sh, "start")
     ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": []}
     for o in ops:

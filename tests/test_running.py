@@ -282,8 +282,8 @@ class PluginSideTests(unittest.TestCase):
             def register_cli_command(self, name, *a, **kw):
                 self.calls.append(("cli", name))
 
-            def register_skill(self, name, *a, **kw):
-                self.calls.append(("skill", name))
+            def register_system_prompt_section(self, id, *a, **kw):
+                self.calls.append(("section", id))
 
             def on_unload(self, cb):
                 self.unload.append(cb)

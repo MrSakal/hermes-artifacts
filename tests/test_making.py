@@ -221,8 +221,8 @@ class CompressedChatTests(_Events):
         self.assertNotEqual(st.get_meta(other)["session"], new)
         self.assertIsNone(st.making_get(old))
         self.assertEqual(st.making_get(new)["type"], "slides")
-        self.assertIn((new, a), self.p._SEEN)
-        self.assertNotIn((old, a), self.p._SEEN)
+        self.assertTrue(any(k[:2] == (new, a) for k in self.p._SEEN))
+        self.assertTrue(any(k[:2] == (old, a) for k in self.p._SEEN))  # kept too: the turn in flight calls with it
         self.assertEqual(self.named("moved"), [{"old": old, "new": new}])
         st.making_clear(new)
 

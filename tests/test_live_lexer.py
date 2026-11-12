@@ -440,7 +440,8 @@ class PublishAndDialogTests(unittest.TestCase):
                                          "files": {"dashboard.json": spec(sql, rules), "index.html": "x"}}))
             self.assertFalse(out["ok"], sql)
             self.assertEqual(out["code"], "live_refused")
-            self.assertIn("dataset 'm'", out["error"])
+            self.assertIn("dataset 'm'", out["problems"][0])  # names from the file: beside the words, as data
+            self.assertNotIn("dataset 'm'", out["error"])
         out = json.loads(p._publish({"type": "dashboard", "title": "t", "open": False,
                                      "files": {"dashboard.json": spec("SELECT 1"), "index.html": "x"}}))
         self.assertTrue(out["ok"], out)

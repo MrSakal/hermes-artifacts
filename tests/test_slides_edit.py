@@ -63,13 +63,15 @@ class UnreadEditTests(unittest.TestCase):
         p = load_plugin()
         deck = {"title": "D", "order": ["a"], "slides": [{"id": "a", "layout": "title", "title": "A"}]}
         kw = {"session_id": "chat-1"}
+        p._guide({"type": "slides"}, **kw)
         aid = json.loads(p._publish({"title": "D", "type": "slides", "files": {"deck.json": deck}, "open": False}, **kw))["id"]
         self.assertTrue(json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))["ok"])
         op(aid, "save", base_version=2, files={"slides/a.html": '<section id="a"><p>mine</p></section>'})
         r = json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))
         self.assertFalse(r["ok"])
-        self.assertEqual((r["code"], r["version"]), ("unread_edit", 3))
-        json.loads(p._read({"id": aid}, **kw))
+        # A whole publish of deck.json alone would delete the slide the person saved, never shown to Hermes.
+        self.assertEqual((r["code"], r["would_delete"]), ("would_delete", ["slides/a.html"]))
+        self.assertIn("mine", json.loads(p._read({"id": aid, "path": "slides/a.html"}, **kw))["content"])
         self.assertTrue(json.loads(p._publish({"id": aid, "files": {"deck.json": deck}, "open": False}, **kw))["ok"])
 
 
