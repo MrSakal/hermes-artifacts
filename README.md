@@ -7,26 +7,17 @@ built-in page with a gallery (live previews, search, sort, pins, "make something
 sandboxed viewer. Every artifact is versioned: publishing again with the same id adds a version, and the
 open view reloads. It also works when Hermes Desktop is connected to a remote Hermes server.
 
-## Screenshots
+## Demo
 
-> **Placeholder: images not added yet.** Take these in Hermes Desktop and commit them under
-> `screenshots/` at the repo root (outside `plugin/`, so they are not installed). PNG, one window per
-> shot. The catalog shows at most 6 in its gallery (`screenshots:` in the entry, `https` URLs on
-> `raw.githubusercontent.com` pinned to the entry's commit); a card banner (`image:`) is 2:1, e.g.
-> 1200x600.
->
-> | File | Shows |
-> |---|---|
-> | `screenshots/gallery.png` | The Artifacts gallery with several types |
-> | `screenshots/doc.png` | A live doc with a comment and a suggestion |
-> | `screenshots/sheet.png` | A sheet with formulas and a chart |
-> | `screenshots/dashboard.png` | A dashboard with Sources open |
-> | `screenshots/slides.png` | A deck in the slide editor |
-> | `screenshots/design.png` | A design canvas with several artboards |
-> | `screenshots/motion.png` | A film on its timeline |
-> | `screenshots/design-system.png` | A design system's reference page |
-> | `screenshots/chat-card.png` | The artifact's card in the chat |
-> | `screenshots/banner.png` | 1200x600 catalog card banner |
+[![Hermes Artifacts demo: the gallery, a sheet, a whiteboard Hermes edits, a doc, a deck and a dashboard](screenshots/gallery.png)](screenshots/demo.mp4)
+
+**[Watch the demo video](screenshots/demo.mp4)** (85 seconds, no sound).
+
+| | |
+|---|---|
+| ![A sheet with formulas](screenshots/sheet.png) | ![A whiteboard after Hermes edited it](screenshots/board.png) |
+| ![A live doc](screenshots/doc.png) | ![A slide deck in the editor](screenshots/slides.png) |
+| ![A dashboard](screenshots/dashboard.png) | ![The Artifacts gallery](screenshots/gallery.png) |
 
 ## What you get
 
