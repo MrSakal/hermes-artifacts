@@ -9,9 +9,9 @@ open view reloads. It also works when Hermes Desktop is connected to a remote He
 
 ## Demo
 
-[![Hermes Artifacts demo: the gallery, a sheet, a whiteboard Hermes edits, a doc, a deck and a dashboard](screenshots/gallery.png)](screenshots/demo.mp4)
+[![Hermes Artifacts demo: the gallery, a sheet, a whiteboard Hermes edits, a doc, a deck and a dashboard](screenshots/demo.gif)](screenshots/demo.mp4)
 
-**[Watch the demo video](screenshots/demo.mp4)** (85 seconds, no sound).
+The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.mp4)**.
 
 | | |
 |---|---|
