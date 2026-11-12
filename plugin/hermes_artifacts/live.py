@@ -41,10 +41,10 @@ MAX_ANSWER_BYTES = 8 * 1024 * 1024
 _PARAM = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}")
 _WHOLE = re.compile(r"^\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}$")
 # A text value with no rule that pins it: one plain line, nothing that could close a quote.
-_PLAIN = re.compile(r"^[^'\"`\\\r\n‘’“”]{0,200}$")
-_NOQUOTE = re.compile(r"^[^'\"`\\\r\n‘’“”]*$")
+_PLAIN = re.compile(r"^[^'\"`\\\r\n‘’“”]{0,200}\Z")
+_NOQUOTE = re.compile(r"^[^'\"`\\\r\n‘’“”]*\Z")
 # A value a poll call takes from the last answer (a job id, a page token): one token, no spaces or quotes.
-_TOKEN = re.compile(r"^[A-Za-z0-9_.:/=+@-]{0,512}$")
+_TOKEN = re.compile(r"^[A-Za-z0-9_.:/=+@-]{0,512}\Z")
 _ANSWER_RULE: dict = {}  # the rule of such a hole, told apart by identity (a dashboard.json rule never is it)
 MAX_ARGS_CHARS = 36_000
 MAX_SQL_CHARS = 16_000
@@ -880,7 +880,7 @@ _ABSENT_TEXT = re.compile(r"is not connected|unreachable|transport is down|not c
 # plus the missing ones, each a plain name YAML reads back as the same string. A name outside that (a
 # server named in a model-written dashboard.json) gets no command: the user pastes it into a shell.
 ALLOW_COMMAND_PREFIX = f"hermes config set {ALLOWLIST_KEY} '["
-_PLAIN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
+_PLAIN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,100}\Z")
 _YAML_WORDS = {"y", "yes", "n", "no", "true", "false", "on", "off", "null"}
 
 
