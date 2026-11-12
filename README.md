@@ -56,10 +56,10 @@ Toolset `artifacts`, 14 tools:
 
 | Tool | What it does |
 |---|---|
-| `ha_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board, and a version the user saved since Hermes last read it. |
+| `ha_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board. Refuses a publish that would replace a file someone else (the user, another chat) changed since this chat last saw it, handing back that file's text to merge onto; what it hands back counts as seen, so the next publish goes through. Files a `base=true` publish leaves alone are never its concern, and files this chat wrote itself count as seen even after a restart. Refuses a new artifact of a type whose `ha_guide` the chat has not read, handing back that guide (a new page gets its short guide with the result instead); an update is never refused for it, but a format error in one brings the guide. |
 | `ha_guide` | The file format, API and design rules of a type. Read it before the first artifact of that type. |
 | `ha_check` | What an open dashboard reported about itself (code errors, NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
-| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. |
+| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now. |
 | `ha_list` / `ha_read` | List artifacts, or read one's file list and any file (any version), plus its stored data. |
 | `ha_open` | Show it in Hermes Desktop, or in a browser on the Hermes machine. |
 | `ha_comments` | The user's comments: list, reply, resolve, and add a thread of Hermes' own. |
@@ -233,15 +233,16 @@ which decides what is allowed.
 ## Surfaces, data and disclosures
 
 **Hermes surfaces used:** `ctx.register_tool` (14 tools, toolset `artifacts`), `ctx.register_hook`
-(`pre_llm_call`, `on_session_end`, `post_compaction`, `post_tool_call`), `ctx.register_skill` (one skill,
-`hermes-artifacts:make`), `ctx.call_mcp` (live dashboards,
+(`pre_llm_call`, `on_session_end`, `post_compaction`, `post_tool_call`), `ctx.register_system_prompt_section`
+(one section, `artifacts`), `ctx.call_mcp` (live dashboards,
 behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-dashboard router
 (`plugin/dashboard/`), and the Desktop plugin SDK (`plugin/desktop/plugin.js`). No core code is patched.
 
 - **Where data is stored:** `<HERMES_HOME>/plugin-data/hermes-artifacts/` (Hermes' own, profile-aware
   home when available; else the `HERMES_HOME` environment variable, `%LOCALAPPDATA%\hermes` on Windows if
   that folder exists, else `~/.hermes`). Set `HERMES_ARTIFACTS_DIR` to use another folder instead.
-  Artifact versions, comments, stored values, the inbox, dataset caches, approvals and card pictures
+  Artifact versions (each noting whether you or Hermes made it, and from which chat), comments, stored
+  values, the inbox, dataset caches, approvals and card pictures
   (`<id>/previews/`, outside the versions) live there, on the
   machine the Hermes backend runs on. So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
@@ -352,15 +353,20 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   artifact open in the session (within the last 10 minutes), it adds the artifact's id, title, type,
   version and where you are in it (the page's own view context) to the turn, marked as data, not
   instructions, and only when that changed since the last turn. On the first turn of a chat opened for an
-  artifact it adds one line naming that artifact; on the first turn of any other chat (not a delegated
-  child) it adds one line of 176 characters saying that a doc, sheet, deck, board, dashboard or page the
-  user asks for is an artifact (`ha_guide`, then `ha_publish`), not a file, unless they name a file format.
-  Nothing else is added to any turn.
-- **Skill:** the plugin registers one read-only skill, `hermes-artifacts:make` (`plugin/skills/make/SKILL.md`,
-  three lines pointing to `ha_guide` and `ha_publish`). Hermes lists it in the system prompt's skill index
-  with its 54-character description while the plugin is enabled; it is not copied into your skills folder.
+  artifact it adds one line naming that artifact. Nothing else is added to any turn. (On a Hermes without
+  system-prompt sections, the first turn of any other chat, not a delegated child, gets the routing line
+  below instead.)
+- **System-prompt section:** the plugin registers one section, framed by Hermes as
+  `## Plugin Context: artifacts`: one sentence of 174 characters (about 45 tokens) saying that a doc, sheet,
+  deck, board, dashboard or page the user asks for is an artifact (`ha_guide`, then `ha_publish`), not a
+  file, unless they name a file format. Hermes renders it once per new session and keeps it frozen
+  through compression and resume; sessions of a delegated sub-agent, a cron job or a messaging platform
+  (Telegram, Discord, Slack, …: Hermes' own gateway platform list) get none. Known limit: a section cannot
+  see toolsets, so it stays while the `artifacts` toolset is disabled (the plugin itself disabled: gone).
 - **Other hooks:** `on_session_end` (and the next `pre_llm_call`) clears the note that a chat is making
-  an artifact; `post_compaction` moves a chat's artifacts to the chat's new id when Hermes compresses it;
+  an artifact; `post_compaction` moves a chat's artifacts to the chat's new id when Hermes compresses it
+  (which files the chat had seen follows it; the guides it read may be gone from its context, so a format
+  refusal brings the guide again; this state is in memory only and starts empty when Hermes restarts);
   `post_tool_call` only observes, keeping the MCP calls a chat ran (above) and changing no result.
   Neither adds anything to a turn. While Hermes makes an artifact, the plugin keeps that note (chat id,
   type, start time) in its data folder and tells Hermes Desktop, which opens the pane beside the chat.

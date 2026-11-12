@@ -115,6 +115,7 @@ class PublishTests(unittest.TestCase):
         self.p._ctx = Cfg()
 
     def publish(self, session="chat-1"):
+        self.p._guide({"type": "dashboard"}, session_id=session)  # as an agent does before its first dashboard
         out = json.loads(self.p._publish({"type": "dashboard", "title": "t", "open": False,
                                           "files": {"dashboard.json": SPEC, "index.html": "x"}}, session_id=session))
         d = live.dataset(out["id"], "m")

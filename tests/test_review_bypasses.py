@@ -86,7 +86,7 @@ class HomeIsNoProjectTests(unittest.TestCase):
         r = json.loads(self.p._ds_export({"id": self.ds, "overwrite": True,
                                           "dir": "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup"}))
         self.assertFalse(r["ok"])
-        self.assertTrue(r["error"].startswith("nothing was written"))
+        self.assertTrue(r["error"].startswith("Nothing was written"))
         self.assertIn("no project folder", r["error"])
         self.assertEqual(sorted(x.name for x in self.startup.iterdir()), ["desktop.ini"])
 

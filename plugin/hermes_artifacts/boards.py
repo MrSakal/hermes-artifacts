@@ -1460,14 +1460,14 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
             have = {it["id"] for it in st["items"]}
             gone = {i: "*" for i in named if i not in have}
             if gone:
-                _guard(st, by, int(base_rev), gone)
+                _guard(st, by, int(base_rev), gone, aid)
         for i, o in enumerate(ops):
             _one(work, o, ctx, f"ops[{i}]", guarded)
         if by == "hermes" and base_rev is None and guarded:
             raise BoardError("missing_guard", "changing items that are on the board needs base_rev: the rev you read "
                                               "(ha_live_read)", rev=st["rev"])
         if base_rev is not None and guarded:
-            _guard(st, by, int(base_rev), guarded)
+            _guard(st, by, int(base_rev), guarded, aid)
         _check_refs(work["items"])
         _check_limits(work["items"])
         before = None if ctx["state_only"] or _hist(aid, st["version"]) else _snap(st, "start")
@@ -1510,7 +1510,30 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
         return out
 
 
-def _guard(st: dict, by: str, base: int, guarded: dict) -> None:
+CONFLICT_ITEMS = 20  # items a conflict hands back
+
+
+def _as_now(it: dict) -> dict:
+    """An item as ha_live_read gives it, its heavy fields (svg, html, pen points, a data: image, a long embed
+    state) named by size with the read that brings them."""
+    out = compact(it)
+    for k, v in out.items():
+        if isinstance(v, int) and not isinstance(it.get(k), (int, float)):
+            out[k] = f"<{v} bytes: ha_live_read range=<its id>>"
+    return out
+
+
+def _conflict(aid: str, st: dict, ids: list, base: int) -> BoardError:
+    """Hermes' edit met the user's: the items as they are now (a removed one {id, deleted})."""
+    have = {it["id"]: it for it in st["items"]}
+    current = None
+    if len(ids) <= CONFLICT_ITEMS:
+        current = [_as_now(have[i]) if i in have else {"id": i, "deleted": True} for i in ids]
+    return store.conflict(BoardError, "items", ids, base, st["rev"], current,
+                          f"ha_live_read id={aid} range=<ids>")
+
+
+def _guard(st: dict, by: str, base: int, guarded: dict, aid: Optional[str] = None) -> None:
     hits = []
     for e in st["log"]:
         if e["rev"] <= base or e["by"] == by or e.get("s"):
@@ -1529,6 +1552,8 @@ def _guard(st: dict, by: str, base: int, guarded: dict) -> None:
                 # fields Hermes set meanwhile.
                 if by == "hermes" or fields == "*" or theirs == "*" or set(fields) & set(theirs):
                     hits.append(i)
+    if hits and by == "hermes" and aid:
+        raise _conflict(aid, st, hits, base)
     if hits:
         raise BoardError("conflict", f"changed meanwhile: {', '.join(hits[:20])}. Read the board again "
                                      f"(since_rev={base}) and redo the change on what is there",

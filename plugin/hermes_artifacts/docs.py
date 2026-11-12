@@ -308,6 +308,29 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
 
 # ----------------------------------------------------------------------------- edits
 
+CONFLICT_BLOCKS = 20  # blocks a conflict hands back
+CONFLICT_BLOCK_CHARS = 2000  # of each block's text
+
+
+def _conflict(aid: str, t: dict, ids: list[str], base: int) -> DocError:
+    """Hermes' edit met the user's: the blocks as they are now ({id, kind, md}; a removed one {id, deleted})."""
+    have = {b["id"]: b for b in t["blocks"]}
+    current = None
+    if len(ids) <= CONFLICT_BLOCKS:
+        current = []
+        for bid in ids:
+            b = have.get(bid)
+            if b is None:
+                current.append({"id": bid, "deleted": True})
+                continue
+            md = b["md"]
+            if len(md) > CONFLICT_BLOCK_CHARS:
+                md = md[:CONFLICT_BLOCK_CHARS] + "…(cut: ha_live_read blocks=[its id])"
+            current.append({"id": bid, "kind": block_kind(b["md"]), "md": md})
+    return store.conflict(DocError, "blocks", ids, base, t["rev"], current,
+                          f"ha_live_read id={aid} tab=<tab> blocks=<ids>", tab=t["id"])
+
+
 def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base_rev: Optional[int] = None) -> dict:
     """Apply edits to one tab, atomically. Ops:
       {"op": "replace", "block": id, "md": "…"}           change a block (or split it: md with blank lines)
@@ -340,10 +363,15 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
                            rev=t["rev"])
         if base_rev is not None:
             touched = {o.get("block") for o in ops if o.get("block")}
+            hits = set()
             for e in st["log"]:
-                if e["tab"] == t["id"] and e["rev"] > int(base_rev) and e["by"] != by and touched & set(e.get("blocks", [])):
-                    raise DocError("conflict", "a block you changed was changed meanwhile: read it again",
-                                   rev=t["rev"], blocks=sorted(touched & set(e.get("blocks", []))))
+                if e["tab"] == t["id"] and e["rev"] > int(base_rev) and e["by"] != by:
+                    hits |= touched & set(e.get("blocks", []))
+            if hits:
+                if by == "hermes":
+                    raise _conflict(aid, t, sorted(hits), int(base_rev))
+                raise DocError("conflict", "a block you changed was changed meanwhile: read it again",
+                               rev=t["rev"], blocks=sorted(hits))
         changed: list[str] = []
         new_tab = None
         for o in ops:

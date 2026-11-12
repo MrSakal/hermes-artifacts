@@ -644,7 +644,7 @@ class ConflictTests(unittest.TestCase):
         self.edit({"op": "move", "ids": ["a"], "dx": 50, "dy": 0}, "user")  # rev 2
         with self.assertRaises(boards.BoardError) as cm:
             self.edit({"op": "set", "id": "a", "text": "mine"}, "hermes", 1)  # another field: still theirs
-        self.assertEqual((cm.exception.code, cm.exception.extra["conflict"], cm.exception.extra["rev"]), ("conflict", ["a"], 2))
+        self.assertEqual((cm.exception.code, cm.exception.extra["ids"], cm.exception.extra["rev"]), ("conflict", ["a"], 2))
         self.assertIn("a", cm.exception.message)
         self.edit({"op": "set", "id": "b", "text": "fine"}, "hermes", 1)  # an item the user left alone
         self.edit({"op": "add", "items": [{"type": "note", "text": "n"}]}, "hermes", 1)  # add never conflicts
@@ -653,7 +653,7 @@ class ConflictTests(unittest.TestCase):
         for o in ({"op": "set", "id": "b", "text": "x"}, {"op": "move", "ids": ["b"], "dx": 1, "dy": 1}, {"op": "delete", "ids": ["b"]}):
             with self.assertRaises(boards.BoardError) as cm:
                 self.edit(o, "hermes", 4)
-            self.assertEqual((cm.exception.code, cm.exception.extra["conflict"]), ("conflict", ["b"]))
+            self.assertEqual((cm.exception.code, cm.exception.extra["ids"]), ("conflict", ["b"]))
         self.edit({"op": "set", "id": "a", "text": "again"}, "hermes", 4)  # its own changes are no conflict
 
     def test_the_page_loses_only_the_fields_hermes_set(self):
@@ -834,8 +834,8 @@ class PublishTests(unittest.TestCase):
         desk = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         for s in ("type_board", "tile_board", "prompt_board", "boardAskMsg", "plugin.${ID}.board", "m.op === 'board.restore' && !gesture"):
             self.assertIn(s, desk)
-        self.assertIn("version: 0.16.3", (PLUGIN / "plugin.yaml").read_text("utf-8"))
-        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.16.3")
+        self.assertIn("version: 0.17.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
+        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.17.0")
 
     def test_ask_goes_to_the_inbox(self):
         aid = pub()
@@ -857,6 +857,7 @@ class AgentTests(unittest.TestCase):
         return json.loads(fn(args, session_id="s-board"))
 
     def test_publish_read_edit(self):
+        self.call("ha_guide", type="board")
         r = self.call("ha_publish", type="board", title="Flow", files={"board.json": BOARD})
         self.assertTrue(r["ok"], r)
         aid = r["id"]
@@ -878,7 +879,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(sorted(i["id"] for i in self.call("ha_live_read", id=aid, since_rev=1)["items"]), ["c", "e4"])
         api.handle("POST", f"artifacts/{aid}/op", {}, {"op": "board.edit", "args": {"ops": [{"op": "move", "ids": ["c"], "dx": 9, "dy": 9}]}})
         e = self.call("ha_live_edit", id=aid, base_rev=2, ops=[{"op": "set", "id": "c", "color": "pink"}])
-        self.assertEqual((e["ok"], e["conflict"], e["rev"]), (False, ["c"], 3))
+        self.assertEqual((e["ok"], e["conflict"], e["ids"], e["rev"]), (False, True, ["c"], 3))
         e = self.call("ha_live_edit", id=aid, ops='[{"op": "delete", "ids": ["c"]}]')
         self.assertFalse(e["ok"])
         self.assertIn("base_rev", e["error"])
@@ -1266,9 +1267,10 @@ class RealConflictTests(unittest.TestCase):
         read = boards.read(aid, agent=True)["rev"]
         op(aid, "board.edit", ops=[{"op": "move", "ids": ["a"], "dx": 40, "dy": 0}], base_rev=read)  # the user drags a
         e = self.hermes(id=aid, base_rev=read, ops=[{"op": "set", "id": "a", "text": "Draft v2"}, {"op": "set", "id": "c", "text": "Ship it"}])
-        self.assertEqual((e["ok"], e["conflict"]), (False, ["a"]))
-        self.assertIn("a", e["error"])
-        self.assertIn(f"since_rev={read}", e["error"])
+        self.assertEqual((e["ok"], e["conflict"], e["ids"]), (False, True, ["a"]))
+        self.assertIn(f"the user changed 1 of the items you edit after rev {read}", e["error"])
+        self.assertEqual([it["id"] for it in e["current"]], ["a"])  # the item as it is now, to redo the edit on
+        self.assertIn(f"base_rev={e['rev']}", e["error"])
         self.assertEqual(self_items(aid)["c"]["text"], "Ship")  # all or nothing
         e = self.hermes(id=aid, base_rev=boards.read(aid, agent=True)["rev"], ops=[{"op": "set", "id": "a", "text": "Draft v2"}])
         self.assertTrue(e["ok"])

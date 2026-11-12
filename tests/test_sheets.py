@@ -199,7 +199,8 @@ class EditTests(unittest.TestCase):
         with self.assertRaises(sheets.SheetError) as e:
             sheets.apply(self.aid, [{"op": "set", "range": "B2", "values": [[1300]]}], by="hermes", base_rev=base)
         self.assertEqual(e.exception.code, "conflict")
-        self.assertEqual(e.exception.extra["cells"], ["B2"])
+        self.assertEqual(e.exception.extra["ids"], ["B2"])  # Hermes' conflict: one shape for docs, sheets, boards
+        self.assertEqual(e.exception.extra["current"], {"B2": {"v": 1250}})
         self.assertEqual(self.cells()["B2"], 1250)
         # Another cell, against the same old rev, goes through; formats alone never conflict.
         sheets.apply(self.aid, [{"op": "format", "range": "C2", "bold": True}], by="user")
@@ -421,7 +422,7 @@ class ToolTests(unittest.TestCase):
         tools = {t[0]: t[1] for t in self.p.TOOLS}
         self.assertIn("sheet", tools["ha_publish"]["parameters"]["properties"]["type"]["enum"])
         self.assertIn("range", tools["ha_live_read"]["parameters"]["properties"])
-        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7305)  # 7385 before the ha_ names
+        self.assertLessEqual(len(json.dumps([t[1] for t in self.p.TOOLS])), 7296)  # 7385 before the ha_ names
 
 
 def _xlsx(path):

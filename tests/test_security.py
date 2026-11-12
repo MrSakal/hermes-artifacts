@@ -86,7 +86,7 @@ class ConfineTests(_Work):
         for path in (secret, self.work / ".." / self.outside.name / "secret.html"):
             r = self.publish(path)
             self.refused(r, "outside the working directory")
-            self.assertTrue(r["error"].startswith("nothing was copied"))
+            self.assertTrue(r["error"].startswith("Nothing was copied"))
         self.assertEqual({m["id"] for m in store.list_all()}, before)
 
     def test_hidden_files_and_folders_are_refused(self):
@@ -160,7 +160,7 @@ class ExportTests(_Work):
                        (self.work / ".ssh", "hidden"), (self.work / ".config" / "app", "hidden")):
             r = self.export(d, overwrite=True)
             self.refused(r, why)
-            self.assertTrue(r["error"].startswith("nothing was written"))
+            self.assertTrue(r["error"].startswith("Nothing was written"))
         self.assertEqual(sorted(x.name for x in self.outside.iterdir()), ["keep.txt"])  # overwrite changed nothing
         self.assertFalse((self.work / ".ssh").exists())
         home = self.work / "hh"

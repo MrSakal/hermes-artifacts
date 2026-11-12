@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # The version of THIS code, fixed when the module is imported. Tests keep it equal to plugin.yaml,
 # dashboard/manifest.json and PLUGIN_VERSION in desktop/plugin.js: a bump touches all four.
-VERSION = "0.16.3"
+VERSION = "0.17.0"
 
 ROLES = ("gateway", "serve", "compute-host", "plugin-host", "cli")
 MAX_AGE = 7 * 86400  # a record not rewritten for a week is ignored and removed

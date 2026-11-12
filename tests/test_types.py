@@ -63,6 +63,7 @@ class TypeTests(unittest.TestCase):
 
     def test_tools(self):
         p = load_plugin()
+        p._guide({"type": "doc"}, session_id="sess-1")  # an agent reads a type's guide before its first publish
         out = json.loads(p._publish({"type": "doc", "title": "Memo", "files": {"doc.md": "# Memo\n\nHi"}, "open": False},
                                     session_id="sess-1"))
         self.assertTrue(out["ok"], out)
