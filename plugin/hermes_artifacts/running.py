@@ -69,6 +69,9 @@ def version_key(v: str) -> tuple:
     return tuple(int(n) for n in re.findall(r"\d+", v))
 
 
+_K32: dict = {}  # kernel32 with the signatures _alive sets, made once
+
+
 def _alive(pid: int) -> Optional[bool]:
     """Whether a process with this pid exists (any program: a reused pid is handled by MAX_AGE): True,
     False when it is gone, None when this process may not ask (EPERM: unknown, not proof of life)."""
@@ -76,13 +79,16 @@ def _alive(pid: int) -> Optional[bool]:
         return False
     if sys.platform == "win32":
         # Not os.kill(pid, 0): on Windows signal 0 is CTRL_C_EVENT, sent to the pid's console group.
-        import ctypes
+        import ctypes  # here, not at import: only the gallery's poll asks (register() does not)
         from ctypes import wintypes
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        k32.OpenProcess.restype = wintypes.HANDLE
-        k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
-        k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
-        k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        k32 = _K32.get("k32")
+        if k32 is None:
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.OpenProcess.restype = wintypes.HANDLE
+            k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+            k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            _K32["k32"] = k32
         h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not h:
             return ctypes.get_last_error() == 5  # access denied: it exists, owned by someone else
@@ -183,8 +189,10 @@ def _live(d: Path) -> list[dict]:
     return out
 
 
-def record(base: Optional[Path] = None) -> None:
-    """Note that this process runs VERSION (``register()``, and :func:`touch`). Never raises."""
+def record(base: Optional[Path] = None, prune: bool = True) -> None:
+    """Note that this process runs VERSION (``register()``, and :func:`touch`). Never raises. ``prune``:
+    also drop the records that no longer count; ``register()`` leaves that to :func:`status` (the gallery's
+    poll), since asking whether each pid lives costs a ctypes import on Windows at every Hermes start."""
     try:
         d = _run_dir(base)
         d.mkdir(parents=True, exist_ok=True)
@@ -195,7 +203,8 @@ def record(base: Optional[Path] = None) -> None:
         tmp.write_text(json.dumps(data), encoding="utf-8")
         os.replace(tmp, d / f"loaded-{pid}.json")
         _written.update(base=base, at=now)
-        _live(d)  # prune the gone while here
+        if prune:
+            _live(d)  # prune the gone while here
     except Exception:
         logger.debug("could not record the loaded version", exc_info=True)
 

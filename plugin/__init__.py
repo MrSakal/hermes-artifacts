@@ -1942,7 +1942,7 @@ def _ds_export(args: dict, **_kw) -> str:
 def register(ctx) -> None:
     global _ctx, _section_ok
     _ctx = ctx
-    running.record()  # which code this process runs: the gallery warns when the server needs a restart
+    running.record(prune=False)  # which code this process runs: the gallery warns when the server needs a restart
     from .hermes_artifacts import live
     live.set_ctx(ctx)  # dashboards call MCP through ctx.call_mcp (the web server finds it by PLUGIN_ID)
     _empty_old_trash()
