@@ -3535,7 +3535,7 @@ function Frame({ ctx, art, rec, F, presenting }) {
     'data-frame': hidden ? 'pending' : 'shown',
     style: hidden
       ? { position: 'absolute', inset: 0, display: 'flex', opacity: 0, pointerEvents: 'none' }
-      : { position: 'relative', flex: 1, minWidth: 0, display: 'flex' },
+      : VIEW_FILL,
     children: rec.src && !held
       ? jsx(SandboxedFrame, {
           ref,
@@ -3546,7 +3546,7 @@ function Frame({ ctx, art, rec, F, presenting }) {
           className: presenting && !hidden ? MEDIA_BACKDROP : undefined,
           style: presenting && !hidden
             ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0 }
-            : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
+            : { ...FRAME_FIT, background: C.bg }
         })
       : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: rec.err ? t('loadFailed', rec.err) : t('loading') })
   })
@@ -4851,6 +4851,30 @@ function placeCommentBox(rect, bw, bh, h) {
   return { pin, box: { x: left, y: clamp(pin.y + PIN + GAP, M, Math.max(M, bh - h - M)) } }
 }
 
+/** The viewer's row (the stage and the comments list beside it), the stage, a shown frame's box in it and the
+ *  frame: each narrows with the row (min-width 0), so nothing beside the stage pushes the page under it. */
+const VIEW_ROW = { position: 'relative', display: 'flex', flex: 1, minHeight: 0 }
+const VIEW_FILL = { position: 'relative', flex: 1, minWidth: 0, display: 'flex' }
+const FRAME_FIT = { flex: 1, minWidth: 0, height: '100%', border: 0 }
+const PANEL_W = 340
+const STAGE_MIN = 360 // the narrowest width the type pages are laid out and tested for (test_type_pages_browser)
+/** The comments list in a viewer row w px wide. Docked beside the stage while that leaves the stage
+ *  STAGE_MIN: the stage, and the page in it, narrow by PANEL_W, so no part of the page is ever under a
+ *  docked list. Narrower, it floats over the stage's right (cover px, min(340, 92%)) and the page keeps the
+ *  row's width: what is under it comes back with its ✕; the new comment's pin and box keep out of it
+ *  (commentLayout), and while an element is being picked it steps aside (hidden), so every part of the page
+ *  can be commented on. Pure. */
+function panelMode(w, picking) {
+  const floats = w < PANEL_W + STAGE_MIN
+  return { floats, hidden: floats && picking, cover: floats && !picking ? Math.min(PANEL_W, w * 0.92) : 0 }
+}
+function panelStyle(mode) {
+  const col = { display: mode.hidden ? 'none' : 'flex', flexDirection: 'column', minHeight: 0, borderLeft: `1px solid ${C.line}` }
+  return mode.floats
+    ? { ...col, position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 30, width: `min(${PANEL_W}px, 92%)`, background: C.pop, boxShadow: C.shadowModal }
+    : { ...col, width: PANEL_W, flexShrink: 0, background: C.bg }
+}
+
 /** Whether the new comment's box goes into the comments list: the list floats over the stage (`cover` px of
  *  its right, a narrow view) and the width left of it does not take the box. */
 const commentDocks = (bw, cover) => cover > 0 && bw - cover < COMMENT_W + 16
@@ -5224,39 +5248,29 @@ function CommentsPanel({ ctx, art, portRef }) {
   // What the list says when the tab shown has nothing, the same for every type: none at all, or none open /
   // resolved while the other tab has some.
   const empty = !roots.length ? 'noComments' : filter === 'open' && !open.length ? 'noOpenComments' : filter === 'resolved' && !done.length ? 'noResolvedComments' : null
-  // Beside the artifact when there is room; over it when the view is narrow (a split), so the artifact
-  // is never squeezed to a sliver.
+  // Docked or floating by the row's width (panelMode).
   const box = useRef(null)
-  const [narrow, setNarrow] = useState(false)
   const [rowW, setRowW] = useState(0)
   const cover = useValue($panelCover)
+  const mode = panelMode(rowW, picking)
   useLayoutEffect(() => {
     const host = box.current?.parentElement
     if (!host) return undefined
-    const check = () => {
-      const w = host.clientWidth
-      setNarrow(w < 760)
-      setRowW(w)
-      // Floating, it covers the stage's right (min(340px, 92%)): the new comment's box keeps out of it.
-      $panelCover.set(w < 760 ? Math.min(340, w * 0.92) : 0)
-    }
+    const check = () => setRowW(host.clientWidth)
     check()
     const ro = new ResizeObserver(check)
     ro.observe(host)
-    return () => {
-      ro.disconnect()
-      $panelCover.set(0)
-    }
+    return () => ro.disconnect()
   }, [])
+  // Floating, it covers the stage's right: the new comment's pin and box keep out of it. Closed or gone: nothing.
+  useLayoutEffect(() => { $panelCover.set(mode.cover) }, [mode.cover])
+  useLayoutEffect(() => () => $panelCover.set(0), [])
   // A picked element's comment whose box has no room left of the floating list is written here.
   const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)
   useEffect(() => { if (docked) setText('@Hermes ') }, [docked && draft?.anchor])
   return jsxs('aside', {
     ref: box,
-    style: narrow
-      ? { position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 30, width: 'min(340px, 92%)', display: 'flex', flexDirection: 'column', minHeight: 0,
-          borderLeft: `1px solid ${C.line}`, background: C.pop, boxShadow: C.shadowModal }
-      : { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: `1px solid ${C.line}`, background: C.bg },
+    style: panelStyle(mode),
     children: [
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 8px 0 14px', borderBottom: `1px solid ${C.line}` },
@@ -5415,12 +5429,12 @@ function Viewer({ ctx, docked = false }) {
       making ? jsx(MakingLine, { ctx, m: making, band: true }) : null,
       jsx(FrameBand, { F }),
       jsxs('div', {
-        style: { position: 'relative', display: 'flex', flex: 1, minHeight: 0 },
+        style: VIEW_ROW,
         children: [
           jsxs('div', {
             ref: stage,
             id: docked ? undefined : `${ID}-stage`,
-            style: { position: 'relative', flex: 1, minWidth: 0, display: 'flex' },
+            style: VIEW_FILL,
             children: [
               // Never moved, only added and removed: the key is the frame's own.
               jsx(Fragment, { children: F.list().map(rec => jsx(Frame, { ctx, art, rec, F, presenting }, `f${rec.id}`)) }),
