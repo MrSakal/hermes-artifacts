@@ -1294,5 +1294,86 @@ class RealConflictTests(unittest.TestCase):
         self.assertTrue(op(aid, "board.edit", ops=[{"op": "move", "ids": ["b"], "dx": 5, "dy": 5}], base_rev=now["rev"])["ok"])
 
 
+
+WORDS = ("survey order panels scaffold rails windows insulation permit budget quote samples approve check anchor "
+         "photos measure crane delivery").split()
+
+
+def generated(seed):
+    """~20 notes and boxes of varied length, sections, members put `in` them, neighbours `near` others, arrows."""
+    import random
+    rnd = random.Random(seed)
+    items = [{"type": "text", "size": "title", "text": f"Board {seed}"}] if rnd.random() < .5 else []
+    secs = [f"s{s}" for s in range(rnd.randint(0, 4))]
+    items += [{"id": s, "type": "section", "text": "Section " + s} for s in secs]
+    for n in range(rnd.randint(14, 24)):
+        it = {"id": f"n{n}", "type": rnd.choice(["note", "note", "box"]),
+              "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(1, 14)))}
+        r = rnd.random()
+        if secs and r < .5:
+            it["in"] = rnd.choice(secs)
+        elif n and r < .7:
+            it["near"] = f"n{rnd.randrange(n)}"
+        items.append(it)
+    for _ in range(rnd.randint(0, 6)):
+        a, b = rnd.randrange(14), rnd.randrange(14)
+        if a != b:
+            items.append({"type": "arrow", "from": f"n{a}", "to": f"n{b}"})
+    return items, rnd
+
+
+class NoOverlapTests(unittest.TestCase):
+    """The invariant: nothing the server places overlaps anything else on the board (a section and its own
+    members aside), at the first publish and when Hermes adds items later, `near` an item in a section and
+    `in` a section that has no room left included. Before: a neighbour of a section's member landed on
+    another member, a section grown for a newcomer covered its neighbours, a row of notes made as tall as
+    its tallest reached the note put under one, a block holding a section went into another section."""
+
+    def test_a_generated_board_never_overlaps(self):
+        placed = 0
+        for seed in range(120):
+            items, _ = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:  # a `near` an item placed later: refused, as it should be
+                continue
+            placed += 1
+            self.assertEqual(overlaps(b["items"]), [], f"seed {seed}")
+        self.assertGreater(placed, 40)
+
+    def test_items_added_later_never_overlap(self):
+        adds = 0
+        for seed in range(60):
+            items, rnd = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:
+                continue
+            items, seq = b["items"], 100
+            ids = [it["id"] for it in items if it["type"] != "arrow"]
+            secs = [it["id"] for it in items if it["type"] == "section"]
+            for batch in range(3):
+                new = []
+                for k in range(rnd.randint(1, 6)):
+                    it = {"id": f"b{batch}_{k}", "type": rnd.choice(["note", "box"]),
+                          "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(1, 12)))}
+                    r = rnd.random()
+                    if secs and r < .35:
+                        it["in"] = rnd.choice(secs)
+                    elif r < .75:
+                        it["near"] = rnd.choice(ids)
+                    new.append(it)
+                if rnd.random() < .3 and len(new) > 1:
+                    new.append({"type": "arrow", "from": new[0]["id"], "to": new[1]["id"]})
+                try:
+                    _added, _grown, seq = boards._add(items, seq, new, "right", None, "t")
+                except boards.BoardError:
+                    break
+                adds += 1
+                ids += [n["id"] for n in new if n["type"] != "arrow"]
+                self.assertEqual(overlaps(items), [], f"seed {seed}, batch {batch}")
+        self.assertGreater(adds, 40)
+
+
 if __name__ == "__main__":
     unittest.main()

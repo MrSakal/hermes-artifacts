@@ -744,9 +744,11 @@ def _arrange(units: list, edges: list, layout: str, flow: str, auto: bool = Fals
     return at, x - GAP, max(u["h"] for u in units)
 
 
-def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tuple = (), floor: Optional[tuple] = None) -> tuple:
+def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tuple = (), floor: Optional[tuple] = None,
+            ok=None) -> Optional[tuple]:
     """A free spot for a w x h block next to ``target`` (x, y, w, h): right of it, under it, left, above,
-    then further out the same way. ``floor``: the least x and y allowed (inside a section)."""
+    then further out the same way. ``floor``: the least x and y allowed (inside a section); ``ok(rect)``: a
+    further test a spot must pass (None when none does)."""
     tx, ty, tw, th = target[:4]
     for k in range(60):
         d = gap + k * (GAP + 16)
@@ -754,9 +756,9 @@ def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tupl
                      (tx + tw + d, ty + th + d)):
             if floor and (x < floor[0] or y < floor[1]):
                 continue
-            if not _hit((x, y, w, h), occ, skip):
+            if not _hit((x, y, w, h), occ, skip) and (ok is None or ok((x, y, w, h))):
                 return round(x), round(y)
-    return round(tx + tw + gap), round(ty)
+    return None if ok is not None else (round(tx + tw + gap), round(ty))
 
 
 def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "right", near: Optional[str] = None,
@@ -881,6 +883,9 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
         for it, dx, dy in u["parts"]:
             it["x"], it["y"] = round(x + dx), round(y + dy)
         occ.append((x, y, u["w"], u["h"], u["key"]))
+        # Each part too: a spot inside a section (its frame skipped) must still keep clear of its members.
+        if len(u["parts"]) > 1:
+            occ.extend(o for o in (_occ(it) for it, _dx, _dy in u["parts"]) if o)
 
     def near_of(u):
         for it, _dx, _dy in u["parts"]:
@@ -895,18 +900,33 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
         tr = rect(t)
         # A neighbour of something inside a section goes inside it too (the section grows to hold it).
         homes = [s for s in by.values() if s["type"] == "section" and "x" in s and s is not t and _centre_in(tr, rect(s))]
+        if any(p[0]["type"] == "section" for p in u["parts"]):
+            homes = []  # a block holding a section of its own goes beside, never into another section
         home = min(homes, key=lambda s: s["w"] * s["h"]) if homes else None
-        floor = (home["x"] + SEC_PAD, home["y"] + SEC_PAD) if home else None
-        x, yy = _beside(tr, u["w"], u["h"], occ, gap, tuple(s["id"] for s in homes), floor)
-        put(u, x, yy)
+        spot = None
         if home:
-            _grow(home, (x, yy, u["w"], u["h"]))
+            # Inside it, where the section, grown to hold it, still clears everything around it.
+            hr = rect(home)
+            around = [o for o in occ if o[4] not in {s["id"] for s in homes} and not _centre_in(o, hr)]
+
+            def fits(r):
+                gw = max(home["w"], r[0] + r[2] + SEC_PAD - home["x"])
+                gh = max(home["h"], r[1] + r[3] + SEC_PAD - home["y"])
+                return not _hit((home["x"], home["y"] - SEC_TITLE, gw, gh + SEC_TITLE), around)
+            spot = _beside(tr, u["w"], u["h"], occ, gap, tuple(s["id"] for s in homes), (home["x"] + SEC_PAD, home["y"] + SEC_PAD), fits)
+        if spot is None:  # no room in it: beside it, outside
+            home = None
+            spot = _beside(tr, u["w"], u["h"], occ, gap)
+        put(u, *spot)
+        if home:
+            _grow(home, (spot[0], spot[1], u["w"], u["h"]))
 
     def _grow(sec, r):
         w = max(sec["w"], math.ceil(r[0] + r[2] + SEC_PAD - sec["x"]))
         h = max(sec["h"], math.ceil(r[1] + r[3] + SEC_PAD - sec["y"]))
         if (w, h) != (sec["w"], sec["h"]):
             sec["w"], sec["h"] = w, h
+            occ[:] = [o for o in occ if o[4] != sec["id"]] + [_occ(sec)]  # what follows sees its new size
             if sec["id"] not in todo_ids and not any(sec is n for n in new):
                 grown.add(sec["id"])
 
@@ -994,7 +1014,24 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
                 xx += GAP
             yy += GAP
         if spot is None:
-            spot = (sec["x"] + SEC_PAD, max([o[1] + o[3] + GAP for o in mine] + [sec["y"] + SEC_PAD]))
+            # No room inside: under its members or right of them, where the section grown to hold the block
+            # still clears everything around it; else beside the section, outside it (never over a neighbour).
+            around = [o for o in occ if o[4] != sec["id"] and not _centre_in(o, sr)]
+
+            def fits(r):
+                gw = max(sec["w"], r[0] + r[2] + SEC_PAD - sec["x"])
+                gh = max(sec["h"], r[1] + r[3] + SEC_PAD - sec["y"])
+                return not _hit((sec["x"], sec["y"] - SEC_TITLE, gw, gh + SEC_TITLE), around) and not _hit(r, mine)
+            low = max([o[1] + o[3] + GAP for o in mine] + [sec["y"] + SEC_PAD])
+            right = max([o[0] + o[2] + GAP for o in mine] + [sec["x"] + SEC_PAD])
+            for cand in ((sec["x"] + SEC_PAD, low), (right, sec["y"] + SEC_PAD), (right, low)):
+                if fits((*cand, w, h)):
+                    spot = cand
+                    break
+        if spot is None:
+            spot = _beside((sec["x"], sec["y"] - SEC_TITLE, sec["w"], sec["h"] + SEC_TITLE), w, h, occ, GAP)
+            put(block, *spot)
+            continue
         put(block, *spot)
         _grow(sec, (*spot, w, h))
 
@@ -1043,9 +1080,15 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
     for it in new:
         if it["id"] in tall_ok and "y" in it:
             rows.setdefault((round(it["y"]), member_of.get(it["id"])), []).append(it)
+    # Not where a note made taller would reach what was put under it: the row keeps its notes' own heights.
+    placed = [o for o in (_occ(it) for it in list(existing) + [n for n in new if n["type"] != "arrow" and "x" in n]) if o]
     for row in rows.values():
         if len(row) > 1:
             top = max(it["h"] for it in row)
+            ids = {it["id"] for it in row}
+            others = [o for o in placed if o[4] not in ids and not any(_centre_in(rect(it), o[:4]) for it in row)]
+            if any(_hit((it["x"], it["y"], it["w"], top), others, m=0) for it in row):
+                continue
             for it in row:
                 it["h"] = top
     return grown
