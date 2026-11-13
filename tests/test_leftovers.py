@@ -285,7 +285,7 @@ class SweepTests(unittest.TestCase):
             store.publish(html=f"<p>{i}</p>", title=f"b{i}")
         store._SWEPT["after"] = ""
         first = store.sweep(budget_s=0)
-        self.assertLessEqual(first["artifacts"], 1)
+        self.assertEqual(first["artifacts"], 1)  # one at least, whatever the clock's resolution
         before = store._SWEPT["after"]
         store.sweep(budget_s=0)
         self.assertNotEqual(store._SWEPT["after"], before)

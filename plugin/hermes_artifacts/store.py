@@ -1713,15 +1713,15 @@ def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
     after = _SWEPT["after"]
     order = [n for n in names if n > after] + [n for n in names if n <= after]
     done = 0
-    for name in order:
-        if time.monotonic() - t0 > budget_s:
-            break
+    for name in order:  # one at least, so every call moves on
         try:
             _sweep_artifact(base / name, now, out)
         except Exception:
             logger.debug("sweeping %s failed", name, exc_info=True)
         _SWEPT["after"] = name
         done += 1
+        if time.monotonic() - t0 >= budget_s:
+            break
     out["artifacts"] = done
     logger.debug("hermes-artifacts sweep: %s in %.0f ms", out, (time.monotonic() - t0) * 1000)
     return out
