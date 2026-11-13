@@ -121,12 +121,21 @@
     m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + "px";
     function close() {
       m.remove(); openMenu = null; menuAnchor = null;
-      document.removeEventListener("mousedown", out, true);
+      document.removeEventListener("mousedown", out, true); document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close);
     }
     function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
     function out(e) { if (!m.contains(e.target) && !(anchor.contains && anchor.contains(e.target))) close(); }
-    setTimeout(function () { document.addEventListener("mousedown", out, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
+    // Esc closes it (the focus back on its button); the arrows walk its items
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); if (anchor.focus) anchor.focus(); return; }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      var bs = Array.prototype.slice.call(m.querySelectorAll("button")), i = bs.indexOf(document.activeElement);
+      if (!bs.length) return;
+      e.preventDefault();
+      bs[i < 0 ? (e.key === "ArrowDown" ? 0 : bs.length - 1) : (i + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % bs.length].focus();
+    }
+    setTimeout(function () { document.addEventListener("mousedown", out, true); document.addEventListener("keydown", onKey, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
     m.close = close;
     openMenu = m; menuAnchor = anchor;
   }
