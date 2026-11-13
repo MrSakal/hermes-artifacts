@@ -51,7 +51,7 @@
     max = Math.ceil(max / nice) * nice; min = Math.floor(min / nice) * nice;
     var y = function (v) { return T + (H - T - B) * (1 - (v - min) / (max - min)); };
     var band = (W - L - R) / rows.length, x = function (i) { return L + band * i + band / 2; };
-    var fmt = function (v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); };
+    var fmt = function (v) { return Number(v).toLocaleString(window.kit ? window.kit.locale() : undefined, { maximumFractionDigits: 2 }); };
     var hi = spec.highlight == null ? null : String(spec.highlight);
     var color = function (k, r) { return ys.length > 1 ? "var(--w-c" + (k % 6 + 1) + ")" : hi == null || String(r[xk]) === hi ? "var(--w-c1)" : "var(--w-muted)"; };
     var out = '<svg class="w-chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(spec.title || "chart") + '">';

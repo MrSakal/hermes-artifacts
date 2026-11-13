@@ -127,7 +127,7 @@
     }
     return kit.fileUrl(p) || "";
   }
-  var dateFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { year: "numeric", month: "short", day: "numeric" });
+  var dateFmt = new Intl.DateTimeFormat(kit.locale(), { year: "numeric", month: "short", day: "numeric" });
   function fmtDate(v) { var d = new Date(v + "T12:00:00"); return isNaN(d) ? v : dateFmt.format(d); }
   var PALETTE = ["gray", "blue", "green", "yellow", "orange", "red", "purple"]; // by option order: not started, under way, done…
   function optionsOf(name) {
@@ -2064,7 +2064,7 @@
   var margin = h("div", { "class": "doc-margin", "aria-label": T.comment });
   view.appendChild(margin);
   var pins = [];
-  var timeFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  var timeFmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function drawMargin() {
     if (!live) return;
     var cards = [];
@@ -2655,7 +2655,7 @@
     commit();
     var t = tab();
     hm.doc.history(t.id).then(function (r) {
-      var fmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      var fmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
       if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
       kit.menu(histBtn, list.slice(0, 30).map(function (x) {
