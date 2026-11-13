@@ -213,6 +213,14 @@ def _some(blocks: list) -> list:
 
 
 _STATES: dict = {}  # state.json path -> ((mtime_ns, size, inode), state): the doc page polls every few seconds
+STATES_KEPT = 32  # the most docs' states kept in memory, the least recently used dropped first
+
+
+def _state_put(p: Path, stamp: tuple, st: dict) -> None:
+    _STATES.pop(p, None)
+    while len(_STATES) >= STATES_KEPT:
+        _STATES.pop(next(iter(_STATES)), None)
+    _STATES[p] = (stamp, st)
 
 
 def load(aid: str) -> dict:
@@ -234,8 +242,8 @@ def load(aid: str) -> dict:
             stamp = (s.st_mtime_ns, s.st_size, s.st_ino)
             hit = _STATES.get(p)
             st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
-            if st is not None and not (hit and hit[0] == stamp):
-                _STATES[p] = (stamp, st)
+            if st is not None:
+                _state_put(p, stamp, st)  # (a hit too: the most recently used goes last)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -261,7 +269,7 @@ def _save(aid: str, st: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
     s = store.write_atomic(p, json.dumps(st, ensure_ascii=False), backup=True)
-    _STATES[p] = ((s.st_mtime_ns, s.st_size, s.st_ino), st)
+    _state_put(p, (s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def _tab(st: dict, tab: Optional[str]) -> dict:
@@ -903,11 +911,21 @@ def upload(aid: str, data_url: str) -> dict:
     raw = base64.b64decode(m.group(2))
     if len(raw) > MAX_UPLOAD:
         raise DocError("too_large", "pictures are up to 8 MB")
-    name = hashlib.sha256(raw).hexdigest()[:20] + "." + _IMG[m.group(1)]
+    digest = hashlib.sha256(raw).hexdigest()
+    name = digest[:20] + "." + _IMG[m.group(1)]
     p = store._dir(aid) / "doc" / "files" / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    if not p.exists():
-        p.write_bytes(raw)
+    try:
+        same = p.stat().st_size == len(raw) and hashlib.sha256(p.read_bytes()).hexdigest() == digest
+    except OSError:
+        same = False
+    if same:
+        try:
+            os.utime(p)  # in use again from now: the sweep counts its age from here
+        except OSError:
+            same = False
+    if not same:  # (missing, or a cut-off copy: written whole again)
+        store.write_atomic(p, raw)
     return {"ok": True, "name": name, "src": "doc:" + name}
 
 
@@ -970,12 +988,25 @@ def _hist(aid: str, version: int) -> list:
     return list(h.get("snaps", [])) if h.get("version") == version else []
 
 
-def _write_snap(aid: str, seq: int, blocks: list) -> int:
+def _write_snap(aid: str, seq: int, blocks: list) -> tuple:
+    """(file number, bytes): the snapshot written as snaps/<n>.json, ``n`` the first number from ``seq`` no
+    file has yet. The name is claimed first (created only if absent), so two processes that read the same
+    index never write one file each over the other's."""
     d = _snaps_dir(aid)
     d.mkdir(parents=True, exist_ok=True)
     data = json.dumps({"blocks": blocks}, ensure_ascii=False, separators=(",", ":"))
-    store.write_atomic(d / f"{seq}.json", data)
-    return len(data.encode("utf-8"))
+    while True:
+        try:
+            os.close(os.open(d / f"{seq}.json", os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            seq += 1
+    try:
+        store.write_atomic(d / f"{seq}.json", data)
+    except BaseException:
+        (d / f"{seq}.json").unlink(missing_ok=True)
+        raise
+    return seq, len(data.encode("utf-8"))
 
 
 def _entry(snap: dict, seq: int, size: int) -> dict:
@@ -1033,13 +1064,15 @@ def _migrate(aid: str) -> dict:
         pass
     snaps = [x for x in (h.get("snaps") or []) if isinstance(x, dict) and isinstance(x.get("blocks"), list)]
     entries, total = [], 0
+    top = len(snaps)
     for seq, x in reversed(list(enumerate(snaps, 1))):  # newest first: the bounds keep those
         if len(entries) >= MAX_SNAPS or (len(entries) >= 2 and total > MAX_HIST_BYTES):
             break
-        size = _write_snap(aid, seq, x["blocks"])
+        f, size = _write_snap(aid, seq, x["blocks"])
+        top = max(top, f)
         total += size
-        entries.insert(0, _entry(x, seq, size))
-    _hist_save(aid, h.get("version"), entries, len(snaps) + 1, [], sweep=True)
+        entries.insert(0, _entry(x, f, size))
+    _hist_save(aid, h.get("version"), entries, top + 1, [], sweep=True)
     old.unlink(missing_ok=True)
     logger.info("doc %s: history moved to one file per snapshot (%d kept of %d)", aid, len(entries), len(snaps))
     return store.json_cached(_hist_path(aid), _HIST_CACHE, 8)
@@ -1061,10 +1094,9 @@ def _record(aid: str, st: dict, t: dict, by: str, before: Optional[dict]) -> Non
 
     def add(snap: dict) -> dict:
         nonlocal seq
-        size = _write_snap(aid, seq, snap["blocks"])
-        e = _entry(snap, seq, size)
-        seq += 1
-        return e
+        f, size = _write_snap(aid, seq, snap["blocks"])
+        seq = f + 1
+        return _entry(snap, f, size)
     if not mine and before:  # the tab as it started: always restorable
         entries.append(add(before))
     last = mine[-1] if mine else None
@@ -1089,22 +1121,35 @@ def sweep(aid: str, dd: Path, now: float, out: dict) -> None:
     old_age = lambda p: store._age(p, now) > store.ORPHAN_AGE  # noqa: E731
     with _LOCK:
         ip, old, snaps = dd / "hist.json", dd / "history.json", dd / "snaps"
+        st0 = store._stamp(ip)
         try:
-            h = store.read_json(ip)
+            h, fell_back = store.read_json_from(ip)
+        except FileNotFoundError:
+            h, fell_back = None, False
         except (OSError, ValueError):
-            h = None
-        if isinstance(h, dict) and old.is_file() and old_age(old):
-            gone(old, "old_history")  # a migration that stopped before removing it
+            return  # an index that can't be read: nothing here is decided on a guess
+        if fell_back or (h is not None and not isinstance(h, dict)):
+            return
         texts = []
+        if old.is_file():
+            if h is not None and old_age(old):
+                gone(old, "old_history")  # a migration that stopped before removing it
+            else:
+                try:  # not moved over yet: its snapshots still show pictures
+                    texts.append(old.read_text(encoding="utf-8"))
+                except OSError:
+                    return
         if snaps.is_dir():
-            entries = list(h.get("snaps", [])) if isinstance(h, dict) else None
+            entries = list(h.get("snaps", [])) if h is not None else None
             if entries is not None:
                 lost = [e for e in entries if not (snaps / f"{e.get('f')}.json").is_file()]
-                if lost:  # the index lists only what can be restored
+                if lost and store._stamp(ip) == st0:  # the index lists only what can be restored
                     h = {**h, "snaps": [e for e in entries if e not in lost]}
                     st = store.write_atomic(ip, json.dumps(h, ensure_ascii=False, separators=(",", ":")))
                     store.json_remember(ip, _HIST_CACHE, h, st, 8)
                     out["snap_entries"] = out.get("snap_entries", 0) + len(lost)
+                elif lost:
+                    return  # written meanwhile (another process): left for the next round
                 named = {str(e.get("f")) for e in h["snaps"]}
             for e in os.scandir(snaps):
                 p = Path(e.path)
@@ -1125,7 +1170,12 @@ def sweep(aid: str, dd: Path, now: float, out: dict) -> None:
                     texts.append((dd / name).read_text(encoding="utf-8"))
                 except OSError:
                     pass
-            meta = store.get_meta(aid) or {}
+            try:
+                meta, fell_back = store.read_json_from(store._dir(aid) / "meta.json")
+            except (OSError, ValueError):
+                return
+            if fell_back or not isinstance(meta, dict):
+                return  # a copy may not name every version
             for v in meta.get("versions") or []:
                 for rel in ("doc.md", "doc.json"):
                     try:

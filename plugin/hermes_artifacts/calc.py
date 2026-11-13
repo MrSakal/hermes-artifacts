@@ -167,6 +167,7 @@ class _Worker:
 
 
 _LOCK = threading.Lock()  # one computation at a time in the kept process
+WAIT_KEPT = 0.1  # seconds a computation waits for the kept process before starting one of its own
 _state: dict = {"worker": None, "off_until": 0.0}
 
 
@@ -195,8 +196,11 @@ def _key(node: str) -> tuple:
 
 def _kept(node: str, data: bytes, book: list) -> tuple:
     """Run on the kept process: (handled, result). Not handled: it could not be started, or it died on this
-    workbook (then one-shot processes are used for RETRY_WORKER seconds)."""
-    with _LOCK:
+    workbook (then one-shot processes are used for RETRY_WORKER seconds). Busy with another sheet for longer
+    than WAIT_KEPT: not handled (a one-shot process computes this one meanwhile)."""
+    if not _LOCK.acquire(timeout=WAIT_KEPT):
+        return False, None
+    try:
         if time.monotonic() < _state["off_until"]:
             return False, None
         key = _key(node)
@@ -218,6 +222,8 @@ def _kept(node: str, data: bytes, book: list) -> tuple:
                 _state["off_until"] = time.monotonic() + RETRY_WORKER
                 return False, None
             return True, None  # a timeout: as a one-shot process that ran out of time
+    finally:
+        _LOCK.release()
     ans = json.loads(line.decode("utf-8"))
     if not isinstance(ans, dict) or "err" in ans:
         return True, None  # the runner refused it (bad input, output too big): as its exit code did

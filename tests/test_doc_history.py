@@ -128,7 +128,83 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(len(snap_files(aid)), len(listed))
 
 
+PNG = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+OLD = time.time() - 30 * 86400
+
+
+def age_tree(top: Path) -> None:
+    for dirpath, dirs, files in os.walk(top):
+        for n in dirs + files:
+            os.utime(Path(dirpath) / n, (OLD, OLD))
+
+
+class SweepAndPictureTests(unittest.TestCase):
+    def test_pictures_only_a_not_yet_moved_history_shows_stay(self):
+        aid = new_doc()
+        st = docs.load(aid)
+        name = docs.upload(aid, PNG)["name"]
+        t = st["tabs"][0]
+        dd = store._dir(aid) / "doc"
+        docs._old_hist_path(aid).write_text(json.dumps({"version": st["version"], "snaps": [
+            {"tab": t["id"], "rev": 1, "by": "user", "at": time.time(), "title": t["title"],
+             "blocks": [{"id": "b1", "md": f"![x](doc:{name})"}]}]}), "utf-8")
+        age_tree(dd)
+        out = {}
+        docs.sweep(aid, dd, time.time(), out)
+        self.assertTrue((dd / "files" / name).exists(), out)
+        self.assertIn(name, docs.at_rev(aid, None, 1)["blocks"][0]["md"])  # moved over now, its picture there
+
+    def test_a_picture_put_in_again_is_new_and_a_cut_copy_is_written_whole(self):
+        aid = new_doc()
+        name = docs.upload(aid, PNG)["name"]
+        p = store._dir(aid) / "doc" / "files" / name
+        whole = p.read_bytes()
+        os.utime(p, (OLD, OLD))
+        docs.upload(aid, PNG)
+        self.assertGreater(p.stat().st_mtime, time.time() - 60)  # the sweep counts its age from now
+        p.write_bytes(whole[:5])
+        docs.upload(aid, PNG)
+        self.assertEqual(p.read_bytes(), whole)
+        self.assertEqual(sorted(x.name for x in p.parent.iterdir()), [name])
+
+    def test_two_writers_from_one_index_never_share_a_snapshot_file(self):
+        aid = new_doc()
+        seq = int(docs._hist_index(aid).get("seq") or 1)
+        a = docs._write_snap(aid, seq, [{"id": "a", "md": "mine"}])
+        b = docs._write_snap(aid, seq, [{"id": "b", "md": "theirs"}])  # another process, the same index read
+        self.assertNotEqual(a[0], b[0])
+        self.assertEqual(docs._snap_blocks(aid, {"f": a[0]})[0]["md"], "mine")
+        self.assertEqual(docs._snap_blocks(aid, {"f": b[0]})[0]["md"], "theirs")
+
+    def test_the_sweep_never_writes_the_index_from_a_stale_read(self):
+        aid = new_doc()
+        edit(aid, "hermes")
+        edit(aid, "user")
+        dd = store._dir(aid) / "doc"
+        h = json.loads(docs._hist_path(aid).read_text("utf-8"))
+        (dd / "snaps" / f"{h['snaps'][0]['f']}.json").unlink()  # an entry whose file is gone
+        real = store.read_json_from
+        fired = []
+
+        def another_edit_meanwhile(p, text=None):
+            got = real(p, text)
+            if Path(p).name == "hist.json" and not fired:
+                fired.append(1)
+                edit(aid, "hermes", text="written meanwhile")
+            return got
+        with mock.patch.object(store, "read_json_from", side_effect=another_edit_meanwhile):
+            docs.sweep(aid, dd, time.time(), {})
+        self.assertTrue(fired)
+        newest = json.loads(docs._hist_path(aid).read_text("utf-8"))["snaps"][-1]
+        self.assertEqual(docs._snap_blocks(aid, newest)[1]["md"], "written meanwhile")
+
+
 class StateCacheTests(unittest.TestCase):
+    def test_the_cache_of_states_is_bounded(self):
+        for _ in range(docs.STATES_KEPT + 3):
+            docs.read(new_doc())
+        self.assertLessEqual(len(docs._STATES), docs.STATES_KEPT)
+
     def test_a_poll_does_not_parse_the_state_again(self):
         aid = new_doc()
         docs.read(aid)

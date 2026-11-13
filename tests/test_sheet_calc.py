@@ -200,6 +200,25 @@ class NoNodeTests(unittest.TestCase):
             self.assertTrue(r["stale"])
             self.assertEqual(r["rows"][1], ["Wall panels", 1200, 3, "=B2*C2"])
 
+    def test_a_slow_sheet_does_not_hold_up_the_others(self):
+        import threading
+        got = []
+        with mock.patch.object(calc, "node_path", return_value="node"), \
+                mock.patch.object(calc, "_once", return_value=[{"A1": 1}]) as once, \
+                mock.patch.object(calc, "_Worker", side_effect=AssertionError("the busy kept process was asked")):
+            calc._LOCK.acquire()  # another sheet computing on the kept process
+            try:
+                t = threading.Thread(target=lambda: got.append(calc.run([{"name": "A", "cells": {}, "charts": []}])))
+                t.start()
+                t.join(2)
+                self.assertFalse(t.is_alive())
+            finally:
+                calc._LOCK.release()
+                t.join(5)
+                calc._state["off_until"] = 0.0
+            self.assertEqual(got, [[{"A1": 1}]])
+            once.assert_called_once()
+
     def test_merge_is_the_set_vals_check(self):
         cur = {"A1": 1, "A2": 2}
         calc.merge(cur, {"A1": None, "A3": {"error": "#DIV/0!" + "x" * 40}, "A4": 2.0, "A5": "x" * 5000, "zz": 1,
