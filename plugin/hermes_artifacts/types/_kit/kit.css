@@ -123,8 +123,8 @@ html[data-thumb] *::-webkit-scrollbar, html[data-thumb]::-webkit-scrollbar { dis
 
 /* Keyboard focus as Hermes shows it: the accent's 3 px ring, no outline, on every control of every page.
    Not on an editing surface (a doc's text, a board's or a model's canvas: class kit-surface), whose caret or
-   selection shows where the focus is. */
+   selection shows where the focus is, nor on a bare field whose box shows it (kit-bare: the board's ask line). */
 :where(button, a[href], input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="tab"], [role="menuitem"],
-  [role="option"], [role="slider"], [role="checkbox"], [role="switch"], [role="radio"], [tabindex]):not([contenteditable]):not(.kit-surface):focus-visible {
+  [role="option"], [role="slider"], [role="checkbox"], [role="switch"], [role="radio"], [tabindex]):not([contenteditable]):not(.kit-surface):not(.kit-bare):focus-visible {
   outline: none !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 50%, transparent) !important; }
-.kit-surface:focus, .kit-surface:focus-visible { outline: none !important; box-shadow: none !important; }
+.kit-surface:focus, .kit-surface:focus-visible, .kit-bare:focus-visible { outline: none !important; box-shadow: none !important; }

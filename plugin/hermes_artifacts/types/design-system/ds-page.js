@@ -384,7 +384,7 @@
     return art;
   }
   function mdEditor(path, text, onDone, toFile) {
-    var ta = h("textarea", { "class": "ds-md-edit", spellcheck: "true" });
+    var ta = h("textarea", { "class": "ds-md-edit", spellcheck: "false" });
     ta.value = text || "";
     var wrap = h("div", { "class": "ds-editor" }, [ta, h("div", { "class": "ds-row-btns" }, [
       btn(T.save, "primary", function () {
@@ -393,7 +393,8 @@
       }),
       btn(T.cancel, "", function () { state.editing = null; onDone ? onDone() : render(); })
     ])]);
-    setTimeout(function () { ta.focus(); ta.style.height = Math.min(640, Math.max(220, ta.scrollHeight + 4)) + "px"; }, 0);
+    // at its first line: setting the value put the caret at the end, and the focus scrolled the start out of sight
+    setTimeout(function () { ta.style.height = Math.min(640, Math.max(220, ta.scrollHeight + 4)) + "px"; ta.setSelectionRange(0, 0); ta.focus({ preventScroll: true }); ta.scrollTop = 0; }, 0);
     return wrap;
   }
   function btn(label, kind, fn, title) {

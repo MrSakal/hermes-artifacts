@@ -1141,7 +1141,7 @@
     stopRetype();
     var shown = lineText(line);
     var r = line.getBoundingClientRect(), vr = view.getBoundingClientRect(), cs = getComputedStyle(line), k = frameScale();
-    var ta = h("textarea", { "class": "mo-edit", spellcheck: "true" });
+    var ta = h("textarea", { "class": "mo-edit", spellcheck: "false" });
     ta.value = shown;
     ta.style.left = (r.left - vr.left - 4) + "px"; ta.style.top = (r.top - vr.top - 4) + "px";
     ta.style.width = Math.max(120, r.width + 8) + "px"; ta.style.minHeight = (r.height + 8) + "px";
@@ -1737,7 +1737,31 @@
     setTimeout(firstThumbs, 500);
     if (!live) { volWrap.hidden = true; }
     kit.ready();
+    firstPreview();
   }).catch(function (e) { console.error(e); kit.ready(); });
+
+  // The gallery's card: the film's first frame as a picture, drawn once per version (hermes.preview: no
+  // version, not an edit), so the card shows it instead of running the film. A film keeps its own colours, so
+  // one picture serves every theme. Only where the host takes it, none is kept yet and nothing plays.
+  function firstPreview() {
+    if (C.thumb || C.preview || !window.hermes || typeof window.hermes.preview !== "function") return;
+    setTimeout(async function () {
+      if (playing || exporting || !timeline.length && !custom) return;
+      var keep = cur;
+      try {
+        var f = await inlineFonts();
+        exportFontCss = f.css;
+        for (var w of [640, 480, 320]) {
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = Math.round(w * H / W);
+          await drawFrame(0, canvas);
+          var url = canvas.toDataURL("image/png");
+          if (url.length * 0.75 <= 400 * 1024) { window.hermes.preview(url, C.version).catch(function () {}); break; }
+        }
+      } catch (e) { /* no picture: the card keeps drawing the film */ }
+      finally { if (!playing) { renderAt(keep); ui(); } }
+    }, 2000);
+  }
 
   // For checks and tests: the player's own handle.
   window.__motion = {

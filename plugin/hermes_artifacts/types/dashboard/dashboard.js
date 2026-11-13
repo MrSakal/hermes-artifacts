@@ -471,6 +471,7 @@
     scheduled = true;
     requestAnimationFrame(function () {
       scheduled = false;
+      syncRefresh();
       drawers.forEach(run);
       runDraws();
       stamp();
@@ -1330,7 +1331,11 @@
     fullBtn.setAttribute("aria-pressed", String(full)); fullBtn.title = full ? T.exitFull : T.fullScreen;
   }, T.fullScreen);
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
-  bar.append(kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll), freshEl,
+  // "Run every live query again": only where there is one (a live query, or a loader that computes data).
+  var refreshBtn = kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll);
+  function syncRefresh() { if (refreshBtn) refreshBtn.hidden = !liveIds().length && !Object.keys(loaders).length; }
+  syncRefresh();
+  bar.append(refreshBtn, freshEl,
     h("span", { style: "flex:1" }), histBtn, fullBtn, srcBtn);
   kit.exports(exportList).then(function (hosted) {
     if (hosted) return;

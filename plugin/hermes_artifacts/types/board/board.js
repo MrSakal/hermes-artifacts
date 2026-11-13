@@ -1685,7 +1685,7 @@
   zoomEl.querySelectorAll("button").forEach(function (b) { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.title); });
 
   // "Ask Hermes": a line above the tools that goes to the chat with the selected items' ids
-  var askIn = h("input", { type: "text", "class": "bd-askin", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
+  var askIn = h("input", { type: "text", "class": "bd-askin kit-bare", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
   var askEl = h("form", { "class": "bd-ask bd-chrome", hidden: true }, [h("span", { "class": "bd-askic", html: kit.icon("sparkle") }), askIn,
     h("button", { type: "submit", "class": "kit-btn bd-asksend", title: T.send, "aria-label": T.send, html: kit.icon("arrowUR") })]);
   function openAsk() {
