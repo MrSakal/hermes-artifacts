@@ -110,7 +110,7 @@
           }
         },
         {
-          "label": "Region selected",
+          "label": "Orders in region",
           "source": "regions",
           "field": "orders",
           "agg": "sum",
@@ -118,7 +118,7 @@
             "region": "{region}"
           },
           "format": "int",
-          "note": "orders in {param:region}"
+          "note": "{param:region}"
         }
       ]
     },
