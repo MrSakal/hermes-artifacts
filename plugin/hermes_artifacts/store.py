@@ -1436,11 +1436,11 @@ _METAS: dict = {}  # meta.json path -> (stamp, meta): the gallery parses only th
 # RACY_S before it was looked into is looked into again (two changes within one tick of the file system's
 # clock look alike). Correct across processes: the stamp is the file system's, not this process's.
 RACY_S = 2.0
-_CARDS: dict = {}  # folder path -> (stamp, when looked into, meta, open comments, has a preview)
+_CARDS: dict = {}  # folder path -> (stamp, when looked into, meta, open comment threads, has a preview)
 
 
 def _card(e: os.DirEntry, base: Path, now: float) -> Optional[tuple]:
-    """(meta, open user comments, preview of the latest version) of the artifact folder ``e``, or None."""
+    """(meta, open comment threads, preview of the latest version) of the artifact folder ``e``, or None."""
     try:
         if not e.is_dir():
             return None
@@ -1465,7 +1465,7 @@ def _card(e: os.DirEntry, base: Path, now: float) -> Optional[tuple]:
         return None
     aid = e.name
     try:
-        comments = open_user_comments(aid, base)
+        comments = open_threads(aid, base)
         vs = meta.get("versions") or []
         preview = bool(vs) and preview_path(aid, vs[-1]["n"], base).is_file()
     except (ValueError, KeyError, TypeError, OSError):  # a folder whose name is no id: no card extras
@@ -1475,7 +1475,7 @@ def _card(e: os.DirEntry, base: Path, now: float) -> Optional[tuple]:
 
 
 def cards() -> list[tuple]:
-    """Every artifact as (meta, open user comments, has a preview), newest first. The metas are shared: read
+    """Every artifact as (meta, open comment threads, has a preview), newest first. The metas are shared: read
     them only (list_all hands out copies)."""
     base = root()
     now = time.time()
@@ -1662,9 +1662,10 @@ def comments_list(aid: str, include_resolved: bool = True) -> list[dict]:
 _OPEN_COUNTS: dict = {}  # comments.json path -> ((mtime_ns, size, inode), count)
 
 
-def open_user_comments(aid: str, base: Optional[Path] = None) -> int:
-    """How many of the person's comments are open (the gallery's badge on a card), counted again only
-    when comments.json changed. ``base``: root(), when the caller lists many."""
+def open_threads(aid: str, base: Optional[Path] = None) -> int:
+    """How many comment threads are open (the gallery's badge on a card): unresolved comments that start a
+    thread, whoever wrote them; replies are not counted (the comments header and panel count the same).
+    Counted again only when comments.json changed. ``base``: root(), when the caller lists many."""
     p = _dir(aid, base) / "comments.json"
     try:
         st = p.stat()
@@ -1674,7 +1675,7 @@ def open_user_comments(aid: str, base: Optional[Path] = None) -> int:
     hit = _OPEN_COUNTS.get(p)
     if hit and hit[0] == stamp:
         return hit[1]
-    n = sum(1 for c in comments_list(aid, include_resolved=False) if c["author"] == "user")
+    n = sum(1 for c in comments_list(aid, include_resolved=False) if not c.get("parent"))
     _OPEN_COUNTS[p] = (stamp, n)
     return n
 

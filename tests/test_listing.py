@@ -62,7 +62,7 @@ class ListingTests(unittest.TestCase):
         with Trusting():
             store.cards()
             with mock.patch.object(store, "json_cached", side_effect=AssertionError("meta read again")), \
-                    mock.patch.object(store, "open_user_comments", side_effect=AssertionError("comments read again")):
+                    mock.patch.object(store, "open_threads", side_effect=AssertionError("comments read again")):
                 self.assertIn(aid, [m["id"] for m in store.list_all()])
                 self.assertEqual(card(aid)["title"], "Still")
 
@@ -89,6 +89,21 @@ class ListingTests(unittest.TestCase):
             self.assertEqual(out.returncode, 0, out.stderr[-2000:])
             c = card(aid)
             self.assertEqual((c["title"], c["comments"]), ("Theirs", 1))
+
+
+class BadgeTests(unittest.TestCase):
+    def test_the_badge_counts_open_threads_not_replies_nor_authors(self):
+        aid = store.publish(html="<p>a</p>", title="B", type="page")["id"]
+        one = store.comment_add(aid, "a note")
+        store.comment_add(aid, "Hermes' reply", author="hermes", parent=one["id"])
+        store.comment_add(aid, "my reply", parent=one["id"])
+        self.assertEqual(card(aid)["comments"], 1)  # one thread, as the header and panel say
+        two = store.comment_add(aid, "Hermes starts one", author="hermes")
+        self.assertEqual(card(aid)["comments"], 2)
+        store.comment_resolve(aid, one["id"])
+        self.assertEqual(card(aid)["comments"], 1)
+        store.comment_resolve(aid, two["id"])
+        self.assertEqual(card(aid)["comments"], 0)
 
 
 class EtagTests(unittest.TestCase):

@@ -23,9 +23,9 @@ class ApiError(Exception):
 
 
 def _view(m: dict, base=None, extras: Optional[tuple] = None) -> dict:
-    """A gallery card. ``extras``: (open user comments, has a preview) when the caller has them (store.cards)."""
+    """A gallery card. ``extras``: (open comment threads, has a preview) when the caller has them (store.cards)."""
     comments, preview = extras if extras is not None else (
-        store.open_user_comments(m["id"], base), store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file())
+        store.open_threads(m["id"], base), store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file())
     return {"id": m["id"], "title": m["title"], "type": m.get("type", "page"),
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
