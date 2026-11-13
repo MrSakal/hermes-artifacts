@@ -14,7 +14,7 @@ table in it is a doc.
  "sheets": [{"name": "Costs",
    "rows": [["Item", "Unit price", "Qty", "Total"],
             ["Wall panels", 1200, 3, "=B2*C2"],
-            ["Total", null, null, "=SUM(D2:D2)"]],
+            ["Total", null, "=SUM(C2:C2)", "=SUM(D2:D2)"]],
    "cols": {"A": 180}, "freeze": {"rows": 1},
    "formats": {"A1:D1": {"bold": true}, "B2:B99": {"num": "#,##0 \"Ft\""}},
    "charts": [{"type": "bar", "range": "A1:D2", "title": "Costs", "at": "F2"}]}]}
@@ -24,9 +24,9 @@ table in it is a doc.
   empty, a date as `"YYYY-MM-DD"`, a formula as `"=…"`. Only `name` and `rows` are required.
 - From a file: `ha_publish type=sheet path="<file.xlsx | .csv>"`, never its contents pasted.
 - **Formulas, not typed results**: every total, sum, share or difference is a formula, so it follows
-  when the user changes a number. English function names, `,` between arguments, `.` decimals:
-  `=SUM(D2:D9)`, `=IF(C2>0, B2/C2, "")`, `=VLOOKUP(A2, Prices!A:B, 2, FALSE)`, another sheet as
-  `Prices!B2` or `'Q1 plan'!B2`, fixed references as `$B$1`.
+  the numbers; a total row has one in each column it totals, never `null`. English function names,
+  `,` between arguments, `.` decimals: `=SUM(D2:D9)`, `=IF(C2>0, B2/C2, "")`,
+  `=VLOOKUP(A2, Prices!A:B, 2, FALSE)`, other sheets `'Q1 plan'!B2`, fixed `$B$1`.
 - One table per sheet, header in row 1 (bold, frozen), no merged cells in it, no blank spacer columns,
   inputs (rates, prices) in their own labelled cells that formulas point at. Units in the header or
   the number format, not in the cell text.
