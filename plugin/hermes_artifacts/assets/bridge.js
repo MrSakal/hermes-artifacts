@@ -476,9 +476,25 @@
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
     emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(),
                      rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    picked = el;
   }
+  // The element picked last: when the page scrolls or the frame is resized its new rect goes to the host (once
+  // a frame), so the new comment's pin and form stay at it. The next pick mode forgets it.
+  var picked = null, pickedRaf = 0;
+  function pickedMoved() {
+    if (!picked || pickedRaf) return;
+    pickedRaf = requestAnimationFrame(function () {
+      pickedRaf = 0;
+      if (!picked || !picked.isConnected) return;
+      var r = inked(picked);
+      emit("picked-rect", { rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    });
+  }
+  window.addEventListener("scroll", pickedMoved, true);
+  window.addEventListener("resize", pickedMoved);
   function setPicking(on) {
     picking = !!on;
+    if (picking) picked = null;
     document.documentElement.style.cursor = picking ? "crosshair" : "";
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }

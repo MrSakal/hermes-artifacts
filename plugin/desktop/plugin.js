@@ -3532,6 +3532,11 @@ function onPageEvent(event, detail) {
     $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null })
     return
   }
+  if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
+    const d = $draft.get(), r = detail && detail.rect
+    if (d?.rect && r && [r.x, r.y, r.w, r.h].every(Number.isFinite)) $draft.set({ ...d, rect: { x: r.x, y: r.y, w: r.w, h: r.h } })
+    return
+  }
   if (event === 'picked' && $picking.get()) {
     $picking.set(false)
     const anchor = detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40) } : null
@@ -4662,7 +4667,7 @@ function CommentPopover({ ctx, art }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
   const [text, setText] = useState('')
-  useEffect(() => setText('@Hermes '), [draft])
+  useEffect(() => setText('@Hermes '), [draft?.anchor]) // a new pick; the pin following its element keeps the text
   const boxRef = useRef(null)
   const [boxH, setBoxH] = useState(170)
   useLayoutEffect(() => {

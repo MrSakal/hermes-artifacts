@@ -18,7 +18,7 @@ from test_desktop_plugin import NODE, PLUGIN, run_node, stub_module  # noqa: E40
 SRC = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
 EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errText, reuseSame, thumbKind, fetchVendor,"
            " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
-           " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED }\n")
+           " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments"]
 
@@ -116,6 +116,27 @@ class CommentPinTests(unittest.TestCase):
         console.log(JSON.stringify(out))
         """
         self.assertEqual(run_node(stub_module(EXPORTS), body), [])
+
+    def test_the_pin_follows_its_element_and_the_text_stays(self):
+        # The bridge sends the picked element's rect again when the page scrolls or the frame is resized.
+        body = """
+        const anchor = { selector: '#a', text: 'Next steps', label: 'h2' }
+        m.$draft.set({ anchor, rect: { x: 600, y: 560, w: 120, h: 30 } })
+        m.onPageEvent('picked-rect', { rect: { x: 600, y: 425, w: 120, h: 30 } })
+        const moved = m.$draft.get()
+        m.onPageEvent('picked-rect', { rect: { x: 'a', y: 1, w: 1, h: 1 } })
+        const bad = m.$draft.get() === moved
+        m.$draft.set(null)
+        m.onPageEvent('picked-rect', { rect: { x: 1, y: 1, w: 1, h: 1 } })
+        console.log(JSON.stringify({ rect: moved.rect, sameAnchor: moved.anchor === anchor, bad, none: m.$draft.get() }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out, {"rect": {"x": 600, "y": 425, "w": 120, "h": 30}, "sameAnchor": True, "bad": True, "none": None})
+        self.assertIn("useEffect(() => setText('@Hermes '), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
+        bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
+        self.assertIn('emit("picked-rect", { rect: { x: r.left, y: r.top, w: r.width, h: r.height } });', bridge)
+        self.assertIn('window.addEventListener("scroll", pickedMoved, true);', bridge)
+        self.assertIn('window.addEventListener("resize", pickedMoved);', bridge)
 
     def test_the_pin_is_drawn_over_the_box(self):
         pop = section("function CommentPopover(", "function DockView(")
