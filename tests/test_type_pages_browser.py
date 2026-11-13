@@ -313,5 +313,105 @@ class FocusOnWholeSurfaces(unittest.TestCase):
         self.assertIn("0px 0px 0px 2px", shadow)  # its own ring, not the kit's 3 px one
 
 
+WIDTHS = (360, 420, 560, 720, 760, 900, 1000, 1500)   # 720, 900: where a board's tools and zoom pills met (0.20.0)
+# Content a page draws (cells, blocks, board items, frames, slides and their filmstrip, cards): its controls may sit anywhere in it.
+CONTENT = "#sl-strip, #sh-grid, .doc-blk, #doc-page, .bd-world, #dc-world, #sl-stage, #stage, #mo-frame, #dash-main, .ds-page, .kit-menu"
+# At each width: every control of the chrome whole on screen and inside what clips it (or in a strip that
+# scrolls), its words not cut; floating toolbars and pills never on one another; a design frame's name strip on
+# nothing else.
+PROBE = r"""(() => {
+  const CONTENT = %s, vw = innerWidth, bad = []
+  const shown = el => { const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) return null
+    for (let e = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return null }
+    return r }
+  const name = el => (el.getAttribute('aria-label') || el.title || el.textContent || el.className || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 40)
+  const clip = el => { for (let e = el.parentElement; e && e !== document.documentElement; e = e.parentElement) if (getComputedStyle(e).overflowX !== 'visible') return e; return null }
+  const meet = (a, b) => a.left + 1 < b.right && b.left + 1 < a.right && a.top + 1 < b.bottom && b.top + 1 < a.bottom
+  const ctrls = [...document.querySelectorAll('button, [role=button], [role=tab], select, input:not([type=hidden])')].filter(el => !el.closest(CONTENT) && shown(el))
+  for (const el of ctrls) {
+    const r = el.getBoundingClientRect(), c = clip(el), cr = c && c.getBoundingClientRect()
+    if (cr && (r.right <= cr.left || r.left >= cr.right)) continue   // scrolled out of its strip: reached by scrolling it
+    if (r.left < -0.5 || r.right > vw + 0.5) bad.push('off screen: ' + name(el))
+    // a strip that scrolls counts too: a tab half under its edge is cut
+    if (cr && (r.left < cr.left - 0.5 || r.right > cr.right + 0.5)) bad.push('clipped: ' + name(el))
+    if (el.scrollWidth > el.clientWidth + 1 && el.tagName === 'BUTTON') bad.push('words cut: ' + name(el))
+  }
+  const floats = [...document.querySelectorAll('body *')].filter(el => !el.closest(CONTENT) && /absolute|fixed/.test(getComputedStyle(el).position)
+    && el.querySelector('button') && shown(el)).filter(el => { const r = el.getBoundingClientRect(); return r.width * r.height < vw * innerHeight / 3 })  // a toolbar, not a whole layer
+  const outer = floats.filter(el => !floats.some(o => o !== el && o.contains(el)))
+  for (let i = 0; i < outer.length; i++) for (let j = i + 1; j < outer.length; j++)
+    if (meet(outer[i].getBoundingClientRect(), outer[j].getBoundingClientRect())) bad.push('overlap: ' + name(outer[i]) + ' / ' + name(outer[j]))
+  for (const f of outer) for (const el of ctrls)
+    if (!f.contains(el) && !outer.some(o => o.contains(el)) && meet(f.getBoundingClientRect(), el.getBoundingClientRect())) bad.push('covers: ' + name(f) + ' over ' + name(el))
+  const strips = [...document.querySelectorAll('.dc-strip')].map(shown).filter(Boolean)
+  const others = [...document.querySelectorAll('.dc-frame, .dc-note')].map(shown).filter(Boolean)
+  strips.forEach((s, i) => { if (strips.some((t, j) => j > i && meet(s, t)) || others.some(o => meet(s, o))) bad.push('frame name strip on something') })
+  if (document.documentElement.scrollWidth > vw + 1 && getComputedStyle(document.body).overflowX !== 'hidden') bad.push('page wider than the view')
+  return bad
+})()""" % json.dumps(CONTENT)
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class NothingOverlapsAtAnyWidth(unittest.TestCase):
+    """Every type page at 360-1500 px: no control off screen or clipped, no words cut, no two floating toolbars
+    on one another (the 0.20.0 acceptance run: a sheet's "Ask Herm…", a board's zoom pill over its tools, a
+    design canvas's frame names over its title, a design system's last tab cut)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def check(self, aid, settle=1500):
+        body = "const out = {}\n"
+        for w in WIDTHS:
+            body += f"await api.size({w}, 760); await api.sleep(700); out[{w}] = await api.frame({json.dumps(PROBE)})\n"
+        r = B.drive(f"await api.size({WIDTHS[0]}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n" + body + "return out")
+        self.assertIsNone(r.get("err"), r)
+        found = {w: v for w, v in r["out"].items() if v}
+        self.assertEqual(found, {})
+
+    def test_doc(self):
+        self.check(self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"])
+
+    def test_sheet_with_an_error(self):
+        self.check(self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Costs", "rows": [["Item", "Unit price", "Qty", "Total"], ["Wall panels", 2000, 3, "=B2*C2"], ["Rails", 300, 10, "=B3*C3"],
+                                       [None, "=1/0"]], "charts": [{"type": "bar", "range": "A1:D3", "at": "F2"}]},
+            {"name": "Notes", "rows": [["x"]]}]}})["id"], settle=2500)
+
+    def test_board(self):
+        self.check(self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Release flow", "items": [
+            {"type": "text", "size": "title", "text": "Release flow"}, {"id": "dev", "type": "section", "text": "Development"},
+            {"id": "a", "type": "box", "text": "Draft", "in": "dev"}, {"id": "b", "type": "box", "kind": "diamond", "text": "Review ok?", "in": "dev"},
+            {"id": "c", "type": "box", "kind": "pill", "text": "Ship", "color": "blue"}, {"type": "arrow", "from": "a", "to": "b"},
+            {"type": "arrow", "from": "b", "to": "c", "label": "yes"}, {"type": "note", "text": "Owner: Anna", "near": "c"}]}})["id"])
+
+    def test_dashboard(self):
+        self.check(self.store.publish(path=str(EX / "dashboard"), title="Orders", type="dashboard")["id"])
+
+    def test_slides(self):
+        self.check(self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"])
+
+    def test_motion(self):
+        self.check(self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"], settle=2500)
+
+    def test_design_system(self):
+        self.check(self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"])
+
+    def test_model(self):
+        from test_models import PANEL
+        self.check(self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], settle=3000)
+
+    def test_design_canvas(self):
+        self.check(self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"], settle=3000)
+
+
 if __name__ == "__main__":
     unittest.main()
