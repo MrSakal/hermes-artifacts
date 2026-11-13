@@ -1076,6 +1076,77 @@ def _record(aid: str, st: dict, t: dict, by: str, before: Optional[dict]) -> Non
     _hist_save(aid, st["version"], entries, seq, drop, sweep=fresh and bool(h))
 
 
+def sweep(aid: str, dd: Path, now: float, out: dict) -> None:
+    """store.sweep's part for a doc folder: the old one-file history once moved over, snapshot files the index
+    does not name (and index entries whose file is gone), pictures no block, snapshot or kept version uses.
+    Only what is older than store.ORPHAN_AGE goes (a writer elsewhere may be mid-edit)."""
+    def gone(p: Path, kind: str) -> None:
+        try:
+            p.unlink()
+            out[kind] = out.get(kind, 0) + 1
+        except OSError:
+            pass
+    old_age = lambda p: store._age(p, now) > store.ORPHAN_AGE  # noqa: E731
+    with _LOCK:
+        ip, old, snaps = dd / "hist.json", dd / "history.json", dd / "snaps"
+        try:
+            h = store.read_json(ip)
+        except (OSError, ValueError):
+            h = None
+        if isinstance(h, dict) and old.is_file() and old_age(old):
+            gone(old, "old_history")  # a migration that stopped before removing it
+        texts = []
+        if snaps.is_dir():
+            entries = list(h.get("snaps", [])) if isinstance(h, dict) else None
+            if entries is not None:
+                lost = [e for e in entries if not (snaps / f"{e.get('f')}.json").is_file()]
+                if lost:  # the index lists only what can be restored
+                    h = {**h, "snaps": [e for e in entries if e not in lost]}
+                    st = store.write_atomic(ip, json.dumps(h, ensure_ascii=False, separators=(",", ":")))
+                    store.json_remember(ip, _HIST_CACHE, h, st, 8)
+                    out["snap_entries"] = out.get("snap_entries", 0) + len(lost)
+                named = {str(e.get("f")) for e in h["snaps"]}
+            for e in os.scandir(snaps):
+                p = Path(e.path)
+                if not e.name.endswith(".json"):
+                    continue
+                if (entries is None and not old.is_file()) or (entries is not None and e.name[:-5] not in named):
+                    if old_age(p):
+                        gone(p, "snaps")
+                        continue
+                try:
+                    texts.append(p.read_text(encoding="utf-8"))
+                except OSError:
+                    pass
+        files = dd / "files"
+        if files.is_dir():
+            for name in ("state.json", "state.json.bak"):
+                try:
+                    texts.append((dd / name).read_text(encoding="utf-8"))
+                except OSError:
+                    pass
+            meta = store.get_meta(aid) or {}
+            for v in meta.get("versions") or []:
+                for rel in ("doc.md", "doc.json"):
+                    try:
+                        texts.append((store._dir(aid) / f"v{v['n']}" / rel).read_text(encoding="utf-8"))
+                    except OSError:
+                        pass
+            for e in os.scandir(files):
+                if e.is_file() and not any(e.name in t for t in texts) and old_age(Path(e.path)):
+                    gone(Path(e.path), "pictures")
+
+
+def _forget(aid: str, d: Path) -> None:
+    pre = str(d) + os.sep
+    for cache in (_STATES, _HIST_CACHE):
+        for k in [k for k in cache if str(k).startswith(pre)]:
+            cache.pop(k, None)
+
+
+store.on_forget(_forget)
+
+
 def _snap_blocks(aid: str, x: dict) -> list:
     """A listed snapshot's blocks (absent: its file is gone, which only a process outside these rules does)."""
     try:

@@ -1282,6 +1282,14 @@ def cache_get(aid: str, key: str) -> Optional[dict]:
     return hit
 
 
+def _forget(aid: str, d) -> None:
+    with _cache_lock:  # keyed by a digest of (id, call, args): the whole in-memory cache goes, it fills again
+        _cache.clear()
+
+
+store.on_forget(_forget)
+
+
 def cache_put(aid: str, key: str, payload: dict) -> float:
     at = time.time()
     entry = {"at": at, "payload": payload}
@@ -1295,9 +1303,7 @@ def cache_put(aid: str, key: str, payload: dict) -> float:
         d.mkdir(exist_ok=True)
         blob = json.dumps(entry, ensure_ascii=False, default=str)
         if len(blob) <= MAX_ANSWER_BYTES:
-            tmp = d / f"{key}.tmp"
-            tmp.write_text(blob, encoding="utf-8")
-            os.replace(tmp, d / f"{key}.json")
+            store.write_atomic(d / f"{key}.json", blob, durable=False)
         for old in d.glob("*.json"):  # drop answers past their 24 h
             try:
                 if at - old.stat().st_mtime > KEEP_S:

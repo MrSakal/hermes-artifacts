@@ -10,6 +10,7 @@ import re
 import secrets
 import shutil
 import stat
+import sys
 import threading
 import time
 from pathlib import Path
@@ -943,7 +944,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             raise Refusal(f"unknown type {kind!r} (one of {', '.join(TYPES)})", next="type= one of those")
         meta = meta or {"id": aid, "title": title or aid, "created": time.time(), "versions": [],
                         "type": kind}
-        n = len(meta["versions"]) + 1
+        n = max((v["n"] for v in meta["versions"]), default=0) + 1  # never reused, pruned versions included
         vdir = d / f"v{n}"
         if vdir.exists():
             shutil.rmtree(vdir)
@@ -1035,7 +1036,9 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             entry["derived"] = made
         meta["versions"].append(entry)
         meta["updated"] = time.time()
+        pruned = _prune_versions(aid, meta)
         _write_json(d / "meta.json", meta, backup=True)
+        _drop_versions(d, pruned)  # after meta.json no longer names them
         note = " ".join(x for x in (note, shape_note) if x)
         return {**meta, "note": note} if note else meta  # the note is the caller's, not stored
 
@@ -1150,9 +1153,10 @@ def delete(aid: str) -> Path:
         while dest.exists():
             n += 1
             dest = trash / f"{aid}-{int(now)}-{n}"
-        shutil.move(str(d), str(dest))
-        if d.exists():
-            raise OSError(f"could not delete {aid}")
+        try:
+            os.rename(d, dest)  # one step: the folder is in the trash or still in place, never half of each
+        except OSError as e:
+            raise OSError(f"could not delete {aid}: a file of it is in use ({e.strerror or e}); nothing was changed, try again")
         _write_json(dest / TRASH_MARK, {"id": aid, "title": meta.get("title", aid), "deleted_at": now})
         if settings().get("default_design_system") == aid:
             settings_set("default_design_system", None)
@@ -1192,13 +1196,15 @@ def trash_list() -> list[dict]:
     now = time.time()
     out = []
     for item in trash.iterdir():
-        if not item.is_dir() or item.is_symlink():
+        if not item.is_dir() or item.is_symlink() or item.name.startswith("."):
             continue
         mark, meta = {}, {}
         try:
             mark = json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))
         except Exception:
             pass
+        if mark.get("purging"):
+            continue  # being deleted for good (a file of it was in use): the sweep finishes it
         try:
             meta = json.loads((item / "meta.json").read_text(encoding="utf-8"))
         except Exception:
@@ -1231,8 +1237,11 @@ def restore(which: str, entry: bool = False) -> dict:
         src = _trash() / item["name"]
         if not (src / "meta.json").is_file():
             raise ValueError(f"{item['name']!r} in the trash holds no artifact")
-        (src / TRASH_MARK).unlink(missing_ok=True)
-        shutil.move(str(src), str(d))
+        try:
+            os.rename(src, d)
+        except OSError as e:
+            raise OSError(f"could not restore {item['id']}: a file of it is in use ({e.strerror or e}); try again")
+        (d / TRASH_MARK).unlink(missing_ok=True)
         return get_meta(item["id"])
 
 
@@ -1246,15 +1255,18 @@ def purge_trash(days: float = TRASH_DAYS, now: Optional[float] = None) -> list[s
     purged = []
     with _LOCK:
         for item in list(trash.iterdir()):
+            if item.name.startswith("."):
+                continue  # .purging-*: the sweep's
             at = _deleted_at(item)
             if at is None or not _expired(at, now, days):
                 continue
             if item.is_dir() and not item.is_symlink():
-                shutil.rmtree(item, ignore_errors=True)
+                if _purge_item(item):
+                    purged.append(item.name)
             else:
                 item.unlink(missing_ok=True)
-            if not item.exists():
-                purged.append(item.name)
+                if not item.exists():
+                    purged.append(item.name)
     return purged
 
 
@@ -1281,6 +1293,10 @@ def purge_trash_due(now: Optional[float] = None) -> Optional[threading.Thread]:
                 purge_trash()
             except Exception:
                 pass  # a locked file: the next purge tries again
+            try:
+                sweep()
+            except Exception:
+                logger.debug("the orphan sweep failed", exc_info=True)
 
         t = threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True)
         t.start()
@@ -1306,10 +1322,409 @@ def trash_delete(name: str) -> str:
             raise ValueError(f"{name!r} in the trash is not a folder")
         if item.resolve().parent != trash.resolve():
             raise ValueError(f"{name!r} is not inside the trash")
-        shutil.rmtree(item)
-        if item.exists():
-            raise OSError(f"could not delete {name!r}")
+        _purge_item(item)  # what a program still holds open goes with the next sweep (logged)
     return name
+
+
+# --- deleting for good ----------------------------------------------------------------------------------
+# An artifact deleted for good (trash_delete, the TRASH_DAYS purge) leaves nothing: its folder goes whole,
+# and so does every reference to its id outside it (inbox items, views, making, settings, this process's
+# caches). A file another program holds open (Windows) cannot go at once: the folder is first renamed to a
+# dot name the listings skip (or, when even that fails, marked "purging" so the trash no longer shows it),
+# and the sweep finishes it.
+
+PURGING = ".purging-"
+# callables(aid, folder) by their module and name: caches keyed by the id or its folder. One registry per
+# process, shared by every copy of these modules (the web API reloads its own; the plugin has its own): a
+# delete in one copy clears them all. A reloaded module's function replaces its old one.
+_FORGET: dict = sys.__dict__.setdefault("_hermes_artifacts_forget", {})
+
+
+def on_forget(fn) -> None:
+    """Register ``fn(aid, folder)``: called when an artifact is deleted for good (its caches go)."""
+    _FORGET[f"{fn.__module__}.{fn.__qualname__}"] = fn
+
+
+def _rmtree(p: Path, tries: int = 3) -> bool:
+    """Remove ``p`` whole, retrying files a scanner or viewer holds for a moment (read-only ones made
+    writable). True when it is gone."""
+    def again(fn, path, exc):
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            fn(path)
+        except OSError:
+            pass
+    for i in range(tries):
+        if not os.path.lexists(p):
+            return True
+        try:
+            if p.is_dir() and not p.is_symlink():
+                shutil.rmtree(p, onerror=again)
+            else:
+                p.unlink()
+        except OSError:
+            pass
+        if not os.path.lexists(p):
+            return True
+        time.sleep(0.05 * (i + 1))
+    return not os.path.lexists(p)
+
+
+def _purge_item(item: Path) -> bool:
+    """Delete a trashed artifact folder for good, and its id everywhere else. True when nothing is left."""
+    aid = _trash_id(item)
+    hidden = item.with_name(f"{PURGING}{item.name}-{secrets.token_hex(3)}")
+    try:
+        os.rename(item, hidden)
+    except OSError:
+        hidden = item  # in use: removed where it is, as far as it goes
+    gone = _rmtree(hidden)
+    if not gone and hidden == item:
+        try:  # what is left says so: the trash no longer lists it, the sweep finishes it
+            _write_json(item / TRASH_MARK, {"id": aid, "purging": True}, durable=False)
+        except OSError:
+            pass
+    if not gone:
+        logger.warning("could not delete %s for good yet (a file of it is in use): the next sweep finishes it", hidden)
+    if aid:
+        forget(aid)
+    return gone
+
+
+def _trash_id(item: Path) -> Optional[str]:
+    try:
+        aid = json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("id")
+    except Exception:
+        aid = None
+    if not aid:
+        try:
+            aid = json.loads((item / "meta.json").read_text(encoding="utf-8")).get("id")
+        except Exception:
+            aid = None
+    name = item.name[len(PURGING):] if item.name.startswith(PURGING) else item.name
+    aid = aid or re.sub(r"-\d{9,11}(?:-\d+)?(?:-[0-9a-f]{6})?$", "", name)
+    return aid if isinstance(aid, str) and _ID_RE.match(aid) else None
+
+
+def _id_in_use(aid: str) -> bool:
+    """Whether the id still names something: a live artifact, or another copy waiting in the trash."""
+    if (root() / aid).exists():
+        return True
+    trash = _trash()
+    try:
+        items = [i for i in trash.iterdir() if i.is_dir() and not i.name.startswith(".")]
+    except OSError:
+        return False
+    for i in items:
+        if i.name == aid or i.name.startswith(aid + "-"):
+            if _trash_id(i) == aid:
+                try:
+                    if json.loads((i / TRASH_MARK).read_text(encoding="utf-8")).get("purging"):
+                        continue
+                except Exception:
+                    pass
+                return True
+    return False
+
+
+def forget(aid: str) -> None:
+    """Remove every reference to ``aid`` outside its folder: inbox items, views, making states, settings,
+    caches. Nothing when the id is in use again (an artifact made since under it, a restore, another copy in
+    the trash). Never raises."""
+    try:
+        if _id_in_use(aid):
+            return
+        with _LOCK:
+            p = _inbox_path()
+            if p.is_file():
+                items = inbox_list(include_acked=True)
+                keep = [i for i in items if i.get("artifact") != aid]
+                if len(keep) != len(items):
+                    write_atomic(p, "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in keep))
+            for path, test in ((_views_path(), lambda v: v.get("artifact") == aid),
+                               (_making_path(), lambda v: v.get("id") == aid)):
+                try:
+                    data = read_json(path)
+                except (OSError, ValueError):
+                    continue
+                if isinstance(data, dict):
+                    keep = {k: v for k, v in data.items() if not (isinstance(v, dict) and test(v))}
+                    if len(keep) != len(data):
+                        _write_json(path, keep, durable=False)
+            s = settings()
+            if s.get("default_design_system") == aid:
+                settings_set("default_design_system", None)
+            per = s.get("design_system_for")
+            if isinstance(per, dict) and aid in per.values():
+                settings_set("design_system_for", {k: v for k, v in per.items() if v != aid} or None)
+        d = root() / aid
+        prefix = str(d)
+        for cache in (_METAS, _CARDS, _OPEN_COUNTS, _BAK_AT):
+            for k in [k for k in cache if str(k) == prefix or str(k).startswith(prefix + os.sep)]:
+                cache.pop(k, None)
+        for fn in list(_FORGET.values()):
+            try:
+                fn(aid, d)
+            except Exception:
+                logger.debug("forgetting %s failed in %r", aid, fn, exc_info=True)
+    except Exception:
+        logger.debug("forgetting %s failed", aid, exc_info=True)
+
+
+# --- version retention ----------------------------------------------------------------------------------
+# A version is a whole copy of the artifact's files (unchanged files hard-linked to the version before, where
+# the file system allows). The newest ``max_versions`` (plugin setting, default MAX_VERSIONS, 0 = all) are
+# kept, with the latest always and any version an open comment was made on; the rest go at the next publish:
+# folder, preview and entry together. Numbers are never reused (the next is the highest + 1).
+
+MAX_VERSIONS = 30
+_CONFIG: dict = {"getter": None}
+_CFG_READ: dict = {}  # key -> (when read, value): Hermes' config.yaml read at most every 5 s
+
+
+def set_config_getter(getter) -> None:
+    """The plugin context's get_config (the agent's process): settings read through it."""
+    _CONFIG["getter"] = getter
+
+
+def config_value(key: str, default):
+    """A plugin setting (config_schema): through the plugin context when there is one, else Hermes' config.yaml
+    as Hermes reads it (the web server runs no plugin context), else ``default``."""
+    getter = _CONFIG["getter"]
+    if getter is not None:
+        try:
+            v = getter(key)
+        except Exception:
+            v = None
+        return default if v in (None, "") else v
+    now = time.monotonic()
+    hit = _CFG_READ.get(key)
+    if hit and now - hit[0] < 5:
+        return hit[1]
+    value = default
+    try:
+        from hermes_cli.config import load_config_readonly
+        cfg = load_config_readonly() or {}
+        entry = (((cfg.get("plugins") or {}).get("entries") or {}).get(PLUGIN_ID) or {})
+        for sub in ("settings", "config"):
+            got = (entry.get(sub) or {}).get(key) if isinstance(entry.get(sub), dict) else None
+            if got not in (None, ""):
+                value = got
+                break
+    except Exception:
+        value = default
+    _CFG_READ[key] = (now, value)
+    return value
+
+
+def max_versions() -> int:
+    """The max_versions setting: how many versions an artifact keeps (0: all)."""
+    try:
+        return max(0, int(config_value("max_versions", MAX_VERSIONS)))
+    except (TypeError, ValueError):
+        return MAX_VERSIONS
+
+
+def _prune_versions(aid: str, meta: dict) -> list:
+    """Drop from ``meta`` the versions past max_versions (not the latest, nor one an open comment was made on).
+    Returns the numbers dropped; the caller writes meta, then _drop_versions removes their files."""
+    cap = max_versions()
+    vs = meta.get("versions") or []
+    if not cap or len(vs) <= cap:
+        return []
+    keep = {v["n"] for v in vs[-cap:]} | {vs[-1]["n"]}
+    try:
+        keep |= {int(c["version"]) for c in comments_list(aid, include_resolved=False) if c.get("version")}
+    except (OSError, ValueError, TypeError, KeyError):
+        return []  # unsure what the comments point at: keep everything this time
+    dropped = [v["n"] for v in vs if v["n"] not in keep]
+    meta["versions"] = [v for v in vs if v["n"] in keep]
+    return dropped
+
+
+def _drop_versions(d: Path, ns: list) -> None:
+    for n in ns:
+        vdir = d / f"v{int(n)}"
+        hidden = d / f"{PURGING}v{int(n)}-{secrets.token_hex(3)}"
+        try:
+            os.rename(vdir, hidden)
+        except OSError:
+            hidden = vdir  # in use: meta no longer names it, the sweep removes what stays
+        _rmtree(hidden)
+        try:
+            (d / "previews" / f"v{int(n)}.png").unlink()
+        except OSError:
+            pass
+
+
+# --- the sweep: files nothing will ever read again ------------------------------------------------------
+# Rides the trash purge (purge_trash_due: the gallery's requests at most once a day per process, and the
+# plugin's start): no timer, no process of its own. Each call works through the artifacts for SWEEP_S at
+# most, going on next time from where it stopped. A writer in another process may be mid-write: only what is
+# older than ORPHAN_AGE goes (a write takes milliseconds), under this process's lock.
+
+ORPHAN_AGE = 3600.0
+CORRUPT_DAYS = 7
+SWEEP_S = 2.0
+_SWEPT: dict = {"after": ""}  # the last artifact folder looked at
+_CORRUPT = re.compile(r"\.corrupt-(\d{9,11})$")
+
+
+def _age(p: Path, now: float) -> float:
+    try:
+        return now - os.lstat(p).st_mtime
+    except OSError:
+        return -1.0
+
+
+def _sweep_files(d: Path, now: float, out: dict) -> None:
+    """In one folder (not a version's): dead writers' temp files, copies whose file is gone, kept-aside corrupt
+    files past CORRUPT_DAYS, half-deleted .purging- folders."""
+    try:
+        entries = list(os.scandir(d))
+    except OSError:
+        return
+    names = {e.name for e in entries}
+    for e in entries:
+        p = Path(e.path)
+        name = e.name
+        if name.startswith(PURGING):
+            if _rmtree(p):
+                out["purging"] = out.get("purging", 0) + 1
+            continue
+        if not e.is_file(follow_symlinks=False):
+            continue
+        why = None
+        if name.endswith(".tmp") and _age(p, now) > ORPHAN_AGE:
+            why = "tmp"
+        elif name.endswith(".bak") and name[:-4] not in names and _age(p, now) > ORPHAN_AGE:
+            why = "bak"
+        else:
+            m = _CORRUPT.search(name)
+            if m and now - int(m.group(1)) > CORRUPT_DAYS * 86400:
+                why = "corrupt"
+        if why:
+            try:
+                p.unlink()
+                out[why] = out.get(why, 0) + 1
+            except OSError:
+                pass
+
+
+def _sweep_empty(d: Path, now: float, out: dict) -> None:
+    try:
+        if not any(os.scandir(d)) and _age(d, now) > ORPHAN_AGE:
+            d.rmdir()
+            out["empty"] = out.get("empty", 0) + 1
+    except OSError:
+        pass
+
+
+def _sweep_artifact(d: Path, now: float, out: dict) -> None:
+    if not (d / "meta.json").is_file():
+        # A first publish that died before its meta.json (nothing ever listed it): its folder goes.
+        if _age(d, now) > ORPHAN_AGE and not any(_age(Path(e.path), now) <= ORPHAN_AGE for e in os.scandir(d)):
+            if _rmtree(d):
+                out["unlisted"] = out.get("unlisted", 0) + 1
+        return
+    _sweep_files(d, now, out)
+    with _LOCK:
+        meta = get_meta(d.name)
+        if not meta or not isinstance(meta.get("versions"), list):
+            return
+        ns = {v["n"] for v in meta["versions"]}
+        missing = [n for n in ns if not (d / f"v{n}").is_dir()]
+        if missing and len(missing) < len(ns):  # meta naming a version whose folder is gone: the entry goes
+            meta["versions"] = [v for v in meta["versions"] if v["n"] not in missing]
+            _write_json(d / "meta.json", meta, backup=True)
+            out["entries"] = out.get("entries", 0) + len(missing)
+            ns -= set(missing)
+        for e in os.scandir(d):
+            m = re.fullmatch(r"v(\d{1,9})", e.name)
+            if m and e.is_dir() and int(m.group(1)) not in ns and _age(Path(e.path), now) > ORPHAN_AGE:
+                if _rmtree(Path(e.path)):  # a version meta no longer names (pruned, a publish that died)
+                    out["versions"] = out.get("versions", 0) + 1
+        latest = sorted(ns)[-PREVIEWS_KEPT:]
+    pv = d / "previews"
+    if pv.is_dir():
+        for e in os.scandir(pv):
+            m = re.fullmatch(r"v(\d{1,9})\.png", e.name)
+            if m and int(m.group(1)) not in latest:
+                try:
+                    os.unlink(e.path)
+                    out["previews"] = out.get("previews", 0) + 1
+                except OSError:
+                    pass
+        _sweep_files(pv, now, out)
+    for sub in ("cache", "sheet", "board", "doc"):
+        sd = d / sub
+        if not sd.is_dir():
+            continue
+        if sub == "cache":
+            from . import live
+            for e in os.scandir(sd):
+                if e.name.endswith(".json") and _age(Path(e.path), now) > live.KEEP_S:
+                    try:
+                        os.unlink(e.path)
+                        out["cache"] = out.get("cache", 0) + 1
+                    except OSError:
+                        pass
+        if sub == "doc":
+            from . import docs
+            docs.sweep(d.name, sd, now, out)
+        _sweep_files(sd, now, out)
+        for e in os.scandir(sd):
+            if e.is_dir(follow_symlinks=False):
+                _sweep_files(Path(e.path), now, out)
+                _sweep_empty(Path(e.path), now, out)
+        _sweep_empty(sd, now, out)
+    if pv.is_dir():
+        _sweep_empty(pv, now, out)
+
+
+def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
+    """Remove what nothing will read again (see above). Returns {kind: count}; logged at debug."""
+    t0 = time.monotonic()
+    now = time.time() if now is None else now
+    out: dict = {}
+    base = root()
+    _sweep_files(base, now, out)  # the root's dead temp files (settings, inbox, views, making)
+    for e in os.scandir(base):
+        if e.name.startswith(".case-") and _age(Path(e.path), now) > ORPHAN_AGE:
+            try:
+                os.unlink(e.path)
+            except OSError:
+                pass
+    trash = _trash()
+    if trash.is_dir():
+        for item in list(trash.iterdir()):
+            if item.name.startswith(PURGING):
+                if _rmtree(item):
+                    out["purging"] = out.get("purging", 0) + 1
+                continue
+            try:
+                if json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("purging"):
+                    with _LOCK:
+                        if _purge_item(item):
+                            out["purging"] = out.get("purging", 0) + 1
+            except (OSError, ValueError, AttributeError):
+                pass
+    names = sorted(e.name for e in os.scandir(base) if e.is_dir(follow_symlinks=False) and not e.name.startswith("."))
+    after = _SWEPT["after"]
+    order = [n for n in names if n > after] + [n for n in names if n <= after]
+    done = 0
+    for name in order:
+        if time.monotonic() - t0 > budget_s:
+            break
+        try:
+            _sweep_artifact(base / name, now, out)
+        except Exception:
+            logger.debug("sweeping %s failed", name, exc_info=True)
+        _SWEPT["after"] = name
+        done += 1
+    out["artifacts"] = done
+    logger.debug("hermes-artifacts sweep: %s in %.0f ms", out, (time.monotonic() - t0) * 1000)
+    return out
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:
@@ -1508,8 +1923,13 @@ def version_dir(aid: str, n: Optional[int] = None) -> Path:
         raise no_artifact(aid)
     n = n or meta["versions"][-1]["n"]
     p = _dir(aid) / f"v{int(n)}"
-    if not p.is_dir():
-        raise NotFound(f"{aid} has no version {n} (latest: v{meta['versions'][-1]['n']})",
+    kept = {v["n"] for v in meta["versions"]}
+    if int(n) not in kept or not p.is_dir():
+        latest = meta["versions"][-1]["n"]
+        if 0 < int(n) < latest:  # pruned (max_versions), or lost
+            raise NotFound(f"{aid} v{n} is no longer kept (kept: v{min(kept)} to v{latest}, {len(kept)} versions)",
+                           next=f"ha_read id={aid} without version reads the latest")
+        raise NotFound(f"{aid} has no version {n} (latest: v{latest})",
                        next=f"ha_read id={aid} without version reads the latest")
     return p
 

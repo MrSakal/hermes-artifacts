@@ -276,9 +276,19 @@ def _load(aid: str) -> dict:
 
 
 def _write_file(p: Path, data: dict) -> None:
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, p)
+    store.write_atomic(p, json.dumps(data, ensure_ascii=False, separators=(",", ":")), durable=False)
+
+
+def _forget(aid: str, d: Path) -> None:
+    with _MLOCK:
+        t = _TIMERS.pop(aid, None)
+        _PENDING.pop(aid, None)
+        _LAST.pop(aid, None)
+    if t is not None:
+        t.cancel()
+
+
+store.on_forget(_forget)
 
 
 def flush(aid: str, now: Optional[float] = None) -> bool:

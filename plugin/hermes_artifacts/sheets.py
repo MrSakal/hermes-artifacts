@@ -16,6 +16,7 @@ version (sheet.json) starts the workbook again from it.
 from __future__ import annotations
 
 import json
+import os
 import math
 import re
 import secrets
@@ -1520,6 +1521,15 @@ def set_vals(aid: str, sheet: Optional[str], rev, vals) -> dict:
 MAX_SNAPS = 60
 MAX_SNAP_CELLS = 200_000  # all snapshots together keep at most this many cells
 SNAP_GAP = 120            # seconds: edits by the same author closer than this share one snapshot
+
+
+def _forget(aid: str, d: Path) -> None:
+    _CACHE.pop(aid, None)
+    for k in [k for k in _HIST_CACHE if str(k).startswith(str(d) + os.sep)]:
+        _HIST_CACHE.pop(k, None)
+
+
+store.on_forget(_forget)
 
 
 def _hist_path(aid: str) -> Path:

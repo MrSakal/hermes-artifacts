@@ -13,6 +13,7 @@ import re
 from collections import Counter
 import json
 import mimetypes
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -114,6 +115,14 @@ def _matches(a: list, b: list) -> list:
 
 
 _maps: dict = {}  # (version folder, entry, its mtime and size) -> the note: versions never change
+
+
+def _forget(aid: str, d: Path) -> None:
+    for k in [k for k in _maps if str(k[0]).startswith(str(d) + os.sep)]:
+        _maps.pop(k, None)
+
+
+store.on_forget(_forget)
 
 
 def line_map(entry: str, raw: str, html: str) -> str:

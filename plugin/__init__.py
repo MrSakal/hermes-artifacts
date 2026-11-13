@@ -1733,6 +1733,19 @@ def _cli(args):
 
 # ----------------------------------------------------------------------------- the trash
 
+def _forget_ids(aid: str, d) -> None:
+    """An artifact deleted for good: this process's memory of it (what agents saw and were told) goes."""
+    for mem in (_SEEN, _TOLD):
+        for k in [k for k in mem if isinstance(k, tuple) and len(k) > 1 and k[1] == aid]:
+            mem.pop(k, None)
+    _SHOWN_AT.pop(aid, None)
+    for k in [k for k, v in _REFUSED.items() if aid in json.dumps(v, default=str)]:
+        _REFUSED.pop(k, None)
+
+
+store.on_forget(_forget_ids)
+
+
 def _empty_old_trash() -> None:
     """Deleted artifacts wait in .trash/ for TRASH_DAYS; what is older goes for good when the plugin
     starts (in the background: a large trash must not hold up Hermes), on every later delete, and from the
@@ -1744,6 +1757,10 @@ def _empty_old_trash() -> None:
                 logger.info("hermes-artifacts: purged %d artifact(s) from the trash", len(gone))
         except Exception:
             logger.debug("purging the trash failed", exc_info=True)
+        try:
+            store.sweep()
+        except Exception:
+            logger.debug("the orphan sweep failed", exc_info=True)
 
     threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True).start()
 
@@ -1968,6 +1985,8 @@ def register(ctx) -> None:
     global _ctx, _section_ok
     _ctx = ctx
     running.record(prune=False)  # which code this process runs: the gallery warns when the server needs a restart
+    if callable(getattr(ctx, "get_config", None)):
+        store.set_config_getter(ctx.get_config)  # max_versions, read like page_diagnostics
     from .hermes_artifacts import live
     live.set_ctx(ctx)  # dashboards call MCP through ctx.call_mcp (the web server finds it by PLUGIN_ID)
     _empty_old_trash()
