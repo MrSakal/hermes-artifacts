@@ -3667,13 +3667,14 @@ async function waitReply(ctx, aid, rid) {
 const $focusPin = atom(0) // the thread whose pin was clicked on the page (its number)
 
 /** The picked element's rect from the page, checked: {x, y, w, h} (its box) and, from a 0.20 bridge, its first
- *  line (ly, lh) and whether the pin's spot right / left of it is free (fr, fl). null when malformed. */
+ *  line (ly, lh, lr: where its words end) and which pin spots are free (fr, fl, fw, fa, fb: pinSpot). null
+ *  when malformed. */
 function pickedRect(r) {
   if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite)) return null
   const out = { x: r.x, y: r.y, w: r.w, h: r.h }
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
-  if (typeof r.fr === 'boolean') out.fr = r.fr
-  if (typeof r.fl === 'boolean') out.fl = r.fl
+  if (Number.isFinite(r.lr)) out.lr = r.lr
+  for (const k of ['fr', 'fl', 'fw', 'fa', 'fb']) if (typeof r[k] === 'boolean') out[k] = r[k]
   return out
 }
 
@@ -4797,18 +4798,28 @@ const COMMENT_W = 320 // its box
 const TEXT_MAX_H = 160 // a comment's text box grows up to this, then scrolls
 const PIN_GAP = 6 // between the element and its pin (bridge.js PIN_GAP)
 const PIN_EDGE = 4 // the least room between the pin and the stage's edge (bridge.js PIN_EDGE)
-/** Where the new comment's pin goes for the element clicked: in the free space beside its box, right of it
- *  (else left), centred on its first line, so it never covers the element's words or a neighbour's (the
- *  bridge says whether that spot is free of other elements: fr, fl). Only an element with no free side
- *  (it fills the stage, or words are on both sides) gets it over itself, in its top right corner. Pure. */
+/** Where the new comment's pin goes for the element clicked, so it never covers the element's words or a
+ *  neighbour's. Tried in turn, each only where it fits the stage and the bridge found it free (fr, fl, fw,
+ *  fa, fb: no other element's words, picture or control under it): right of the box, then left of it,
+ *  centred on its first line; right after that line's words (lr; a narrow table cell); above, then below
+ *  the box's right end. Only when none is free (or the element fills the stage) it goes over the element, in
+ *  its top right corner. Pure. */
 function pinSpot(rect, bw, bh) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+  const fitsX = x => x >= PIN_EDGE && x + PIN <= bw - PIN_EDGE
+  const fitsY = y => y >= PIN_EDGE && y + PIN <= bh - PIN_EDGE
   const ly = Number.isFinite(rect.ly) ? rect.ly : rect.y
   const lh = Number.isFinite(rect.lh) && rect.lh > 0 ? rect.lh : Math.min(rect.h, 24)
   const y = clamp(ly + lh / 2 - PIN / 2, PIN_EDGE, bh - PIN - PIN_EDGE)
-  const right = rect.x + rect.w + PIN_GAP, left = rect.x - PIN_GAP - PIN
-  if (rect.fr !== false && right >= PIN_EDGE && right + PIN <= bw - PIN_EDGE) return { x: right, y }
-  if (rect.fl !== false && left >= PIN_EDGE && left + PIN <= bw - PIN_EDGE) return { x: left, y }
+  const end = rect.x + rect.w - PIN
+  const spots = [
+    [rect.fr, rect.x + rect.w + PIN_GAP, y],
+    [rect.fl, rect.x - PIN_GAP - PIN, y],
+    ...(Number.isFinite(rect.lr) ? [[rect.fw === true, rect.lr + PIN_GAP, y]] : []),
+    [rect.fa === true, end, rect.y - PIN_GAP - PIN],
+    [rect.fb === true, end, rect.y + rect.h + PIN_GAP]
+  ]
+  for (const [free, x, sy] of spots) if (free !== false && fitsX(x) && fitsY(sy)) return { x, y: sy }
   return { x: clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE) }
 }
 

@@ -173,14 +173,27 @@ class CommentPinTests(unittest.TestCase):
         self.assertEqual(first["pin"]["y"] + 13, 355 + 13.5)
         self.assertIn({"side": "l"}, [{"side": o["side"]} for o in out if o["rect"].get("fr") is False and "fl" not in o["rect"]])
         self.assertTrue(all(o["side"] == "over" for o in out if o["rect"].get("fl") is False))
+        # a narrow table cell with words on both sides (the harness's "Ben"): right after its own words, else
+        # above or below its right end; the corner only when nothing is free
+        body = """
+        const cell = { x: 640, y: 453, w: 63, h: 42, ly: 462, lh: 24, lr: 672, fr: false, fl: false }
+        console.log(JSON.stringify([m.pinSpot({ ...cell, fw: true }, 1500, 900), m.pinSpot({ ...cell, fw: false, fa: true }, 1500, 900),
+          m.pinSpot({ ...cell, fw: false, fa: false, fb: true }, 1500, 900), m.pinSpot({ ...cell, fw: false }, 1500, 900)]))
+        """
+        words, above, below, corner = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(words, {"x": 672 + 6, "y": 462 + 12 - 13})
+        self.assertEqual(above, {"x": 703 - 26, "y": 453 - 6 - 26})
+        self.assertEqual(below, {"x": 703 - 26, "y": 453 + 42 + 6})
+        self.assertEqual(corner, {"x": 703 - 26 - 4, "y": 453 + 4})
 
     def test_the_bridge_reports_the_first_line_and_the_free_sides(self):
         body = """
-        console.log(JSON.stringify([m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 2, lh: 20, fr: false, fl: true }), m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 'a', fr: 1 }),
-          m.pickedRect({ x: 1, y: NaN, w: 3, h: 4 })]))
+        console.log(JSON.stringify([m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 2, lh: 20, lr: 3, fr: false, fl: true, fw: true, fa: false, fb: true, z: 1 }),
+          m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 'a', fr: 1 }), m.pickedRect({ x: 1, y: NaN, w: 3, h: 4 })]))
         """
         out = run_node(stub_module(EXPORTS), body)
-        self.assertEqual(out, [{"x": 1, "y": 2, "w": 3, "h": 4, "ly": 2, "lh": 20, "fr": False, "fl": True}, {"x": 1, "y": 2, "w": 3, "h": 4}, None])
+        self.assertEqual(out, [{"x": 1, "y": 2, "w": 3, "h": 4, "ly": 2, "lh": 20, "lr": 3, "fr": False, "fl": True, "fw": True, "fa": False, "fb": True},
+                               {"x": 1, "y": 2, "w": 3, "h": 4}, None])
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertIn("var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;", bridge)  # the host's own numbers
         self.assertIn("const PIN = 26", SRC)

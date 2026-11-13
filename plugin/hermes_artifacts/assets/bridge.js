@@ -457,18 +457,41 @@
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
   var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;
-  /** The first line of the element's words, {top, height}; null when it has none (an image). */
+  /** The first line of the element's words, {top, height, right}; null when it has none (an image). */
   function firstLine(el) {
+    try {
+      var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, rg = document.createRange(), line = null;
+      for (var i = 0; (n = w.nextNode()) && i < 400; i++) {
+        if (!/\S/.test(n.nodeValue)) continue;
+        rg.selectNodeContents(n);
+        var rs = rg.getClientRects();
+        for (var j = 0; j < rs.length; j++) {
+          var q = rs[j];
+          if (!(q.height > 0 && q.width > 0)) continue;
+          if (!line) line = { top: q.top, height: q.height, right: q.right };
+          else if (q.top < line.top + line.height / 2) line.right = Math.max(line.right, q.right); // the same line
+          else return line;
+        }
+      }
+      return line;
+    } catch (_) {}
+    return null;
+  }
+  /** Whether any of el's own words cross box. */
+  function ownWords(el, box) {
     try {
       var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
       for (var i = 0; (n = w.nextNode()) && i < 400; i++) {
         if (!/\S/.test(n.nodeValue)) continue;
         rg.selectNodeContents(n);
-        var q = rg.getClientRects()[0];
-        if (q && q.height > 0) return { top: q.top, height: q.height };
+        var rs = rg.getClientRects();
+        for (var j = 0; j < rs.length; j++) {
+          var q = rs[j];
+          if (q.width && q.height && q.left < box.r && q.right > box.l && q.top < box.b && q.bottom > box.t) return true;
+        }
       }
     } catch (_) {}
-    return null;
+    return false;
   }
   var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|svg)$/;
   /** Whether a pin at box {l, t, r, b} would cover anything of another element: its words, or a picture or
@@ -482,32 +505,31 @@
         var h = hits[k];
         if (seen.indexOf(h) >= 0 || h === el || h.contains(el) || el.contains(h) || h.closest("[data-hermes-ui]")) continue;
         seen.push(h);
-        if (SOLID.test(h.tagName)) return true;
-        try {
-          var w = document.createTreeWalker(h, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
-          for (var i = 0; (n = w.nextNode()) && i < 200; i++) {
-            if (!/\S/.test(n.nodeValue)) continue;
-            rg.selectNodeContents(n);
-            var rs = rg.getClientRects();
-            for (var j = 0; j < rs.length; j++) {
-              var q = rs[j];
-              if (q.width && q.height && q.left < box.r && q.right > box.l && q.top < box.b && q.bottom > box.t) return true;
-            }
-          }
-        } catch (_) {}
+        if (SOLID.test(h.tagName) || ownWords(h, box)) return true;
       }
     }
     return false;
   }
-  /** The picked element for the host: its box (x, y, w, h), its first line (ly, lh) and whether the pin's
-   *  spot right (fr) and left (fl) of it, on that line, is free of other elements' words. */
+  /** The picked element for the host: its box (x, y, w, h), its first line (ly, lh, and lr where its words
+   *  end) and which of the pin's spots are free (the host's pinSpot tries them in this order): right (fr) and
+   *  left (fl) of the box on that line, after the line's words (fw), above (fa) and below (fb) the box's
+   *  right end. A spot is free when no other element's words, picture or control is under it (fw: nor the
+   *  element's own words). */
   function pickRect(el) {
     var r = el.getBoundingClientRect(), line = firstLine(el);
     var ly = line ? line.top : r.top, lh = line ? line.height : Math.min(r.height, 24);
     var t = Math.max(PIN_EDGE, Math.min(window.innerHeight - PIN - PIN_EDGE, ly + lh / 2 - PIN / 2));
-    var R = r.right + PIN_GAP, L = r.left - PIN_GAP - PIN;
-    return { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh,
-             fr: !blocked(el, { l: R, t: t, r: R + PIN, b: t + PIN }), fl: !blocked(el, { l: L, t: t, r: L + PIN, b: t + PIN }) };
+    var at = function (l, tp) { return { l: l, t: tp, r: l + PIN, b: tp + PIN }; };
+    var R = r.right + PIN_GAP, L = r.left - PIN_GAP - PIN, end = r.right - PIN;
+    var out = { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh,
+                fr: !blocked(el, at(R, t)), fl: !blocked(el, at(L, t)),
+                fa: !blocked(el, at(end, r.top - PIN_GAP - PIN)), fb: !blocked(el, at(end, r.bottom + PIN_GAP)) };
+    if (line) {
+      var wb = at(line.right + PIN_GAP, t);
+      out.lr = line.right;
+      out.fw = !blocked(el, wb) && !ownWords(el, wb);
+    }
+    return out;
   }
   function onPick(e) {
     if (!picking) return;
