@@ -136,9 +136,9 @@ input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: va
 #sl-striphead .kit-btn { min-width: 28px; height: 28px; padding: 0 5px; justify-content: center; }
 #sl-rail { width: auto; display: flex; align-items: flex-start; gap: 10px; overflow-x: auto; overflow-y: hidden; padding: 8px 12px 12px;
   border-right: 0; position: relative; }
-#sl-rail .sl-thumb { width: 150px; flex: none; margin: 0; }
-#sl-rail .sl-num { left: 6px; top: auto; bottom: 6px; transform: none; z-index: 1; padding: 1px 6px; border-radius: 5px;
-  background: var(--color-panel); color: var(--color-fg); border: 1px solid var(--color-border-line); font-size: 10.5px; }
+/* A slide's number sits beside its picture, never on it (a badge on the picture covered the slide's own words). */
+#sl-rail .sl-thumb { width: 150px; flex: none; margin: 0 0 0 16px; }
+#sl-rail .sl-num { left: -4px; top: 0; transform: translateX(-100%); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
 #sl-rail .sl-sec { width: 120px; flex: none; align-self: center; margin: 0; }
 .sl-drop { left: 0; right: auto; top: 8px; bottom: 12px; width: 3px; height: auto; }
 #sl-notes { max-height: 22%; }

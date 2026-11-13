@@ -346,7 +346,7 @@
   // ------------------------------------------------------------------ the canvas: a world layer under pan and zoom, a screen layer for handles
   var ro = !live;                              // no bridge, a thumbnail, a history preview: view only
   function canEdit() { return live && !preview; }
-  var view = h("div", { "class": "bd-view", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
+  var view = h("div", { "class": "bd-view kit-surface", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
   var world = h("div", { "class": "bd-world" }), ui = h("div", { "class": "bd-ui" });
   var draftSvg = svgEl("svg", { "class": "bd-draft", "aria-hidden": "true" });  // in board units: a line being drawn, snapping guides
   var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", role: "toolbar", "aria-label": T.more, hidden: true });
@@ -1685,7 +1685,7 @@
   zoomEl.querySelectorAll("button").forEach(function (b) { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.title); });
 
   // "Ask Hermes": a line above the tools that goes to the chat with the selected items' ids
-  var askIn = h("input", { type: "text", "class": "bd-askin", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
+  var askIn = h("input", { type: "text", "class": "bd-askin kit-bare", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
   var askEl = h("form", { "class": "bd-ask bd-chrome", hidden: true }, [h("span", { "class": "bd-askic", html: kit.icon("sparkle") }), askIn,
     h("button", { type: "submit", "class": "kit-btn bd-asksend", title: T.send, "aria-label": T.send, html: kit.icon("arrowUR") })]);
   function openAsk() {

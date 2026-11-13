@@ -121,6 +121,9 @@ html[data-ds-thumb] #ds-app { display: block; min-height: 0; }
 html[data-ds-thumb] #ds-nav { display: none; }
 html[data-ds-thumb] .ds-cover { margin: 0; border: 0; border-radius: 0; }
 html[data-ds-thumb] body { overflow: hidden; }
+.ds-thumb-cover { display: flex; flex-direction: column; height: 100vh; }
+.ds-thumb-cover .ds-cover { flex: none; }
+.ds-thumb-pal { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; min-height: 0; }
 .ds-thumb-fallback { position: relative; height: 100vh; padding: 32px; display: flex; flex-direction: column; justify-content: flex-end; }
 .ds-thumb-blocks { position: absolute; top: 0; right: 0; width: 50%; height: 70%; display: grid; grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); }
 .ds-thumb-name { font: 600 56px/.95 var(--font-display); letter-spacing: -.02em; max-width: 50%; }
@@ -128,7 +131,8 @@ html[data-ds-thumb] body { overflow: hidden; }
 @media (max-width: 760px) {
   #ds-app { grid-template-columns: 1fr; }
   #ds-nav { position: static; height: auto; flex-direction: row; overflow-x: auto; padding: 6px 8px; border-right: 0;
-    border-bottom: 1px solid var(--color-border-line); }
+    border-bottom: 1px solid var(--color-border-line); scrollbar-width: none; }
+  #ds-nav::-webkit-scrollbar { display: none; height: 0; } /* a tab strip scrolls by wheel, drag and focus: no bar under it */
   .ds-nav-foot { display: none; }
   .ds-nav-i { width: auto; flex: none; }
   .ds-page { padding: 16px 16px 48px; }

@@ -455,10 +455,24 @@
     hoverBox = hoverBox || box(mark());
     place2(hoverBox, el);
   }
+  /** The element's box narrowed to where its words are drawn (a list item or a paragraph spans the column;
+   *  its words may end far left): the host puts its pin at the right end and its form beside it, so a pin
+   *  where the words end leaves the form room. {left, top, width, height}, the element's own top and height. */
+  function inked(el) {
+    var r = el.getBoundingClientRect();
+    try {
+      var rg = document.createRange();
+      rg.selectNodeContents(el);
+      var t = rg.getBoundingClientRect();
+      var l = Math.max(r.left, t.left), rt = Math.min(r.right, t.right);
+      if (t.width > 0 && t.height > 0 && rt > l) return { left: l, top: r.top, width: rt - l, height: r.height };
+    } catch (_) {}
+    return r;
+  }
   function onPick(e) {
     if (!picking) return;
-    e.preventDefault(); e.stopPropagation();
-    var el = e.target, r = el.getBoundingClientRect();
+    e.preventDefault(); e.stopImmediatePropagation();
+    var el = e.target, r = inked(el);
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
     emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(),
                      rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
@@ -469,6 +483,18 @@
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }
   }
+  // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
+  // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
+  // still comes (onPick; a page that picks on its own, like motion, takes it on window first).
+  function swallow(e) {
+    if (!picking) return;
+    var t = e.target;
+    if (t && t.closest && t.closest("[data-hermes-ui]")) return;
+    if (e.cancelable) e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "dblclick", "auxclick", "contextmenu", "touchstart", "dragstart", "selectstart"]
+    .forEach(function (t) { window.addEventListener(t, swallow, { capture: true, passive: false }); });
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onPick, true);
   on("comment-mode", function (d) { setPicking(d && d.on); });
@@ -603,6 +629,12 @@
     /** Type runtimes: tell the host which exports to offer in its toolbar ([{id, label}]); the host
      *  then sends an "export" event with the id the user picked. */
     chrome: function (opts) { return call("chrome", opts || {}); },
+    /** Type runtimes: a short note to the person, shown by the host as its own toast (kind: info, success,
+     *  error). Resolves {ok: true} when the host showed it; a host without the op rejects (the page shows its own). */
+    notify: function (message, kind, ms) {
+      return call("notify", { message: String(message == null ? "" : message).slice(0, 300),
+        kind: kind === "error" || kind === "success" ? kind : "info", ms: typeof ms === "number" && ms > 0 ? Math.min(ms, 15000) : null });
+    },
     /** Type runtimes: where the user is in the page (sent along with their next chat message). */
     view: function (context) { return call("view", { context: context || {} }); },
     /** Type runtimes: report what the page found ("check") and how its sources ran ("runs"). */

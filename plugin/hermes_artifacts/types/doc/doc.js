@@ -127,7 +127,7 @@
     }
     return kit.fileUrl(p) || "";
   }
-  var dateFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { year: "numeric", month: "short", day: "numeric" });
+  var dateFmt = new Intl.DateTimeFormat(kit.locale(), { year: "numeric", month: "short", day: "numeric" });
   function fmtDate(v) { var d = new Date(v + "T12:00:00"); return isNaN(d) ? v : dateFmt.format(d); }
   var PALETTE = ["gray", "blue", "green", "yellow", "orange", "red", "purple"]; // by option order: not started, under way, done…
   function optionsOf(name) {
@@ -765,6 +765,7 @@
     var n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
     return n && n.closest ? n.closest(".doc-blk[data-block]") : null;
   }
+  function drawnMd(b) { return isWidget(b.md) ? null : mdOf(drawBlock(b, h("div"))); } // the block as drawn, read back
   function mdOf(el) {
     var src = el.querySelector("textarea.doc-src");
     if (src) return src.fenced ? src.fenced(src.value) : src.value;
@@ -797,6 +798,10 @@
     if (!el) return Promise.resolve();
     var now = mdOf(el);
     if (now === f.saved) return Promise.resolve();
+    // Words that read back as the block's Markdown drawn again are no edit: a focus, a click, a pick for a
+    // comment never write (a Markdown spelling the editor writes differently stays as the server has it).
+    var b0 = blockOf(f.id);
+    if (b0 && b0.md === f.saved && now === drawnMd(b0)) return Promise.resolve();
     f.saved = now; // in the outbox now: kept and sent until the server takes it (a block Hermes removed comes back: repairOps)
     var p = writeBlock(f.id, now, f.sug ? { sug: true } : { base: f.base });
     if (final) redrawOne(f.id);
@@ -2059,7 +2064,7 @@
   var margin = h("div", { "class": "doc-margin", "aria-label": T.comment });
   view.appendChild(margin);
   var pins = [];
-  var timeFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  var timeFmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function drawMargin() {
     if (!live) return;
     var cards = [];
@@ -2650,7 +2655,7 @@
     commit();
     var t = tab();
     hm.doc.history(t.id).then(function (r) {
-      var fmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      var fmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
       if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
       kit.menu(histBtn, list.slice(0, 30).map(function (x) {

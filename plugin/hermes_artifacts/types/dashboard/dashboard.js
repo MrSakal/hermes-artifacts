@@ -20,7 +20,7 @@
   var kit = window.kit, h = kit.h, C = kit.content;
   var spec = kit.json("dashboard.json", null);
   // Numbers and dates as Hermes writes its own (the locale it runs in), unless the dashboard names one (`lang`).
-  window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : undefined;
+  window.dashLocale = spec && typeof spec.lang === "string" && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(spec.lang) ? spec.lang : kit.locale(); // else the app's language (never the system's)
   var root = document.getElementById("dash-root");
   var bar = document.getElementById("dash-bar");
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
@@ -471,6 +471,7 @@
     scheduled = true;
     requestAnimationFrame(function () {
       scheduled = false;
+      syncRefresh();
       drawers.forEach(run);
       runDraws();
       stamp();
@@ -663,7 +664,7 @@
     var s = (Date.now() - t) / 1000;
     if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
     if (s < 86400) return Math.round(s / 3600) + " h";
-    return new Date(t).toLocaleDateString();
+    return new Date(t).toLocaleDateString(kit.locale());
   }
   function isStale(d) {
     if (!d.staleAfterHours || !d.updated || !d.updated.at) return false;
@@ -678,7 +679,8 @@
       v = typeof v === "object" ? JSON.stringify(v) : String(v);
       return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
-    return [cols.map(q).join(",")].concat((r.rows || []).map(function (o) { return cols.map(function (c) { return q(o[c]); }).join(","); })).join("\n");
+    // RFC 4180: a cell with a comma, a quote or a line break in quotes (its quotes doubled); lines end with CRLF
+    return [cols.map(q).join(",")].concat((r.rows || []).map(function (o) { return cols.map(function (c) { return q(o[c]); }).join(","); })).join("\r\n");
   }
 
   function table(r, hit, full) {
@@ -1038,8 +1040,8 @@
     if (!at) return "";
     var d = new Date(at * 1000), s = (Date.now() - d.getTime()) / 1000;
     if (s < 60) return T.justNow;
-    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString(kit.locale(), { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
   }
   function summaryText(sm, versions) {
     if (!sm) return "";
@@ -1047,7 +1049,7 @@
     if (sm.what === "restored") {
       var v = (versions || []).filter(function (x) { return x.n === sm.restored; })[0];
       var d = v && v.at ? new Date(v.at * 1000) : null;
-      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
+      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(kit.locale(), { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
     }
     var th = sm.things || [];
     if (!th.length) return T.hNoChange;
@@ -1202,7 +1204,7 @@
           var same = JSON.stringify(e.args) === JSON.stringify(d.source.args || {});
           histBox.appendChild(h("button", { "class": "src-hist-row", type: "button", onclick: function () {
             ta.value = JSON.stringify(e.args, null, 2); msg.textContent = T.restored; ta.dispatchEvent(new Event("input"));
-          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString() }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
+          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString(kit.locale()) }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
         });
         histBox.hidden = false;
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
@@ -1293,7 +1295,7 @@
     var main = doc.querySelector("#dash-main");
     if (main) main.style.marginRight = "";
     var foot = h("p", { style: "margin:24px var(--dash-gutter,24px);font-size:12px;color:var(--color-fg-muted)",
-      text: (C.title || "") + " · " + new Date().toLocaleString() + (L === "hu" ? " · a számok nem frissülnek" : " · numbers do not update") });
+      text: (C.title || "") + " · " + new Date().toLocaleString(kit.locale()) + (L === "hu" ? " · a számok nem frissülnek" : " · numbers do not update") });
     (doc.querySelector("#dash-main") || doc.querySelector("body")).appendChild(foot);
     return "<!doctype html>\n" + doc.outerHTML;
   }
@@ -1329,7 +1331,11 @@
     fullBtn.setAttribute("aria-pressed", String(full)); fullBtn.title = full ? T.exitFull : T.fullScreen;
   }, T.fullScreen);
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
-  bar.append(kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll), freshEl,
+  // "Run every live query again": only where there is one (a live query, or a loader that computes data).
+  var refreshBtn = kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll);
+  function syncRefresh() { if (refreshBtn) refreshBtn.hidden = !liveIds().length && !Object.keys(loaders).length; }
+  syncRefresh();
+  bar.append(refreshBtn, freshEl,
     h("span", { style: "flex:1" }), histBtn, fullBtn, srcBtn);
   kit.exports(exportList).then(function (hosted) {
     if (hosted) return;

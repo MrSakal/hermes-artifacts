@@ -1186,7 +1186,7 @@
     var p2 = function (n) { return ("0" + n).slice(-2); };
     pres.timer.textContent = (s >= 3600 ? Math.floor(s / 3600) + ":" : "") + p2(Math.floor(s / 60) % 60) + ":" + p2(s % 60);
     pres.timer.classList.toggle("is-paused", !!pres.pauseAt);
-    pres.clock.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    pres.clock.textContent = new Date().toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
   }
   function paint(dir) {
     var s = slides[pres.i], r = pres.main.getBoundingClientRect(), pad = pres.presenter ? 32 : 0;
@@ -1961,4 +1961,23 @@
   new ResizeObserver(fit).observe(stageWrap);
   window.addEventListener("beforeunload", function () { if (pending) save(); });
   kit.ready();
+
+  // The gallery's card: a picture of the cover slide, drawn once per version (hermes.preview: no version,
+  // not an edit), so the card shows it instead of loading the whole deck. Slides keep their own colours,
+  // so one picture serves every theme. Only where the host takes it and none is kept for this version yet.
+  if (!C.thumb && !C.preview && window.hermes && typeof window.hermes.preview === "function") {
+    setTimeout(function () {
+      var ci = deck.cover ? slides.findIndex(function (s) { return s.id === deck.cover; }) : 0;
+      var s0 = slides[ci >= 0 ? ci : 0];
+      if (!s0) return;
+      (function next(ws) {
+        if (!ws.length) return;
+        rasterize(s0, ws[0] / W).then(function (c) {
+          var url = c.toDataURL("image/png");
+          if (url.length * 0.75 > 400 * 1024) return next(ws.slice(1));
+          return window.hermes.preview(url, C.version);
+        }).catch(function () {});
+      })([640, 480, 320]);
+    }, 1500);
+  }
 })();

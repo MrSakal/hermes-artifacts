@@ -65,12 +65,14 @@
 
   function listMd(el, indent) {
     var ordered = el.tagName === "OL", n = parseInt(el.getAttribute("start") || "1", 10) || 1, lines = [];
-    var task = el.hasAttribute("data-task") || !!el.querySelector(":scope > li.task, :scope > li > input[type=checkbox]");
+    // A checklist item is one with its own box: a plain bullet next to checklist items stays a plain bullet
+    // (Markdown marks each item, so a list may mix them; one with a box never makes its neighbours tasks).
+    var task = el.hasAttribute("data-task");
     Array.prototype.forEach.call(el.children, function (li) {
       if (li.tagName !== "LI") return;
       var mark = ordered ? (n++) + ". " : "- ", pad = indent + " ".repeat(mark.length);
       var box = li.querySelector(":scope > input[type=checkbox]");
-      var isTask = !ordered && (task || li.classList.contains("task") || box);
+      var isTask = task || li.classList.contains("task") || !!box; // "1. [ ] x" is a checklist item too
       var checked = box ? box.checked : li.classList.contains("done");
       var head = "", rest = [];
       li.childNodes.forEach(function (c) {
