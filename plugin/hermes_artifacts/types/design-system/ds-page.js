@@ -60,6 +60,11 @@
   kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var bar = document.getElementById("ds-bar"), nav = document.getElementById("ds-nav"), main = document.getElementById("ds-main");
+  // A narrow page shows the nav as a strip of tabs with no scrollbar: the wheel scrolls it sideways.
+  if (nav) nav.addEventListener("wheel", function (e) {
+    if (nav.scrollWidth <= nav.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || getComputedStyle(nav).flexDirection !== "row") return;
+    nav.scrollLeft += e.deltaY; e.preventDefault();
+  }, { passive: false });
   bar.hidden = true; // no bar of its own: the artifact header carries the title, Export and Make default
   var IMG = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i, VIDEO = /\.(mp4|webm|mov)$/i, FONT = /\.(woff2?|ttf|otf|ttc)$/i;
   var NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
