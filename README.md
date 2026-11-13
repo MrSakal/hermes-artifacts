@@ -162,7 +162,8 @@ also loads the new code into the running backend and gateway, no restart needed.
 `hermes plugins update`, a running process keeps the old code until you run
 `hermes plugins disable hermes-artifacts` and then `hermes plugins enable hermes-artifacts` on the server.
 Restart only for a `dashboard.turn_isolation` compute host (it loads plugins only when it starts) or if
-the gallery's version line stays: it names the process still behind and what to do. Chats already open
+the gallery's version line stays: it names the process still behind and what to do. A gateway a newer
+one replaced, and a `hermes` command unused for two hours, do not count toward that line. Chats already open
 keep the old tool descriptions; new chats get the new ones.
 
 ### Uninstall
