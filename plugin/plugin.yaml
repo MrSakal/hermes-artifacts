@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.18.1
+version: 0.18.2
 description: >
   Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
