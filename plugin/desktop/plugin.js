@@ -39,7 +39,7 @@ import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 const ID = 'hermes-artifacts'
 // This Desktop half's version. Tests keep it equal to plugin.yaml, dashboard/manifest.json and VERSION in
 // hermes_artifacts/running.py: a bump touches all four.
-const PLUGIN_VERSION = '0.19.0'
+const PLUGIN_VERSION = '0.20.0'
 const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
 // The built-in view opened on purpose: the router ignores the query, the redirect does not.

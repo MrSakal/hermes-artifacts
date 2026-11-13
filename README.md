@@ -30,7 +30,7 @@ The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.m
 | **Slides** (`slides`) | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `ha_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
 | **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
-| **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members); history with restore. | PNG, SVG |
+| **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members), and nothing it places overlaps, also when Hermes later writes longer text into an item (what it would cover moves out of its way); history with restore. | PNG, SVG |
 | **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) as `.dc.html` files: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
 | **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
 | **Motion** (`motion`) | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
@@ -257,8 +257,14 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   that folder exists, else `~/.hermes`). Set `HERMES_ARTIFACTS_DIR` to use another folder instead.
   Artifact versions (each noting whether you or Hermes made it, and from which chat), comments, stored
   values, the inbox, dataset caches, approvals and card pictures
-  (`<id>/previews/`, outside the versions) live there, on the
-  machine the Hermes backend runs on. So does `.run/`: one small file per Hermes process that loaded the
+  (`<id>/previews/`, outside the versions; those of the latest 3 versions are kept) live there, on the
+  machine the Hermes backend runs on. What grows is bounded: the newest `max_versions` versions of each
+  artifact; a live doc's history at most 120 snapshots and 12 MB (one file per snapshot, the newest two
+  always); a sheet's 60 snapshots and 200,000 cells; a board's 40 snapshots and 8 MB; live-query answers
+  24 hours. A sweep, riding the trash purge (at most 2 s per call, going on where it stopped), removes
+  what nothing will read again and is older than an hour: temp files of writes that died, version
+  folders no version names, pictures of older versions, history files no index names, empty folders.
+  So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
   installed; a file goes when its process has, or after a week without being rewritten.
@@ -288,8 +294,11 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   after its deletion, checked when the plugin starts, on every delete, when the gallery's Trash opens, and
   at most once a day from the gallery's own list requests (no timer of its own); an item past its time is
   never listed or restorable even before that. You can also delete one copy for good sooner: **Delete
-  forever** (the trash icon on its row, then the confirm) in the gallery's Trash. The agent cannot:
-  `ha_delete` only moves to the trash, and no tool deletes from it.
+  forever** (the trash icon on its row, then the confirm) in the gallery's Trash. Deleting for good
+  removes the whole folder (every version, picture, comment, stored value and live history; a file
+  another program holds open is retried and finished by the sweep) and the artifact's id from the inbox,
+  views, the settings and the plugin's caches. The agent cannot: `ha_delete` only moves to the trash,
+  and no tool deletes from it.
 - **Design system export:** `ha_design_system_export` writes a design system's files into a folder in the
   chat's working directory (`dir`). It refuses a non-empty folder unless `overwrite=true`, never writes
   outside that folder or through a symlink out of it, so `overwrite` replaces files there and nowhere else.
