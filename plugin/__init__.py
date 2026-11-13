@@ -69,6 +69,16 @@ def _stop_server() -> None:
             logger.debug("stopping the artifact host failed", exc_info=True)
 
 
+def _unload() -> None:
+    """Hermes unloads the plugin (disable, update, reload): stop the browser viewer and the kept formula process."""
+    _stop_server()
+    try:
+        from .hermes_artifacts import calc
+        calc.shutdown()
+    except Exception:
+        logger.debug("could not stop the formula process", exc_info=True)
+
+
 def _broadcast(event: str, payload: dict) -> bool:
     try:
         from hermes_cli.plugin_events import broadcast_plugin_event
@@ -1947,7 +1957,7 @@ def register(ctx) -> None:
     live.set_ctx(ctx)  # dashboards call MCP through ctx.call_mcp (the web server finds it by PLUGIN_ID)
     _empty_old_trash()
     try:
-        ctx.on_unload(_stop_server)  # a reload in this process must not leave the viewer on the old code
+        ctx.on_unload(_unload)  # a reload in this process must not leave the viewer (or node) on the old code
     except Exception:  # an older Hermes without on_unload: the viewer runs until the process ends
         logger.debug("on_unload unavailable", exc_info=True)
     try:
