@@ -472,14 +472,14 @@
     var iframe = h("iframe", { sandbox: "allow-scripts", title: opts.title || path, loading: opts.lazy ? "lazy" : null, "class": "ds-frame" });
     iframe.srcdoc = frameHtml(path, id);
     var wrap = h("div", { "class": "ds-frame-wrap" + (w ? " ds-scaled" : "") }, [iframe]);
-    var f = frames[id] = { iframe: iframe, wrap: wrap, h: hgt, base: hgt, w: w, grow: !opts.fixed, onError: opts.onError, onLoad: opts.onLoad };
+    var f = frames[id] = { iframe: iframe, wrap: wrap, h: hgt, base: hgt, w: w, grow: !opts.fixed, fill: !!opts.fill, onError: opts.onError, onLoad: opts.onLoad };
     layoutFrame(f);
     return wrap;
   }
   function layoutFrame(f) {
     if (f.w) {
       var avail = f.wrap.clientWidth || f.wrap.parentNode && f.wrap.parentNode.clientWidth || f.w;
-      var k = Math.min(1, avail / f.w);
+      var k = f.fill ? avail / f.w : Math.min(1, avail / f.w); // fill: as wide as its box, larger too (a card's cover)
       f.iframe.style.width = f.w + "px"; f.iframe.style.height = f.h + "px";
       f.iframe.style.transform = "scale(" + k + ")";
       f.wrap.style.height = Math.ceil(f.h * k) + "px";
@@ -507,7 +507,7 @@
     if (S.coverIsComponent || C.files[path] == null) return null;
     var mk = marker(kit.fileText(path));
     return h("div", { "class": "ds-cover" }, [frame(path, { marker: { height: mk.height, width: 960 }, min: 240, max: 360, height: 288, fixed: true,
-      title: S.title, onLoad: opts && opts.onLoad })]);
+      fill: !!(opts && opts.fill), title: S.title, onLoad: opts && opts.onLoad })]);
   }
 
   // ------------------------------------------------------------------ views
@@ -1624,8 +1624,13 @@
   if (C.thumb) {
     document.documentElement.setAttribute("data-ds-thumb", "");
     var done = false, finish = function () { if (!done) { done = true; kit.ready(); } };
-    var cv = cover({ onLoad: function () { setTimeout(finish, 150); } });
-    if (cv) { main.appendChild(cv); Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); }); setTimeout(finish, 2500); }
+    var cv = cover({ fill: true, onLoad: function () { setTimeout(finish, 150); } });
+    if (cv) {
+      // The card is taller than the cover: the cover across its width, the palette's first colours below it, to the foot.
+      var pal = S.m.colors.slice(0, 6).map(function (c) { return h("span", { style: "background:" + (S.m.resolve(c.name, S.m.first) || "transparent") }); });
+      main.appendChild(h("div", { "class": "ds-thumb-cover" }, [cv, h("div", { "class": "ds-thumb-pal" }, pal)]));
+      Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); }); setTimeout(finish, 2500);
+    }
     else {
       var blocks = S.m.colors.slice(0, 5).map(function (c) { return h("span", { style: "background:" + (S.m.resolve(c.name, S.m.first) || "transparent") }); });
       main.appendChild(h("div", { "class": "ds-thumb-fallback" }, [h("div", { "class": "ds-thumb-blocks" }, blocks), h("div", { "class": "ds-thumb-name", text: S.title })]));
