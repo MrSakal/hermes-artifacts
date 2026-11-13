@@ -228,11 +228,13 @@ def drive(script: str, timeout: int = 180) -> dict:
 
 
 def snapshot(aid: str) -> dict:
-    """Every stored file of an artifact, as bytes (the page's diagnostics aside: they are the host's notes)."""
+    """Every stored file of an artifact, as bytes. Aside: the page's diagnostics (the host's notes) and the
+    card's picture (previews/: drawn once per version, outside the versions; never the artifact's content)."""
     from hermes_artifacts import store
     base = store._dir(aid)
     out = {}
     for p in sorted(base.rglob("*")):
-        if p.is_file() and p.name != "diagnostics.json":
+        rel = p.relative_to(base).as_posix()
+        if p.is_file() and p.name != "diagnostics.json" and not rel.startswith("previews/"):
             out[str(p.relative_to(base)).replace("\\", "/")] = p.read_bytes()
     return out

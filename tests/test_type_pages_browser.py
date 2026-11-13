@@ -101,12 +101,14 @@ class LookingIsNotEditing(unittest.TestCase):
             self.host.api.handle("POST", f"/artifacts/{aid}/op", {}, {"op": op, "args": {}})
         return B.snapshot(aid)
 
-    def _idle(self, aid, op, actions="", settle=False):
+    def _idle(self, aid, op, actions="", settle=False, exports=()):
         if settle:  # a sheet hands the server its computed values once (sheet.vals: no rev, no edit); from then on, nothing
             self.run_page(aid, "await api.sleep(2500); await api.go('about:blank', 500)")
         before = self.warm(aid, op)
         dark = "await api.top(" + json.dumps("window.__post('theme', " + json.dumps(THEME) + ")") + ")\n"
-        r = self.run_page(aid, "await api.sleep(1200);\n" + actions + dark + """
+        # exports, as the host's title menu sends them (each makes a download, never an edit)
+        exp = "".join("await api.top(" + json.dumps("window.__post('export', {id: '%s'})" % x) + "); await api.sleep(1500);\n" for x in exports)
+        r = self.run_page(aid, "await api.sleep(1200);\n" + actions + exp + dark + """
           await api.sleep(300)
           await api.top('window.__post("theme", {mode: "light", vars: {bg: "rgb(250, 249, 245)", fg: "rgb(20, 20, 19)", accent: "rgb(201, 100, 66)"}})')
           await api.sleep(1500)
@@ -115,6 +117,7 @@ class LookingIsNotEditing(unittest.TestCase):
           return { ops }
         """)
         self.assertEqual(edits(r["out"]["ops"]), [], r["out"]["ops"])
+        self.assertEqual(len([o for o in r["out"]["ops"] if o["op"] == "download"]), len(exports), [o["op"] for o in r["out"]["ops"]])
         after = B.snapshot(aid)
         self.assertEqual(sorted(after), sorted(before))
         for k in before:
@@ -131,7 +134,7 @@ class LookingIsNotEditing(unittest.TestCase):
           await api.frame('(() => { const p = document.querySelector(".doc-blk p"); const r = document.createRange(); r.selectNodeContents(p); getSelection().removeAllRanges(); getSelection().addRange(r); })()')
           await api.sleep(400)
           await api.clickIn('document.querySelector(".doc-blk h1")'); await api.sleep(300)
-        """)
+        """, exports=("md", "html", "docx"))
 
     def test_a_sheet_opened_clicked_and_closed_is_unchanged(self):
         aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
@@ -143,7 +146,7 @@ class LookingIsNotEditing(unittest.TestCase):
           await api.clickIn(cell('Panels')); await api.sleep(250)
           await api.clickIn(cell('Rails')); await api.sleep(250)
           await api.key('ArrowDown', 'ArrowDown', 40); await api.sleep(250)
-        """, settle=True)
+        """, settle=True, exports=("xlsx", "csv"))
 
     def test_a_board_opened_clicked_and_closed_is_unchanged(self):
         from hermes_artifacts import boards  # noqa: F401 - the board's live state is made on publish
@@ -161,7 +164,44 @@ class LookingIsNotEditing(unittest.TestCase):
           await api.mouse(600, 400); await api.sleep(300)
           await api.key('ArrowRight', 'ArrowRight', 39); await api.sleep(300)
           await api.key('ArrowLeft', 'ArrowLeft', 37); await api.sleep(300)
-        """)
+        """, exports=("png", "html"))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class CardPictures(unittest.TestCase):
+    """Slides and motion draw the gallery card's picture once per version (preview.set): a PNG of at most
+    400 KB the card shows instead of loading the whole page. Not again once one is kept."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def picture_ops(self, aid):
+        r = B.drive(f"await api.go({json.dumps(self.host.url(aid))}, 800); {READY}\n await api.sleep(5000);"
+                    " return await api.top('window.__ops.filter(o => o.op === \"preview.set\").map(o => [o.args.data.slice(0, 22), o.args.data.length, o.args.version])')")
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def check(self, aid):
+        first = self.picture_ops(aid)
+        self.assertEqual(len(first), 1, first)
+        self.assertEqual(first[0][0], "data:image/png;base64,")
+        self.assertLessEqual(first[0][1] * 0.75, 400 * 1024)
+        self.assertEqual(first[0][2], 1)
+        self.assertTrue(self.store.preview_get(aid, 1))
+        self.assertEqual(self.picture_ops(aid), [])  # kept: not drawn again
+
+    def test_slides(self):
+        self.check(self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"])
+
+    def test_motion(self):
+        self.check(self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"])
 
 
 if __name__ == "__main__":
