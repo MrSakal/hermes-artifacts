@@ -1428,6 +1428,58 @@ def _shift(items: list, ids: list, dx, dy) -> None:
             it["x"], it["y"] = _num(it["x"] + dx, "x"), _num(it["y"] + dy, "y")
 
 
+def _make_room(items: list, grown: str, before: tuple, where: str) -> dict:
+    """An item grew where it stands (Hermes set longer text, a bigger size): what it now runs into moves out
+    of its way, down (right, for what stood to its right; a section with its members), keeping its gap (8 at
+    least); the sections that hold it grow to keep it; and so on for what moved or grew in turn. Which
+    section holds what is read before anything moves. A locked item in the way refuses the edit.
+    -> {id: fields changed}."""
+    by = {it["id"]: it for it in items}
+    was = {it["id"]: (before if it["id"] == grown else rect(it)) for it in items if rect(it) is not None}
+    secs = [s for s in items if s["type"] == "section"]
+    home = {i: {s["id"] for s in secs if s["id"] != i and s["w"] * s["h"] > r[2] * r[3] and _centre_in(r, was[s["id"]])}
+            for i, r in was.items()}
+    fp = lambda it, r: (r[0], r[1] - SEC_TITLE, r[2], r[3] + SEC_TITLE) if it["type"] == "section" else r
+    near = lambda a, b: _hit(a, [(*b, "")], m=0) is not None
+    changed, queue = {}, [(grown, before)]
+    for _ in range(8 * len(items) + 8):
+        if not queue:
+            break
+        cid, old = queue.pop(0)
+        c = by[cid]
+        new = rect(c)
+        for sid in home[cid]:  # the sections that hold it grow with it
+            s = by[sid]
+            w = max(s["w"], math.ceil(new[0] + new[2] + SEC_PAD - s["x"]))
+            h = max(s["h"], math.ceil(new[1] + new[3] + SEC_PAD - s["y"]))
+            if (w, h) != (s["w"], s["h"]):
+                queue.append((sid, rect(s)))
+                s["w"], s["h"] = w, h
+                changed[sid] = sorted(set(changed.get(sid, ())) | {"w", "h"})
+        nf, of = fp(c, new), fp(c, old)
+        for x in items:
+            r = rect(x)
+            if r is None or x is c or x["id"] in home[cid] or cid in home[x["id"]]:
+                continue
+            xf = fp(x, r)
+            if not near(xf, nf) or near(xf, of):
+                continue
+            ids = [x["id"]] + [i for i, h in home.items() if x["id"] in h]
+            locked = [i for i in ids if by[i].get("locked")]
+            if locked:
+                raise _bad(f"{where}: it would grow over {locked[0]}, locked by the user: shorter text or another w")
+            if xf[0] >= of[0] + of[2] and xf[1] < of[1] + of[3]:  # it stood to its right
+                dx, dy = nf[0] + nf[2] + max(8, xf[0] - of[0] - of[2]) - xf[0], 0
+            else:
+                dx, dy = 0, nf[1] + nf[3] + max(8, xf[1] - of[1] - of[3]) - xf[1]
+            olds = [(i, rect(by[i])) for i in ids]
+            _shift(items, ids, dx, dy)
+            for i, o in olds:
+                changed[i] = sorted(set(changed.get(i, ())) | {"x", "y"})
+                queue.append((i, o))
+    return changed
+
+
 def _head(sel: list) -> list:
     """The board's heading among items in reading order: the topmost title-size text and, when there
     is one, the one-line large text that reads as its takeaway (the first below it that starts near it
@@ -1677,6 +1729,10 @@ def _one(work: dict, o: dict, ctx: dict, where: str, guarded: dict) -> None:
                 _touch(ctx, m, ("x", "y"))
         else:
             items[index[i]] = new
+            was, now = rect(old), rect(new)
+            if by == "hermes" and was and now and was[:2] == now[:2] and (now[2] > was[2] or now[3] > was[3]):
+                for k, f in _make_room(items, i, was, where).items():
+                    _touch(ctx, k, f)
         _touch(ctx, i, mark)
         _mark(guarded, i, mark)
     elif op == "move":

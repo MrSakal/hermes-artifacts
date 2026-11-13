@@ -1376,6 +1376,48 @@ class NoOverlapTests(unittest.TestCase):
                 self.assertEqual(overlaps(items), [], f"seed {seed}, batch {batch}")
         self.assertGreater(adds, 40)
 
+    def test_longer_text_set_later_never_overlaps(self):
+        """Hermes `set`s longer text into an item (or a wider w): the item grows where it stands and what it
+        would run into moves out of its way, in a section too (which grows), and so on down the board."""
+        edits = 0
+        for seed in range(80):
+            items, rnd = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:
+                continue
+            work = {"items": b["items"], "seq": 100, "title": ""}
+            for k in range(6):
+                its = [it for it in work["items"] if it["type"] in ("note", "box", "text")]
+                it = rnd.choice(its)
+                o = {"op": "set", "id": it["id"], "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(20, 90)))}
+                if it["type"] != "text" and rnd.random() < .25:
+                    o["w"] = it["w"] + rnd.randint(40, 300)
+                ctx = {"touched": {}, "added": [], "removed": [], "state_only": True, "by": "hermes", "all": False}
+                before = boards.rect(it)
+                boards._one(work, o, ctx, f"ops[{k}]", {})
+                edits += 1
+                grown = next(x for x in work["items"] if x["id"] == it["id"])
+                self.assertEqual(boards.rect(grown)[:2], before[:2])  # it stays where it stood
+                self.assertEqual(overlaps(work["items"]), [], f"seed {seed}, edit {k}")
+        self.assertGreater(edits, 200)
+
+    def test_what_makes_room_is_reported_and_locked_items_refuse(self):
+        b = boards.from_spec({"items": [{"id": "a", "type": "note", "text": "short", "x": 0, "y": 0},
+                                        {"id": "b", "type": "note", "text": "under", "x": 0, "y": 140},
+                                        {"id": "c", "type": "note", "text": "beside", "x": 400, "y": 0}]})
+        aid = store.publish(type="board", title="room", files={"board.json": {"items": b["items"]}})["id"]
+        rev = boards.load(aid)["rev"]
+        out = boards.apply(aid, [{"op": "set", "id": "a", "text": "a much longer text " * 30}], by="hermes", base_rev=rev)
+        self.assertEqual(sorted(out["changed"]), ["a", "b"])  # b moved down; c, beside it, stays
+        st = boards.load(aid)
+        self.assertEqual(overlaps(st["items"]), [])
+        self.assertEqual(next(it for it in st["items"] if it["id"] == "c")["y"], 0)
+        boards.apply(aid, [{"op": "set", "id": "b", "locked": True}], by="user")
+        with self.assertRaises(boards.BoardError) as cm:
+            boards.apply(aid, [{"op": "set", "id": "a", "text": "a much longer text " * 90}], by="hermes", base_rev=boards.load(aid)["rev"])
+        self.assertIn("locked", cm.exception.message)
+
 
 if __name__ == "__main__":
     unittest.main()
