@@ -1,6 +1,6 @@
 # hermes-artifacts
 
-Claude-style artifacts for [Hermes Agent](https://github.com/NousResearch/hermes-agent). The agent
+Artifacts for [Hermes Agent](https://github.com/NousResearch/hermes-agent). The agent
 publishes something you look at or use (a page, dashboard, deck, doc, sheet, whiteboard, design canvas, film or
 design system), and it opens on the **Artifacts** page of Hermes Desktop. The plugin replaces the
 built-in page with a gallery (live previews, search, sort, pins, "make something new" tiles) and a
@@ -31,7 +31,7 @@ The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.m
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `ha_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
 | **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
 | **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members); history with restore. | PNG, SVG |
-| **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) in Claude's `.dc.html` format: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
+| **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) as `.dc.html` files: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
 | **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
 | **Motion** (`motion`) | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
 | **Design system** (`design-system`) | A brand's browsable reference: tokens across themes, type, spacing, components with live previews, assets, the brand book. Mark one as default: it is copied into the decks, canvases and films that wear it, and a dashboard takes its look from it. | tokens.css, tokens.json, ZIP |
@@ -69,7 +69,7 @@ Toolset `artifacts`, 14 tools:
 | `ha_design_system_get` | The default (or a named) design system for any UI work, code included: README rules, tokens and `tokens.css`, components, files. |
 | `ha_design_system_export` | Write a design system's files into a project folder in the chat's working directory (e.g. `src/design-system`); refuses a non-empty folder unless `overwrite=true`. |
 
-As in Claude, the default design system comes with `ha_guide` for the types that wear it (slides,
+The default design system comes with `ha_guide` for the types that wear it (slides,
 design, motion, dashboard); in a codebase it lives as files in the project (`ha_design_system_export`).
 
 ### Hermes Desktop
@@ -85,6 +85,9 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   about 11 s (they share one browser process, which only then ends the stuck page) and loads the page
   again; if that does not bring it back after three tries, the line says to restart Hermes. The browser
   viewer does the same in its status line.
+- An artifact opened from its chat shows beside the chat, or with *Pop out chat* over the chat's area
+  with the chat floating over it (Esc closes it, *Show chat* goes back); the next artifact opens in the
+  layout picked last in that window. On the Artifacts page, *Chat* and *Pop out chat* do the same.
 - UI strings ship in English; what an artifact says is in the language the user works in.
 
 ### CLI
@@ -235,7 +238,7 @@ trust gates as the agent. What a dashboard may run within it is narrowed by the 
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
 | Browser viewer | `plugin/hermes_artifacts/server.py` | Optional loopback viewer: a shell origin plus a separate content origin |
 
-The isolation follows Claude Desktop's artifact model. Artifact HTML runs in an iframe with an opaque
+Artifact HTML runs in an iframe with an opaque
 origin (`allow-scripts`, no `allow-same-origin`), so it cannot read the host page, its storage or the
 Hermes API. It gets one `MessagePort` from its direct parent, and every operation goes through the host,
 which decides what is allowed.

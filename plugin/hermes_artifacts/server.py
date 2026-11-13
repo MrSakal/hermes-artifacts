@@ -1,8 +1,7 @@
 """Loopback artifact host: a *shell* origin (UI + API) and a separate *content* origin.
 
-Mirrors Claude Desktop's split (cowork-artifact://shell vs. the artifact frame): artifact
-HTML runs in a sandboxed iframe (no allow-same-origin) served from the content port, so it
-cannot read the shell's token or call /api directly. All bridge calls go artifact ->
+Artifact HTML runs in a sandboxed iframe (no allow-same-origin) served from the content port, so
+it cannot read the shell's token or call /api directly. All bridge calls go artifact ->
 postMessage/MessagePort -> shell -> /api (token + Origin checked).
 """
 

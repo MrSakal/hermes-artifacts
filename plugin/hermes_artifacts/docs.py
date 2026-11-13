@@ -1,6 +1,6 @@
 """Live docs: a document of tabs and blocks that the user and Hermes edit together, block by block.
 
-The model Claude Docs uses, kept on the Hermes server: a doc holds tabs; a tab holds blocks; a block
+Kept on the Hermes server: a doc holds tabs; a tab holds blocks; a block
 is one paragraph-level piece of Markdown (a heading, a paragraph, a list, a table, a quote, a code
 block, a rule, an image) with a stable id. Every change bumps the tab's ``rev`` and is logged, so a
 reader can ask for what changed since the rev it last saw, and an edit made against an older rev of a

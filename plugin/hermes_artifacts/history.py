@@ -1,4 +1,4 @@
-"""A dashboard's History, as Claude's: every version with who made it and what changed ("Edited the
+"""A dashboard's History: every version with who made it and what changed ("Edited the
 page", "Added Signups", "Edited the filters", "Created the page", "Restored the 10:42 version"), the
 changes of one version line by line, and Restore (a new version holding that one's files)."""
 

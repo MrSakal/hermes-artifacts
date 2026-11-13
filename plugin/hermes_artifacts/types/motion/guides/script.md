@@ -5,7 +5,7 @@ define the whole film instead (no `scenes.json` needed):
 
 ```js
 window.CUT = {
-  width: 1920, height: 1080, fps: 30, duration: 32.4, background: '#f4f2ee',
+  width: 1920, height: 1080, fps: 30, duration: 32.4, background: '#f5f7fa',
   chapters: [{ t: 0, label: 'Title' }, { t: 2.6, label: 'The app' }],
   async init(kit) { /* build kit.stage once */ },
   render(t, kit) { /* SYNCHRONOUS */ },

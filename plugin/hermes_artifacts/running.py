@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # The version of THIS code, fixed when the module is imported. Tests keep it equal to plugin.yaml,
 # dashboard/manifest.json and PLUGIN_VERSION in desktop/plugin.js: a bump touches all four.
-VERSION = "0.18.2"
+VERSION = "0.19.0"
 
 ROLES = ("gateway", "serve", "compute-host", "plugin-host", "cli")
 SINGLE = ("gateway",)  # one per profile: only the newest record counts, older ones are removed

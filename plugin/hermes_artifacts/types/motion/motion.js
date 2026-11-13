@@ -226,7 +226,7 @@
   var STAGE_FONT = '"Inter", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif';
   var STAGE_DEFAULTS = "#stage{color:#0f1720;font:400 14px/1.5 " + STAGE_FONT + ";font-feature-settings:'cv11','ss01';color-scheme:light}";
   var STAGE_BASE = ".mo-scene{position:absolute;left:0;top:0;overflow:hidden}.mo-scene[hidden]{display:none!important}" +
-    ".mo-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 160px;background:#f4f2ee;color:#1c1c1c;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}" +
+    ".mo-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 160px;background:#f5f7fa;color:#0f1720;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}" +
     ".mo-card .n{font-size:30px;letter-spacing:.14em;text-transform:uppercase;opacity:.55}.mo-card .t{font-size:120px;font-weight:700;line-height:1.05;margin:18px 0 26px}" +
     ".mo-card .d{font-size:38px;line-height:1.35;max-width:1300px;opacity:.75}.mo-card .s{position:absolute;left:160px;bottom:90px;font-size:26px;letter-spacing:.1em;text-transform:uppercase;opacity:.45}" +
     ".mo-rough{filter:grayscale(1) contrast(1.15)}";

@@ -2370,7 +2370,7 @@
         (f.code ? '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/>' : "") +
         (f.b ? "<w:b/>" : "") + (f.i ? "<w:i/>" : "") + (f.s ? "<w:strike/>" : "") +
         (f.color ? '<w:color w:val="' + f.color + '"/>' : "") + (f.hl ? '<w:highlight w:val="' + f.hl + '"/>' : "") + (f.u ? '<w:u w:val="single"/>' : "") +
-        (f.code ? '<w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/>' : "");
+        (f.code ? '<w:shd w:val="clear" w:color="auto" w:fill="EDF1F6"/>' : "");
       return "<w:r>" + (p ? "<w:rPr>" + p + "</w:rPr>" : "") + '<w:t xml:space="preserve">' + xesc(t) + "</w:t></w:r>";
     }
     function image(n) {
@@ -2431,7 +2431,7 @@
       var sum = share.reduce(function (x, y) { return x + y; }, 0), wide = share.map(function (x) { return Math.round(9298 * x / sum); });
       var cell = function (c, k, hd) {
         var a = b.align[k] ? '<w:jc w:val="' + (b.align[k] === "right" ? "right" : b.align[k] === "center" ? "center" : "left") + '"/>' : "";
-        return '<w:tc><w:tcPr><w:tcW w:w="' + wide[k] + '" w:type="dxa"/>' + (hd ? '<w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/>' : "") + "</w:tcPr>" + para(runs(c, hd ? { b: true } : {}), a) + "</w:tc>";
+        return '<w:tc><w:tcPr><w:tcW w:w="' + wide[k] + '" w:type="dxa"/>' + (hd ? '<w:shd w:val="clear" w:color="auto" w:fill="EDF1F6"/>' : "") + "</w:tcPr>" + para(runs(c, hd ? { b: true } : {}), a) + "</w:tc>";
       };
       return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>' +
         '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="CCCCCC"/><w:bottom w:val="single" w:sz="4" w:color="CCCCCC"/><w:insideH w:val="single" w:sz="4" w:color="CCCCCC"/></w:tblBorders>' +
@@ -2502,10 +2502,10 @@
         hstyle(1, 44) + hstyle(2, 32) + hstyle(3, 26) + hstyle(4, 23) +
         '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="60"/><w:contextualSpacing/></w:pPr></w:style>' +
         '<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:qFormat/><w:rPr><w:i/><w:color w:val="555555"/></w:rPr></w:style>' +
-        '<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:pPr><w:shd w:val="clear" w:color="auto" w:fill="F1EFE8"/><w:spacing w:after="0"/></w:pPr>' +
+        '<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:pPr><w:shd w:val="clear" w:color="auto" w:fill="EDF1F6"/><w:spacing w:after="0"/></w:pPr>' +
         '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:noProof/><w:sz w:val="20"/></w:rPr></w:style>' +
         '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:i/><w:color w:val="666666"/><w:sz w:val="18"/></w:rPr></w:style>' +
-        '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="C96442"/><w:u w:val="single"/></w:rPr></w:style>' +
+        '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0D9488"/><w:u w:val="single"/></w:rPr></w:style>' +
         '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:tblPr><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>',
       "word/numbering.xml": '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ' + NS + '>' +
         '<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/>' + lvls(false) + "</w:abstractNum>" +
@@ -2574,7 +2574,7 @@
   }
   /** Light colors on paper whatever the viewer's theme; the accent stays the theme's. */
   function paperSheet() {
-    return css().replace(/]]>/g, "") + ".doc-pdfpage{--color-fg:#1f1e1d;--color-fg-secondary:#3d3c39;--color-fg-muted:#6f6d66;--color-border-line:#e7e5dd;--color-border-strong:#cfccc0;--color-hover:rgba(0,0,0,.05);--color-accent:" + ((kit.hostTheme() || {}).accent || "#c96442") + "}";
+    return css().replace(/]]>/g, "") + ".doc-pdfpage{--color-fg:#0f1720;--color-fg-secondary:#334155;--color-fg-muted:#64748b;--color-border-line:#e2e8f0;--color-border-strong:#cbd5e1;--color-hover:rgba(0,0,0,.05);--color-accent:" + ((kit.hostTheme() || {}).accent || "#0d9488") + "}";
   }
   /** Word has no chart, drawing or formula of ours: each goes in as a picture. Map of the tree's code block -> {bytes, w, h, alt, caption}. */
   async function widgetPics(tree) {
