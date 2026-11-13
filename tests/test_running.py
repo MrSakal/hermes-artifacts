@@ -13,6 +13,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugin"
@@ -57,6 +58,32 @@ class _Argv:
 
 def sleeper():
     return subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+
+
+class _Posix:
+    """The POSIX liveness check, whatever this machine is: ``os.kill(pid, 0)`` raises what ``answers``
+    names for that pid (``default`` for the rest; None = it answers)."""
+
+    def __init__(self, answers=None, default=None):
+        self.answers, self.default, self.asked = answers or {}, default, []
+
+    def kill(self, pid, sig):
+        assert sig == 0, sig
+        self.asked.append(pid)
+        exc = self.answers.get(pid, self.default)
+        if exc is not None:
+            raise exc()
+
+    def __enter__(self):
+        self.patches = [mock.patch.object(running.sys, "platform", "linux"),
+                        mock.patch.object(running.os, "kill", self.kill)]
+        for p in self.patches:
+            p.start()
+        return self
+
+    def __exit__(self, *exc):
+        for p in reversed(self.patches):
+            p.stop()
 
 
 class VersionsInSyncTests(unittest.TestCase):
@@ -177,6 +204,90 @@ class RecorderTests(unittest.TestCase):
             child.wait()
         self.assertEqual(running.status(self.base)["processes"], [{"role": "gateway", "version": running.VERSION}])
         self.assertFalse((self.run / f"loaded-{child.pid}.json").exists())
+
+    def test_a_replaced_gateway_is_not_reported(self):
+        """The server seen live: the old gateway's record (pid 212, gone, yet its pid answers EPERM or
+        like a zombie) beside the new gateway and the dashboard. Not stale; one gateway listed."""
+        now = int(time.time())
+        for answer in (PermissionError, None):
+            with self.subTest(old_pid_answers=answer):
+                self.put(212, "0.17.0", role="gateway", at=now - 34258)
+                self.put(225, running.VERSION, role="gateway", at=now - 3)
+                self.put(92, running.VERSION, role="serve", at=now)
+                with _Posix({212: answer}):
+                    self.assertEqual(running.status(self.base), {
+                        "loaded": running.VERSION, "disk": running.VERSION, "stale": False,
+                        "processes": [{"role": "gateway", "version": running.VERSION},
+                                      {"role": "serve", "version": running.VERSION}]})
+                self.assertEqual(sorted(p.name for p in self.run.iterdir()), ["loaded-225.json", "loaded-92.json"])
+
+    def test_a_gateway_still_behind_is_reported(self):
+        """Newest-only must not hide a real stale gateway: the newest one runs older code than the files."""
+        now = int(time.time())
+        self.put(212, "0.16.0", role="gateway", at=now - 3600)
+        self.put(225, "0.17.0", role="gateway", at=now - 60)
+        with _Posix():
+            self.assertEqual(running.status(self.base), {
+                "loaded": "0.17.0", "disk": running.VERSION, "stale": True,
+                "processes": [{"role": "gateway", "version": "0.17.0"}]})
+        self.assertFalse((self.run / "loaded-212.json").exists())
+
+    def test_a_cli_record_counts_only_while_fresh(self):
+        now = int(time.time())
+        self.put(300, running.VERSION, role="cli", at=now - 60)
+        self.put(301, "0.17.0", role="cli", at=now - 3 * 3600)
+        with _Posix() as k:
+            self.assertEqual(running.status(self.base), {
+                "loaded": running.VERSION, "disk": running.VERSION, "stale": False,
+                "processes": [{"role": "cli", "version": running.VERSION}]})
+        self.assertNotIn(301, k.asked)  # too old: dropped whatever its pid says
+        self.assertFalse((self.run / "loaded-301.json").exists())
+
+    def test_eperm_for_every_pid_is_unknown_not_alive(self):
+        """A process that may signal nothing: the newest of each role counts, an older serve does not
+        (its file waits for MAX_AGE), a replaced gateway is removed, a fresh cli counts."""
+        now = int(time.time())
+        self.put(212, "0.17.0", role="gateway", at=now - 7200)
+        self.put(225, running.VERSION, role="gateway", at=now - 60)
+        self.put(80, "0.17.0", role="serve", at=now - 7200)
+        self.put(92, running.VERSION, role="serve", at=now - 30)
+        self.put(400, running.VERSION, role="cli", at=now - 600)
+        with _Posix(default=PermissionError):
+            self.assertEqual(running.status(self.base), {
+                "loaded": running.VERSION, "disk": running.VERSION, "stale": False,
+                "processes": [{"role": "cli", "version": running.VERSION},
+                              {"role": "gateway", "version": running.VERSION},
+                              {"role": "serve", "version": running.VERSION}]})
+        self.assertEqual(sorted(p.name for p in self.run.iterdir()),
+                         ["loaded-225.json", "loaded-400.json", "loaded-80.json", "loaded-92.json"])
+
+    def test_an_older_serve_that_answers_still_counts(self):
+        """Desktop's SSH backends run beside hermes dashboard: an older serve whose pid answers is real."""
+        now = int(time.time())
+        self.put(80, "0.17.0", role="serve", at=now - 7200)
+        self.put(92, running.VERSION, role="serve", at=now - 30)
+        with _Posix():
+            self.assertTrue(running.status(self.base)["stale"])
+
+    def test_process_lookup_error_removes_the_record(self):
+        now = int(time.time())
+        self.put(212, "0.17.0", role="serve", at=now - 60)
+        self.put(225, running.VERSION, role="gateway", at=now - 60)
+        with _Posix({212: ProcessLookupError, 225: ProcessLookupError}):
+            self.assertEqual(running.status(self.base)["processes"], [])
+        self.assertEqual(list(self.run.iterdir()), [])
+
+    @unittest.skipUnless(sys.platform == "win32", "the Windows branch")
+    def test_windows_asks_openprocess_not_kill(self):
+        def no_kill(*a):
+            raise AssertionError("os.kill on Windows sends CTRL_C_EVENT")
+
+        p = subprocess.Popen([sys.executable, "-c", "pass"])
+        p.wait()
+        with mock.patch.object(running.os, "kill", no_kill):
+            self.assertIs(running._alive(os.getpid()), True)
+            self.assertIs(running._alive(p.pid), False)
+            self.assertIs(running._alive(0), False)
 
     def test_record_never_raises(self):
         blocker = self.base / "file"

@@ -14,6 +14,15 @@ serve, compute-host, plugin-host, cli); nothing else. A process rewrites its rec
 it is used (:func:`touch`), and a record not rewritten for ``MAX_AGE`` is dropped, so a pid reused by
 another program does not keep an old record alive for long. :func:`status` reports which live
 processes run which version, against the version on disk.
+
+A pid that answers is not proof: a zombie answers ``kill(pid, 0)``, and EPERM says only that some
+process holds the number. So the pid check only ever removes a record (the pid is gone); what counts
+is bounded otherwise. A profile runs one gateway (its runtime lock; ``--replace`` waits for the old one
+to exit before the new one loads plugins), so only the newest gateway record counts and older ones are
+removed. Several serve, plugin-host and compute-host processes can run at once (Desktop's SSH backends
+beside ``hermes dashboard``; a plugin host or compute host per parent process): the newest of each role
+counts, an older one only while its pid answers without EPERM. A cli record counts only while it was
+rewritten within ``CLI_MAX_AGE``.
 """
 
 from __future__ import annotations
@@ -31,10 +40,12 @@ logger = logging.getLogger(__name__)
 
 # The version of THIS code, fixed when the module is imported. Tests keep it equal to plugin.yaml,
 # dashboard/manifest.json and PLUGIN_VERSION in desktop/plugin.js: a bump touches all four.
-VERSION = "0.18.0"
+VERSION = "0.18.1"
 
 ROLES = ("gateway", "serve", "compute-host", "plugin-host", "cli")
+SINGLE = ("gateway",)  # one per profile: only the newest record counts, older ones are removed
 MAX_AGE = 7 * 86400  # a record not rewritten for a week is ignored and removed
+CLI_MAX_AGE = 2 * 3600  # a cli record not rewritten for this long is removed, whatever its pid says
 REFRESH = 300  # a process in use rewrites its record at most this often
 _TMP_MAX_AGE = 3600  # a temp file older than this is a writer that died mid-write
 
@@ -58,8 +69,9 @@ def version_key(v: str) -> tuple:
     return tuple(int(n) for n in re.findall(r"\d+", v))
 
 
-def _alive(pid: int) -> bool:
-    """Whether a process with this pid exists (any program: a reused pid is handled by MAX_AGE)."""
+def _alive(pid: int) -> Optional[bool]:
+    """Whether a process with this pid exists (any program: a reused pid is handled by MAX_AGE): True,
+    False when it is gone, None when this process may not ask (EPERM: unknown, not proof of life)."""
     if pid <= 0:
         return False
     if sys.platform == "win32":
@@ -83,8 +95,8 @@ def _alive(pid: int) -> bool:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    except OSError:  # EPERM: it exists, owned by someone else
-        return True
+    except OSError:  # EPERM: some process holds the pid, or this process may not signal any
+        return None
     return True
 
 
@@ -121,12 +133,13 @@ def _unlink(p: Path) -> None:
 
 
 def _live(d: Path) -> list[dict]:
-    """The records of processes still running; removes the rest (gone, too old, unreadable)."""
-    out = []
+    """The records that count (module docstring); removes the gone, the too old, the unreadable and
+    the gateways a newer one replaced."""
+    recs = []
     try:
         entries = list(d.iterdir())
     except OSError:
-        return out
+        return []
     now = time.time()
     for p in entries:
         name = p.name
@@ -146,9 +159,26 @@ def _live(d: Path) -> list[dict]:
                   and name == f"loaded-{r['pid']}.json")
         except (OSError, ValueError):
             ok = False
-        if not ok or now - r["at"] > MAX_AGE or not _alive(r["pid"]):
+        if not ok or now - r["at"] > (CLI_MAX_AGE if r["role"] == "cli" else MAX_AGE):
             _unlink(p)
             continue
+        recs.append((p, r))
+    newest = {}  # role -> the record with the highest ``at`` (ties: the higher pid)
+    for p, r in recs:
+        if r["role"] not in newest or (r["at"], r["pid"]) > (newest[r["role"]]["at"], newest[r["role"]]["pid"]):
+            newest[r["role"]] = r
+    out = []
+    for p, r in recs:
+        latest = newest[r["role"]] is r
+        if r["role"] in SINGLE and not latest:
+            _unlink(p)  # replaced: a new gateway starts only once the old one has exited
+            continue
+        alive = _alive(r["pid"])
+        if alive is False:
+            _unlink(p)
+            continue
+        if alive is None and not latest and r["role"] != "cli":
+            continue  # unknown, and a newer one of its kind runs: not counted (MAX_AGE removes it)
         out.append(r)
     return out
 
@@ -177,9 +207,9 @@ def touch() -> None:
 
 
 def status(base: Optional[Path] = None) -> dict:
-    """{loaded, disk, stale, processes}. ``processes``: [{role, version}] of every live recorder (no
-    pids). ``loaded``: the oldest version a live process runs that is not the one on disk, else the
-    oldest live one, else None. ``stale``: some live process runs other code than the files on disk."""
+    """{loaded, disk, stale, processes}. ``processes``: [{role, version}] of every record that counts
+    (:func:`_live`; no pids). ``loaded``: the oldest version among them that is not the one on disk,
+    else the oldest one, else None. ``stale``: one of them runs other code than the files on disk."""
     disk = disk_version()
     try:
         live = _live(_run_dir(base))
