@@ -283,7 +283,7 @@
   function workSeen(active, left, ago) {
     var now = Date.now();
     if (!active) { work.at = null; work.until = 0; return; }
-    work.at = now - (typeof ago === "number" && ago >= 0 ? ago * 1000 : 0); // an older server: as if just now
+    work.at = now - Math.max(0, ago) * 1000;
     work.until = now + (typeof left === "number" && left > 0 ? left * 1000 : 300000);
   }
   function workOn() {
