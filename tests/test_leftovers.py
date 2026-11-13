@@ -405,14 +405,64 @@ class SweepKeepsWhatIsWantedTests(unittest.TestCase):
         m = store.get_meta(aid)
         m["versions"] = m["versions"][:1]  # a meta.json write that was lost
         store._write_json(d / "meta.json", m)
-        unfinished = d / "v3"  # no entry file: never deleted, never listed
+        unfinished = d / "v3"  # no entry file, touched 2 days ago: never listed, not yet deleted
         unfinished.mkdir()
         self.aged_tree(d)
+        age(unfinished, time.time() - 2 * 86400)
         with self.assertLogs(store.logger, "WARNING"):
             self.sweep()
         self.assertEqual([v["n"] for v in store.get_meta(aid)["versions"]], [1, 2])
         self.assertTrue((d / "v2" / "index.html").exists())
         self.assertTrue(unfinished.exists())
+
+    def test_an_unfinished_version_goes_only_once_long_dead(self):
+        aid = store.publish(html="<p>1</p>", title="U")["id"]
+        store.publish(html="<p>2</p>", aid=aid)
+        d = store._dir(aid)
+        dead, young, touched = d / "v3", d / "v4", d / "v5"  # none has index.html: publishes that died
+        for v in (dead, young, touched):
+            (v / "css").mkdir(parents=True)
+            (v / "css" / "a.css").write_text("x", "utf-8")
+        self.aged_tree(d)
+        for p in (young / "css" / "a.css", young / "css", young):
+            age(p, time.time() - 6 * 86400)  # under DEAD_VERSION_AGE
+        age(touched / "css" / "a.css", time.time() - 3600 * 2)  # an old folder, a file in it recently written
+        with self.assertLogs(store.logger, "WARNING"):
+            out = self.sweep()
+        self.assertEqual(out.get("dead"), 1)
+        self.assertFalse(dead.exists())
+        self.assertTrue((young / "css" / "a.css").exists())
+        self.assertTrue((touched / "css" / "a.css").exists())
+        self.assertEqual([v["n"] for v in store.get_meta(aid)["versions"]], [1, 2])
+        store._rmtree(d)
+
+    def test_an_unfinished_version_stays_on_a_copy_or_a_changed_meta(self):
+        aid = store.publish(html="<p>1</p>", title="F")["id"]
+        d = store._dir(aid)
+        dead = d / "v2"
+        dead.mkdir()
+        (dead / "half.js").write_text("x", "utf-8")
+        self.aged_tree(d)
+        real = store._youngest_age
+
+        def meta_written_meanwhile(top, now):  # another process writes meta.json while the sweep looks
+            store.update_meta(aid, title="F2")
+            return real(top, now)
+        with mock.patch.object(store, "_youngest_age", side_effect=meta_written_meanwhile):
+            self.sweep()
+        self.assertTrue((dead / "half.js").exists())
+        good = (d / "meta.json").read_text("utf-8")
+        (d / "meta.json").write_text("{cut sho", "utf-8")  # read from its copy now: nothing is decided
+        self.aged_tree(d)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.sweep()
+        self.assertTrue((dead / "half.js").exists())
+        (d / "meta.json").write_text(good, "utf-8")
+        self.aged_tree(d)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.sweep()
+        self.assertFalse(dead.exists())  # read whole and unchanged: it goes
+        store._rmtree(d)
 
     def test_a_publish_in_another_process_during_the_sweep_is_kept(self):
         aid = store.publish(html="<p>1</p>", title="R")["id"]

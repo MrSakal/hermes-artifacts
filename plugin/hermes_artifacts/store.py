@@ -1602,6 +1602,7 @@ def _drop_versions(d: Path, ns: list) -> None:
 
 ORPHAN_AGE = 3600.0
 CORRUPT_DAYS = 7
+DEAD_VERSION_AGE = 7 * 86400.0  # an unfinished version folder (no entry file) untouched this long goes
 SWEEP_S = 2.0
 _SWEPT: dict = {"after": ""}  # the last artifact folder looked at
 _CORRUPT = re.compile(r"\.corrupt-(\d{9,11})$")
@@ -1680,6 +1681,26 @@ def _sweep_empty(d: Path, now: float, out: dict) -> None:
             out["empty"] = out.get("empty", 0) + 1
     except OSError:
         pass
+
+
+def _youngest_age(top: Path, now: float) -> Optional[float]:
+    """The age of the newest thing in ``top`` (itself, every folder and file under it, by mtime; a hard-linked
+    file keeps its source's time, the folders made for it do not). None when it can't be read whole or holds
+    a link (then nothing is decided on it)."""
+    ages = [_age(top, now)]
+    try:
+        stack = [str(top)]
+        while stack:
+            with os.scandir(stack.pop()) as it:
+                for e in it:
+                    if _is_link(e.path):
+                        return None
+                    ages.append(now - e.stat(follow_symlinks=False).st_mtime)
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(e.path)
+    except OSError:
+        return None
+    return None if min(ages) < 0 else min(ages)
 
 
 def _stamp(p: Path) -> Optional[tuple]:
@@ -1784,6 +1805,7 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
                 logger.warning("%s: version folders %s were not in meta.json: taken back in", d, [x["n"] for x in added])
                 out["adopted"] = out.get("adopted", 0) + len(added)
             _write_meta(d, meta)
+            st0 = _stamp(p)  # this round's own write: what a later check compares with
             if missing:
                 out["entries"] = out.get("entries", 0) + len(missing)
                 ns -= set(missing)
@@ -1793,6 +1815,19 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
             if n not in ns and n < top and _age(vp, now) > ORPHAN_AGE:
                 if _rmtree(vp):
                     out["versions"] = out.get("versions", 0) + 1
+        # A version newer than every one meta names with no entry file, nothing in it touched for
+        # DEAD_VERSION_AGE: a publish that died mid-copy (the next publish of that number would replace it).
+        # Decided on meta.json's own read (never a copy's), and only while meta.json is still as read.
+        for n, vp in found.items():
+            if n in ns or n <= top or (vp / entry).is_file():
+                continue
+            young = _youngest_age(vp, now)
+            if young is None or young <= DEAD_VERSION_AGE or _stamp(p) != st0:
+                continue
+            if _rmtree(vp):
+                logger.warning("%s: unfinished version folder v%d (no %s, untouched %.0f days) removed",
+                               d, n, entry, young / 86400)
+                out["dead"] = out.get("dead", 0) + 1
         latest = sorted(ns)[-PREVIEWS_KEPT:]
     _sweep_files(d, now, out)
     pv = d / "previews"
