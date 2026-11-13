@@ -125,15 +125,6 @@ class ExceptionTests(_Plugin):
         self.assertIn("…. Next: fix that and call again.", r["error"])
         self.assertEqual(r["detail"], why)
 
-    def test_merging_two_refusals(self):
-        a = self.p.Refusal("v7 is newer than v5", next="merge onto live", code="stale_version", live={"version": 7})
-        b = self.p.Refusal("this type's rules weren't read", next="follow guide", code="guide_first", guide="…")
-        r = self.shape(self.run_raising(self.p._merge_refusals(a, b), name="ha_publish",
-                                        outcome="Nothing was published"), "stale_version")
-        self.assertEqual((r["live"], r["guide"]), ({"version": 7}, "…"))
-        self.assertIn("v7 is newer than v5; also this type's rules weren't read", r["error"])
-        self.assertIn("Next: follow guide.", r["error"])
-
 
 class ResendTests(_Plugin):
     def setUp(self):

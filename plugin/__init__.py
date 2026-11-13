@@ -270,17 +270,6 @@ def _partial(done: str, step: str, e: BaseException, next=None, dont=None, **pay
                       separators=_SEP, default=str)
 
 
-def _merge_refusals(first: "store.FixIt", second: "store.FixIt", why: str | None = None,
-                    next: str | None = None, dont: str | None = None, code: str | None = None) -> Refusal:
-    """Two refusals of one call as one: both payloads (the first wins a key both carry), the first's code
-    and outcome unless given, and one why/next/dont (given, else the first's why + the second's, the
-    second's next, the first's dont)."""
-    return Refusal(why or f"{_clause(first.why)}; also {_clause(second.why)}",
-                   next=next or second.next or first.next, dont=dont or first.dont or second.dont,
-                   code=code or first.code, outcome=first.outcome or second.outcome,
-                   **first.extra, **{k: v for k, v in second.extra.items() if k not in first.extra})
-
-
 def _storage_refusal(e: OSError) -> dict:
     return {"why": f"a storage error on the Hermes host, not your call: {e}",
             "next": "try once; if it fails again tell the user",
@@ -1776,23 +1765,7 @@ ROUTE_LINE = ("A doc, sheet, deck, board, dashboard or page the user asks you to
 # A Hermes without prompt sections gets the same line on a new chat's first turn instead (Hermes replays
 # the turn as sent, so ~46 tokens per chat, never per turn).
 ROUTE_HINT = "[" + ROUTE_LINE + "]"
-
-# TEMPORARY test switch for the live A/B of the routing line; remove it after that test. Read at call
-# time from HERMES_ARTIFACTS_ROUTE: "section" (default: the system-prompt section), "hint" (0.16.3's
-# first-turn line instead), "none" (neither). Not documented for users.
-_ROUTE_MODES = ("section", "hint", "none")
 _section_ok = False  # register() set the section up (False on a Hermes without the API: the hint routes)
-
-
-def _route_mode() -> str:
-    v = os.environ.get("HERMES_ARTIFACTS_ROUTE", "").strip().lower()
-    return v if v in _ROUTE_MODES else "section"
-
-
-def _hint_routes() -> bool:
-    """The first-turn line routes: asked for, or the section is the way but this Hermes has none."""
-    mode = _route_mode()
-    return mode == "hint" or (mode == "section" and not _section_ok)
 
 
 # Hermes' gateway platforms (gateway.config.Platform, 0.23.1) as a fallback when that module is not
@@ -1828,8 +1801,6 @@ def _route_section(info) -> str:
     """The section's text for one new session ("" skips it): the routing line, for a chat a person
     makes things in (Desktop, CLI, TUI, the web dashboard), not for a delegated sub-agent, a cron job or a
     messaging platform, where no artifact pane opens."""
-    if _route_mode() != "section":
-        return ""
     try:
         platform = str((info or {}).get("platform") or "").strip().lower()
     except Exception:
@@ -1889,7 +1860,7 @@ def _view_context(**kw):
             if m:
                 parts.append(f'[This chat is for artifact {json.dumps(m.get("title", m["id"]), ensure_ascii=False)} '
                              f'(id {m["id"]}, {m.get("type", "page")})]')
-            elif not kw.get("parent_session_id") and _hint_routes():  # a delegated child gets its task only
+            elif not kw.get("parent_session_id") and not _section_ok:  # a delegated child gets its task only
                 parts.append(ROUTE_HINT)
     except Exception:
         logger.debug("artifact chat context failed", exc_info=True)
