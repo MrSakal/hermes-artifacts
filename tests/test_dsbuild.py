@@ -87,7 +87,6 @@ class BuildTests(unittest.TestCase):
     def test_gallery_folders_and_last_opened(self):
         from hermes_artifacts import api
         a = store.publish(title="F1", html="<p>x</p>")["id"]
-        self.assertIsNone(api.handle("GET", "artifacts", {}, None)["artifacts"][0].get("opened") if False else None)
         v = api.handle("POST", f"artifacts/{a}/meta", {}, {"opened": True, "folder": "  Q4   reports "})
         self.assertEqual(v["folder"], "Q4 reports")
         self.assertIsInstance(v["opened"], float)

@@ -149,7 +149,6 @@ class LookingIsNotEditing(unittest.TestCase):
         """, settle=True, exports=("xlsx", "csv"))
 
     def test_a_board_opened_clicked_and_closed_is_unchanged(self):
-        from hermes_artifacts import boards  # noqa: F401 - the board's live state is made on publish
         aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [
             {"id": "a", "type": "box", "text": "Survey"}, {"id": "b", "type": "box", "text": "Order"},
             {"type": "arrow", "from": "a", "to": "b"}, {"type": "note", "text": "Six weeks", "near": "b"}]}})["id"]

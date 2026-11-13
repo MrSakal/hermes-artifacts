@@ -5,7 +5,6 @@ and the behaviours fixed in the page that are plain to see in its source stay so
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile

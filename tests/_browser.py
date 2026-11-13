@@ -7,7 +7,6 @@ every op the page sent (window.__ops) and every event (window.__events), and can
 import json
 import os
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
