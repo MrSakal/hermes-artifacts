@@ -150,21 +150,22 @@ def _compacted_agents(old, new) -> None:
     sessions = {s for s in (old, new) if s}
     if not sessions:
         return
-    for who, kinds in _GUIDED.items():
+    # (lists first: an _Lru reorders as it is read, and an entry can go while another is added)
+    for who, kinds in list(_GUIDED.items()):
         if who in sessions or _WHO_SESSION.get(who) in sessions:
             for k in kinds:
                 kinds[k] = "stale"
     if old and new and old != new:
         _SESSION_BEFORE[new] = {old} | _SESSION_BEFORE.get(old, set()) | _SESSION_BEFORE.get(new, set())
-        for key in [k for k in _SEEN if k[0] == old]:
+        for key, theirs in [(k, v) for k, v in list(_SEEN.items()) if k[0] == old]:
             mine = _SEEN.setdefault((new, *key[1:]), {"files": {}, "top": 0})
-            for rel, n in _SEEN[key]["files"].items():
+            for rel, n in theirs["files"].items():
                 mine["files"][rel] = max(n, mine["files"].get(rel, 0))
-            mine["top"] = max(mine["top"], _SEEN[key]["top"])
-        for key in [k for k in _TOLD if k[0] == old]:
-            _TOLD.setdefault((new, *key[1:]), {}).update(_TOLD[key])
-        if old in _GUIDED:
-            _GUIDED[new] = {**_GUIDED[old], **_GUIDED.get(new, {})}
+            mine["top"] = max(mine["top"], theirs["top"])
+        for key, theirs in [(k, v) for k, v in list(_TOLD.items()) if k[0] == old]:
+            _TOLD.setdefault((new, *key[1:]), {}).update(theirs)
+        if (theirs := _GUIDED.get(old)) is not None:
+            _GUIDED[new] = {**theirs, **_GUIDED.get(new, {})}
 
 
 def _follow_compressed_now() -> int:
@@ -498,6 +499,43 @@ def _view(meta: dict) -> dict:
 
 # ----------------------------------------------------------------------------- tools
 
+class _Lru(OrderedDict):
+    """A dict of this process's memory that a long-running gateway never lets grow: reading or writing an
+    entry makes it the newest, and past ``cap`` entries the least recently used goes. An entry gone is as
+    one never made (a chat or agent not heard from in that long starts as a fresh one)."""
+
+    def __init__(self, cap: int):
+        super().__init__()
+        self.cap = cap
+        self._lock = threading.RLock()
+
+    def __getitem__(self, k):
+        with self._lock:
+            v = super().__getitem__(k)
+            self.move_to_end(k)
+            return v
+
+    def get(self, k, default=None):
+        with self._lock:
+            return self[k] if k in self else default
+
+    def __setitem__(self, k, v):
+        with self._lock:
+            super().__setitem__(k, v)
+            self.move_to_end(k)
+            while len(self) > self.cap:
+                self.popitem(last=False)
+
+    def setdefault(self, k, default=None):
+        with self._lock:
+            if k not in self:
+                self[k] = default
+            return self[k]
+
+
+AGENTS_KEPT = 512  # agents, chats and artifacts a dict below remembers: far more than are in use at once
+SEEN_KEPT = 4096  # (agent, artifact) pairs: an agent works on a few artifacts at a time
+
 # Per agent (Hermes' task_id: one per chat, its own for each sub-agent; else the session id), in memory
 # like Hermes' own read-before-write guard of write_file: kept through compaction, gone on a restart.
 #
@@ -506,20 +544,20 @@ def _view(meta: dict) -> dict:
 # handed them back), and the newest version it published or read. ``created`` tells an artifact made
 # again under the same id from the one before. A publish that would replace a file someone else changed
 # since is refused with that file; files the publish leaves alone are no concern of it.
-_SEEN: dict = {}
+_SEEN = _Lru(SEEN_KEPT)
 # _GUIDED[who] = {type: "fresh" | "stale"}: the types whose guide (ha_guide, the main one) this agent has
 # read; "stale" after a compaction may have dropped it. A new artifact of a type not in it is refused with
 # the guide (a new page instead gets its short guide with the result).
-_GUIDED: dict = {}
+_GUIDED = _Lru(AGENTS_KEPT)
 # who -> the session id it last called with (task_id and session_id may differ): a compaction of that
 # session marks the agent's guides stale.
-_WHO_SESSION: dict = {}
+_WHO_SESSION = _Lru(AGENTS_KEPT)
 # session id -> the ids it had before compactions: versions made under those are still this chat's own.
-_SESSION_BEFORE: dict = {}
+_SESSION_BEFORE = _Lru(AGENTS_KEPT)
 # _TOLD[(who, id, created)] = {version: diagnostics.news(...)}: what this agent was told of a version's open
 # page (a page_errors line, ha_check). Same lifetime as _SEEN: kept through compaction, gone on a restart,
 # after which a line already given may come once more (never more than once per change).
-_TOLD: dict = {}
+_TOLD = _Lru(SEEN_KEPT)
 
 LIVE_BUDGET = 16_000  # characters (as JSON text) of file text a stale-version refusal hands back
 LIVE_LIST_MAX = 150  # paths a refusal lists per list; the rest are counted (…_more)
@@ -1273,7 +1311,7 @@ CHECK_CLAIMS = " Claims in check and runs are the page's: verify with your own q
 VIEWER_RECENT_S = 60
 NO_VIEWER_WAIT_S = 2
 CHECK_POLL_S = 0.1  # how often ha_check looks again while it waits
-_SHOWN_AT: dict = {}  # artifact id -> when this process last sent it to a viewer (publish's open, ha_open)
+_SHOWN_AT = _Lru(AGENTS_KEPT)  # artifact id -> when this process last sent it to a viewer (publish's open, ha_open)
 
 
 def _viewer_likely(aid: str, meta: dict, now: float) -> bool:
@@ -1725,7 +1763,7 @@ def _cli(args):
 def _forget_ids(aid: str, d) -> None:
     """An artifact deleted for good: this process's memory of it (what agents saw and were told) goes."""
     for mem in (_SEEN, _TOLD):
-        for k in [k for k in mem if isinstance(k, tuple) and len(k) > 1 and k[1] == aid]:
+        for k in [k for k in list(mem) if isinstance(k, tuple) and len(k) > 1 and k[1] == aid]:
             mem.pop(k, None)
     _SHOWN_AT.pop(aid, None)
     for k in [k for k, v in _REFUSED.items() if aid in json.dumps(v, default=str)]:
@@ -1754,7 +1792,7 @@ def _empty_old_trash() -> None:
     threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True).start()
 
 
-_LAST_VIEW: dict = {}
+_LAST_VIEW = _Lru(AGENTS_KEPT)  # session -> the view context last sent it (gone: sent once more)
 
 # Routing: without this line a model that obeys Hermes' "load any relevant skill" rule reached for a file
 # skill (openpyxl) on "make a budget spreadsheet" before it looked at the deferred ha_ tools. It is one
@@ -1774,14 +1812,15 @@ _MESSAGING = frozenset({
     "telegram", "discord", "whatsapp", "whatsapp_cloud", "slack", "signal", "mattermost", "matrix", "email",
     "sms", "dingtalk", "api_server", "webhook", "msgraph_webhook", "feishu", "wecom", "wecom_callback",
     "weixin", "bluebubbles", "qqbot", "relay"})
-_PLATFORM_SEEN: dict = {}
+_PLATFORM_SEEN = _Lru(64)  # platform name -> a messaging one (Hermes' platforms are a few dozen)
 
 
 def _is_messaging(platform: str) -> bool:
     """A gateway (messaging) platform, by Hermes' own list: its Platform enum, which also resolves the
     platforms plugins register (irc, teams, …). The local adapter is not one."""
-    if platform in _PLATFORM_SEEN:
-        return _PLATFORM_SEEN[platform]
+    known = _PLATFORM_SEEN.get(platform)
+    if known is not None:
+        return known
     try:
         from gateway.config import Platform
     except Exception:
