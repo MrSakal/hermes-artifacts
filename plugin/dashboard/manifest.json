@@ -3,5 +3,10 @@
   "label": "Artifacts",
   "description": "Backend for the Hermes Desktop Artifacts page: artifacts, live docs, sheets and boards, live dashboard queries, comments, storage, inbox, export libraries.",
   "version": "0.19.0",
+  "tab": {
+    "path": "/hermes-artifacts",
+    "hidden": true
+  },
+  "entry": "dist/index.js",
   "api": "plugin_api.py"
 }
