@@ -651,7 +651,7 @@ class SwapTests(unittest.TestCase):
         self.assertIn("children: rec.src && !held", frame)
         thumb = src[src.index("function Thumb("):src.index("function TypeBadge(")]
         self.assertIn("useValue($frameHold) > Date.now()", thumb)
-        self.assertIn(": src && !held", thumb)
+        self.assertIn("src && near && !held", thumb)
         self.assertIn("hold: ms => holdFrames(ms),", viewer)
         shell = (PLUGIN / "hermes_artifacts" / "assets" / "shell.js").read_text("utf-8")
         self.assertIn("var PAUSES = [11000, 2000, 6000], HELLO_MS = 4000", shell)

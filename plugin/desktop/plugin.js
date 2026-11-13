@@ -32,6 +32,7 @@ import {
   useValue
 } from '@hermes/plugin-sdk'
 import * as SDK from '@hermes/plugin-sdk'
+import * as React from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 
@@ -133,6 +134,16 @@ const STRINGS = {
     noMatch: 'Nothing matches.',
     loading: 'Loading…',
     loadFailed: err => `Could not load it: ${err}`,
+    errStorage: 'Hermes could not write to its session store just now. Try again in a moment; if it keeps failing, restart the Hermes gateway.',
+    errDraining: 'Hermes is restarting. Try again in a few seconds.',
+    errOffline: 'Hermes is not reachable. Check that it is running and this app is connected to it, then try again.',
+    errGeneric: 'That did not work. Try again; if it keeps failing, restart the Hermes gateway.',
+    errNoChat: 'Hermes did not start a chat for this artifact. Try again.',
+    popInNoChat: 'This artifact has no chat yet: write a message here and its chat starts',
+    clearFilters: n => `Clear filters (${n})`,
+    clearFiltersTip: 'Show every artifact again: type, date opened and pinned only are reset',
+    noPreviewYet: 'Open it once to see a preview',
+    openComments: n => (n === 1 ? '1 open comment' : `${n} open comments`),
     bandThrew: v => `v${v} had an error while starting`,
     bandBlank: (v, old) => (old != null ? `v${v} showed nothing (an error while starting); showing v${old}` : `v${v} showed nothing (an error while starting)`),
     bandNoLoad: (v, old) => (old != null ? `v${v} didn’t finish loading; showing v${old}` : `v${v} didn’t finish loading`),
@@ -412,6 +423,16 @@ const STRINGS = {
     noMatch: 'Nincs találat.',
     loading: 'Betöltés…',
     loadFailed: err => `Nem sikerült betölteni: ${err}`,
+    errStorage: 'A Hermes most nem tudott írni a session-tárba. Próbáld újra kicsit később; ha továbbra sem megy, indítsd újra a Hermes gatewayt.',
+    errDraining: 'A Hermes éppen újraindul. Próbáld újra pár másodperc múlva.',
+    errOffline: 'A Hermes nem érhető el. Ellenőrizd, hogy fut, és hogy ez az app kapcsolódik hozzá, majd próbáld újra.',
+    errGeneric: 'Ez nem sikerült. Próbáld újra; ha továbbra sem megy, indítsd újra a Hermes gatewayt.',
+    errNoChat: 'A Hermes nem indított chatet ehhez az artifacthoz. Próbáld újra.',
+    popInNoChat: 'Ehhez az artifacthoz még nincs chat: írj ide egy üzenetet, és elindul a chatje',
+    clearFilters: n => `Szűrők törlése (${n})`,
+    clearFiltersTip: 'Újra minden artifact látszik: a típus, a megnyitás ideje és a csak kitűzöttek szűrő törlődik',
+    noPreviewYet: 'Nyisd meg egyszer az előnézethez',
+    openComments: n => `${n} nyitott komment`,
     bandThrew: v => `A v${v} indításkor hibát jelzett`,
     bandBlank: (v, old) => (old != null ? `A v${v} üres maradt (hiba indításkor); a v${old} látszik` : `A v${v} üres maradt (hiba indításkor)`),
     bandNoLoad: (v, old) => (old != null ? `A v${v} nem töltődött be teljesen; a v${old} látszik` : `A v${v} nem töltődött be teljesen`),
@@ -563,7 +584,10 @@ const $dsDefault = atom(null) // the design system designs, decks, films and das
 const $selected = atom(null) // open artifact id; null = gallery
 const $shown = atom(null) // pinned version, null = latest
 const $page = atom(null) // sub-page of a multi-file artifact
-const $nonce = atom(0)
+const $nonce = atom(0) // bumped to load the frame again (opening, a new version, a version shown again, Reload)
+// Reload in the title menu: the artifacts whose cached HTML the next load drops (only an explicit Reload
+// fetches the page again; every other load of the same version reuses the cache).
+const reloadAsked = new Set()
 const $error = atom(null)
 const $query = atom('')
 const $sort = atom('opened') // opened | edited (Claude's Last opened / Last edited)
@@ -924,7 +948,7 @@ function TitlebarArtifactButton({ label, active, count, onSelect }) {
     title: label,
     'aria-label': label,
     'aria-pressed': active,
-    className: 'titlebar-icon-button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[4px] ' +
+    className: `titlebar-icon-button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[4px] ${FOCUS} ` +
       'h-(--titlebar-control-height) w-(--titlebar-control-size) bg-transparent select-none ' +
       'text-muted-foreground/85 hover:bg-(--ui-control-hover-background) hover:text-foreground',
     onClick: e => { e.preventDefault(); onSelect() },
@@ -1097,7 +1121,7 @@ function PinMark({ ctx, sessionId }) {
       openBeside(ctx, a)
     },
     style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
-      marginRight: 4, flexShrink: 0, borderRadius: C.rSm, cursor: 'pointer',
+      marginRight: 4, flexShrink: 0, borderRadius: C.rMd, cursor: 'pointer',
       background: hover ? C.rowHover : 'transparent', color: hover ? C.fg : C.text2 },
     children: jsx(Icon, { name: a.type === 'page' || !TYPE_ICON[a.type] ? 'code' : TYPE_ICON[a.type], size: 14, stroke: 1.8 })
   })
@@ -1127,9 +1151,11 @@ async function loadList(ctx) {
     const ids = list.map(a => a.id).sort().join('\n')
     if (ids !== listedIds) (listedIds = ids, loadTrash(ctx))
     const prev = current()
-    // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip).
+    // Only re-render when something changed (the poll runs every 5 s, possibly over a LAN round trip), and
+    // then only what changed: an artifact whose JSON is the same keeps its object, so its card (memo) stays.
     listedOnce = true // before the set: its listeners (opening a chat's artifact at start) check it
-    if (JSON.stringify(list) !== JSON.stringify($list.get())) $list.set(list)
+    const next = reuseSame(list, $list.get())
+    if (next !== $list.get()) $list.set(next)
     syncPinnedNav(ctx, list)
     $error.set(null)
     if ($selected.get() && !list.some(a => a.id === $selected.get())) $selected.set(null)
@@ -1142,6 +1168,20 @@ async function loadList(ctx) {
   } catch (err) {
     $error.set(String(err?.message || err))
   }
+}
+
+/** `list` with each artifact equal (by JSON) to one in `old` replaced by that object; `old` itself when nothing
+ *  changed at all. */
+function reuseSame(list, old) {
+  const was = new Map((old || []).map(a => [a.id, a]))
+  let same = list.length === (old || []).length
+  const out = list.map((a, i) => {
+    const o = was.get(a.id)
+    const keep = o && JSON.stringify(o) === JSON.stringify(a) ? o : a
+    if (keep !== old[i]) same = false
+    return keep
+  })
+  return same ? old : out
 }
 
 let listedIds = null // the ids the list had last time (a change reloads the trash)
@@ -1160,7 +1200,7 @@ async function restoreFromTrash(ctx, item) {
     await ctx.rest('/trash/restore', { method: 'POST', body: { name: item.name } })
     toast(T('restored', item.title))
   } catch (err) {
-    toast(String(err?.message || err), 'error') // e.g. the id is taken again: the server says so
+    toast(errText(err), 'error') // e.g. the id is taken again: the server says so
   }
   await Promise.all([refresh(ctx), loadTrash(ctx)])
   if (!$trash.get().length) $trashOpen.set(false)
@@ -1172,7 +1212,7 @@ async function deleteFromTrash(ctx, item) {
     await ctx.rest('/trash/delete', { method: 'POST', body: { name: item.name } })
     toast(T('deletedForever', item.title))
   } catch (err) {
-    toast(String(err?.message || err), 'error')
+    toast(errText(err), 'error')
   }
   await loadTrash(ctx)
   if (!$trash.get().length) $trashOpen.set(false)
@@ -1262,6 +1302,24 @@ function toast(msg, kind = 'info') {
   setTimeout(() => $toast.get() === text && $toast.set(null), 2600)
 }
 
+/** What went wrong, as a sentence the person can act on (EN/HU): a request or host failure never shows as a
+ *  bare code. `503: {"detail":"storage_unavailable"}` and the like are read for their detail; a known code
+ *  gets its own sentence, any other bare code (one word, no spaces) the general one. A message that is
+ *  already a sentence (the plugin's server says what to do) is kept. */
+function errText(err) {
+  let m = String(err?.message ?? err ?? '').trim()
+  const j = /^\d{3}:\s*(\{[\s\S]*\})$/.exec(m)
+  if (j) {
+    try { m = String(JSON.parse(j[1])?.detail ?? m).trim() } catch {}
+  }
+  m = m.replace(/^\d{3}:\s*/, '').trim()
+  if (/storage_unavailable|database is locked|disk i\/o/i.test(m)) return tr('errStorage')
+  if (/runtime_draining|draining/i.test(m)) return tr('errDraining')
+  if (/failed to fetch|networkerror|network error|load failed|econn|timed out|timeout|not connected/i.test(m)) return tr('errOffline')
+  if (!m || !/\s/.test(m)) return tr('errGeneric')
+  return m
+}
+
 /** UTF-8 safe base64 for a data: URL (chunked, so large pages do not hit the argument limit). */
 function toDataUrl(html) {
   const bytes = new TextEncoder().encode(html)
@@ -1325,6 +1383,21 @@ function fetchPreview(ctx, id, v) {
   return p
 }
 
+// The vendored libraries a page asks for (bridge op `vendor`: three.bundle.js is about 1 MB), fetched once per
+// name and plugin version for this Desktop: every model opened after the first takes it from here. A failed
+// fetch is not kept.
+const vendorCache = new Map()
+function fetchVendor(ctx, name) {
+  // The server serves the files: its version (when it says) and this half's, so an update loads them anew.
+  const key = `${$server.get()?.loaded || ''}:${PLUGIN_VERSION}:${name}`
+  if (vendorCache.has(key)) return vendorCache.get(key)
+  const p = ctx.rest(`/vendor/${enc(name)}`)
+  p.catch(() => vendorCache.delete(key))
+  vendorCache.set(key, p)
+  while (vendorCache.size > 8) vendorCache.delete(vendorCache.keys().next().value)
+  return p
+}
+
 // Thumbnails load a few at a time, so opening the gallery never fires dozens of requests at once.
 const thumbQueue = []
 let thumbActive = 0
@@ -1335,7 +1408,7 @@ function queueThumb(job) {
   })
 }
 function pumpThumbs() {
-  while (thumbActive < 3 && thumbQueue.length) {
+  while (thumbActive < THUMB_LOADS && thumbQueue.length) {
     const { job, resolve, reject } = thumbQueue.shift()
     thumbActive++
     job()
@@ -1419,7 +1492,10 @@ const C = {
   bg: 'var(--background)',
   fg: 'var(--ui-text-primary, var(--foreground))',
   text2: 'var(--ui-text-secondary)',
-  text3: 'var(--ui-text-tertiary)',
+  // The quiet ink of meta text (types, times, counts): Hermes' 64% ink (--conversation-scaffold-text, its
+  // tone between secondary and tertiary). Its tertiary (54%) is about 3.4:1 on a light skin's card, under the
+  // 4.5:1 small text needs; this one keeps 4.5:1 in Hermes' own light and dark skins.
+  text3: 'var(--conversation-scaffold-text, var(--ui-text-secondary))',
   text4: 'var(--ui-text-quaternary)',
   line: 'var(--ui-stroke-secondary)',
   hover: 'var(--chrome-action-hover)',
@@ -1434,13 +1510,33 @@ const C = {
   // Ink on an accent fill: the theme computes it for --ui-accent (= midground); primary-foreground before a skin applies.
   onAccent: 'var(--dt-midground-foreground, var(--dt-primary-foreground))',
   accentBg: 'color-mix(in srgb, var(--ui-accent, var(--foreground)) 16%, var(--background))',
-  rSm: 'var(--radius-sm, 6px)', // buttons, inputs, menu rows
-  rMd: 'var(--radius-md, 8px)',
-  rLg: 'var(--radius-lg, 10px)', // menus, tooltips
-  rXl: 'var(--radius-xl, 14px)', // cards, dialogs
+  // Hermes' radius scale. Its --radius-sm/md/lg/xl are Tailwind `@theme inline` tokens: compiled into the
+  // classes, never defined on :root, so var(--radius-sm) is always its fallback. What Hermes does define on
+  // :root is --radius-scalar (a skin may change it); the scale is that times the same rem steps as its
+  // styles.css (sm 0.5, md 0.625, lg 0.75, xl 1).
+  rSm: 'calc(var(--radius-scalar, 0.2) * 0.5rem)', // menu rows, inputs
+  rMd: 'calc(var(--radius-scalar, 0.2) * 0.625rem)', // rows (core rounded-md)
+  rLg: 'calc(var(--radius-scalar, 0.2) * 0.75rem)', // menus, tooltips (core menuSurfaceClass: rounded-lg)
+  rXl: 'calc(var(--radius-scalar, 0.2) * 1rem)', // cards, dialogs
   shadowPop: 'var(--shadow-md)', // core menus and popovers
   shadowModal: 'var(--shadow-nous)' // core dialogs (--shadow-lg is not shipped)
 }
+// Hermes' own control classes (shipped in its CSS; a runtime plugin can use only those). FOCUS is the ring of
+// its Button (components/ui/button.tsx): no outline, a 3px ring of the theme's --dt-ring at 50% on
+// :focus-visible. ICON_BTN is its icon buttons' radius (size icon / icon-sm / icon-titlebar: rounded-[4px],
+// not on the scalar). Inline styles must not set outline or boxShadow on a control that wears FOCUS (an
+// inline box-shadow would hide the ring): a shadow goes through SHADOW (core's shadow-md, composed with it).
+const FOCUS = 'focus-visible:outline-hidden focus-visible:ring-[0.1875rem] focus-visible:ring-ring/50'
+const ICON_BTN = `rounded-[4px] ${FOCUS}`
+const TEXT_BTN = `rounded-[2.5px] ${FOCUS}` // its text buttons and inputs (buttonVariants, controlVariants)
+// Its inputs (components/ui/control.ts): the shared desktop-input-chrome (its fill, border and the focus border
+// of the theme's ring colour), 2.5px. An input wearing it sets only the border's width and style inline.
+const INPUT = 'desktop-input-chrome rounded-[2.5px] outline-none'
+// Its menu rows (components/ui/menu.ts menuItemClass + menuItemFocusClass): no outline, the row lit on focus.
+// Its pills (reactions, tags): fully round, the focus ring.
+const PILL = `rounded-full ${FOCUS}`
+const MENU_ROW = 'bg-transparent focus-visible:outline-hidden focus:bg-(--ui-control-active-background)'
+const SHADOW = 'shadow-md'
 // Shipped core classes where core has no variable: the dialog/sheet scrim, and the media (video) backdrop.
 const SCRIM = 'bg-black/22'
 const MEDIA_BACKDROP = 'bg-black'
@@ -1485,6 +1581,7 @@ const ICONS = {
   next: 'M9 6l6 6-6 6',
   popout: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM12 12h6v6h-6z',
   expand: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
+  beside: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM14 5v14M16.5 9h2M16.5 12h2', // a view with a chat panel at its side
   collapse: 'M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7',
   sparkle: 'M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2', // Hermes' caduceus: everything that asks Hermes
   copy: 'M8 8h12v12H8zM16 8V4H4v12h4',
@@ -1516,10 +1613,20 @@ function useHover() {
   return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }]
 }
 
-function IconButton({ icon, title, onClick, active, label, pressed, data }) {
+/** Whether the focus is inside the element (its buttons that show on hover show for the keyboard too). */
+function useFocusWithin() {
+  const [f, setF] = useState(false)
+  return [f, { onFocus: () => setF(true), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) setF(false) } }]
+}
+
+// React.memo where the host's React has it (a stub without it: the component as it is).
+const memo = typeof React.memo === 'function' ? React.memo : c => c
+
+function IconButton({ icon, title, onClick, active, label, pressed, data, disabled = false }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
+    disabled,
     title,
     'aria-label': title,
     'aria-pressed': pressed,
@@ -1528,6 +1635,8 @@ function IconButton({ icon, title, onClick, active, label, pressed, data }) {
     onMouseDown: active ? e => e.stopPropagation() : undefined,
     onClick,
     ...hp,
+    // Hermes' buttons: an icon button its 4px, one with a label its text buttons' 2.5px; both its focus ring.
+    className: label ? TEXT_BTN : ICON_BTN,
     style: {
       ...font,
       display: 'inline-flex',
@@ -1535,12 +1644,12 @@ function IconButton({ icon, title, onClick, active, label, pressed, data }) {
       gap: 6,
       height: 30,
       padding: label ? '0 12px' : '0 7px',
-      borderRadius: C.rSm,
       border: 0,
-      cursor: 'pointer',
+      cursor: disabled ? 'default' : 'pointer',
+      opacity: disabled ? 0.5 : 1, // Hermes' disabled:opacity-50
       fontSize: 12,
-      color: active || h ? C.fg : C.text2,
-      background: active || h ? C.hover : 'transparent'
+      color: (active || h) && !disabled ? C.fg : C.text2,
+      background: (active || h) && !disabled ? C.hover : 'transparent'
     },
     children: [jsx(Icon, { name: icon }), label ? jsx('span', { children: label }) : null]
   })
@@ -1551,12 +1660,13 @@ function Chip({ label, active, onClick }) {
   return jsx('button', {
     type: 'button',
     onClick,
+    'aria-pressed': Boolean(active),
     ...hp,
+    className: TEXT_BTN,
     style: {
       ...font,
       height: 30,
       padding: '0 14px',
-      borderRadius: C.rSm,
       border: 0,
       cursor: 'pointer',
       fontSize: 13,
@@ -1579,11 +1689,14 @@ function RowButton({ label, title, onClick, opaque }) {
     title,
     onClick,
     ...hp,
+    className: FOCUS,
     style: {
       ...rowText,
       display: 'block',
       border: 0,
-      color: hover ? C.text2 : C.text4,
+      // 11px text: the secondary ink (74%), the lightest of Hermes' text tokens that keeps 4.5:1 in its own
+      // light and dark skins (tertiary is about 3.6:1 on a light skin, quaternary about 3:1 on a dark one).
+      color: hover ? C.fg : C.text2,
       background: hover ? hoverFill : opaque ? C.bg : 'transparent',
       cursor: 'pointer',
       transition: 'color 120ms ease'
@@ -1601,51 +1714,95 @@ function FloatingFooter({ label, onClick, spot }) {
 
 // ---------------------------------------------------------------- gallery
 
+/** What a card's preview draws: the stored picture when the artifact has one ('pic'); a model without one, a
+ *  still placeholder of the host (its thumbnail page never makes a WebGL context, so a frame would show only a
+ *  dot at card scale: 'still'); any other type its page in a frame ('frame'). A picture that fails to load
+ *  falls back to the frame (or the placeholder). */
+function thumbKind(art, picFailed = false) {
+  if (art.preview && !picFailed) return 'pic'
+  return art.type === 'model' ? 'still' : 'frame'
+}
+
+// A card's frame runs the type's whole page: one costs megabytes of memory. So a frame is mounted only while
+// its card is near the window (THUMB_MARGIN) and unmounted when it leaves (the HTML stays cached), and at
+// most THUMB_LOADS frames load at once (a slot is held from the fetch until the frame's load, or its
+// unmount, or THUMB_LOAD_MS).
+const THUMB_MARGIN = '300px'
+const THUMB_LOADS = 3
+const THUMB_LOAD_MS = 8000
+
 function Thumb({ ctx, art, height }) {
+  const t = usePluginI18n(ID)
   const box = useRef(null)
+  const [near, setNear] = useState(false) // the card is in or near the window
   const [src, setSrc] = useState(null)
   const [pic, setPic] = useState(null) // the stored preview picture (art.preview), shown instead of a frame
+  const [picFailed, setPicFailed] = useState(false)
   const [w, setW] = useState(0)
+  const loaded = useRef(null) // ends the load slot this card holds
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return undefined
     setW(el.clientWidth)
     const ro = new ResizeObserver(() => setW(el.clientWidth))
     ro.observe(el)
-    let started = false
     const io = new IntersectionObserver(entries => {
-      if (started || !entries.some(e => e.isIntersecting)) return
-      started = true
-      if (art.preview) {
-        queueThumb(() => fetchPreview(ctx, art.id, art.version))
-          .then(setPic)
-          .catch(() => {})
-        return
-      }
-      queueThumb(() => fetchHtml(ctx, art.id, art.version, { thumb: true }))
-        .then(setSrc)
-        .catch(() => {})
-    }, { rootMargin: '200px' })
+      const e = entries[entries.length - 1]
+      if (e) setNear(e.isIntersecting)
+    }, { rootMargin: THUMB_MARGIN })
     io.observe(el)
     return () => {
       ro.disconnect()
       io.disconnect()
     }
-  }, [art.id, art.version, Boolean(art.preview)])
+  }, [])
+  const kind = thumbKind(art, picFailed)
+  useEffect(() => {
+    setPicFailed(false)
+  }, [art.id, art.version])
+  useEffect(() => {
+    if (!near || kind === 'still') return undefined
+    let live = true
+    if (kind === 'pic') {
+      queueThumb(() => fetchPreview(ctx, art.id, art.version))
+        .then(p => { if (live) p ? setPic(p) : setPicFailed(true) })
+        .catch(() => { if (live) setPicFailed(true) })
+      return () => { live = false }
+    }
+    // A card that left before its turn costs nothing.
+    queueThumb(() => !live ? Promise.resolve() : fetchHtml(ctx, art.id, art.version, { thumb: true }).then(u => new Promise(done => {
+      if (!live) return done()
+      const timer = setTimeout(() => end(), THUMB_LOAD_MS)
+      const end = () => { clearTimeout(timer); if (loaded.current === end) loaded.current = null; done() }
+      loaded.current = end
+      setSrc(u)
+    }))).catch(() => {})
+    return () => {
+      live = false
+      loaded.current?.() // a card that leaves gives its load slot back at once
+      setSrc(null) // and its frame: unmounted
+    }
+  }, [near, kind, art.id, art.version])
   const VW = 1280
   const scale = w ? w / VW : 0.2
   const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
   return jsx('div', {
     ref: box,
     style: { position: 'relative', height, overflow: 'hidden', background: C.bg, pointerEvents: 'none' },
-    children: pic
+    children: kind === 'pic' && pic
       ? jsx('img', { src: pic, alt: '', draggable: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } })
-      : src && !held
+      : kind === 'still'
+      ? jsxs('div', {
+          style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.text2, fontSize: 12,
+            background: `linear-gradient(135deg, ${C.hover}, transparent)` },
+          children: [jsx(Icon, { name: TYPE_ICON[art.type] || 'page', size: 40, stroke: 1.3 }), jsx('span', { children: t('noPreviewYet') })]
+        })
+      : kind === 'frame' && src && near && !held
       ? jsx(SandboxedFrame, {
           src,
           title: art.title,
           // Hidden until it has drawn: a frame paints white before its page's own background arrives.
-          onLoad: e => { const f = e.currentTarget; setTimeout(() => { f.style.opacity = '1' }, 120) },
+          onLoad: e => { const f = e.currentTarget; loaded.current?.(); setTimeout(() => { f.style.opacity = '1' }, 120) },
           style: { position: 'absolute', left: 0, top: 0, width: VW, height: height / scale, transform: `scale(${scale})`, transformOrigin: '0 0', border: 0, opacity: 0, transition: 'opacity 160ms ease' }
         })
       : jsx('div', { style: { position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${C.hover}, transparent)` } })
@@ -1667,7 +1824,7 @@ async function setDefaultDs(ctx, art, on) {
     $dsDefault.set(r?.default || null)
     toast(r?.default === art.id ? T('dsOn', art.title) : T('dsOff'))
   } catch (err) {
-    toast(String(err?.message || err), 'error')
+    toast(errText(err), 'error')
   }
 }
 
@@ -1693,7 +1850,7 @@ async function setTileDs(ctx, kind, id) {
     const r = await ctx.rest('/design-system-for', { method: 'POST', body: { type: kind, id } })
     $tileDs.set(r?.design_system_for || {})
   } catch (err) {
-    toast(String(err?.message || err), 'error')
+    toast(errText(err), 'error')
   }
 }
 
@@ -1745,17 +1902,38 @@ function TileDsMenu({ ctx, kind, onClose }) {
   })
 }
 
+/** A New tile's tooltip: its name, by Hermes, what it makes. Under the tile and its name (`top`: never over
+ *  them), flipped above it when there is no room below (useFit); `x` keeps it inside sideways (NewTile). */
+function TileTip({ kind, x, width, top }) {
+  const t = usePluginI18n(ID)
+  const ref = useRef(null)
+  useFit(ref, top, 6)
+  return jsxs('div', {
+    ref,
+    role: 'tooltip',
+    style: { position: 'absolute', left: x == null ? '50%' : x, top, transform: x == null ? 'translateX(-50%)' : 'none', zIndex: 30, width, padding: '10px 12px', borderRadius: C.rLg,
+      background: C.pop, border: `1px solid ${C.line}`, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
+    children: [
+      jsx('div', { style: { fontSize: 13, fontWeight: 500, color: C.fg }, children: t(`tile_${kind}`) }),
+      jsx('div', { style: { fontSize: 11.5, color: C.text2, margin: '1px 0 4px' }, children: t('tileBy') }),
+      jsx('div', { style: { fontSize: 12.5, color: C.text2, lineHeight: 1.4 }, children: t(`tileAbout_${kind}`) })
+    ]
+  })
+}
+
 function NewTile({ ctx, kind }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
+  const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false)
-  const ds =DS_KINDS.includes(kind)
+  const ds = DS_KINDS.includes(kind)
   // The tooltip is wider than its tile: centred under it, but kept inside what is visible (the first clipping parent, else the window).
   const wrap = useRef(null)
   const [tipX, setTipX] = useState(null)
+  const [tipTop, setTipTop] = useState(132) // under the tile and its name (measured)
   const TIP_W = 230
   useLayoutEffect(() => {
-    if (!h || !wrap.current) return
+    if (!(h || f) || !wrap.current) return
     const r = wrap.current.getBoundingClientRect()
     let lo = 0, hi = window.innerWidth
     for (let p = wrap.current.parentElement; p && p !== document.body; p = p.parentElement) {
@@ -1764,16 +1942,21 @@ function NewTile({ ctx, kind }) {
     }
     const want = r.left + r.width / 2 - TIP_W / 2
     setTipX(Math.max(lo + 8, Math.min(hi - 8 - TIP_W, want)) - r.left)
-  }, [h])
+    setTipTop(Math.round(r.height) + 6)
+  }, [h, f])
   return jsxs('div', {
     ...hp,
+    ...fp,
     ref: wrap,
     style: { position: 'relative' },
     children: [
       jsxs('button', {
         type: 'button',
         onClick: () => startNew(ctx, kind),
-        style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, border: 0, padding: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+        // Hermes' focus ring around the tile and its name, with room inside it (the padding, given back by the
+        // margin, so the tiles do not move): the name never touches the ring.
+        className: TEXT_BTN,
+        style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, border: 0, padding: 4, margin: -4, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
         children: [
           jsx('div', {
             style: {
@@ -1789,22 +1972,11 @@ function NewTile({ ctx, kind }) {
             },
             children: jsx(Icon, { name: kind === 'page' ? 'code' : TYPE_ICON[kind], size: 30, stroke: 1.5 })
           }),
-          jsx('span', { style: { fontSize: 13, color: C.fg }, children: t(`tile_${kind}`) })
+          jsx('span', { style: { fontSize: 13, color: C.fg, paddingBottom: 2 }, children: t(`tile_${kind}`) })
         ]
       }),
-      h && !menu
-        ? jsxs('div', {
-            role: 'tooltip',
-            style: { position: 'absolute', left: tipX == null ? '50%' : tipX, top: 104, transform: tipX == null ? 'translateX(-50%)' : 'none', zIndex: 30, width: TIP_W, padding: '10px 12px', borderRadius: C.rLg,
-              background: C.pop, border: `1px solid ${C.line}`, boxShadow: C.shadowPop, pointerEvents: 'none', ...font },
-            children: [
-              jsx('div', { style: { fontSize: 13, fontWeight: 500, color: C.fg }, children: t(`tile_${kind}`) }),
-              jsx('div', { style: { fontSize: 11.5, color: C.text3, margin: '1px 0 4px' }, children: t('tileBy') }),
-              jsx('div', { style: { fontSize: 12.5, color: C.text2, lineHeight: 1.4 }, children: t(`tileAbout_${kind}`) })
-            ]
-          })
-        : null,
-      ds && (h || menu)
+      (h || f) && !menu ? jsx(TileTip, { kind, x: tipX, width: TIP_W, top: tipTop }) : null,
+      ds && (h || f || menu)
         ? jsx('div', {
             style: { position: 'absolute', top: 6, right: 6 },
             children: [
@@ -1829,24 +2001,41 @@ function OverlayBtn({ icon, title, active, onClick }) {
     // click would open it again at once.
     onMouseDown: e => e.stopPropagation(),
     onClick: e => (e.stopPropagation(), onClick(e)),
-    // Over a preview of any colour: an opaque surface of Hermes' own, a stroke, a clear icon.
-    style: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: C.rMd, cursor: 'pointer',
+    'aria-pressed': active === undefined ? undefined : Boolean(active),
+    // Over a preview of any colour: an opaque surface of Hermes' own, a stroke, a clear icon. Hermes' floating
+    // control (button.tsx variant floating: the popover fill and shadow-md) with its icon-button radius and ring.
+    className: `${ICON_BTN} ${SHADOW}`,
+    style: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer',
       border: `1px solid ${active ? C.accent : C.line}`, color: active ? C.accent : C.fg,
-      background: active ? `color-mix(in srgb, ${C.accent} 18%, ${C.pop})` : h ? `color-mix(in srgb, ${C.fg} 10%, ${C.pop})` : C.pop,
-      boxShadow: C.shadowPop },
+      background: active ? `color-mix(in srgb, ${C.accent} 18%, ${C.pop})` : h ? `color-mix(in srgb, ${C.fg} 10%, ${C.pop})` : C.pop },
     children: jsx(Icon, { name: icon, size: 16, stroke: 2 })
   })
 }
 
 async function patchMeta(ctx, art, body) {
-  await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(String(e?.message || e), 'error'))
+  await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(errText(e), 'error'))
   await refresh(ctx)
 }
 
-function copyText(text) {
-  const done = () => toast(T('linkCopied'))
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(done, () => toast(text))
-  toast(text)
+/** Text to the system clipboard: the SDK's OS door (ctx.os.writeClipboard: resolves false where the shell
+ *  has no clipboard, never throws), else the browser's. Resolves whether it went. */
+async function writeClipboard(text) {
+  try {
+    if (typeof CTX?.os?.writeClipboard === 'function' && (await CTX.os.writeClipboard(String(text))) === true) return true
+  } catch {}
+  try {
+    if (globalThis.navigator?.clipboard?.writeText) {
+      await globalThis.navigator.clipboard.writeText(String(text))
+      return true
+    }
+  } catch {}
+  return false
+}
+
+/** Copy link: "Link copied", or the link itself in the toast when no clipboard took it. */
+async function copyText(text) {
+  if (await writeClipboard(text)) toast(T('linkCopied'))
+  else toast(text)
 }
 /** Opens the artifact in Hermes Desktop (the page reads ?artifact= on arrival). */
 const artifactLink = id => `hermes://open${PAGE}?artifact=${enc(id)}`
@@ -1907,7 +2096,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
         icon: 'copy',
         label: t('duplicate'),
         onClick: act(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e), 'error'), null))
+          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(errText(e), 'error'), null))
           if (r) (await refresh(ctx), toast(t('duplicated')))
         })
       },
@@ -1964,35 +2153,42 @@ function RenameDialog({ ctx, art, onClose }) {
           onFocus: e => e.target.select(),
           onChange: e => setName(e.target.value),
           onKeyDown: e => { e.stopPropagation(); if (e.key === 'Escape') onClose(); if (e.key === 'Enter') save() },
-          style: { ...font, width: '100%', boxSizing: 'border-box', height: 36, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 15, outline: 'none' }
+          'aria-label': t('renameTitle'),
+          className: INPUT,
+          style: { ...font, width: '100%', boxSizing: 'border-box', height: 36, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 15 }
         }),
         jsxs('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }, children: [
-          jsx('button', { type: 'button', onClick: onClose, style: { ...font, height: 32, padding: '0 14px', borderRadius: C.rSm, border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', disabled: !changed, onClick: save, style: { ...font, height: 32, padding: '0 14px', borderRadius: C.rSm, border: 0, background: changed ? C.fg : C.card, color: changed ? C.bg : C.text3, fontSize: 14, fontWeight: 500, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
+          jsx('button', { type: 'button', onClick: onClose, className: TEXT_BTN, style: { ...font, height: 32, padding: '0 14px', border: `1px solid ${C.hair}`, background: 'transparent', color: C.fg, fontSize: 14, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', disabled: !changed, onClick: save, className: TEXT_BTN, style: { ...font, height: 32, padding: '0 14px', border: 0, background: changed ? C.fg : C.card, color: changed ? C.bg : C.text3, fontSize: 14, fontWeight: 500, cursor: changed ? 'pointer' : 'default' }, children: t('save') })
         ] })
       ]
     })
   })
 }
 
-function Card({ ctx, art }) {
+/** A card (memo: a poll or a publish re-renders only the cards whose artifact changed; loadList keeps the
+ *  object of an unchanged one). `sort` is a prop so the time shown follows Sort by. */
+const Card = memo(function Card({ ctx, art, sort }) {
   const t = usePluginI18n(ID)
   const [menu, setMenu] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [h, hp] = useHover()
+  const [f, fp] = useFocusWithin()
   return jsxs('div', {
     ...hp,
+    ...fp,
     onContextMenu: e => (e.preventDefault(), setMenu(true)),
     style: { position: 'relative', display: 'flex' },
     children: [
       jsxs('div', {
         role: 'button',
         tabIndex: 0,
+        className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
         onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openOnPage(ctx, art.id),
         style: {
           ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: C.rXl, overflow: 'hidden', padding: 8,
-          cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease', outline: 'none'
+          cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease'
         },
         children: [
           jsx('div', {
@@ -2008,19 +2204,21 @@ function Card({ ctx, art }) {
                 children: [
                   jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 15, fontWeight: 500, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
                   jsx('div', {
-                    style: { fontSize: 12, color: C.text3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-                    children: [t(`type_${art.type}`) || art.type, art.folder, ago(sortTime(art, $sort.get()))].filter(Boolean).join(' · ')
+                    // On the card's own fill (darker while hovered): the secondary ink keeps 4.5:1 on both.
+                    style: { fontSize: 12, color: C.text2, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    children: [t(`type_${art.type}`) || art.type, art.folder, ago(sortTime(art, sort))].filter(Boolean).join(' · ')
                   })
                 ]
               }),
               jsx(DsBadge, { art }),
               art.pinned && !(h || menu) ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
-              art.comments ? jsxs('span', { style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
+              art.comments ? jsxs('span', { title: t('openComments', art.comments), style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
             ]
           })
         ]
       }),
-      h || menu
+      // Its buttons on hover, and while the keyboard is in the card (so Tab reaches them).
+      h || menu || f
         ? jsxs('div', {
             style: { position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 },
             children: [
@@ -2032,22 +2230,26 @@ function Card({ ctx, art }) {
         : null
     ]
   })
-}
+})
 
-function ListRow({ ctx, art }) {
+const ListRow = memo(function ListRow({ ctx, art, sort }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
+  const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false)
   const [renaming, setRenaming] = useState(false)
   return jsxs('div', {
     ...hp,
+    ...fp,
     onContextMenu: e => (e.preventDefault(), setMenu(true)),
     style: { position: 'relative' },
     children: [
       jsxs('div', {
         role: 'button',
         tabIndex: 0,
+        className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
+        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openOnPage(ctx, art.id),
         style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
@@ -2056,11 +2258,11 @@ function ListRow({ ctx, art }) {
           art.pinned ? jsx('span', { style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
           jsx('span', { style: { width: 110, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.folder || '' }),
           jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
-          jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(sortTime(art, $sort.get())) }),
+          jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(sortTime(art, sort)) }),
           jsx('span', { style: { width: 30, flexShrink: 0 } })
         ]
       }),
-      h || menu
+      h || menu || f
         ? jsxs('div', {
             style: { position: 'absolute', top: 6, right: 6 },
             children: [
@@ -2071,7 +2273,7 @@ function ListRow({ ctx, art }) {
         : null
     ]
   })
-}
+})
 
 /** One deleted artifact in the trash: type, title, when it was deleted, days left, Restore, and a quiet
  *  Delete forever (an icon) behind the gallery's two-line confirm. */
@@ -2158,7 +2360,8 @@ function FilterMenu({ ctx, onClose }) {
   const pinned = useValue($pinnedOnly)
   const list = useValue($list)
   const [view, setView] = useState('main')
-  const back = { icon: 'back', label: t('filterSort'), onClick: () => setView('main') }
+  // A submenu's first row names it (and takes you back): Sort by, Type, Date opened.
+  const back = { icon: 'back', label: t({ sort: 'sortBy', type: 'typeF', date: 'dateOpened' }[view] || 'filterSort'), onClick: () => setView('main') }
   const DATES = [['any', t('anyTime')], ['today', t('today')], ['yesterday', t('yesterday')], ['7d', t('past7')], ['30d', t('past30')]]
   if (view === 'sort')
     return jsx(PopMenu, { onClose, align: 'right', items: [back, { sep: true }, ...[['opened', t('lastOpened')], ['edited', t('lastEdited')]].map(([k, l]) => ({ key: k, label: l, checked: sort === k, onClick: () => ($sort.set(k), ctx.storage.set('sort', k), setView('main')) }))] })
@@ -2183,9 +2386,18 @@ function FilterMenu({ ctx, onClose }) {
       { icon: 'filter', label: t('typeF'), right: types.length ? String(types.length) : t('any'), sub: true, onClick: () => setView('type') },
       { icon: 'history', label: t('dateOpened'), right: DATES.find(d => d[0] === date)[1], sub: true, onClick: () => setView('date') },
       { sep: true },
-      { icon: 'pin', label: t('pinnedF'), box: true, checked: pinned, onClick: () => $pinnedOnly.set(!pinned) }
+      { icon: 'pin', label: t('pinnedF'), box: true, checked: pinned, onClick: () => $pinnedOnly.set(!pinned) },
+      ...(filterCount(types, date, pinned) ? [{ sep: true }, { icon: 'close', label: t('clearFilters', filterCount(types, date, pinned)), onClick: () => (clearFilters(), onClose()) }] : [])
     ]
   })
+}
+
+/** How many filters are on (Type, Date opened, Pinned only), and the reset of all three. */
+const filterCount = (types, date, pinned) => (types.length ? 1 : 0) + (date !== 'any' ? 1 : 0) + (pinned ? 1 : 0)
+function clearFilters() {
+  $types.set([])
+  $date.set('any')
+  $pinnedOnly.set(false)
 }
 
 /** New: a chat, a folder, or one of each type. */
@@ -2202,7 +2414,7 @@ function NewMenu({ ctx, onClose }) {
           const n = name.trim()
           if (!n) return
           onClose()
-          await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(String(e?.message || e), 'error'))
+          await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(errText(e), 'error'))
           await refresh(ctx)
           showFolder(n)
         } }
@@ -2309,22 +2521,24 @@ function Gallery({ ctx, pageRef }) {
       ? jsxs(Fragment, { children: [
           jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('trashNote', trashDays) }),
           trashShown.length === 0
-            ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('noMatch') })
+            ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
             : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: trashShown.map(x => jsx(TrashRow, { ctx, item: x }, x.name)) })
         ] })
     : list.length === 0
-      ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('empty') })
+      ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('empty') })
       : shown.length === 0
-        ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('noMatch') })
+        ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
         : layout === 'grid'
-          ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a }, a.id)) })
-          : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a }, a.id)) })
+          ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a, sort }, a.id)) })
+          : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a, sort }, a.id)) })
 
   return jsxs('div', {
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
     children: [
       jsx('div', {
-        style: { flex: 1, minHeight: 0, overflowY: 'auto' },
+        // The scrollbar's gutter is kept whether or not the list overflows: Trash, All, grid and list do not
+        // shift the page sideways when a scrollbar comes or goes.
+        style: { flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' },
         children: jsxs('div', {
           style: { maxWidth: 1180, margin: '0 auto', padding: '28px 28px 40px' },
           children: [
@@ -2338,6 +2552,10 @@ function Gallery({ ctx, pageRef }) {
                 trash.length
                   ? jsx(Chip, { label: t('trashChip', trash.length), active: inTrash, onClick: () => ($trashOpen.set(true), loadTrash(ctx)) })
                   : null,
+                // A filter on: says so where the folders are, and takes them all off.
+                filtered && !inTrash
+                  ? jsx(IconButton, { icon: 'close', label: t('clearFilters', filterCount(types, date, pinnedOnly)), title: t('clearFiltersTip'), onClick: clearFilters })
+                  : null,
                 jsx('div', { style: { flex: 1 } }),
                 searching
                   ? jsx('input', {
@@ -2347,13 +2565,15 @@ function Gallery({ ctx, pageRef }) {
                       onChange: e => $query.set(e.target.value),
                       onBlur: () => !query && setSearching(false),
                       onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 13, outline: 'none' }
+                      'aria-label': t('searchArtifacts'),
+                      className: INPUT,
+                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
                     })
                   : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
                   style: { position: 'relative' },
                   children: [
-                    jsx(IconButton, { icon: 'sort', title: t('filterSort'), active: open === 'filter' || filtered, onClick: () => setOpen(open === 'filter' ? null : 'filter') }),
+                    jsx(IconButton, { icon: 'sort', title: t('filterSort'), active: open === 'filter' || filtered, pressed: filtered, onClick: () => setOpen(open === 'filter' ? null : 'filter') }),
                     open === 'filter' ? jsx(FilterMenu, { ctx, onClose: () => setOpen(null) }) : null
                   ]
                 }),
@@ -2970,7 +3190,7 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
             return reply({ ok: true, value: { ok: true, fullscreen: Boolean(document.fullscreenElement) } })
           }
           if (m.op === 'vendor') {
-            return reply({ ok: true, value: await ctx.rest(`/vendor/${enc(String(m.args?.name || ''))}`) })
+            return reply({ ok: true, value: await fetchVendor(ctx, String(m.args?.name || '')) })
           }
           if (m.op === 'showVersion') {
             // The page's History shows a version in place (null = back to the latest), reopening History there.
@@ -3152,7 +3372,8 @@ function FrameBand({ F }) {
             type: 'button',
             onClick: act[1],
             ...hp,
-            style: { ...font, flexShrink: 0, border: 0, borderRadius: C.rSm, padding: '0 8px', fontSize: 12, lineHeight: '20px', cursor: 'pointer',
+            className: TEXT_BTN,
+            style: { ...font, flexShrink: 0, border: 0, padding: '0 8px', fontSize: 12, lineHeight: '20px', cursor: 'pointer',
               color: h ? C.fg : C.accent, background: h ? C.hover : 'transparent' },
             children: act[0]
           })
@@ -3179,9 +3400,10 @@ function hostTheme() {
     const c = getComputedStyle(probe).color
     return c && c !== 'rgba(0, 0, 0, 0)' ? c : null
   }
+  // A radius of Hermes' scale (C.rSm...: calc on --radius-scalar; --radius-sm itself is never on :root).
   const px = v => {
     probe.style.borderRadius = ''
-    probe.style.borderRadius = `var(${v})`
+    probe.style.borderRadius = v
     const r = getComputedStyle(probe).borderTopLeftRadius
     return /^[\d.]+px$/.test(r) ? r : null
   }
@@ -3206,9 +3428,9 @@ function hostTheme() {
     mono: val('--font-mono'),
     radius: val('--radius'),
     // The radius scale resolved to px (it is calc() on a skin's scalar), for the page's chrome.
-    radiusSm: px('--radius-sm'),
-    radiusMd: px('--radius-md'),
-    radiusLg: px('--radius-lg')
+    radiusSm: px(C.rSm),
+    radiusMd: px(C.rMd),
+    radiusLg: px(C.rLg)
   }
   probe.remove()
   return out
@@ -3414,7 +3636,7 @@ async function newChatFor(art) {
     source: 'desktop'
   })
   const stored = r?.stored_session_id || r?.session_id
-  if (!stored) throw new Error('no session')
+  if (!stored) throw new Error(tr('errNoChat'))
   // The chat carries the artifact's name for good: an explicit title keeps Hermes' auto-title off it.
   if (r.session_id) await host.request('session.title', { session_id: r.session_id, title: art.title }).catch(() => null)
   await CTX.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body: { session: stored } })
@@ -3523,8 +3745,7 @@ async function copyCommand(text, t) {
   const cmd = allowCommand(text)
   if (!cmd) return false
   try {
-    if (!globalThis.navigator?.clipboard?.writeText) throw new Error('no clipboard')
-    await navigator.clipboard.writeText(cmd)
+    if (!(await writeClipboard(cmd))) throw new Error('no clipboard')
     toast(t('allowCopied'))
     return true
   } catch {
@@ -3571,9 +3792,9 @@ function ConfirmSend() {
         jsxs('div', {
           style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
           children: [
-            jsx('button', { type: 'button', autoFocus: query, onClick: () => done(false), style: { ...font, height: 30, padding: '0 12px', borderRadius: C.rMd, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 13, cursor: 'pointer' }, children: t(long ? 'close' : 'cancel') }),
+            jsx('button', { type: 'button', autoFocus: query, onClick: () => done(false), className: TEXT_BTN, style: { ...font, height: 30, padding: '0 12px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 13, cursor: 'pointer' }, children: t(long ? 'close' : 'cancel') }),
             // A query's yes is never the focused default: an Enter typed for the page must not give it.
-            !long && jsx('button', { type: 'button', autoFocus: !query, onClick: () => done(true), style: { ...font, height: 30, padding: '0 14px', borderRadius: C.rMd, border: 0, background: C.fg, color: C.bg, fontSize: 13, cursor: 'pointer' }, children: t(query ? 'allowQuery' : 'sendToHermes') })
+            !long && jsx('button', { type: 'button', autoFocus: !query, onClick: () => done(true), className: TEXT_BTN, style: { ...font, height: 30, padding: '0 14px', border: 0, background: C.fg, color: C.bg, fontSize: 13, cursor: 'pointer' }, children: t(query ? 'allowQuery' : 'sendToHermes') })
           ].filter(Boolean)
         })
       ]
@@ -3587,7 +3808,7 @@ function AllowDialog({ c, t }) {
   const v = c.text || {}
   const cmd = allowCommand(v.command)
   const done = () => { $confirm.set(null); c.resolve(false) }
-  const btn = { ...font, height: 30, padding: '0 12px', borderRadius: C.rSm, fontSize: 13, cursor: 'pointer' }
+  const btn = { ...font, height: 30, padding: '0 12px', fontSize: 13, cursor: 'pointer' }
   const title = t('allowTitle', v.servers || '')
   return jsx('div', {
     onKeyDown: e => e.key === 'Escape' && done(),
@@ -3610,8 +3831,8 @@ function AllowDialog({ c, t }) {
         jsxs('div', {
           style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
           children: [
-            jsx('button', { type: 'button', autoFocus: !cmd, onClick: done, style: { ...btn, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2 }, children: t('close') }),
-            cmd && jsx('button', { type: 'button', autoFocus: true, onClick: () => copyCommand(cmd, t), style: { ...btn, border: 0, background: C.fg, color: C.bg }, children: t('allowCopy') })
+            jsx('button', { type: 'button', autoFocus: !cmd, onClick: done, className: TEXT_BTN, style: { ...btn, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2 }, children: t('close') }),
+            cmd && jsx('button', { type: 'button', autoFocus: true, onClick: () => copyCommand(cmd, t), className: TEXT_BTN, style: { ...btn, border: 0, background: C.fg, color: C.bg }, children: t('allowCopy') })
           ].filter(Boolean)
         })
       ].filter(Boolean)
@@ -3646,9 +3867,12 @@ async function openSplit(ctx, art, pos) {
       if (run !== splitRun) return
       splitWant = { run, id: art.id, session: c.stored }
       await host.openSession(c.stored)
-    } catch {
+    } catch (err) {
       give()
-      if (run === splitRun) $chat.set('float')
+      if (run === splitRun) {
+        $chat.set('float')
+        toast(errText(err), 'error')
+      }
       return
     }
     if (run !== splitRun) return give()
@@ -3793,7 +4017,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
         setRid(id)
         if (id) await load(id)
       } catch (e) {
-        if (live) setErr(String(e?.message || e))
+        if (live) setErr(errText(e))
       } finally {
         if (live) setReady(true)
       }
@@ -3854,7 +4078,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
         setState('open')
         await load(id).catch(() => {})
       } catch (e) {
-        setErr(String(e?.message || e))
+        setErr(errText(e))
         return
       }
     }
@@ -3866,7 +4090,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
       // A chat with nothing made yet takes the words as they are; an artifact's chat learns which one.
       await host.request('prompt.submit', { session_id: id, text: art ? t('sendMsg', art.title, body) : body })
     } catch (e) {
-      setErr(String(e?.message || e))
+      setErr(errText(e))
       setWaiting(false)
     }
   }
@@ -3884,7 +4108,11 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
       jsxs('div', {
         style: { display: 'flex', justifyContent: 'flex-end', gap: 2, padding: '8px 8px 0' },
         children: [
-          jsx(IconButton, { icon: 'expand', title: t('popIn'), onClick: onDock }),
+          // Its own glyph (the chat panel beside the artifact), not the header's Expand. Without a chat yet
+          // there is nothing to put beside it: off, and its tooltip says how a chat starts.
+          ready && !rid
+            ? jsx(IconButton, { icon: 'beside', title: t('popInNoChat'), disabled: true })
+            : jsx(IconButton, { icon: 'beside', title: t('popIn'), disabled: !ready, onClick: onDock }),
           jsx(IconButton, { icon: 'close', title: t('close'), onClick: close })
         ]
       }),
@@ -3904,7 +4132,10 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
       jsx('div', {
         style: { padding: 12 },
         children: jsxs('div', {
-          style: { border: `1px solid ${C.line}`, borderRadius: C.rXl, padding: '10px 12px 8px', background: C.card },
+          // Hermes' composer: the box is the field (desktop-input-chrome: its border lights while the caret is
+          // in it), the textarea inside has no frame of its own.
+          className: 'desktop-input-chrome',
+          style: { borderWidth: 1, borderStyle: 'solid', borderRadius: C.rXl, padding: '10px 12px 8px' },
           children: [
             jsx('textarea', {
               ref: inputRef,
@@ -3920,7 +4151,8 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
                   send()
                 }
               },
-              style: { ...font, width: '100%', resize: 'none', border: 0, outline: 'none', background: 'transparent', color: C.fg, fontSize: 14, lineHeight: 1.5 }
+              className: 'outline-none',
+              style: { ...font, width: '100%', resize: 'none', border: 0, background: 'transparent', color: C.fg, fontSize: 14, lineHeight: 1.5 }
             }),
             jsxs('div', {
               style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
@@ -3931,7 +4163,8 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
                   'aria-label': t('send'),
                   disabled: !ready || !text.trim(),
                   onClick: send,
-                  style: { width: 30, height: 30, borderRadius: C.rMd, border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: text.trim() ? C.fg : C.hover, color: text.trim() ? C.bg : C.text3 },
+                  className: ICON_BTN,
+                  style: { width: 30, height: 30, border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: text.trim() ? C.fg : C.hover, color: text.trim() ? C.bg : C.text3 },
                   children: jsx(Icon, { name: 'enter' })
                 })
               ]
@@ -3945,8 +4178,88 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
 
 // ---------------------------------------------------------------- header (Claude's: title menu, Chat, Comment, close)
 
+/** The part of the window `el` can be seen in: the window, cut by every ancestor that clips (overflow other
+ *  than visible: a scrolled gallery, a pane). */
+function visibleBox(el) {
+  let box = { top: 0, left: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 }
+  for (let p = el?.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const cs = getComputedStyle(p)
+    if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue
+    const b = p.getBoundingClientRect()
+    box = { top: Math.max(box.top, b.top), left: Math.max(box.left, b.left), right: Math.min(box.right, b.right), bottom: Math.min(box.bottom, b.bottom) }
+  }
+  return box
+}
+
+const FIT_MARGIN = 8 // the least room a popup keeps from the edge it would cross
+/** Where a popup goes so all of it can be seen. It is laid out under its anchor (`below`: top of the popup
+ *  from the anchor's top, in px; `gap` between them). `pop` and `anchor` are rects, `box` the visible part
+ *  of the window (visibleBox). It flips above the anchor when it does not fit below and there is more room
+ *  above; if it fits on neither side it takes the larger and scrolls (maxHeight). Sideways it is shifted
+ *  back inside. Returns {top, maxHeight (null: no limit), dx}. Pure: tested without a DOM. */
+function fitPopup(pop, anchor, box, below, gap = 6) {
+  const h = pop.bottom - pop.top
+  const roomBelow = box.bottom - FIT_MARGIN - (anchor.top + below)
+  const roomAbove = anchor.top - gap - (box.top + FIT_MARGIN)
+  let top = below, maxHeight = null
+  if (h > roomBelow) {
+    if (roomAbove > roomBelow) {
+      const hh = Math.min(h, Math.max(0, roomAbove))
+      top = -gap - hh
+      if (hh < h) maxHeight = hh
+    } else maxHeight = Math.max(0, roomBelow)
+  }
+  let dx = 0
+  if (pop.right > box.right - FIT_MARGIN) dx = box.right - FIT_MARGIN - pop.right
+  if (pop.left + dx < box.left + FIT_MARGIN) dx = box.left + FIT_MARGIN - pop.left
+  return { top, maxHeight, dx }
+}
+
+/** Keeps an absolutely placed popup (`ref`, laid out at `top: below` under its positioned parent) inside
+ *  what can be seen: placed on mount and again whenever its size changes (a confirm row, a submenu). */
+function useFit(ref, below, gap = 6) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || typeof window === 'undefined') return undefined
+    let busy = false
+    const place = () => {
+      if (busy) return
+      busy = true
+      try {
+        el.style.top = `${below}px`
+        el.style.maxHeight = ''
+        el.style.overflowY = ''
+        el.style.translate = ''
+        const parent = el.offsetParent || el.parentElement
+        if (!parent) return
+        const f = fitPopup(el.getBoundingClientRect(), parent.getBoundingClientRect(), visibleBox(el), below, gap)
+        el.style.top = `${f.top}px`
+        if (f.maxHeight != null) {
+          el.style.maxHeight = `${f.maxHeight}px`
+          el.style.overflowY = 'auto'
+        }
+        if (f.dx) el.style.translate = `${f.dx}px 0`
+      } finally {
+        busy = false
+      }
+    }
+    place()
+    let ro = null
+    try {
+      ro = new ResizeObserver(() => place())
+      ro.observe(el)
+    } catch {}
+    const offResize = listen(CTX, window, 'resize', place)
+    return () => {
+      ro?.disconnect()
+      offResize?.()
+    }
+  }, [below])
+}
+
 function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   const ref = useRef(null)
+  useFit(ref, 38)
   useEffect(() => {
     // The button that opened it toggles it: a press there is left to its click, so the menu
     // closes instead of closing on mousedown and reopening on click.
@@ -3979,7 +4292,9 @@ function PopMenu({ items, onClose, align = 'left', width = 260 }) {
                 placeholder: it.placeholder,
                 onChange: e => it.onChange(e.target.value),
                 onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
-                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: C.input, color: C.fg, fontSize: 13, outline: 'none' }
+                'aria-label': it.placeholder,
+                className: INPUT,
+                style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
               })
             : jsx(MenuRow, { it }, it.key || it.label)
     )
@@ -3993,6 +4308,9 @@ function MenuRow({ it }) {
     disabled: it.disabled,
     onClick: it.onClick,
     ...hp,
+    // Hermes' menu rows (components/ui/menu.ts): no outline, the row lit while it has the focus. So no inline
+    // background but the hover's (an inline one would hide the focus's).
+    className: MENU_ROW,
     style: {
       ...font,
       display: 'flex',
@@ -4002,12 +4320,12 @@ function MenuRow({ it }) {
       minHeight: 34,
       padding: '0 10px',
       border: 0,
-      borderRadius: C.rSm,
+      borderRadius: C.rMd,
       textAlign: 'left',
       fontSize: 14,
       cursor: it.disabled ? 'default' : 'pointer',
       color: it.danger ? C.danger : it.disabled ? C.text4 : C.fg,
-      background: h && !it.disabled ? C.rowHover : 'transparent'
+      background: h && !it.disabled ? C.rowHover : undefined
     },
     children: [
       it.box
@@ -4078,14 +4396,14 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         icon: 'copy',
         label: t('duplicate'),
         onClick: close(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(String(e?.message || e), 'error'), null))
+          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(errText(e), 'error'), null))
           if (!r) return
           await refresh(ctx)
           openHere(ctx, r.id)
           toast(t('duplicated'))
         })
       },
-      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(String(e?.message || e), 'error') } }) },
+      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(errText(e), 'error') } }) },
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
@@ -4102,7 +4420,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         })
       },
       { sep: true },
-      { icon: 'reload', label: t('reload'), onClick: close(() => $nonce.set($nonce.get() + 1)) },
+      { icon: 'reload', label: t('reload'), onClick: close(() => { reloadAsked.add(art.id); $nonce.set($nonce.get() + 1) }) },
       { icon: 'history', label: t('versions'), right: `v${v}`, sub: true, onClick: () => setView('versions') },
       { sep: true },
       { icon: 'data', label: t('storage'), right: fmtSize(size), disabled: true },
@@ -4145,7 +4463,9 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
           refresh(ctx)
         }
       },
-      style: { ...font, height: 30, minWidth: 260, padding: '0 10px', borderRadius: C.rMd, border: `1px solid ${C.accent}`, background: 'transparent', color: C.fg, fontSize: 14, outline: 'none' }
+      'aria-label': T('rename'),
+      className: INPUT,
+      style: { ...font, height: 30, minWidth: 260, padding: '0 10px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 14 }
     })
   return jsxs('div', {
     style: { position: 'relative', minWidth: 0 },
@@ -4154,7 +4474,10 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
         type: 'button',
         onClick: () => setOpen(!open),
         ...hp,
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', borderRadius: C.rMd, border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
+        'aria-haspopup': 'menu',
+        'aria-expanded': open,
+        className: TEXT_BTN,
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
         children: [
           jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
           v !== art.version ? jsx('span', { style: { fontSize: 12, color: C.text3 }, children: `v${v}` }) : null,
@@ -4186,7 +4509,9 @@ function ChatSwitch({ t, beside = null, popup, onPopup }) {
   return jsxs('div', {
     role: 'group',
     'aria-label': t('chatModes'),
-    style: { display: 'flex', alignItems: 'center', borderRadius: C.rMd, background: beside ? C.hover : 'transparent' },
+    // The same corners as the icon buttons in it (Hermes' 4px).
+    className: 'rounded-[4px]',
+    style: { display: 'flex', alignItems: 'center', background: beside ? C.hover : 'transparent' },
     children: [beside ? jsx(IconButton, { icon: beside.icon, label: beside.label, title: beside.label, onClick: beside.onClick }) : null, pop]
   })
 }
@@ -4255,26 +4580,68 @@ function Header({ ctx, art, v, portRef, docked }) {
   })
 }
 
+const PIN = 26 // the new comment's pin
+const COMMENT_W = 320 // its box
+/** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
+ *  h in stage px) and the box's height `h`: the pin on the element's top right corner, the box beside the
+ *  pin, never over it. Tried in turn: right of the pin, under it, left of it, over it; the box always inside
+ *  the stage. Pure: tested without a DOM. */
+function placeCommentBox(rect, bw, bh, h) {
+  const M = 8, GAP = 8
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+  const pin = { x: clamp(rect.x + rect.w - PIN / 2, 4, bw - PIN - 4), y: Math.max(4, rect.y - PIN / 2) }
+  const top = clamp(rect.y, M, Math.max(M, bh - h - M))
+  const left = clamp(pin.x + PIN - COMMENT_W, M, Math.max(M, bw - COMMENT_W - M))
+  const tries = [
+    { x: pin.x + PIN + GAP, y: top },
+    { x: left, y: pin.y + PIN + GAP },
+    { x: pin.x - GAP - COMMENT_W, y: top },
+    { x: left, y: pin.y - GAP - h }
+  ]
+  const fits = b => b.x >= M && b.x + COMMENT_W <= bw - M && b.y >= M && b.y + h <= bh - M
+  const box = tries.find(fits) || { x: left, y: clamp(pin.y + PIN + GAP, M, Math.max(M, bh - h - M)) }
+  return { pin, box }
+}
+
 /** Claude's in-place comment: a box beside the element clicked, "@Hermes" ready, Send to Hermes on. */
 function CommentPopover({ ctx, art }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
   const [text, setText] = useState('')
   useEffect(() => setText('@Hermes '), [draft])
+  const boxRef = useRef(null)
+  const [boxH, setBoxH] = useState(170)
+  useLayoutEffect(() => {
+    const el = boxRef.current
+    if (!el) return undefined
+    const measure = () => setBoxH(el.offsetHeight || 170)
+    measure()
+    let ro = null
+    try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
+    return () => ro?.disconnect()
+  }, [Boolean(draft?.rect)])
+  // The stage narrows or grows (the comments list opens beside it, the window is resized): placed again.
+  const [, setStageTick] = useState(0)
+  useLayoutEffect(() => {
+    const stage = document.getElementById(`${ID}-stage`)
+    if (!stage || !draft?.rect) return undefined
+    let ro = null
+    try { ro = new ResizeObserver(() => setStageTick(n => n + 1)); ro.observe(stage) } catch {}
+    return () => ro?.disconnect()
+  }, [Boolean(draft?.rect)])
   if (!draft?.rect) return null
-  const r = draft.rect
-  const W = 320
   const stage = document.getElementById(`${ID}-stage`)
   const bw = stage ? stage.clientWidth : 1200
   const bh = stage ? stage.clientHeight : 800
-  const left = Math.max(8, Math.min(r.x + r.w + 14, bw - W - 8))
-  const top = Math.max(8, Math.min(r.y, bh - 220))
+  const { pin, box } = placeCommentBox(draft.rect, bw, bh, boxH)
   const label = draft.anchor ? draft.anchor.text || draft.anchor.label : ''
   return jsxs('div', {
     children: [
-      jsx('div', { style: { position: 'absolute', left: Math.min(r.x + r.w - 12, bw - 30), top: Math.max(4, r.y - 12), zIndex: 26, width: 26, height: 26, borderRadius: 13, background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
+      // The pin over the popover's layer: whatever the placement, it is never covered.
+      jsx('div', { style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: PIN, height: PIN, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
       jsxs('div', {
-        style: { position: 'absolute', left, top, zIndex: 27, width: W, padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
+        ref: boxRef,
+        style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: bh - 16, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
         children: [
           label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
           jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
@@ -4406,8 +4773,8 @@ function Reactions({ c, ctx, art }) {
     await ctx.rest(`/artifacts/${enc(art.id)}/comments/${enc(c.id)}/react`, { method: 'POST', body: { emoji } }).catch(() => {})
     loadComments(ctx)
   }
-  const pill = (emoji, n, mine) => jsx('button', { type: 'button', key: emoji, onClick: e => toggle(e, emoji),
-    style: { ...font, display: 'inline-flex', alignItems: 'center', gap: 4, height: 22, padding: '0 7px', borderRadius: 11, cursor: 'pointer', fontSize: 12,
+  const pill = (emoji, n, mine) => jsx('button', { type: 'button', key: emoji, onClick: e => toggle(e, emoji), className: PILL,
+    style: { ...font, display: 'inline-flex', alignItems: 'center', gap: 4, height: 22, padding: '0 7px', cursor: 'pointer', fontSize: 12,
       border: `1px solid ${mine ? C.accent : C.line}`, background: mine ? C.accentBg : 'transparent', color: C.text2 },
     children: n ? `${emoji} ${n}` : emoji })
   return jsxs('div', {
@@ -4416,8 +4783,8 @@ function Reactions({ c, ctx, art }) {
       ...given.map(([emoji, who]) => pill(emoji, who.length, who.includes('user'))),
       picking
         ? jsx('span', { style: { display: 'inline-flex', gap: 2 }, children: REACTIONS.map(emoji => pill(emoji, 0, false)) })
-        : jsx('button', { type: 'button', title: t('react'), 'aria-label': t('react'), onClick: e => (e.stopPropagation(), setPicking(true)),
-            style: { ...font, height: 22, padding: '0 7px', borderRadius: 11, border: `1px solid ${C.line}`, background: 'transparent', color: C.text3, cursor: 'pointer', fontSize: 12 },
+        : jsx('button', { type: 'button', title: t('react'), 'aria-label': t('react'), onClick: e => (e.stopPropagation(), setPicking(true)), className: PILL,
+            style: { ...font, height: 22, padding: '0 7px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text3, cursor: 'pointer', fontSize: 12 },
             children: '☺+' })
     ]
   })
@@ -4448,7 +4815,7 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
         children: [
           n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 9, background: C.accentBg, color: C.accent, fontSize: 11, fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
           who(c),
-          jsx('span', { style: { fontSize: 11, color: C.text4 }, children: ago(c.ts) }),
+          jsx('span', { style: { fontSize: 11, color: C.text3 }, children: ago(c.ts) }),
           jsx('div', { style: { flex: 1 } }),
           jsx('button', {
             type: 'button',
@@ -4457,7 +4824,8 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
               await ctx.rest(`/artifacts/${enc(art.id)}/comments/${enc(c.id)}/resolve`, { method: 'POST', body: { resolved: !c.resolved } }).catch(() => {})
               loadComments(ctx)
             },
-            style: { ...font, border: 0, background: 'transparent', color: C.text3, fontSize: 11, cursor: 'pointer' },
+            className: TEXT_BTN,
+            style: { ...font, border: 0, background: 'transparent', color: C.text2, fontSize: 11, cursor: 'pointer' },
             children: c.resolved ? t('reopen') : t('resolve')
           })
         ]
@@ -4466,7 +4834,7 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
       jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: c.text }),
       jsx(Reactions, { c, ctx, art }),
       ...replies.map(r =>
-        jsxs('div', { style: { marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}` }, children: [jsxs('div', { style: { display: 'flex', gap: 8, marginBottom: 4 }, children: [who(r), jsx('span', { style: { fontSize: 11, color: C.text4 }, children: ago(r.ts) })] }), jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: r.text })] }, r.id)
+        jsxs('div', { style: { marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}` }, children: [jsxs('div', { style: { display: 'flex', gap: 8, marginBottom: 4 }, children: [who(r), jsx('span', { style: { fontSize: 11, color: C.text3 }, children: ago(r.ts) })] }), jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: r.text })] }, r.id)
       ),
       c.resolved
         ? null
@@ -4483,7 +4851,8 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
           : jsx('button', {
               type: 'button',
               onClick: e => (e.stopPropagation(), setReplying(true)),
-              style: { ...font, marginTop: 8, border: 0, background: 'transparent', color: C.text3, fontSize: 12, cursor: 'pointer', padding: 0 },
+              className: TEXT_BTN,
+              style: { ...font, marginTop: 8, border: 0, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer', padding: '0 2px' },
               children: t('reply')
             })
     ]
@@ -4517,7 +4886,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       onDone()
       loadComments(ctx)
     } catch (err) {
-      toast(String(err?.message || err), 'error')
+      toast(errText(err), 'error')
     } finally {
       setBusy(false)
     }
@@ -4539,15 +4908,17 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
             submit()
           }
         },
-        style: { ...font, resize: 'vertical', padding: 8, borderRadius: C.rMd, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+        'aria-label': t('comment'),
+        className: INPUT,
+        style: { ...font, resize: 'vertical', padding: 8, borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
       }),
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8 },
         children: [
-          jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer' }, children: [jsx('input', { type: 'checkbox', checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
+          jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer' }, children: [jsx('input', { type: 'checkbox', className: FOCUS, checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),
-          compact ? null : jsx('button', { type: 'button', onClick: onDone, style: { ...font, height: 26, padding: '0 10px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), style: { ...font, height: 26, padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
+          compact ? null : jsx('button', { type: 'button', onClick: onDone, className: TEXT_BTN, style: { ...font, height: 26, padding: '0 10px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), className: TEXT_BTN, title: compact ? t('save') : undefined, 'aria-label': compact ? t('save') : undefined, style: { ...font, height: 26, padding: '0 12px', border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
         ]
       })
     ]
@@ -4590,7 +4961,7 @@ function CommentsPanel({ ctx, art, portRef }) {
         children: [
           jsx('span', { style: { flex: 1, fontSize: 13, fontWeight: 600, color: C.fg }, children: t('comments') }),
           jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, title: t('addComment'), onClick: () => ($draft.set(null), $picking.set(!picking)) }),
-          jsx(IconButton, { icon: 'close', title: t('cancel'), onClick: () => ($panel.set(false), $picking.set(false)) })
+          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $picking.set(false)) })
         ]
       }),
       jsxs('div', {
@@ -4611,8 +4982,8 @@ function CommentsPanel({ ctx, art, portRef }) {
             ? jsx('div', {
                 style: { display: 'flex', gap: 2, padding: 2, borderRadius: C.rMd, background: C.hover, alignSelf: 'flex-start' },
                 children: [['open', t('fOpen'), open.length], ['resolved', t('fResolved'), done.length], ['all', t('fAll'), roots.length]].map(([k, label, n]) =>
-                  jsx('button', { type: 'button', key: k, onClick: () => setFilter(k), 'aria-pressed': filter === k,
-                    style: { ...font, border: 0, borderRadius: C.rSm, padding: '3px 9px', fontSize: 12, cursor: 'pointer', background: filter === k ? C.card : 'transparent', color: filter === k ? C.fg : C.text3 },
+                  jsx('button', { type: 'button', key: k, onClick: () => setFilter(k), 'aria-pressed': filter === k, className: TEXT_BTN,
+                    style: { ...font, border: 0, padding: '3px 9px', fontSize: 12, cursor: 'pointer', background: filter === k ? C.card : 'transparent', color: filter === k ? C.fg : C.text3 },
                     children: `${label} ${n}` }))
               })
             : null,
@@ -4717,10 +5088,12 @@ function Viewer({ ctx, docked = false }) {
     // same one loads out of sight first.
     const rec = F.want(key, fv, art.id, LIVE_TYPES.has(art.type) ? 'now' : 'swap')
     if (!rec) return
-    if (nonce) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:${fv}:`) && htmlCache.delete(k))
+    // A version's HTML never changes: only Reload fetches it again; opening it again, or the same version
+    // shown again, uses the cache. A live type's first paint carries its live state: always fetched.
+    if (reloadAsked.delete(art.id) || LIVE_TYPES.has(art.type)) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:`) && htmlCache.delete(k))
     fetchHtml(ctx, art.id, fv, { page })
       .then(u => F.setSrc(rec, u))
-      .catch(err => F.setErr(rec, String(err?.message || err)))
+      .catch(err => F.setErr(rec, errText(err)))
   }, [key])
   // The page saved a newer version and keeps its frame (keepFrame): its reports go under that version now.
   useEffect(() => { if (art && fv !== v) F.advance(key, v) }, [key, v])
@@ -4809,7 +5182,10 @@ function Page({ ctx }) {
       const id = routeArtifact()
       if (id === undefined) return // leaving the page
       if (id) { if (id !== $selected.get()) openArtifact(ctx, id) }
-      else if ($selected.get()) closeArtifact()
+      else if ($selected.get()) {
+        closeArtifact()
+        refresh(ctx) // the list does not poll while an artifact is open: the gallery gets it fresh
+      }
     }
     fromRoute()
     return onRouteChange(ctx, fromRoute)
@@ -4938,19 +5314,31 @@ export default {
     // The pinned rows in the sidebar come from the list: load it at start (retrying until the backend
     // answers), not only when the Artifacts page is opened.
     refresh(ctx)
-    ctx.setInterval(() => {
-      if (window.location.hash.startsWith(`#${PAGE}`) || !listedOnce) refresh(ctx)
-    }, 5000)
+    // The gallery polls (another Desktop, the agent in a chat not in front); an artifact open on the page does
+    // not: what changes it arrives as events (a publish's `open`, `doc`/`sheet`/`board`, `comments`,
+    // `deleted`), as beside a chat, where nothing polls. Back on the gallery the list loads at once (Page).
+    offs.push(every(ctx, () => {
+      if (routeArtifact() === null || !listedOnce) refresh(ctx)
+    }, 5000))
 
-    return () => {
-      stopTool()
-      stopRun()
-      offTile.forEach(off => off())
-      offs.forEach(off => off())
-      unwatchTheme()
+    // What register started that the host does not track (store listeners, the theme's MutationObserver,
+    // the run watcher, the window key) stops when the plugin is disabled or reloaded: the SDK runs this
+    // through ctx.onDispose (a value register returns is ignored by the loader). Returned too, for a host
+    // without onDispose and for the tests. (The tile beside a chat is Hermes': it drops a tile no plugin
+    // registers when it hydrates the layout.)
+    let disposed = false
+    const dispose = () => {
+      if (disposed) return
+      disposed = true
+      for (const fn of [stopTool, stopRun, ...offTile, ...offs, unwatchTheme, () => syncBack(false)]) {
+        try { fn?.() } catch {}
+      }
       if (KEY && window[KEY] === redirectCore) delete window[KEY]
-      syncBack(false)
       syncBack = () => {}
+      clearTimeout(holdTimer)
+      if (CTX === ctx) CTX = null
     }
+    if (typeof ctx.onDispose === 'function') ctx.onDispose(dispose)
+    return dispose
   }
 }
