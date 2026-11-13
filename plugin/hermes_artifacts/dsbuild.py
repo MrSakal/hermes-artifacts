@@ -1,8 +1,7 @@
-"""A design system's generated files, as Claude's Design System type writes them "on every save and
-build": tokens.css (compiled from tokens.json), manifest.json (v3, the component catalogue), the api/
-cards agents read (tokens.md, components/<Comp>.md with props from index.d.ts, assets/<Group>.md) and
-README.md's generated tail ("Consuming this system" and "Index"). The grammar is the same as the
-page's compiler (types/_kit/ds.js): a value that page would drop drops here too.
+"""A design system's generated files, written on every save and build: tokens.css (compiled from
+tokens.json), manifest.json (v3, the component catalogue), the api/ cards agents read (tokens.md,
+components/<Comp>.md with props from index.d.ts, assets/<Group>.md) and README.md's generated
+tail ("Consuming this system" and "Index"). The grammar is the same as the page's compiler (types/_kit/ds.js): a value that page would drop drops here too.
 
 Run on every publish and every save of a design-system artifact, so a system Hermes wrote, one the
 user edited and one brought over from Claude all read the same to the next agent.

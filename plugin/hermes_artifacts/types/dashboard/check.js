@@ -1,6 +1,6 @@
 /* hermes-artifacts dashboard check: what the drawn page shows, measured in the page itself, and sent
  * to the agent as the "check" (did the page come out right?) and "runs" (how did each source load?)
- * reports — the feedback Claude's dashboards give their agent.
+ * reports — the feedback a dashboard gives its agent.
  *
  * window.dashCheck.run({root, datasets, rowsOf, statusOf, errors, version, params}) -> {check, runs}
  */

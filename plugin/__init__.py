@@ -1,4 +1,4 @@
-"""hermes-artifacts: Claude-style artifacts for Hermes."""
+"""hermes-artifacts: artifacts for Hermes, in a gallery and a sandboxed viewer."""
 
 from __future__ import annotations
 
@@ -1971,5 +1971,5 @@ def register(ctx) -> None:
     for name, schema, handler, emoji in TOOLS:
         ctx.register_tool(name=name, toolset="artifacts", schema=schema, handler=handler,
                           description=schema["description"], emoji=emoji)
-    ctx.register_cli_command("artifacts", "Claude-style artifacts: serve, list, open, publish, trash, restore",
+    ctx.register_cli_command("artifacts", "Artifacts: serve, list, open, publish, trash, restore",
                              _cli_setup, _cli)

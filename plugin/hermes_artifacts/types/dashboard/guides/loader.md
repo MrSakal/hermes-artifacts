@@ -6,7 +6,7 @@
   source re-asks at 2 s doubling to 20 s, up to 3 minutes, repeating the call or running the source's
   `"poll": {"tool": "…", "args": {"jobId": "{{answer.jobReference.jobId}}"}}` (args from the last answer).
 - **Loader** (in `index.html`): `dash.loader(id, {description, fn})` turns a query's answer into the rows its
-  page reads, as Claude's does. `fn({answer, call, args, read})`, may be async:
+  page reads. `fn({answer, call, args, read})`, may be async:
   - `answer`: the tool's answer as you saw it; `args`: call arguments with filters filled in;
   - `await call(tool, args)`: the source's `tool` with its stored `args` (filters filled in), or `poll.tool`
     with `poll.args` (`{{answer.…}}` filled, one plain token each); other args are refused. SQL: one

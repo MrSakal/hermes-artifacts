@@ -1,7 +1,7 @@
 name: hermes-artifacts
-version: 0.18.2
+version: 0.19.0
 description: >
-  Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
+  Artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
   Desktop. Docs, sheets and boards are live: the user and Hermes edit them in place. Dashboards can run live MCP
   queries; a design system is copied into the decks, canvases and films that wear it. Comments, and a small

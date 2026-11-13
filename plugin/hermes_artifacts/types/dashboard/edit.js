@@ -1,4 +1,4 @@
-/* hermes-artifacts Dashboard: Edit the page (Claude's editor mode).
+/* hermes-artifacts Dashboard: Edit the page (editor mode).
  *
  * The page's own words are edited in place and saved into its file; cards move earlier or later or go.
  * What a script or the data writes (a data-draw, a data-source mark, anything inside a drawing) isn't

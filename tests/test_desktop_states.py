@@ -267,9 +267,10 @@ await S('to chat B', () => routerNav('/chatB'), { split: true, selected: 'b1' })
 await S('back to chat A', () => routerNav('/chatA'), { split: true, selected: 'a1' })
 const EXP = { split: true, expanded: true, page: false, lit: 'chat:chatA', route: '#/chatA', titlebarOpen: true }
 await S('expand from the split: over the chat, the chat row stays lit', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), { ...EXP, selected: 'a1', closed: false })
-await S('the expanded tile offers one Show chat and no expand', () => {
+await S('the expanded tile offers one Show chat, its Pop out chat, and no expand', () => {
   const bs = buttons(tileEl()).map(b => b.props.title)
-  if (bs.filter(x => x === 'showChat').length !== 1 || bs.includes('expand') || bs.includes('chat') || bs.includes('popOut')) throw new Error('header buttons ' + bs.join(' '))
+  if (bs.filter(x => x === 'showChat').length !== 1 || bs.filter(x => x === 'popOut').length !== 1 || bs.includes('expand') || bs.includes('chat')) throw new Error('header buttons ' + bs.join(' '))
+  if (I.$dockFloat.get()) throw new Error('a plain expand opened the floating chat')
 }, EXP)
 await S('Show chat: beside the chat again', () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, expanded: false, page: false, selected: 'a1', titlebarOpen: true, lit: 'chat:chatA', closed: false })
 await S('expand again', () => click(tileEl(), b => b.props.title === 'expand', 'expand'), EXP)
@@ -531,7 +532,7 @@ class DesktopStateTests(unittest.TestCase):
         # The internals the invariants read, exported from the copy only.
         src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh, toast, $toast, Toast,"
                 " saveFile, copyCommand, themePorts,"
-                " $makings, $dockMaking, $dockPos, ChatArtifactCard }\n")
+                " $makings, $dockMaking, $dockPos, ChatArtifactCard, $chatMode, $dockFloat, FloatingChat, chatState }\n")
         (d / "plugin.mjs").write_text(src, "utf-8")
         (d / "sdk.mjs").write_text(SDK, "utf-8")
         (d / "react.mjs").write_text(REACT, "utf-8")

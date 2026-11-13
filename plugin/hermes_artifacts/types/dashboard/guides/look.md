@@ -38,7 +38,7 @@ until you record it again, when the person asks, or when you change the dashboar
 - Light `ground` `#eaeaea` or lighter, dark `#383838` or darker; just outside is moved toward white or
   black, far outside drops its set. `text` needs 4.5:1 on ground and card, `muted` 3:1 (else worked
   out), a chart color 1.5:1.
-- Ready-made looks, only when the person asks by name: Clay (warm paper, clay and ink), Ocean (cool
+- Ready-made looks, only when the person asks by name: Mist (cool grey, teal accent), Ocean (cool
   blue-white, deep blues and teal), Meadow (soft green-white, greens and ochre). `ha_guide
   type=dashboard topic=looks` gives each whole.
 - Asked to drop the look: remove `look`.

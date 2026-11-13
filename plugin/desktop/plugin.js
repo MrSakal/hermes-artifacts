@@ -38,7 +38,7 @@ import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 const ID = 'hermes-artifacts'
 // This Desktop half's version. Tests keep it equal to plugin.yaml, dashboard/manifest.json and VERSION in
 // hermes_artifacts/running.py: a bump touches all four.
-const PLUGIN_VERSION = '0.18.2'
+const PLUGIN_VERSION = '0.19.0'
 const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
 // The built-in view opened on purpose: the router ignores the query, the redirect does not.
@@ -60,6 +60,8 @@ const STRINGS = {
     popOut: 'Pop out chat',
     popIn: 'Chat beside the artifact',
     showChat: 'Show chat',
+    chatModes: 'Where the chat shows',
+    popupLabel: 'Chat with Hermes',
     makingTag: 'Being made',
     makingTab: name => `${name} (being made)`,
     makingOpen: name => `Show the ${name.toLowerCase()} being made`,
@@ -337,6 +339,8 @@ const STRINGS = {
     popOut: 'Chat lebegő ablakban',
     popIn: 'Chat az artifact mellett',
     showChat: 'Chat megjelenítése',
+    chatModes: 'Hol látszik a chat',
+    popupLabel: 'Chat a Hermesszel',
     makingTag: 'Készül',
     makingTab: name => `${name} (készül)`,
     makingOpen: name => `A készülő ${name.toLowerCase()} megjelenítése`,
@@ -588,6 +592,11 @@ const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat 
 // chat's sidebar row lit and the Artifacts row unlit (sidebar/index.tsx: a session row is active while the
 // view is the chat's, a nav row only at its own pathname). "Show chat" puts it back at 'right'.
 const $dockPos = atom('right')
+// The chat layout the person picked last in this window (kept until the app restarts): 'docked' (the chat
+// with the artifact beside it) or 'popup' (the artifact over the chat's area, the chat floating over it). The
+// next artifact a chat opens takes it.
+const $chatMode = atom('docked')
+const $dockFloat = atom(false) // the floating chat over the expanded tile is open
 // What chats are making now (Hermes read a type's guide, has not published): stored chat id -> {session,
 // type (null: not known yet), started (ms, this desktop's clock), title, step, tool, local}. From the
 // backend's `making` events (local: false) or, without one, the chat's own ha_publish (local: true).
@@ -730,12 +739,13 @@ function showMaking(ctx, sid) {
 }
 
 /** The tile beside the chat shows its placeholder (the artifact tile's own id: one tile, refreshed in place). */
-function dockMaking(ctx, sid) {
+function dockMaking(ctx, sid, pos) {
   const m = $makings.get()[sid]
   if (!m) return
   markClosed(sid, false)
   if (dockClose && dockOwner() && dockOwner() !== sid) closeDock()
   closeArtifact() // nothing selected: a card or the titlebar then opens the artifact, not toggles the placeholder
+  placeTile(pos)
   $dockMaking.set(sid)
   openTile(ctx, makingTabTitle(m))
 }
@@ -1506,12 +1516,14 @@ function useHover() {
   return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }]
 }
 
-function IconButton({ icon, title, onClick, active, label }) {
+function IconButton({ icon, title, onClick, active, label, pressed, data }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
     title,
     'aria-label': title,
+    'aria-pressed': pressed,
+    ...(data || {}),
     // While its menu is open, its own press must not count as a click outside that menu.
     onMouseDown: active ? e => e.stopPropagation() : undefined,
     onClick,
@@ -3305,11 +3317,27 @@ function closeDock() {
 /** The artifact's tile right of the chat in front. A tile already there is re-opened under the same id,
  *  which Hermes refreshes in place (one tile, never two); the older disposer is dropped, not called, since
  *  the registry removes by id and would take the new tile with it. */
-function dock(ctx, art) {
+function dock(ctx, art, pos) {
   markClosed(art.session, false)
   if ($dockMaking.get()) fromMaking = art.id // its outline stays until the page is ready
+  placeTile(pos)
   $dockMaking.set(null) // a placeholder there becomes the artifact
   openTile(ctx, art.title)
+}
+
+/** Where the tile opens in the layout the person picked ($chatMode): beside the chat, or over it. */
+const prefPos = () => ($chatMode.get() === 'popup' ? 'center' : 'right')
+
+/** Where a tile about to open sits: `pos` when the move names it (expand, Show chat, Pop out chat); a tile
+ *  already there stays where it is (a publish, a rename refresh it in place); a new one opens in the person's
+ *  layout, the popup layout with its floating chat open. A tile elsewhere than asked is closed first: the dock
+ *  hint only places a tile not yet in the layout. */
+function placeTile(pos) {
+  const fresh = !dockClose
+  const want = pos || (fresh ? prefPos() : $dockPos.get())
+  if (!fresh && $dockPos.get() !== want) closeDock()
+  $dockPos.set(want)
+  if (!pos && fresh) $dockFloat.set(want === 'center')
 }
 
 /** The one workspace tile beside the chat, or over it when expanded (an artifact or a being-made
@@ -3329,7 +3357,8 @@ function openTile(ctx, title) {
       // The tab's own ✕ (or ⌘W) is the person closing it in this chat.
       if (!dockClosing) markClosed($dockMaking.get() || current()?.session, true)
       $dockMaking.set(null)
-      $dockPos.set('right') // the next tile opens beside the chat
+      $dockPos.set('right') // a later tile opens where placeTile puts it
+      $dockFloat.set(false)
       if ($chat.get() === 'split') $chat.set('off')
     }
   })
@@ -3406,7 +3435,8 @@ async function ensureChat(art) {
  *  text in its message box, not sent. */
 async function stageInChat(ctx, art, text) {
   const c = await ensureChat(art)
-  if ($chat.get() !== 'split' || $dockPos.get() === 'center') await openSplit(ctx, current() || art)
+  // The chat's own message box takes it: the chat beside the artifact, whichever layout was picked.
+  if ($chat.get() !== 'split' || $dockPos.get() === 'center') await openSplit(ctx, current() || art, 'right')
   for (let i = 0; i < 15; i++) {
     if (await host.composer.insertText(c.stored, text, { mode: 'block' }).catch(() => false)) return 'staged'
     await new Promise(r => setTimeout(r, 200))
@@ -3516,7 +3546,7 @@ function ConfirmSend() {
   const long = c.kind === 'queryLong'
   const query = c.kind === 'query' || long
   const title = t(long ? 'queryLongTitle' : query ? 'queryTitle' : 'confirmTitle') + (query && c.text.step ? ` · ${t('queryStep', c.text.step)}` : '')
-  const mono = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }
+  const mono = { fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)' }
   // A query: each part labelled, all of it (the box scrolls); a call too long for that shows only its tool.
   const shown = !query ? c.text : (long ? c.text.rows.slice(0, 1) : c.text.rows).map(([k, v]) => jsxs('div', {
     style: { marginBottom: 8 }, children: [jsx('div', { style: { fontSize: 11, fontWeight: 600, color: C.text3, marginBottom: 2 }, children: t(k) }), jsx('div', { style: mono, children: v })]
@@ -3533,17 +3563,17 @@ function ConfirmSend() {
     children: jsxs('div', {
       role: 'dialog',
       'aria-label': title,
-      style: { width: 'min(440px, calc(100% - 32px))', padding: 18, borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal },
+      style: { width: 'min(440px, calc(100% - 32px))', padding: 18, borderRadius: C.rXl, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal },
       children: [
         jsx('div', { style: { fontSize: 15, fontWeight: 600, color: C.fg, marginBottom: 6 }, children: title }),
         jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 10 }, children: t(long ? 'queryLong' : query ? 'queryBody' : 'confirmBody') }),
-        jsx('div', { style: { maxHeight: query ? 300 : 180, overflowY: 'auto', padding: 10, borderRadius: 8, background: C.hover, color: C.fg, fontSize: query ? 12 : 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }, children: shown }),
+        jsx('div', { style: { maxHeight: query ? 300 : 180, overflowY: 'auto', padding: 10, borderRadius: C.rMd, background: C.hover, color: C.fg, fontSize: query ? 12 : 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }, children: shown }),
         jsxs('div', {
           style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
           children: [
-            jsx('button', { type: 'button', autoFocus: query, onClick: () => done(false), style: { ...font, height: 30, padding: '0 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 13, cursor: 'pointer' }, children: t(long ? 'close' : 'cancel') }),
+            jsx('button', { type: 'button', autoFocus: query, onClick: () => done(false), style: { ...font, height: 30, padding: '0 12px', borderRadius: C.rMd, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 13, cursor: 'pointer' }, children: t(long ? 'close' : 'cancel') }),
             // A query's yes is never the focused default: an Enter typed for the page must not give it.
-            !long && jsx('button', { type: 'button', autoFocus: !query, onClick: () => done(true), style: { ...font, height: 30, padding: '0 14px', borderRadius: 8, border: 0, background: C.fg, color: C.bg, fontSize: 13, cursor: 'pointer' }, children: t(query ? 'allowQuery' : 'sendToHermes') })
+            !long && jsx('button', { type: 'button', autoFocus: !query, onClick: () => done(true), style: { ...font, height: 30, padding: '0 14px', borderRadius: C.rMd, border: 0, background: C.fg, color: C.bg, fontSize: 13, cursor: 'pointer' }, children: t(query ? 'allowQuery' : 'sendToHermes') })
           ].filter(Boolean)
         })
       ]
@@ -3590,8 +3620,10 @@ function AllowDialog({ c, t }) {
 }
 
 /** Chat: the chat the artifact was made in, with the artifact docked to its right (a main-area
- *  workspace tile, not the right rail). Older desktops without openWorkspace get the floating chat. */
-async function openSplit(ctx, art) {
+ *  workspace tile, not the right rail), or over the chat with the chat floating over it when that is the
+ *  layout the person picked ($chatMode; `pos` names one for this open only). Older desktops without
+ *  openWorkspace get the floating chat over the full page. */
+async function openSplit(ctx, art, pos) {
   if (typeof host.openWorkspace !== 'function') {
     $chat.set('float')
     return
@@ -3622,24 +3654,30 @@ async function openSplit(ctx, art) {
     if (run !== splitRun) return give()
   }
   give()
-  // Expanded over the chat: Chat means beside it again.
-  if ($dockPos.get() === 'center') closeDock()
+  // In the other layout than the one asked for (expanded over the chat, Chat means beside it again): moved.
+  const want = pos || prefPos()
+  if (dockClose && $dockPos.get() !== want) closeDock()
   // Entering the chat may have docked another of its artifacts (its newest): this one is asked for.
   if ($selected.get() !== art.id) openArtifact(ctx, art.id)
   // Entering the chat may have docked it already (the route change runs enter()): one tile either way.
-  if (!(dockClose && $chat.get() === 'split' && $selected.get() === art.id && !$dockMaking.get())) dock(ctx, art)
+  if (!(dockClose && $chat.get() === 'split' && $selected.get() === art.id && !$dockMaking.get())) dock(ctx, art, want)
+  // Opened in the popup layout: with its chat floating over it (also when it was closed before).
+  if (want === 'center') $dockFloat.set(true)
 }
 
 /** ⤢ in the docked pane: the same tile over its chat (a tab in the chat's zone that takes the whole chat
  *  area), on the chat's own route: the chat's sidebar row stays the lit one and the Artifacts row does not
  *  light (an extension route would light neither the chat nor keep it "in the chat"). Not the person's
- *  close: the chat keeps its artifact. */
-function expandDock(ctx) {
+ *  close: the chat keeps its artifact. With `float`, the chat floats over it (Pop out chat). A being-made
+ *  placeholder moves the same way. */
+function expandDock(ctx, float = false) {
+  const making = $dockMaking.get()
   const art = current()
-  if (!art || !dockClose || $dockPos.get() === 'center') return
+  if ((!art && !making) || !dockClose || $dockPos.get() === 'center') return
   closeDock() // Hermes remembers the beside tile's width (rememberPaneShare) for the way back
-  $dockPos.set('center')
-  dock(ctx, art)
+  if (making) dockMaking(ctx, making, 'center')
+  else dock(ctx, art, 'center')
+  $dockFloat.set(float)
 }
 
 /** "Show chat" on the expanded tile: back beside the chat, at the width it had. */
@@ -3648,8 +3686,39 @@ function collapseDock(ctx) {
   const making = $dockMaking.get()
   const art = current()
   closeDock() // resets $dockPos to 'right'
-  if (making) dockMaking(ctx, making)
-  else if (art) dock(ctx, art)
+  if (making) dockMaking(ctx, making, 'right')
+  else if (art) dock(ctx, art, 'right')
+}
+
+// The two chat layouts, as the person picks them (remembered in $chatMode for the next artifact):
+/** The chat with the artifact beside it ("Show chat" on the expanded tile, the floating chat's own button). */
+function chatDocked(ctx) {
+  $chatMode.set('docked')
+  $dockFloat.set(false)
+  collapseDock(ctx)
+}
+
+/** The artifact over the chat's area with the chat floating over it (Pop out chat beside the chat; on the
+ *  expanded tile it opens or closes the floating chat, closing it keeps the layout). */
+function chatPopup(ctx) {
+  if ($dockPos.get() === 'center' && dockClose) {
+    if ($dockFloat.get()) return $dockFloat.set(false)
+    $chatMode.set('popup')
+    return $dockFloat.set(true)
+  }
+  $chatMode.set('popup')
+  expandDock(ctx, true)
+}
+
+/** The full page's two: Chat (its chat with the artifact beside it) and Pop out chat (floating over the page). */
+function pageDocked(ctx, art) {
+  $chatMode.set('docked')
+  return openSplit(ctx, art, 'right')
+}
+function pagePopup() {
+  if ($chat.get() === 'float') return $chat.set('off')
+  $chatMode.set('popup')
+  $chat.set('float')
 }
 
 const shownText = m => String(m.text || '').replace(/^\[artifact: [^\]]*\]\s*/, '')
@@ -3663,7 +3732,7 @@ function ChatMessage({ m }) {
       style: {
         maxWidth: mine ? '85%' : '100%',
         padding: mine ? '8px 12px' : '2px 0',
-        borderRadius: 12,
+        borderRadius: C.rLg,
         background: mine ? C.hover : 'transparent',
         color: C.fg,
         fontSize: 14,
@@ -3677,9 +3746,18 @@ function ChatMessage({ m }) {
   })
 }
 
-/** Pop out chat: the artifact's chat floating over it. Reads the transcript (session.history) and
- *  sends with prompt.submit, so it is the same conversation the chat view shows. */
-function FloatingChat({ ctx, art }) {
+// The element a floating chat finds its way back from (Viewer's and the placeholder's root), and the
+// Pop out chat control in that view's header: focus goes back there when the chat closes and what opened it
+// is gone (the tile was re-opened in the other layout).
+const CHAT_ROOT = 'data-ha-chat-root'
+const POPOUT_CONTROL = 'data-ha-popout'
+
+/** Pop out chat: the artifact's chat floating over it (the full page, or the tile over the chat in the
+ *  popup layout), or with `sid` a chat with nothing made yet (the being-made placeholder). Reads the
+ *  transcript (session.history) and sends with prompt.submit, so it is the same conversation the chat view
+ *  shows. Esc or its x closes it (onClose) and gives the focus back; its other button is the chat beside
+ *  the artifact (onDock). */
+function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
   const t = usePluginI18n(ID)
   const busyMap = useValue(host.state.busyBySession)
   const [rid, setRid] = useState(null)
@@ -3691,6 +3769,10 @@ function FloatingChat({ ctx, art }) {
   const [state, setState] = useState(null)
   const sentAt = useRef(0)
   const listRef = useRef(null)
+  const boxRef = useRef(null)
+  const inputRef = useRef(null)
+  const opener = useRef(null)
+  const session = art ? art.session : sid
   const load = async id => {
     const r = await host.request('session.history', { session_id: id })
     const list = (r?.messages || []).filter(m => (m.role === 'user' || m.role === 'assistant') && String(m.text || '').trim())
@@ -3703,10 +3785,10 @@ function FloatingChat({ ctx, art }) {
     setErr(null)
     ;(async () => {
       try {
-        const st = await chatState(art)
+        const st = art ? await chatState(art) : sid ? 'open' : 'none'
         if (!live) return
         setState(st)
-        const id = st === 'open' ? await chatRuntime(art) : null
+        const id = st === 'open' ? await chatRuntime(art || { session: sid }) : null
         if (!live) return
         setRid(id)
         if (id) await load(id)
@@ -3719,7 +3801,24 @@ function FloatingChat({ ctx, art }) {
     return () => {
       live = false
     }
-  }, [art.id, art.session])
+  }, [art?.id, session])
+  // What had the focus when it opened (the control that opened it); the caret goes to its message box.
+  useEffect(() => {
+    try { opener.current = document.activeElement || null } catch {}
+  }, [])
+  useEffect(() => {
+    if (ready) try { inputRef.current?.focus?.() } catch {}
+  }, [ready])
+  const close = () => {
+    let back = null
+    try {
+      const o = opener.current
+      back = o && o.isConnected && o !== document.body && !boxRef.current?.contains?.(o) ? o
+        : boxRef.current?.closest?.(`[${CHAT_ROOT}]`)?.querySelector?.(`[${POPOUT_CONTROL}]`) || null
+    } catch {}
+    onClose()
+    try { back?.focus?.() } catch {}
+  }
   const ping = useValue($chatPing)
   useEffect(() => {
     if (!ping || !rid) return
@@ -3747,6 +3846,7 @@ function FloatingChat({ ctx, art }) {
     if (!body) return
     let id = rid
     if (!id) {
+      if (!art) return
       try {
         const c = await ensureChat(art)
         id = c.runtime
@@ -3763,20 +3863,29 @@ function FloatingChat({ ctx, art }) {
     sentAt.current = Date.now()
     setWaiting(true)
     try {
-      await host.request('prompt.submit', { session_id: id, text: t('sendMsg', art.title, body) })
+      // A chat with nothing made yet takes the words as they are; an artifact's chat learns which one.
+      await host.request('prompt.submit', { session_id: id, text: art ? t('sendMsg', art.title, body) : body })
     } catch (e) {
       setErr(String(e?.message || e))
       setWaiting(false)
     }
   }
   return jsxs('div', {
-    style: { position: 'absolute', right: 16, bottom: 16, zIndex: 25, width: 'min(440px, calc(100% - 32px))', height: 'min(600px, calc(100% - 32px))', display: 'flex', flexDirection: 'column', borderRadius: 14, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal, overflow: 'hidden' },
+    ref: boxRef,
+    role: 'dialog',
+    'aria-label': t('popupLabel'),
+    onKeyDown: e => {
+      if (e.key !== 'Escape' || e.nativeEvent?.isComposing) return
+      e.stopPropagation()
+      close()
+    },
+    style: { position: 'absolute', right: 16, bottom: 16, zIndex: 25, width: 'min(440px, calc(100% - 32px))', height: 'min(600px, calc(100% - 72px))', display: 'flex', flexDirection: 'column', borderRadius: C.rXl, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowModal, overflow: 'hidden' },
     children: [
       jsxs('div', {
         style: { display: 'flex', justifyContent: 'flex-end', gap: 2, padding: '8px 8px 0' },
         children: [
-          jsx(IconButton, { icon: 'expand', title: t('popIn'), onClick: () => openSplit(ctx, art) }),
-          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => $chat.set('off') })
+          jsx(IconButton, { icon: 'expand', title: t('popIn'), onClick: onDock }),
+          jsx(IconButton, { icon: 'close', title: t('close'), onClick: close })
         ]
       }),
       jsxs('div', {
@@ -3795,12 +3904,14 @@ function FloatingChat({ ctx, art }) {
       jsx('div', {
         style: { padding: 12 },
         children: jsxs('div', {
-          style: { border: `1px solid ${C.line}`, borderRadius: 14, padding: '10px 12px 8px', background: C.card },
+          style: { border: `1px solid ${C.line}`, borderRadius: C.rXl, padding: '10px 12px 8px', background: C.card },
           children: [
             jsx('textarea', {
+              ref: inputRef,
               value: text,
               rows: 2,
               disabled: !ready,
+              'aria-label': t('describeChange'),
               placeholder: t('describeChange'),
               onChange: e => setText(e.target.value),
               onKeyDown: e => {
@@ -3820,7 +3931,7 @@ function FloatingChat({ ctx, art }) {
                   'aria-label': t('send'),
                   disabled: !ready || !text.trim(),
                   onClick: send,
-                  style: { width: 30, height: 30, borderRadius: 8, border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: text.trim() ? C.fg : C.hover, color: text.trim() ? C.bg : C.text3 },
+                  style: { width: 30, height: 30, borderRadius: C.rMd, border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: text.trim() ? C.fg : C.hover, color: text.trim() ? C.bg : C.text3 },
                   children: jsx(Icon, { name: 'enter' })
                 })
               ]
@@ -4034,7 +4145,7 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
           refresh(ctx)
         }
       },
-      style: { ...font, height: 30, minWidth: 260, padding: '0 10px', borderRadius: 8, border: `1px solid ${C.accent}`, background: 'transparent', color: C.fg, fontSize: 14, outline: 'none' }
+      style: { ...font, height: 30, minWidth: 260, padding: '0 10px', borderRadius: C.rMd, border: `1px solid ${C.accent}`, background: 'transparent', color: C.fg, fontSize: 14, outline: 'none' }
     })
   return jsxs('div', {
     style: { position: 'relative', minWidth: 0 },
@@ -4043,7 +4154,7 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
         type: 'button',
         onClick: () => setOpen(!open),
         ...hp,
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', borderRadius: 8, border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', borderRadius: C.rMd, border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
         children: [
           jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
           v !== art.version ? jsx('span', { style: { fontSize: 12, color: C.text3 }, children: `v${v}` }) : null,
@@ -4067,6 +4178,19 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
   })
 }
 
+/** The chat layouts as one switch, in the header's own buttons: `beside` ({icon, label, onClick}: the chat
+ *  with the artifact beside it) and Pop out chat (pressed while the chat floats over the artifact). Beside
+ *  the chat only Pop out chat: the chat is already there. */
+function ChatSwitch({ t, beside = null, popup, onPopup }) {
+  const pop = jsx(IconButton, { icon: 'popout', title: t('popOut'), active: popup, pressed: popup, data: { [POPOUT_CONTROL]: '' }, onClick: onPopup })
+  return jsxs('div', {
+    role: 'group',
+    'aria-label': t('chatModes'),
+    style: { display: 'flex', alignItems: 'center', borderRadius: C.rMd, background: beside ? C.hover : 'transparent' },
+    children: [beside ? jsx(IconButton, { icon: beside.icon, label: beside.label, title: beside.label, onClick: beside.onClick }) : null, pop]
+  })
+}
+
 function Header({ ctx, art, v, portRef, docked }) {
   const t = usePluginI18n(ID)
   const chat = useValue($chat)
@@ -4075,21 +4199,18 @@ function Header({ ctx, art, v, portRef, docked }) {
   const comments = useValue($comments)
   const [cmenu, setCmenu] = useState(false)
   const expanded = useValue($dockPos) === 'center'
+  const dockFloat = useValue($dockFloat)
   const open = comments.filter(c => !c.parent && !c.resolved).length
   return jsxs('div', {
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
     children: [
       jsx(TitleButton, { ctx, art, v, portRef, docked }, art.id),
       jsx('div', { style: { flex: 1 } }),
+      // The two chat layouts as one switch: Chat (its chat with the artifact beside it) | Pop out chat.
       docked
         ? null
-        : jsxs('div', {
-            style: { display: 'flex', alignItems: 'center', borderRadius: 8, background: C.hover },
-            children: [
-              jsx(IconButton, { icon: chat === 'float' ? 'collapse' : 'sparkle', label: t('chat'), title: t('chat'), onClick: () => openSplit(ctx, art) }),
-              jsx(IconButton, { icon: 'popout', title: t('popOut'), active: chat === 'float', onClick: () => $chat.set(chat === 'float' ? 'off' : 'float') })
-            ]
-          }),
+        : jsx(ChatSwitch, { t, beside: { icon: chat === 'float' ? 'collapse' : 'sparkle', label: t('chat'), onClick: () => pageDocked(ctx, art) },
+            popup: chat === 'float', onPopup: () => pagePopup() }),
       jsxs('div', {
         style: { position: 'relative', display: 'flex', alignItems: 'center', marginLeft: 6 },
         children: [
@@ -4117,11 +4238,15 @@ function Header({ ctx, art, v, portRef, docked }) {
             : null
         ]
       }),
-      // Expanded over its chat (Claude's): one "Show chat" where ⤢ was; it puts the tile back beside the chat.
+      // Expanded over its chat (Claude's): "Show chat" where ⤢ was, switched with Pop out chat (the chat
+      // floating over the tile). Beside the chat: Pop out chat (that layout) and ⤢ (the tile alone over the chat).
       docked
         ? expanded
-          ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => collapseDock(ctx) })
-          : jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) })
+          ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx) })
+          : jsxs(Fragment, { children: [
+              jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }),
+              jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) })
+            ] })
         : null,
       // ✕ beside or over a chat: the chat alone, remembered as the person's close there. On the full page:
       // the gallery (an artifact's own route would reopen it).
@@ -4149,7 +4274,7 @@ function CommentPopover({ ctx, art }) {
     children: [
       jsx('div', { style: { position: 'absolute', left: Math.min(r.x + r.w - 12, bw - 30), top: Math.max(4, r.y - 12), zIndex: 26, width: 26, height: 26, borderRadius: 13, background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
       jsxs('div', {
-        style: { position: 'absolute', left, top, zIndex: 27, width: W, padding: 12, borderRadius: 12, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
+        style: { position: 'absolute', left, top, zIndex: 27, width: W, padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
         children: [
           label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
           jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
@@ -4187,9 +4312,11 @@ const elapsedText = ms => {
 function MakingView({ ctx, m }) {
   const t = usePluginI18n(ID)
   const expanded = useValue($dockPos) === 'center'
+  const dockFloat = useValue($dockFloat)
   const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
   const one = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
   return jsxs('div', {
+    [CHAT_ROOT]: '',
     style: { ...font, height: '100%', display: 'flex', flexDirection: 'column', background: C.bg, color: C.fg },
     children: [
       jsxs('div', {
@@ -4200,12 +4327,24 @@ function MakingView({ ctx, m }) {
             jsx('span', { style: { ...one, fontWeight: 600, fontSize: 14 }, children: m.title || name }),
             jsx('span', { style: { ...one, fontSize: 12, color: C.text3 }, children: m.title ? `${name} · ${t('makingTag')}` : t('makingTag') })
           ] }),
-          expanded ? jsx(IconButton, { icon: 'collapse', label: t('showChat'), title: t('showChat'), onClick: () => collapseDock(ctx) }) : null,
+          // The same chat layouts as an artifact's header (Header): the placeholder moves with them.
+          expanded
+            ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx) })
+            : jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }),
           jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session) })
         ]
       }),
-      jsx(MakingLine, { ctx, m }),
-      jsx(MakingSkeleton, { type: m.type })
+      jsxs('div', {
+        style: { position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
+        children: [
+          jsx(MakingLine, { ctx, m }),
+          jsx(MakingSkeleton, { type: m.type }),
+          // Popup layout: the chat it is being made in, floating over the outline.
+          expanded && dockFloat
+            ? jsx(FloatingChat, { ctx, sid: m.session, onClose: () => $dockFloat.set(false), onDock: () => chatDocked(ctx) }, m.session)
+            : null
+        ]
+      })
     ]
   })
 }
@@ -4400,15 +4539,15 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
             submit()
           }
         },
-        style: { ...font, resize: 'vertical', padding: 8, borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
+        style: { ...font, resize: 'vertical', padding: 8, borderRadius: C.rMd, border: `1px solid ${C.line}`, background: 'transparent', color: C.fg, fontSize: 13, outline: 'none' }
       }),
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8 },
         children: [
           jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer' }, children: [jsx('input', { type: 'checkbox', checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),
-          compact ? null : jsx('button', { type: 'button', onClick: onDone, style: { ...font, height: 26, padding: '0 10px', borderRadius: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
-          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), style: { ...font, height: 26, padding: '0 12px', borderRadius: 6, border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
+          compact ? null : jsx('button', { type: 'button', onClick: onDone, style: { ...font, height: 26, padding: '0 10px', borderRadius: C.rSm, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
+          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), style: { ...font, height: 26, padding: '0 12px', borderRadius: C.rSm, border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
         ]
       })
     ]
@@ -4460,7 +4599,7 @@ function CommentsPanel({ ctx, art, portRef }) {
           picking ? jsx('div', { style: { fontSize: 12, color: C.accent, padding: '4px 2px' }, children: t('pickHint') }) : null,
           draft && !draft.rect
             ? jsxs('div', {
-                style: { padding: 12, borderRadius: 10, border: `1px solid ${C.accent}`, background: C.card },
+                style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${C.accent}`, background: C.card },
                 children: [
                   draft.anchor ? jsx('div', { style: { fontSize: 12, color: C.text3, borderLeft: `2px solid ${C.accent}`, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: draft.anchor.text || draft.anchor.label }) : null,
                   jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText })
@@ -4470,10 +4609,10 @@ function CommentsPanel({ ctx, art, portRef }) {
           !draft && !picking && roots.length === 0 ? jsx('p', { style: { fontSize: 12, color: C.text3, lineHeight: 1.5 }, children: t('noComments') }) : null,
           roots.length
             ? jsx('div', {
-                style: { display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: C.hover, alignSelf: 'flex-start' },
+                style: { display: 'flex', gap: 2, padding: 2, borderRadius: C.rMd, background: C.hover, alignSelf: 'flex-start' },
                 children: [['open', t('fOpen'), open.length], ['resolved', t('fResolved'), done.length], ['all', t('fAll'), roots.length]].map(([k, label, n]) =>
                   jsx('button', { type: 'button', key: k, onClick: () => setFilter(k), 'aria-pressed': filter === k,
-                    style: { ...font, border: 0, borderRadius: 6, padding: '3px 9px', fontSize: 12, cursor: 'pointer', background: filter === k ? C.card : 'transparent', color: filter === k ? C.fg : C.text3 },
+                    style: { ...font, border: 0, borderRadius: C.rSm, padding: '3px 9px', fontSize: 12, cursor: 'pointer', background: filter === k ? C.card : 'transparent', color: filter === k ? C.fg : C.text3 },
                     children: `${label} ${n}` }))
               })
             : null,
@@ -4496,6 +4635,8 @@ function Viewer({ ctx, docked = false }) {
   const stage = useRef(null)
   const presenting = useValue($presenting)
   const chat = useValue($chat)
+  const expanded = useValue($dockPos) === 'center'
+  const dockFloat = useValue($dockFloat)
   const picking = useValue($picking)
   const comments = useValue($comments)
   const makings = useValue($makings)
@@ -4589,6 +4730,7 @@ function Viewer({ ctx, docked = false }) {
   // The header names the version on screen when a newer one did not load.
   const hv = band?.kind === 'failed' && band.old != null ? band.old : v
   return jsxs('div', {
+    [CHAT_ROOT]: '',
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
     children: [
       jsx(Header, { ctx, art, v: hv, portRef, docked }),
@@ -4612,7 +4754,13 @@ function Viewer({ ctx, docked = false }) {
                   : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') }),
               docked ? null : jsx(CommentPopover, { ctx, art }),
               jsx(ConfirmSend, {}),
-              chat === 'float' && !docked ? jsx(FloatingChat, { ctx, art }, art.id) : null
+              // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
+              // the popup layout. Under the header and its bands (it lives in the stage), never mounted closed.
+              !docked && chat === 'float'
+                ? jsx(FloatingChat, { ctx, art, onClose: () => $chat.set('off'), onDock: () => pageDocked(ctx, art) }, art.id)
+                : docked && expanded && dockFloat
+                  ? jsx(FloatingChat, { ctx, art, onClose: () => $dockFloat.set(false), onDock: () => chatDocked(ctx) }, art.id)
+                  : null
             ]
           }),
           panel ? jsx(CommentsPanel, { ctx, art, portRef }) : null

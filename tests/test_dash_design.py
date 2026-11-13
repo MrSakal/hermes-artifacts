@@ -91,9 +91,13 @@ const files = {
 };
 const d = K.draftOf(files);
 const saved = K.saveDraftFiles(files, { title: 'T', layout: [1], datasets: { m: {} } }, d);
-const clay = K.check(K.LOOKS.Clay), bad = K.check({ light: { ground: '#333333', text: '#000000' } });
-const fixed = K.check({ light: { ground: '#dddddd', card: '#111111', text: '#dddddd', charts: ['#dddddd', '#d97757'] } });
-console.log(JSON.stringify({ d, saved, clay: clay && { light: clay.light.ground, dark: clay.dark.ground, chart: clay.light.charts[0] }, bad, fixed: fixed && fixed.light }));
+const KEYS = ['ground', 'card', 'text', 'muted', 'border', 'good', 'warning', 'bad'];
+const asIs = (set, out) => !!out && KEYS.every((k) => out[k] === set[k]) && JSON.stringify(out.charts) === JSON.stringify(set.charts);
+const looks = {};
+Object.keys(K.LOOKS).forEach((n) => { const c = K.check(K.LOOKS[n]); looks[n] = { light: asIs(K.LOOKS[n].light, c && c.light), dark: asIs(K.LOOKS[n].dark, c && c.dark) }; });
+const bad = K.check({ light: { ground: '#333333', text: '#000000' } });
+const fixed = K.check({ light: { ground: '#dddddd', card: '#111111', text: '#dddddd', charts: ['#dddddd', '#0d9488'] } });
+console.log(JSON.stringify({ d, saved, looks, mist: K.LOOKS.Mist, bad, fixed: fixed && fixed.light }));
 """
 
 
@@ -111,14 +115,18 @@ class DesignKitTests(unittest.TestCase):
         spec = json.loads(s["dashboard.json"])
         self.assertEqual(sorted(spec["datasets"]), ["extra", "m"])
         self.assertNotIn("layout", spec)
-        self.assertEqual(out["clay"], {"light": "#f6f1e9", "dark": "#14110d", "chart": "#d97757"})
+        # Every ready-made look is worn exactly as written, in light and dark (no value fixed or dropped).
+        self.assertEqual(out["looks"], {n: {"light": True, "dark": True} for n in ("Mist", "Ocean", "Meadow")})
+        # Mist is the kit's own palette (types/_kit/kit.css), the plugin's one fallback family.
+        self.assertEqual((out["mist"]["light"]["ground"], out["mist"]["light"]["charts"][0], out["mist"]["dark"]["charts"][0]),
+                         ("#f5f7fa", "#0d9488", "#2dd4bf"))
         self.assertIsNone(out["bad"])  # a light ground far too dark drops the set
         f = out["fixed"]
         self.assertGreater(int(f["ground"][1:3], 16), 0xdd)  # moved toward white until it fits
         self.assertEqual(f["card"], f["ground"])  # a card darker than #ccc is the ground
         self.assertEqual(f["text"], "#000000")  # text without 4.5:1 becomes black
         self.assertEqual(f["charts"][0], None)  # a chart color without 1.5:1 is left to the dashboard
-        self.assertEqual(f["charts"][1], "#d97757")
+        self.assertEqual(f["charts"][1], "#0d9488")
 
 
 class BannerTests(unittest.TestCase):

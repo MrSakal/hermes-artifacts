@@ -1,6 +1,5 @@
-/* hermes-artifacts Dashboard: the ready-made answer readers a loader gets as `read` (Claude's
- * read.bigquery / read.governed / read.snowflake / read.databricks), ported from how Claude's
- * Dashboard type reads them. Each returns {data, columns, cut, meta} and throws the connector's own
+/* hermes-artifacts Dashboard: the ready-made answer readers a loader gets as `read`
+ * (read.bigquery / read.governed / read.snowflake / read.databricks). Each returns {data, columns, cut, meta} and throws the connector's own
  * words on a failure; BigQuery's and Databricks' wait for a query left running through `call`.
  *
  *   dash.loader('signups', { description: 'BigQuery’s answer as rows', fn: ({ answer, read }) => read.bigquery(answer) });

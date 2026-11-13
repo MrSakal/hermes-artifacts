@@ -58,8 +58,8 @@ asset store or upload step. Paths: relative, `/`-separated, letters, digits, `_ 
 ```json
 {"name": "Acme", "version": 1,
  "color": {"themes": [{"id": "light", "name": "Light"}, {"id": "dark", "name": "Dark"}],
-  "tokens": [{"name": "surface-100", "value": {"light": "#fbf7f1", "dark": "#1d1a17"}, "usage": "Page background."},
-   {"name": "ink", "value": {"light": "#2b2118", "dark": "#f3ece3"}, "usage": "Text on surface-100."},
+  "tokens": [{"name": "surface-100", "value": {"light": "#f5f7fa", "dark": "#0e131a"}, "usage": "Page background."},
+   {"name": "ink", "value": {"light": "#0f1720", "dark": "#e6edf5"}, "usage": "Text on surface-100."},
    {"name": "focus", "value": "{ink}", "usage": "Focus ring, 2px solid."}]},
  "type": {"fonts": [{"family": "Acme Sans", "file": "fonts/AcmeSans-Regular.woff2", "weight": "400"}],
   "families": {"sans": "\"Acme Sans\", system-ui, sans-serif"},
@@ -131,7 +131,7 @@ instructions; never guess a value the files lack.
 - Assets copied, never approximated; no logo in sources = name in plain type + a note. Real font files.
 - Usage note on every token; README per asset group (single-ink SVG notes name the ink: `<img>` can't pass
   `currentColor`).
-- Contrast (checked as Claude's): text 4.5:1 (3:1 at 24px+), control borders, focus rings, charts, icons
+- Contrast: text 4.5:1 (3:1 at 24px+), control borders, focus rings, charts, icons
   and anything whose usage says `3:1` at 3:1, in EVERY theme and preview, measured on the grounds each
   usage note names ("on bone and bone-raised"; `on-clay` reads on `clay`), else page and card surfaces:
   name the grounds in each text colour's note. Failing cells offer "Use a readable shade" (nearest passing
