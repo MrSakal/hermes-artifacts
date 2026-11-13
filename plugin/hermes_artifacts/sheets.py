@@ -936,7 +936,12 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
 
 
 def dump(aid: str) -> str:
-    """The live workbook as compact JSON (ha_read without a path): each sheet as capped rows."""
+    """The live workbook as compact JSON: each sheet as capped rows (snapshot, as text)."""
+    return json.dumps(snapshot(aid), ensure_ascii=False, separators=(",", ":"))
+
+
+def snapshot(aid: str) -> dict:
+    """The live workbook (ha_read without a path): each sheet as capped rows."""
     st = load(aid)
     meta = store.get_meta(aid) or {}
     sheets = []
@@ -949,7 +954,7 @@ def dump(aid: str) -> str:
             one["more"] = v["more"]
         one.update(_extras(sh, None, True))
         sheets.append(one)
-    return json.dumps({"title": meta.get("title", aid), "sheets": sheets}, ensure_ascii=False, separators=(",", ":"))
+    return {"title": meta.get("title", aid), "sheets": sheets}
 
 
 def with_lists(aid: str, out: dict) -> dict:

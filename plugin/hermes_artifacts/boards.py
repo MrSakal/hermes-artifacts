@@ -1223,15 +1223,21 @@ def _ints(v):
     return v
 
 
+_GEOMETRY = ("x", "y", "w", "h")
+
+
 def compact(it: dict, full: bool = False) -> dict:
     """An item for the agent: defaults left out, numbers whole, and the bulky fields (svg, html, pen
-    points, a data: image, a long embed state) as their length unless ``full``."""
+    points, a data: image, a long embed state) as their length, and no place or size (x, y, w, h: the server
+    lays items out, an edit moves by dx/dy), unless ``full`` (ha_live_read range=<ids>)."""
     dflt = DEFAULTS.get(it["type"], {})
     out = {}
     for k, v in it.items():
         if k in dflt and dflt[k] == v:
             continue
         if not full:
+            if k in _GEOMETRY:
+                continue
             if k in _BLOBS:
                 v = len(v)
             elif k == "src" and v.startswith("data:"):
@@ -1311,9 +1317,14 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
 
 
 def dump(aid: str) -> str:
+    """The live board as board.json text (snapshot, as text)."""
+    return json.dumps(snapshot(aid), ensure_ascii=False, separators=(",", ":"))
+
+
+def snapshot(aid: str) -> dict:
     """The live board as board.json (ha_read without a path)."""
     st = load(aid)
-    return json.dumps({"title": st["title"], "items": st["items"]}, ensure_ascii=False, separators=(",", ":"))
+    return {"title": st["title"], "items": st["items"]}
 
 
 # ----------------------------------------------------------------------------- editing

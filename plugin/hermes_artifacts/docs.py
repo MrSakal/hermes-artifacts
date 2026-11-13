@@ -303,6 +303,77 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
         return _read(aid, load(aid), tab, since_rev, search, blocks)
 
 
+def _wanted(t: dict, blocks: list) -> set:
+    """The ids ``blocks`` names: ids, and runs "<first id>..<last id>" (an outline's part) with every block
+    between them."""
+    want, at = set(), None
+    for x in blocks:
+        x = str(x)
+        if ".." not in x:
+            want.add(x)
+            continue
+        if at is None:
+            at = {b["id"]: i for i, b in enumerate(t["blocks"])}
+        a, _, z = x.partition("..")
+        gone = next((y for y in (a, z) if y not in at), None)
+        if gone is not None:
+            raise DocError("absent", f"no block {gone!r} in this tab: the doc changed, read it again for its outline")
+        i, j = sorted((at[a], at[z]))
+        want.update(b["id"] for b in t["blocks"][i:j + 1])
+    return want
+
+
+# A read that hands the agent a long doc whole (a 600-paragraph doc: 220 KB, some 55k tokens) gives an outline
+# instead: the tab cut into parts of about PART_CHARS characters, each naming its first and last block as the
+# blocks= value that reads it, how many blocks it holds, how it starts and its headings.
+READ_MAX = 30_000  # characters of block text (as JSON) a whole read hands over; above it, an outline
+PART_CHARS = 6_000
+OUTLINE_PARTS = 40  # at most this many parts (longer docs: longer parts)
+OUTLINE_NOTE = "Long doc: an outline. Read a part with blocks=[its blocks] (block ids work too); search= finds text."
+READ_OUTLINE_NOTE = ("Long doc: an outline per tab. ha_live_read id={id} tab=<tab> blocks=[a part's blocks] reads a part "
+                     "(block ids work too); search= finds text.")
+
+
+def _snippet(md: str, n: int) -> str:
+    s = " ".join(str(md).split())
+    return s if len(s) <= n else s[:n - 1] + "…"
+
+
+def too_long(blocks: list) -> bool:
+    return sum(len(b["md"]) + len(b["id"]) + 30 for b in blocks) > READ_MAX
+
+
+def parts(blocks: list) -> list:
+    """The outline of a tab's blocks ({id, md}[, kind]): [{blocks: "<first>..<last>", n, starts, heads?}]."""
+    total = sum(len(b["md"]) for b in blocks)
+    size = max(PART_CHARS, total // OUTLINE_PARTS + 1)
+    runs, cur, n = [], [], 0
+    for b in blocks:
+        if cur and n + len(b["md"]) > size:
+            runs.append(cur)
+            cur, n = [], 0
+        cur.append(b)
+        n += len(b["md"])
+    if cur:
+        runs.append(cur)
+    out = []
+    for r in runs:
+        p = {"blocks": f'{r[0]["id"]}..{r[-1]["id"]}', "n": len(r), "starts": _snippet(r[0]["md"], 80)}
+        heads = [_snippet(b["md"], 60) for b in r if (b.get("kind") or _kind(b["md"])).startswith("h")]
+        if heads:
+            p["heads"] = heads[:5] + ([f"+{len(heads) - 5} more"] if len(heads) > 5 else [])
+        out.append(p)
+    return out
+
+
+def outlines(aid: str) -> list:
+    """Every tab's outline: [{tab, title, rev, parts}] (ha_read of a long doc)."""
+    with _LOCK:
+        st = load(aid)
+        tabs = [(t["id"], t["title"], t["rev"], [{"id": b["id"], "md": b["md"]} for b in t["blocks"]]) for t in st["tabs"]]
+    return [{"tab": i, "title": title, "rev": rev, "parts": parts(bs)} for i, title, rev, bs in tabs]
+
+
 def _kind(md: str) -> str:
     """block_kind, remembered for short blocks (a poll of a long doc asks for the same few hundred)."""
     if len(md) > 400:
@@ -354,7 +425,7 @@ def _read(aid: str, st: dict, tab, since_rev, search, blocks) -> dict:
         out["removed"] = [bid for bid in changed if bid not in ids]
         return out
     if blocks:
-        want = set(blocks)
+        want = _wanted(t, blocks)
         out["blocks"] = view(b for b in t["blocks"] if b["id"] in want)
         return out
     if search:
