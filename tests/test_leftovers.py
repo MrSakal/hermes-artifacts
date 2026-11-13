@@ -609,7 +609,8 @@ class MemoryBoundsTests(unittest.TestCase):
     def test_the_gallery_drops_counts_of_artifacts_gone_elsewhere(self):
         aid = store.publish(html="<p>c</p>", title="counted")["id"]
         store.comment_add(aid, "open")
-        gone = {store.root() / f"elsewhere-{i:03d}" / "comments.json": ((1, 1, 1), 1) for i in range(200)}
+        many = len(os.listdir(store.root())) + 100  # past the slack the gallery allows, whatever earlier tests made
+        gone = {store.root() / f"elsewhere-{i:05d}" / "comments.json": ((1, 1, 1), 1) for i in range(many)}
         store._OPEN_COUNTS.update(gone)
         self.assertIn(aid, [m["id"] for m in store.list_all()])
         self.assertFalse(any(k in store._OPEN_COUNTS for k in gone))
