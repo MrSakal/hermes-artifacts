@@ -29,7 +29,7 @@ The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.m
 | **Dashboard** (`dashboard`) | Numbers, charts and tables drawn from datasets: live MCP queries (loaders with `read.bigquery` / `governed` / `snowflake` / `databricks`), CSV/TSV/JSON files or inline rows. Sources shows where each figure comes from; History, looks (Clay, Ocean, Meadow, a design system), Edit the page, drafts in other formats (Scrollyteller, Visual analysis, Visual short), full screen. Hermes checks it with `ha_check`. | CSV per source, HTML snapshot, JSON |
 | **Slides** (`slides`) | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `ha_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
-| **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
+| **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. A new chart never covers another: it goes to the next free spot. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
 | **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members), and nothing it places overlaps, also when Hermes later writes longer text into an item (what it would cover moves out of its way); history with restore. | PNG, SVG |
 | **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) as `.dc.html` files: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
 | **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
@@ -48,7 +48,9 @@ const { text } = await hermes.ask('Which region?') // waits for Hermes' answer (
 Messages into the chat (`send`, `ask`, comments) are submitted only when they come from a user gesture,
 such as a click in the page or a press on Save; otherwise they only fill the composer draft, so a page
 cannot talk in your name. A page's own edits (slides, docs) are saved as a new version, and only on a
-click or key press.
+click or key press. A typed artifact's short notes (saved, copied, an error) show as Hermes' own toast,
+prefixed with the artifact's title, at most five a minute and one a second, the same note not twice in a
+row; a plain page shows its own.
 
 ### Agent tools
 
@@ -78,6 +80,10 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   (`#/hermes-artifacts`).
 - The built-in view (images and files from sessions) stays one click away, behind *Session files and
   images →*.
+- Pinning an artifact in the gallery also pins its chat in Hermes' sidebar, since Hermes' *Pinned* section
+  holds chats. Unpinning removes only the pins the plugin made: a chat you pinned yourself stays pinned.
+- *Duplicate* names the copy "X (copy)", then "X (copy 2)", "X (copy 3)"; a copy of a copy counts on from
+  the original.
 - A new version loads out of sight: the previous one stays on screen until the new page has loaded. One
   that had an error while starting still replaces it, with a quiet line under the header saying so. One
   that showed nothing, or has not loaded after 10 s, is not swapped in; the line says so, with *Show vN*.
@@ -263,10 +269,13 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   always); a sheet's 60 snapshots and 200,000 cells; a board's 40 snapshots and 8 MB; live-query answers
   24 hours. A sweep, riding the trash purge (at most 2 s per call, going on where it stopped), removes
   what nothing will read again and is older than an hour: temp files of writes that died, version
-  folders no version names, pictures of older versions, history files no index names, empty folders.
+  folders no version names, pictures of older versions, history files no index names, empty folders,
+  and an unfinished version folder (a publish that died mid-copy) once nothing in it changed for 7 days.
   It touches only names the plugin itself makes (other things in a folder `HERMES_ARTIFACTS_DIR` points
   at stay), and skips rather than deletes when in doubt: a lost `meta.json` comes back from its copy or
-  its version folders, and a version folder newer than `meta.json` names is taken back in.
+  its version folders, and a version folder newer than `meta.json` names is taken back in. That copy,
+  `meta.json.bak` (and the same beside the comments, stored values, approvals and a live doc's, sheet's or
+  board's state), is written again at every write, so it is never older than the file.
   So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
