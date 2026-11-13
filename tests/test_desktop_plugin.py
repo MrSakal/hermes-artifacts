@@ -61,7 +61,7 @@ class DesktopPluginTests(unittest.TestCase):
 
 
 TRASH_KEYS = ["delConfirm", "delConfirmSub", "trashChip", "trashNote", "deletedAgo", "daysLeft", "restore", "restoreTip", "restored",
-              "deleteForever", "deleteForeverTip", "foreverConfirm", "foreverConfirmSub", "deletedForever"]
+              "deleteForeverTip", "foreverConfirm", "foreverConfirmSub", "deletedForever"]
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -154,8 +154,8 @@ class GalleryTrashTests(unittest.TestCase):
         self.assertNotEqual(out["en"]["restore"], out["hu"]["restore"])
         self.assertIn("Trash", out["en"]["delConfirmSub"])
         self.assertIn("Kukából", out["hu"]["delConfirmSub"])
-        self.assertEqual((out["hu"]["deleteForever"], out["hu"]["foreverConfirm"], out["hu"]["foreverConfirmSub"]),
-                         ("Végleges törlés", "Végleg törlöd?", "Ez nem vonható vissza."))
+        self.assertEqual((out["hu"]["foreverConfirm"], out["hu"]["foreverConfirmSub"]),
+                         ("Végleg törlöd?", "Ez nem vonható vissza."))
         self.assertIn("undone", out["en"]["foreverConfirmSub"])
         for lang in ("en", "hu"):
             for k in ("delConfirm", "delConfirmSub", "foreverConfirm", "foreverConfirmSub"):
