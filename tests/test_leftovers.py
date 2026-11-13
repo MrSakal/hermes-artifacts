@@ -206,20 +206,20 @@ class SweepTests(unittest.TestCase):
 
     def test_versions_meta_no_longer_names_and_entries_naming_none(self):
         store.publish(aid=self.aid, files={"doc.md": "# S\n\ntwo"})
-        stray = self.d / "v9"
-        stray.mkdir()
-        (stray / "doc.md").write_text("x", "utf-8")
-        age(stray / "doc.md")
-        age(stray)
-        busy = self.d / "v3"  # a publish in another process: just made
+        store.publish(aid=self.aid, files={"doc.md": "# S\n\nthree"})
+        stray = self.d / "v2"  # pruned, its folder held open then
+        for p in (stray / "doc.md", stray):
+            age(p)
+        busy = self.d / "v4"  # a publish in another process: just made
         busy.mkdir()
         m = store.get_meta(self.aid)
+        m["versions"] = [v for v in m["versions"] if v["n"] != 2]
         m["versions"].insert(0, {"n": 0, "published": 1, "bytes": 1, "by": "hermes"})  # names a folder that is gone
         store._write_json(self.d / "meta.json", m)
         self.sweep()
         self.assertFalse(stray.exists())
         self.assertTrue(busy.exists())
-        self.assertEqual([v["n"] for v in store.get_meta(self.aid)["versions"]], [1, 2])
+        self.assertEqual([v["n"] for v in store.get_meta(self.aid)["versions"]], [1, 3])
         busy.rmdir()
 
     def test_old_previews_doc_leftovers_and_empty_folders(self):
@@ -296,6 +296,158 @@ class SweepTests(unittest.TestCase):
             t = store.purge_trash_due()
             t.join(10)
         sw.assert_called_once()
+
+
+class SweepKeepsWhatIsWantedTests(unittest.TestCase):
+    """The sweep removes only what the plugin provably made and nothing will read again: never another
+    program's things in the data folder, never an artifact whose meta.json is lost or read from its copy,
+    never a version another process just published."""
+
+    def sweep(self, now=None):
+        store._SWEPT["after"] = ""
+        return store.sweep(budget_s=60, now=now)
+
+    def aged_tree(self, top: Path) -> None:
+        for dirpath, dirs, files in os.walk(top):
+            for n in dirs + files:
+                age(Path(dirpath) / n)
+        age(top)
+
+    def test_foreign_things_in_the_data_folder_stay(self):
+        base = store.root()
+        photos = base / "photos"  # a folder of the user's own, named like an id
+        photos.mkdir()
+        (photos / "img.jpg").write_bytes(b"x" * 10)
+        mixed = base / "notes-abc123"  # a version-like folder beside a foreign file
+        (mixed / "v1").mkdir(parents=True)
+        (mixed / "v1" / "index.html").write_text("x", "utf-8")
+        (mixed / "todo.txt").write_text("mine", "utf-8")
+        files = [base / "notes.txt.bak", base / "download.tmp", base / "photos.7-1.tmp", base / "x.json.bak"]
+        for f in files:
+            f.write_text("keep me", "utf-8")
+        for p in (photos, mixed):
+            self.aged_tree(p)
+        for f in files:
+            age(f)
+        try:
+            self.sweep()
+            self.assertTrue((photos / "img.jpg").exists())
+            self.assertTrue((mixed / "todo.txt").exists() and (mixed / "v1" / "index.html").exists())
+            for f in files:
+                self.assertTrue(f.exists(), f.name)
+        finally:
+            for p in (photos, mixed):
+                store._rmtree(p)
+            for f in files:
+                f.unlink(missing_ok=True)
+
+    @unittest.skipUnless(os.name == "nt", "a junction is Windows'")
+    def test_a_junction_in_the_data_folder_is_not_followed(self):
+        import subprocess
+        outside = Path(tempfile.mkdtemp(prefix="ha-outside-"))
+        (outside / "precious.txt").write_text("precious", "utf-8")
+        self.aged_tree(outside)
+        j = store.root() / "linked-abc123"
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(j), str(outside)], check=True, capture_output=True)
+        try:
+            self.sweep()
+            self.assertTrue(os.path.lexists(j))
+            self.assertTrue((outside / "precious.txt").exists())
+        finally:
+            os.rmdir(j)  # the junction only
+            store._rmtree(outside)
+
+    def test_a_folder_that_lost_its_meta_json_gets_it_back(self):
+        a = store.publish(html="<p>a</p>", title="Lost meta")["id"]
+        b = store.publish(html="<p>b</p>", title="Lost both")["id"]
+        store.publish(html="<p>b2</p>", aid=b)
+        da, db = store._dir(a), store._dir(b)
+        (da / "meta.json").unlink()
+        (db / "meta.json").unlink()
+        (db / "meta.json.bak").unlink()
+        for d in (da, db):
+            self.aged_tree(d)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.sweep()
+        self.assertEqual(store.get_meta(a)["title"], "Lost meta")  # from its copy
+        self.assertEqual([v["n"] for v in store.get_meta(b)["versions"]], [1, 2])  # made again from its folders
+        self.assertTrue((db / "v2" / "index.html").exists())
+
+    def test_a_meta_read_from_its_copy_decides_nothing(self):
+        aid = store.publish(html="<p>1</p>", title="B")["id"]
+        store.publish(html="<p>2</p>", aid=aid)
+        d = store._dir(aid)
+        stale = json.loads((d / "meta.json").read_text("utf-8"))
+        stale["versions"] = stale["versions"][:1]
+        (d / "meta.json.bak").write_text(json.dumps(stale), "utf-8")  # a copy older than the file
+        (d / "meta.json").write_text("{cut sho", "utf-8")
+        self.aged_tree(d)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.sweep(now=time.time() + 7200)
+        self.assertTrue((d / "v2" / "index.html").exists())
+        self.assertEqual((d / "meta.json").read_text("utf-8"), "{cut sho")  # not written back from the copy
+        store._rmtree(d)  # (no warnings from it in later tests)
+
+    def test_every_meta_write_refreshes_its_copy(self):
+        aid = store.publish(html="<p>1</p>", title="C")["id"]
+        store.publish(html="<p>2</p>", aid=aid)
+        store.update_meta(aid, title="C2")
+        bak = json.loads((store._dir(aid) / "meta.json.bak").read_text("utf-8"))
+        self.assertEqual(([v["n"] for v in bak["versions"]], bak["title"]), ([1, 2], "C2"))
+        store.comment_add(aid, "one")
+        store.comment_add(aid, "two")
+        self.assertEqual(len(json.loads((store._dir(aid) / "comments.json.bak").read_text("utf-8"))), 2)
+
+    def test_a_version_newer_than_meta_names_is_taken_back_not_deleted(self):
+        aid = store.publish(html="<p>1</p>", title="N")["id"]
+        store.publish(html="<p>2</p>", aid=aid)
+        d = store._dir(aid)
+        m = store.get_meta(aid)
+        m["versions"] = m["versions"][:1]  # a meta.json write that was lost
+        store._write_json(d / "meta.json", m)
+        unfinished = d / "v3"  # no entry file: never deleted, never listed
+        unfinished.mkdir()
+        self.aged_tree(d)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.sweep()
+        self.assertEqual([v["n"] for v in store.get_meta(aid)["versions"]], [1, 2])
+        self.assertTrue((d / "v2" / "index.html").exists())
+        self.assertTrue(unfinished.exists())
+
+    def test_a_publish_in_another_process_during_the_sweep_is_kept(self):
+        aid = store.publish(html="<p>1</p>", title="R")["id"]
+        store.publish(html="<p>2</p>", aid=aid)
+        meta_p = store._dir(aid) / "meta.json"
+        real = store.read_json_from
+        fired = []
+
+        def other_process_publishes(p, text=None):
+            got = real(p, text)
+            if Path(p) == meta_p and not fired:
+                fired.append(1)  # after the sweep's read: a publish (v3) that prunes v1
+                with mock.patch.object(store, "max_versions", return_value=2):
+                    store.publish(html="<p>3</p>", aid=aid)
+            return got
+        with mock.patch.object(store, "read_json_from", side_effect=other_process_publishes):
+            self.sweep()
+        self.assertTrue(fired)
+        self.assertEqual([v["n"] for v in store.get_meta(aid)["versions"]], [2, 3])
+        self.sweep(now=time.time() + 7200)
+        self.assertEqual([v["n"] for v in store.get_meta(aid)["versions"]], [2, 3])
+        self.assertTrue((store._dir(aid) / "v3" / "index.html").exists())
+
+
+class IntroducedTests(unittest.TestCase):
+    def test_only_versions_meta_names_count(self):
+        aid = store.publish(title="I", files={"index.html": "<p>i</p>", "a.txt": "same"})["id"]
+        for _ in range(2):
+            store.publish(aid=aid, base=True, files={"index.html": f"<p>{time.time()}</p>"})
+        self.assertEqual(store.introduced(aid, "a.txt", 3), 1)
+        m = store.get_meta(aid)
+        m["versions"] = [v for v in m["versions"] if v["n"] != 2]  # pruned, its folder not gone yet
+        store._write_json(store._dir(aid) / "meta.json", m)
+        self.assertEqual(store.introduced(aid, "a.txt", 3), 3)
+        self.assertIsNone(store.introduced(aid, "a.txt", 2))
 
 
 class RetentionTests(unittest.TestCase):

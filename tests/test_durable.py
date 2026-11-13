@@ -53,6 +53,56 @@ class WriteTests(unittest.TestCase):
         self.assertEqual(p.read_text("utf-8"), "old")
         self.assertEqual([c.name for c in self.d.iterdir()], ["x.json"])
 
+    def test_a_target_held_open_is_tried_again_then_fails_cleanly(self):
+        p = self.d / "x.json"
+        store.write_atomic(p, "old")
+        real = os.replace
+        busy = [2]
+
+        def held_for_a_moment(a, b):
+            if busy[0]:
+                busy[0] -= 1
+                raise PermissionError(13, "in use")
+            return real(a, b)
+        with mock.patch.object(store.os, "replace", side_effect=held_for_a_moment), \
+                mock.patch.object(store.time, "sleep"):
+            store.write_atomic(p, "new")
+        self.assertEqual(p.read_text("utf-8"), "new")
+        with mock.patch.object(store.os, "replace", side_effect=PermissionError(13, "in use")) as rep, \
+                mock.patch.object(store.time, "sleep"):
+            with self.assertRaises(PermissionError) as cm:
+                store.write_atomic(p, "newer")
+        self.assertEqual(rep.call_count, store.REPLACE_TRIES)
+        self.assertIn("holds it open", str(cm.exception))
+        self.assertEqual(p.read_text("utf-8"), "new")
+        self.assertEqual([c.name for c in self.d.iterdir()], ["x.json"])
+
+    @unittest.skipUnless(os.name == "nt", "a file held open blocks its replacement on Windows only")
+    def test_a_target_another_program_holds_open(self):
+        import threading
+        p = self.d / "meta.json"
+        store.write_atomic(p, "old")
+        f = open(p, "rb")
+        try:
+            with self.assertRaises(PermissionError):
+                store.write_atomic(p, "new")
+        finally:
+            f.close()
+        self.assertEqual(p.read_text("utf-8"), "old")
+        self.assertEqual([c.name for c in self.d.iterdir()], ["meta.json"])
+        f = open(p, "rb")
+        threading.Timer(0.05, f.close).start()  # let go of in a moment: the write gets through
+        store.write_atomic(p, "new")
+        self.assertEqual(p.read_text("utf-8"), "new")
+
+    def test_read_json_says_when_it_read_a_copy(self):
+        p = self.d / "c.json"
+        store.write_atomic(p, '{"n": 1}', backup=True, backup_every=0)
+        self.assertEqual(store.read_json_from(p), ({"n": 1}, False))
+        cut(p, 3)
+        with self.assertLogs(store.logger, "WARNING"):
+            self.assertEqual(store.read_json_from(p), ({"n": 1}, True))
+
     def test_backup_is_the_copy_last_written_and_refreshed_at_most_every_few_seconds(self):
         p = self.d / "y.json"
         store._BAK_AT.pop(str(p), None)

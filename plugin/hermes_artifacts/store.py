@@ -177,7 +177,13 @@ def confine(path, base) -> Path:
 
 
 def _is_link(p: str) -> bool:
-    return os.path.islink(p) or bool(getattr(os.path, "isjunction", lambda _: False)(p))
+    """A symlink or a junction (Python before 3.12 has no os.path.isjunction: its reparse tag)."""
+    if os.path.islink(p) or getattr(os.path, "isjunction", lambda _: False)(p):
+        return True
+    try:
+        return getattr(os.lstat(p), "st_reparse_tag", 0) == 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT
+    except OSError:
+        return False
 
 
 def _copy_folder(src: Path, dest: Path, have: int = 0, have_bytes: int = 0) -> None:
@@ -247,12 +253,15 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
 # another process sees the old file or the new one, never half of one). A durable write also flushes the
 # temporary file to the disk before the move (and, on POSIX, the folder after it), so a power cut leaves the
 # old or the new file, not an empty or cut-off one; ``backup`` also writes the same bytes as <name>.bak (its
-# own file, at most every BACKUP_EVERY seconds), which a read falls back to when the file is unreadable all
-# the same (written by older code that did not flush, a disk that lied). fsync costs ~1.5 ms here: meta.json,
-# comments, the live states and the doc history take it; caches and logs do not.
+# own file, at most every BACKUP_EVERY seconds; meta.json and comments.json, written seldom, at every write),
+# which a read falls back to when the file is unreadable all the same (written by older code that did not
+# flush, a disk that lied). fsync costs ~1.5 ms here: meta.json, comments, the live states and the doc history
+# take it; caches and logs do not. A target another program holds open (Windows) is tried again for a moment;
+# then the write fails with the old file as it was and no temporary file left.
 
 BACKUP_EVERY = 30.0  # seconds: a file written more often (typing) refreshes its .bak at most this often
 _BAK_AT: dict = {}  # path -> when this process last refreshed its .bak
+REPLACE_TRIES = 6  # os.replace onto a file held open: tried again after 10, 20, 40, 80, 160 ms
 
 
 def _fsync_dir(d: Path) -> None:
@@ -270,7 +279,20 @@ def _fsync_dir(d: Path) -> None:
         os.close(fd)
 
 
-def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+def _replace(tmp: Path, p: Path) -> None:
+    for i in range(REPLACE_TRIES):
+        try:
+            os.replace(tmp, p)
+            return
+        except PermissionError as e:  # Windows: another program has the target open
+            if i == REPLACE_TRIES - 1:
+                raise PermissionError(e.errno, f"could not write {p.name}: another program holds it open "
+                                               "(the file is unchanged)", str(p)) from e
+            time.sleep(0.01 * (2 ** i))
+
+
+def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False,
+                 backup_every: float = BACKUP_EVERY) -> os.stat_result:
     """Write ``data`` (str as UTF-8, or bytes) to ``p`` as described above. Returns the stat of the file as
     written (a rename keeps it: json_remember can stamp the cache with it)."""
     p = Path(p)
@@ -283,7 +305,7 @@ def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -
                 f.flush()
                 os.fsync(f.fileno())
         st = os.stat(tmp)
-        os.replace(tmp, p)
+        _replace(tmp, p)
     except BaseException:
         try:
             os.unlink(tmp)
@@ -295,7 +317,7 @@ def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -
     if backup:
         now = time.monotonic()
         key = str(p)
-        if now - _BAK_AT.get(key, -BACKUP_EVERY) >= BACKUP_EVERY:
+        if not backup_every or now - _BAK_AT.get(key, -backup_every) >= backup_every:
             _BAK_AT[key] = now
             try:
                 write_atomic(p.with_name(p.name + ".bak"), raw, durable=durable)
@@ -304,22 +326,34 @@ def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -
     return st
 
 
-def _json_text(data, compact: bool = False) -> str:
-    return json.dumps(data, ensure_ascii=False, **({"separators": (",", ":")} if compact else {"indent": 2}))
+def _json_text(data) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
-    return write_atomic(p, _json_text(data), durable=durable, backup=backup)
+def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False,
+                backup_every: float = BACKUP_EVERY) -> os.stat_result:
+    return write_atomic(p, _json_text(data), durable=durable, backup=backup, backup_every=backup_every)
+
+
+def _write_meta(d: Path, meta: dict) -> os.stat_result:
+    """meta.json, its .bak refreshed at every write: a fallback read never names fewer versions than there are."""
+    return _write_json(d / "meta.json", meta, backup=True, backup_every=0)
 
 
 def read_json(p: Path, text: Optional[str] = None) -> Any:
     """The JSON in ``p`` (``text``: its content, already read). Unreadable (empty, cut short): the last good
     copy (<name>.bak, else a temporary file a writer left complete), with a warning in the log; when none
     parses, the first error (ValueError). FileNotFoundError when ``p`` is missing."""
+    return read_json_from(p, text)[0]
+
+
+def read_json_from(p: Path, text: Optional[str] = None) -> tuple:
+    """read_json's (value, fell_back): ``fell_back`` is True when the value is a copy's, not ``p``'s own
+    (it may be older than the file was: nothing destructive may be decided on it)."""
     if text is None:
         text = p.read_text(encoding="utf-8")
     try:
-        return json.loads(text)
+        return json.loads(text), False
     except ValueError as e:
         first = e
     cands = [p.with_name(p.name + ".bak")]
@@ -334,7 +368,7 @@ def read_json(p: Path, text: Optional[str] = None) -> Any:
         except (OSError, ValueError):
             continue
         logger.warning("%s is unreadable (empty or cut short): using its last good copy %s", p, c.name)
-        return value
+        return value, True
     raise first
 
 
@@ -367,15 +401,7 @@ def _rebuilt_meta(d: Path) -> Optional[dict]:
         return None
     if not ns:
         return None
-    versions = []
-    for n in ns:
-        vdir = d / f"v{n}"
-        try:
-            size = sum(e.stat().st_size for _, e in walk_files(vdir))
-            at = vdir.stat().st_mtime
-        except OSError:
-            continue
-        versions.append({"n": n, "published": at, "bytes": size, "by": "hermes"})
+    versions = [e for e in (_version_entry(d, n) for n in ns) if e]
     if not versions:
         return None
     try:
@@ -385,6 +411,17 @@ def _rebuilt_meta(d: Path) -> Optional[dict]:
     logger.warning("%s/meta.json is unreadable and has no good copy: rebuilt from its %d version folders", d, len(versions))
     return {"id": d.name, "title": d.name, "created": versions[0]["published"], "updated": versions[-1]["published"],
             "versions": versions, "type": kind}
+
+
+def _version_entry(d: Path, n: int) -> Optional[dict]:
+    """A meta entry for the version folder v<n> made from the folder itself (None when it can't be read)."""
+    vdir = d / f"v{n}"
+    try:
+        size = sum(e.stat().st_size for _, e in walk_files(vdir))
+        at = vdir.stat().st_mtime
+    except OSError:
+        return None
+    return {"n": n, "published": at, "bytes": size, "by": "hermes"}
 
 
 def _read_meta(p: Path, text: Optional[str] = None) -> dict:
@@ -1037,7 +1074,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
         meta["versions"].append(entry)
         meta["updated"] = time.time()
         pruned = _prune_versions(aid, meta)
-        _write_json(d / "meta.json", meta, backup=True)
+        _write_meta(d, meta)
         _drop_versions(d, pruned)  # after meta.json no longer names them
         note = " ".join(x for x in (note, shape_note) if x)
         return {**meta, "note": note} if note else meta  # the note is the caller's, not stored
@@ -1123,7 +1160,7 @@ def update_meta(aid: str, **fields) -> dict:
                 meta[k] = str(v)
             else:
                 meta[k] = bool(v) if k == "pinned" else str(v)[:300]
-        _write_json(_dir(aid) / "meta.json", meta, backup=True)
+        _write_meta(_dir(aid), meta)
         return meta
 
 
@@ -1577,9 +1614,32 @@ def _age(p: Path, now: float) -> float:
         return -1.0
 
 
-def _sweep_files(d: Path, now: float, out: dict) -> None:
+# Only what the plugin provably made goes: the data folder may be one the user also keeps other things in
+# (HERMES_ARTIFACTS_DIR). Its own names: the files below at the root and in an artifact folder, their copies
+# (<name>.bak), write_atomic's temp files (<name>.<pid>-<thread>.tmp), kept-aside corrupt files, version
+# folders v<n> and the live folders.
+_ROOT_FILES = frozenset({"settings.json", "inbox.jsonl", "views.json", "making.json"})
+_ART_FILES = frozenset({"meta.json", "comments.json", "approvals.json", "history.json", "replies.json",
+                        "reports.json", "storage.json", "diagnostics.json"})
+_ART_DIRS = frozenset({"previews", "cache", "sheet", "board", "doc"})
+_TMP = re.compile(r"(.+)\.[0-9]+-[0-9]+\.tmp")
+_VDIR = re.compile(r"v[0-9]{1,9}")
+
+
+def _made_for(name: str) -> str:
+    """The file a plugin-made name belongs to: itself, or what its copy, temp or corrupt suffix is added to."""
+    m = _TMP.fullmatch(name)
+    if m:
+        return m.group(1)
+    if name.endswith(".bak"):
+        return name[:-4]
+    return _CORRUPT.sub("", name)
+
+
+def _sweep_files(d: Path, now: float, out: dict, known: Optional[frozenset] = None) -> None:
     """In one folder (not a version's): dead writers' temp files, copies whose file is gone, kept-aside corrupt
-    files past CORRUPT_DAYS, half-deleted .purging- folders."""
+    files past CORRUPT_DAYS, half-deleted .purging- folders. ``known``: only what belongs to these names (the
+    data folder's root, where other things may live; no .purging- folders there)."""
     try:
         entries = list(os.scandir(d))
     except OSError:
@@ -1588,14 +1648,14 @@ def _sweep_files(d: Path, now: float, out: dict) -> None:
     for e in entries:
         p = Path(e.path)
         name = e.name
-        if name.startswith(PURGING):
+        if name.startswith(PURGING) and known is None:
             if _rmtree(p):
                 out["purging"] = out.get("purging", 0) + 1
             continue
-        if not e.is_file(follow_symlinks=False):
+        if not e.is_file(follow_symlinks=False) or (known is not None and _made_for(name) not in known):
             continue
         why = None
-        if name.endswith(".tmp") and _age(p, now) > ORPHAN_AGE:
+        if _TMP.fullmatch(name) and _age(p, now) > ORPHAN_AGE:
             why = "tmp"
         elif name.endswith(".bak") and name[:-4] not in names and _age(p, now) > ORPHAN_AGE:
             why = "bak"
@@ -1613,38 +1673,128 @@ def _sweep_files(d: Path, now: float, out: dict) -> None:
 
 def _sweep_empty(d: Path, now: float, out: dict) -> None:
     try:
-        if not any(os.scandir(d)) and _age(d, now) > ORPHAN_AGE:
+        with os.scandir(d) as it:
+            empty = not any(it)
+        if empty and _age(d, now) > ORPHAN_AGE:
             d.rmdir()
             out["empty"] = out.get("empty", 0) + 1
     except OSError:
         pass
 
 
-def _sweep_artifact(d: Path, now: float, out: dict) -> None:
-    if not (d / "meta.json").is_file():
-        # A first publish that died before its meta.json (nothing ever listed it): its folder goes.
-        if _age(d, now) > ORPHAN_AGE and not any(_age(Path(e.path), now) <= ORPHAN_AGE for e in os.scandir(d)):
-            if _rmtree(d):
-                out["unlisted"] = out.get("unlisted", 0) + 1
+def _stamp(p: Path) -> Optional[tuple]:
+    try:
+        st = os.stat(p)
+    except OSError:
+        return None
+    return st.st_mtime_ns, st.st_size, st.st_ino
+
+
+def _sweep_unlisted(d: Path, now: float, out: dict) -> None:
+    """A folder with no meta.json. Touched only when it is provably the plugin's (an artifact id holding
+    nothing but the plugin's names) and nothing in it is younger than ORPHAN_AGE. Its meta.json comes back
+    from its copy, or is made again from its version folders; only a first publish that died before its
+    meta.json (v1 and that write's temp files) or a folder with no version and no meta left goes."""
+    if not _ID_RE.match(d.name):
         return
-    _sweep_files(d, now, out)
-    with _LOCK:
-        meta = get_meta(d.name)
-        if not meta or not isinstance(meta.get("versions"), list):
+    try:
+        entries = list(os.scandir(d))
+    except OSError:
+        return
+    vs, rest = [], []
+    for e in entries:
+        if _is_link(e.path):
             return
-        ns = {v["n"] for v in meta["versions"]}
-        missing = [n for n in ns if not (d / f"v{n}").is_dir()]
-        if missing and len(missing) < len(ns):  # meta naming a version whose folder is gone: the entry goes
-            meta["versions"] = [v for v in meta["versions"] if v["n"] not in missing]
-            _write_json(d / "meta.json", meta, backup=True)
-            out["entries"] = out.get("entries", 0) + len(missing)
-            ns -= set(missing)
+        if e.is_dir(follow_symlinks=False):
+            if _VDIR.fullmatch(e.name):
+                vs.append(e.name)
+            elif e.name not in _ART_DIRS and not e.name.startswith(PURGING):
+                return  # not the plugin's
+        elif e.is_file(follow_symlinks=False) and _made_for(e.name) in _ART_FILES:
+            rest.append(e.name)
+        else:
+            return
+    if _age(d, now) <= ORPHAN_AGE or any(_age(Path(e.path), now) <= ORPHAN_AGE for e in entries):
+        return  # a publish in another process may be under way
+    with _LOCK:
+        if os.path.lexists(d / "meta.json"):
+            return
+        bak = d / "meta.json.bak"
+        if bak.is_file():
+            try:
+                raw = bak.read_bytes()
+                ok = isinstance(json.loads(raw), dict)
+            except (OSError, ValueError):
+                ok = False
+            if ok:
+                write_atomic(d / "meta.json", raw)
+                logger.warning("%s/meta.json was missing: brought back from its copy", d)
+                out["restored"] = out.get("restored", 0) + 1
+            return  # an unreadable copy: left as it is
+        if vs == ["v1"] and all(_TMP.fullmatch(n) and _made_for(n) == "meta.json" for n in rest):
+            pass  # a first publish that died before its meta.json (nothing ever listed it): it goes
+        elif vs:
+            m = _rebuilt_meta(d)
+            if m:
+                _write_meta(d, m)
+                out["rebuilt"] = out.get("rebuilt", 0) + 1
+            return
+        if _rmtree(d):
+            out["unlisted"] = out.get("unlisted", 0) + 1
+
+
+def _sweep_artifact(d: Path, now: float, out: dict) -> None:
+    p = d / "meta.json"
+    if not p.is_file():
+        _sweep_unlisted(d, now, out)
+        return
+    with _LOCK:
+        # Read as it is now, from meta.json itself: a copy may be older and name fewer versions than there
+        # are, and a write from the sweep's stale read would drop a version another process just published.
+        st0 = _stamp(p)
+        try:
+            meta, fell_back = read_json_from(p)
+        except (OSError, ValueError):
+            return
+        if fell_back or not isinstance(meta, dict) or not isinstance(meta.get("versions"), list):
+            return  # nothing is decided on a copy: the next write of meta.json puts it right first
+        try:
+            ns = {int(v["n"]) for v in meta["versions"]}
+        except (KeyError, TypeError, ValueError):
+            return
+        top = max(ns, default=0)
+        found = {}
         for e in os.scandir(d):
-            m = re.fullmatch(r"v(\d{1,9})", e.name)
-            if m and e.is_dir() and int(m.group(1)) not in ns and _age(Path(e.path), now) > ORPHAN_AGE:
-                if _rmtree(Path(e.path)):  # a version meta no longer names (pruned, a publish that died)
+            if _VDIR.fullmatch(e.name) and e.is_dir(follow_symlinks=False) and not _is_link(e.path):
+                found[int(e.name[1:])] = Path(e.path)
+        missing = [n for n in ns if n not in found]
+        if len(missing) == len(ns):
+            missing = []  # every one gone: not this sweep's to empty meta
+        # A version newer than every one meta names, finished (its entry file there) and old: a publish whose
+        # meta.json write was lost. It is taken back in, never deleted.
+        entry = TYPE_ENTRY.get(meta.get("type") or "page", "index.html")
+        adopt = sorted(n for n, vp in found.items() if n > top and _age(vp, now) > ORPHAN_AGE and (vp / entry).is_file())
+        if missing or adopt:
+            if _stamp(p) != st0:
+                return  # written meanwhile (another process): this round leaves the artifact alone
+            meta["versions"] = [v for v in meta["versions"] if v["n"] not in missing]
+            added = [x for x in (_version_entry(d, n) for n in adopt) if x]
+            if added:
+                meta["versions"] = sorted(meta["versions"] + added, key=lambda v: v["n"])
+                logger.warning("%s: version folders %s were not in meta.json: taken back in", d, [x["n"] for x in added])
+                out["adopted"] = out.get("adopted", 0) + len(added)
+            _write_meta(d, meta)
+            if missing:
+                out["entries"] = out.get("entries", 0) + len(missing)
+                ns -= set(missing)
+            ns |= {x["n"] for x in added}
+        for n, vp in found.items():
+            # A version meta no longer names, older than its newest (pruned, its folder held open then).
+            if n not in ns and n < top and _age(vp, now) > ORPHAN_AGE:
+                if _rmtree(vp):
                     out["versions"] = out.get("versions", 0) + 1
         latest = sorted(ns)[-PREVIEWS_KEPT:]
+    _sweep_files(d, now, out)
     pv = d / "previews"
     if pv.is_dir():
         for e in os.scandir(pv):
@@ -1688,7 +1838,7 @@ def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
     now = time.time() if now is None else now
     out: dict = {}
     base = root()
-    _sweep_files(base, now, out)  # the root's dead temp files (settings, inbox, views, making)
+    _sweep_files(base, now, out, _ROOT_FILES)  # the root's dead temp files (settings, inbox, views, making)
     for e in os.scandir(base):
         if e.name.startswith(".case-") and _age(Path(e.path), now) > ORPHAN_AGE:
             try:
@@ -1709,7 +1859,8 @@ def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
                             out["purging"] = out.get("purging", 0) + 1
             except (OSError, ValueError, AttributeError):
                 pass
-    names = sorted(e.name for e in os.scandir(base) if e.is_dir(follow_symlinks=False) and not e.name.startswith("."))
+    names = sorted(e.name for e in os.scandir(base) if e.is_dir(follow_symlinks=False) and not e.name.startswith(".")
+                   and not _is_link(e.path) and _ID_RE.match(e.name))
     after = _SWEPT["after"]
     order = [n for n in names if n > after] + [n for n in names if n <= after]
     done = 0
@@ -1801,11 +1952,12 @@ def introduced(aid: str, rel: str, n: int, back: int = 500) -> Optional[int]:
     except ValueError:
         return None
     d = _dir(aid)
-    if not (d / f"v{int(n)}" / rel).is_file():
+    kept = {v.get("n") for v in (get_meta(aid) or {}).get("versions") or []}
+    if int(n) not in kept or not (d / f"v{int(n)}" / rel).is_file():
         return None
     k = int(n)
     while k > 1 and int(n) - k < back:
-        if not (d / f"v{k - 1}").is_dir() or file_differs(aid, rel, k - 1, k):
+        if k - 1 not in kept or file_differs(aid, rel, k - 1, k):
             break
         k -= 1
     return k
@@ -2119,7 +2271,7 @@ def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[d
         items.append(c)
         if len(items) > 2000:
             raise ValueError("too many comments")
-        _write_json(_comments_path(aid), items, backup=True)
+        _write_json(_comments_path(aid), items, backup=True, backup_every=0)
         return c
 
 
@@ -2129,7 +2281,7 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
         for c in items:
             if c["id"] == cid:
                 c["resolved"] = bool(resolved)
-                _write_json(_comments_path(aid), items, backup=True)
+                _write_json(_comments_path(aid), items, backup=True, backup_every=0)
                 return c
     raise NotFound(f"no comment {cid!r}", next=f"ha_comments id={aid} lists them")
 
@@ -2152,7 +2304,7 @@ def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
                 else:
                     people.append(who)
                 c["reactions"] = {k: v for k, v in r.items() if v}
-                _write_json(_comments_path(aid), items, backup=True)
+                _write_json(_comments_path(aid), items, backup=True, backup_every=0)
                 return c
     raise FileNotFoundError(cid)
 

@@ -53,6 +53,14 @@ class SplitTests(unittest.TestCase):
             self.assertEqual(len(hs), 1, kind)  # one shell per type, whatever the artifact
         self.assertEqual(len(set().union(*hashes.values())), len(hashes))
 
+    def test_the_answer_names_the_version_it_is(self):
+        aid = store.publish(type="doc", title="v", files={"doc.md": "# V\n\n1"})["id"]
+        store.publish(aid=aid, files={"doc.md": "# V\n\n2"})
+        for q in ({}, {"split": 1}):
+            with self.subTest(q=q):
+                self.assertEqual(get(f"artifacts/{aid}/html", **q)["version"], 2)
+                self.assertEqual(get(f"artifacts/{aid}/html", v=1, **q)["version"], 1)
+
     def test_a_page_and_an_unknown_shell(self):
         aid = store.publish(html="<!doctype html><html><head></head><body>p</body></html>", title="p")["id"]
         self.assertEqual(get(f"artifacts/{aid}/html", split=1)["html"], get(f"artifacts/{aid}/html")["html"])

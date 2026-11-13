@@ -264,6 +264,9 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   24 hours. A sweep, riding the trash purge (at most 2 s per call, going on where it stopped), removes
   what nothing will read again and is older than an hour: temp files of writes that died, version
   folders no version names, pictures of older versions, history files no index names, empty folders.
+  It touches only names the plugin itself makes (other things in a folder `HERMES_ARTIFACTS_DIR` points
+  at stay), and skips rather than deletes when in doubt: a lost `meta.json` comes back from its copy or
+  its version folders, and a version folder newer than `meta.json` names is taken back in.
   So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is

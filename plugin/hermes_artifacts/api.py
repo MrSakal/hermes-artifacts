@@ -507,23 +507,28 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             elif rest == ["html"] and method == "GET":
                 m = _meta(aid)
                 kind = m.get("type", "page")
+                try:
+                    vdir = store.version_dir(aid, _int(query.get("v")))
+                except FileNotFoundError:
+                    raise ApiError(404, "unknown version or page")
+                shown = int(vdir.name[1:])  # the version answered (the latest when v is left out)
                 if str(query.get("split", "")).lower() in ("1", "true", "yes") and kind != "page":
                     shell = _shell(kind)
                     if shell:
                         try:
-                            tag = render.content_tag(m, store.version_dir(aid, _int(query.get("v"))),
+                            tag = render.content_tag(m, vdir,
                                                      thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
                                                      lang=str(query.get("lang") or "")[:8])
                         except FileNotFoundError:
                             raise ApiError(404, "unknown version or page")
-                        return {"id": aid, "version": _int(query.get("v")), "type": kind, "shell": shell, "content": tag}
+                        return {"id": aid, "version": shown, "type": kind, "shell": shell, "content": tag}
                 try:
-                    html = render.render(m, store.version_dir(aid, _int(query.get("v"))), page=query.get("page") or None,
+                    html = render.render(m, vdir, page=query.get("page") or None,
                                          thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
                                          lang=str(query.get("lang") or "")[:8])
                 except FileNotFoundError:
                     raise ApiError(404, "unknown version or page")
-                return {"id": aid, "version": _int(query.get("v")), "type": m.get("type", "page"),
+                return {"id": aid, "version": shown, "type": m.get("type", "page"),
                         "html": inject_bridge(html.encode("utf-8")).decode("utf-8")}
             elif rest == ["preview"] and method == "GET":
                 # The gallery card's picture (a model's view): one small request per card shown.
