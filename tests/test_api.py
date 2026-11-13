@@ -62,11 +62,22 @@ class ApiTests(unittest.TestCase):
         st = api_file.stat()
         os.utime(api_file, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
         try:
+            self.plugin_api._looked = (float("-inf"), None)  # past STAMP_SECS
             self.assertEqual(self.get("/artifacts").status_code, 200)
             self.assertIs(sys.modules["hermes_artifacts.api"], before)  # reload keeps the module object
             self.assertEqual(self.plugin_api._stamp, self.plugin_api._code_stamp())
         finally:
             os.utime(api_file, ns=(st.st_atime_ns, st.st_mtime_ns))
+            self.plugin_api._looked = (float("-inf"), None)
+
+    def test_the_code_is_looked_at_once_in_a_while(self):
+        from unittest import mock
+        self.plugin_api._looked = (float("-inf"), None)
+        real = self.plugin_api._code_stamp
+        with mock.patch.object(self.plugin_api, "_code_stamp", side_effect=real) as stamp:
+            for _ in range(3):
+                self.assertEqual(self.get("/artifacts").status_code, 200)
+        self.assertEqual(stamp.call_count, 1)  # three requests inside STAMP_SECS: one look
 
 
 if __name__ == "__main__":
