@@ -5424,7 +5424,6 @@ function Viewer({ ctx, docked = false }) {
         children: [
           jsxs('div', {
             ref: stage,
-            id: docked ? undefined : `${ID}-stage`,
             style: VIEW_FILL,
             children: [
               // Never moved, only added and removed: the key is the frame's own.

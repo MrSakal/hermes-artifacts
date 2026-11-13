@@ -110,14 +110,14 @@
       if (same) return;
     }
     var m = h("div", { "class": "kit-menu", role: "menu" });
-    // on: true/false marks the item picked (a check, as Hermes' menus do); icon: a kit icon before its label.
-    // When any item has either, every item keeps that leading slot, so the labels line up.
-    var slot = items.some(function (it) { return it.on != null || it.icon; });
+    // on: true/false marks the item picked (a check, as Hermes' menus do). When any item has it, every item
+    // keeps that leading slot, so the labels line up.
+    var slot = items.some(function (it) { return it.on != null; });
     items.forEach(function (it) {
       if (it.hint) return m.appendChild(h("div", { "class": "kit-hint", text: it.hint }));
       var b = h("button", { type: "button", role: it.on != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.on != null ? String(!!it.on) : null,
         onclick: function () { close(); it.onClick(); } });
-      if (slot) b.appendChild(h("span", { "class": "kit-mi" + (it.on ? " is-on" : ""), html: it.on ? icon("check") : it.icon ? icon(it.icon) : "" }));
+      if (slot) b.appendChild(h("span", { "class": "kit-mi" + (it.on ? " is-on" : ""), html: it.on ? icon("check") : "" }));
       b.appendChild(h("span", { text: it.label }));
       m.appendChild(b);
     });
