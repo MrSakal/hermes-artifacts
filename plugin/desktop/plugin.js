@@ -1136,9 +1136,16 @@ function refresh(ctx) {
   listRun = loadList(ctx).finally(() => { listRun = null })
   return listRun
 }
+let listEtag = null // the server's digest of the last list (a server before 0.20 sends none)
 async function loadList(ctx) {
   try {
-    const r = await ctx.rest('/artifacts')
+    // The etag of the last list taken in: the same answer comes back as {unchanged, etag} alone.
+    const r = await ctx.rest(listEtag ? `/artifacts?etag=${enc(listEtag)}` : '/artifacts')
+    if (r.unchanged === true) {
+      $error.set(null)
+      if (current() && $panel.get()) loadComments(ctx) // a reply changes no card
+      return
+    }
     const list = r.artifacts || []
     if ((r.default_design_system || null) !== $dsDefault.get()) $dsDefault.set(r.default_design_system || null)
     const dsFor = r.design_system_for || {}
@@ -1165,6 +1172,7 @@ async function loadList(ctx) {
       if (!(own && own.has(now.version))) $nonce.set($nonce.get() + 1)
     }
     if (now && (now.comments !== prev?.comments || $panel.get())) loadComments(ctx)
+    listEtag = typeof r.etag === 'string' ? r.etag : null
   } catch (err) {
     $error.set(String(err?.message || err))
   }
@@ -1288,13 +1296,14 @@ function closeArtifact() {
 
 /** A short note to the person: Hermes' own toast (host.notify: its stack and its look, wherever the plugin's
  *  UI is: the full page, the pane beside a chat, expanded). A Desktop without it gets the plugin's own, drawn in
- *  the page and in the pane (Toast). kind: info | success | error (an error stays a while, not until closed). */
-function toast(msg, kind = 'info') {
+ *  the page and in the pane (Toast). kind: info | success | error (an error stays a while, not until closed);
+ *  ms: how long it stays (a frame's note may say), else Hermes' default. */
+function toast(msg, kind = 'info', ms = null) {
   const text = String(msg ?? '')
   if (!text) return
   if (typeof host.notify === 'function') {
     try {
-      host.notify({ kind, message: text, ...(kind === 'error' ? { durationMs: 8000 } : {}) })
+      host.notify({ kind, message: text, ...(ms ? { durationMs: ms } : kind === 'error' ? { durationMs: 8000 } : {}) })
       return
     } catch {} // the plugin's own below
   }
@@ -1364,11 +1373,40 @@ function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
     return hit
   }
   const q = `v=${v}` + (page ? `&page=${enc(page)}` : '') + (thumb ? '&thumb=true' : '') + `&lang=${enc(hostLang)}`
-  const p = ctx.rest(`/artifacts/${enc(id)}/html?${q}`).then(r => toDataUrl(theme ? withTheme(r.html, theme) : r.html))
+  const p = fetchDocument(ctx, `/artifacts/${enc(id)}/html?${q}`).then(html => toDataUrl(theme ? withTheme(html, theme) : html))
   p.catch(() => htmlCache.delete(key))
   htmlCache.set(key, p)
   while (htmlCache.size > 40) htmlCache.delete(htmlCache.keys().next().value)
   return p
+}
+
+// A typed artifact's document is its type's runtime (the "shell", 250-560 KB, the same for every artifact of
+// the type) around a small content tag. Asked with split=1, the server answers the content and the shell's
+// hash; the shell is fetched once per hash (GET shells/<hash>) and kept here. A page, or a server before
+// 0.20, answers the whole html as before; a shell the server no longer knows (404) means asking again
+// without split.
+const shellCache = new Map()
+function fetchShell(ctx, hash) {
+  if (shellCache.has(hash)) {
+    const hit = shellCache.get(hash)
+    shellCache.delete(hash)
+    shellCache.set(hash, hit)
+    return hit
+  }
+  const p = ctx.rest(`/shells/${enc(hash)}`)
+  p.catch(() => shellCache.delete(hash))
+  shellCache.set(hash, p)
+  while (shellCache.size > 12) shellCache.delete(shellCache.keys().next().value)
+  return p
+}
+async function fetchDocument(ctx, path) {
+  const r = await ctx.rest(`${path}&split=1`)
+  if (typeof r.html === 'string') return r.html
+  if (typeof r.shell !== 'string' || typeof r.content !== 'string') throw new Error('bad html answer')
+  const s = await fetchShell(ctx, r.shell).catch(() => null)
+  if (typeof s?.head === 'string' && typeof s.tail === 'string') return s.head + r.content + s.tail
+  shellCache.delete(r.shell)
+  return (await ctx.rest(path)).html
 }
 
 // The picture a page stored of a version (a model's view), per id:version: a card shows it instead of a frame.
@@ -2703,7 +2741,7 @@ const REPORT_GAP_MS = 1000 // at most one report a second per artifact
 const CLOSE_GRACE_MS = 2000
 // ...except what would steer the viewer or open a dialog for a page no longer there.
 const GRACE_REFUSED = new Set(['navigate', 'showVersion', 'present', 'connectors', 'allowlist', 'chrome', 'view',
-  'send', 'ask', 'download', 'dataset.approve', 'dataset.test'])
+  'send', 'ask', 'download', 'dataset.approve', 'dataset.test', 'notify'])
 const LIVE_TYPES = new Set(['doc', 'sheet', 'board']) // their frame is the live doc itself: no second one
 
 // What a frame out of sight may do at once (bridge.js ops): reads, and what its page needs to draw itself
@@ -2711,10 +2749,22 @@ const LIVE_TYPES = new Set(['doc', 'sheet', 'board']) // their frame is the live
 // an op this list does not know, waits until the frame is shown and is dropped with it if it never is:
 // save, storage.set, preview.set, view, send, ask, download, navigate, present, showVersion, connectors,
 // allowlist, history.restore, doc.* / sheet.* / board.* edits, asks and restores, dataset.approve / decline /
-// test / edit, ds.default. chrome is answered at once and takes effect when the frame is shown.
-const PASS_OPS = new Set(['storage.get', 'storage.list', 'vendor', 'ds.get', 'chrome', 'report', 'callTool',
+// test / edit, ds.default. chrome is answered at once and takes effect when the frame is shown; notify is
+// answered at once and shown only by a frame in sight.
+const PASS_OPS = new Set(['storage.get', 'storage.list', 'vendor', 'ds.get', 'chrome', 'notify', 'report', 'callTool',
   'history.list', 'history.diff', 'doc.read', 'doc.history', 'doc.file', 'sheet.read', 'sheet.history', 'sheet.at',
   'board.read', 'board.history', 'board.at', 'dataset.run', 'dataset.call', 'dataset.history'])
+
+/** A frame's notify args checked: {message, kind, ms} or null (the kit's bridge sends a string of at most
+ *  300 characters, info | success | error, and null or a duration of at most 15 s). */
+function notifyArgs(a) {
+  if (!a || typeof a !== 'object') return null
+  const { message, kind, ms = null } = a
+  if (typeof message !== 'string' || !message.trim() || message.length > 300) return null
+  if (kind !== 'info' && kind !== 'success' && kind !== 'error') return null
+  if (ms !== null && !(typeof ms === 'number' && Number.isFinite(ms) && ms > 0 && ms <= 15000)) return null
+  return { message, kind, ms }
+}
 
 // Reload of a hung page. Measured in Chromium 157 (harness): every sandboxed artifact frame of the window shares ONE
 // renderer process, so a hung page freezes them all and a frame mounted again lands in the same hung process and
@@ -3188,6 +3238,13 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
               if (!on && document.fullscreenElement) await document.exitFullscreen()
             } catch {} // without a gesture the frame still fills the window
             return reply({ ok: true, value: { ok: true, fullscreen: Boolean(document.fullscreenElement) } })
+          }
+          if (m.op === 'notify') {
+            // The kit's short note (kit.js toast): Hermes' own toast. Out of sight it is answered, not shown.
+            const note = notifyArgs(m.args)
+            if (!note) return reply({ ok: false, error: 'notify takes {message: 1-300 characters, kind: info|success|error, ms: null or 1-15000}' })
+            if (!F.hidden(rec)) toast(note.message, note.kind, note.ms)
+            return reply({ ok: true, value: { ok: true } })
           }
           if (m.op === 'vendor') {
             return reply({ ok: true, value: await fetchVendor(ctx, String(m.args?.name || '')) })
@@ -4583,13 +4640,13 @@ function Header({ ctx, art, v, portRef, docked }) {
 const PIN = 26 // the new comment's pin
 const COMMENT_W = 320 // its box
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
- *  h in stage px) and the box's height `h`: the pin on the element's top right corner, the box beside the
- *  pin, never over it. Tried in turn: right of the pin, under it, left of it, over it; the box always inside
- *  the stage. Pure: tested without a DOM. */
+ *  h in stage px; the bridge narrows it to where the element's words end) and the box's height `h`: the pin
+ *  on that top right corner, the box beside the pin, never over it. Tried in turn: right of the pin, under
+ *  it, left of it, over it; pin and box always inside the stage. Pure: tested without a DOM. */
 function placeCommentBox(rect, bw, bh, h) {
   const M = 8, GAP = 8
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
-  const pin = { x: clamp(rect.x + rect.w - PIN / 2, 4, bw - PIN - 4), y: Math.max(4, rect.y - PIN / 2) }
+  const pin = { x: clamp(rect.x + rect.w - PIN / 2, 4, bw - PIN - 4), y: clamp(rect.y - PIN / 2, 4, bh - PIN - 4) }
   const top = clamp(rect.y, M, Math.max(M, bh - h - M))
   const left = clamp(pin.x + PIN - COMMENT_W, M, Math.max(M, bw - COMMENT_W - M))
   const tries = [

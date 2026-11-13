@@ -17,7 +17,8 @@ from test_desktop_plugin import NODE, PLUGIN, run_node, stub_module  # noqa: E40
 
 SRC = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
 EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errText, reuseSame, thumbKind, fetchVendor,"
-           " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C }\n")
+           " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
+           " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments"]
 
@@ -92,6 +93,29 @@ class CommentPinTests(unittest.TestCase):
             self.assertEqual(o, {"apart": True, "inside": True}, i)
         self.assertTrue(out[-1]["apart"])  # the reported doc paragraph: the box goes under the pin
         self.assertTrue(out[-1]["inside"])
+
+    def test_near_every_edge_pin_and_box_stay_apart_and_inside(self):
+        # The bridge's rect ends where the element's words end (a short line far left, a long one to the
+        # right edge), at the top, the bottom, both sides and the corners of a pane and of the full page.
+        body = """
+        const out = []
+        for (const [bw, bh] of [[1568, 860], [760, 640], [700, 520]]) {
+          const rects = [{ x: 0, y: 0, w: 40, h: 20 }, { x: bw - 60, y: 0, w: 60, h: 20 }, { x: 0, y: bh - 20, w: 120, h: 20 },
+            { x: bw - 200, y: bh - 24, w: 200, h: 24 }, { x: 20, y: bh / 2, w: bw - 40, h: 30 }, { x: bw / 2, y: 2, w: 10, h: 18 },
+            { x: -30, y: -10, w: 80, h: 40 }, { x: bw - 10, y: bh + 5, w: 40, h: 20 }]
+          for (const rect of rects) {
+            for (const h of [120, 170, 260]) {
+              const { pin, box } = m.placeCommentBox(rect, bw, bh, h)
+              const apart = box.x >= pin.x + m.PIN || box.x + m.COMMENT_W <= pin.x || box.y >= pin.y + m.PIN || box.y + h <= pin.y
+              const inside = box.x >= 0 && box.x + m.COMMENT_W <= bw && box.y >= 0 && box.y + h <= bh &&
+                pin.x >= 0 && pin.x + m.PIN <= bw && pin.y >= 0 && pin.y + m.PIN <= bh
+              if (!apart || !inside) out.push({ bw, bh, rect, h, pin, box, apart, inside })
+            }
+          }
+        }
+        console.log(JSON.stringify(out))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), [])
 
     def test_the_pin_is_drawn_over_the_box(self):
         pop = section("function CommentPopover(", "function DockView(")
@@ -328,6 +352,83 @@ class LookTests(unittest.TestCase):
             self.assertNotEqual(out["en"][k], out["hu"][k], k)
         for k in ("errStorage", "errDraining", "errOffline", "errGeneric"):
             self.assertNotIn("_", out["en"][k])  # no code in the sentence
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class ServerContractTests(unittest.TestCase):
+    """What the 0.20 server offers and the half uses: the list poll's etag, a typed artifact's html as a cached
+    shell plus its content, and the frames' notify op. Each with a server that does not offer it."""
+
+    def test_the_poll_sends_its_etag_and_keeps_the_list_when_unchanged(self):
+        body = """
+        globalThis.window = { location: { hash: '#/', replace() {} }, addEventListener() {}, removeEventListener() {} }
+        const asked = []
+        let answer = { artifacts: [{ id: 'a', title: 'A', type: 'doc', version: 1, versions: [1] }], folders: [], etag: 'e1' }
+        const ctx = { storage: { get: () => null, set() {} }, register: () => () => {},
+          rest: async p => { asked.push(p); if (p.startsWith('/trash')) return { trash: [] }; return answer } }
+        await m.refresh(ctx)
+        const first = m.$list.get()
+        answer = { unchanged: true, etag: 'e1' }
+        await m.refresh(ctx)
+        const kept = m.$list.get() === first && first.length === 1
+        answer = { artifacts: [], folders: [] } // a server before 0.20: no etag
+        await m.refresh(ctx)
+        const emptied = m.$list.get().length === 0
+        await m.refresh(ctx)
+        console.log(JSON.stringify({ asked: asked.filter(p => !p.startsWith('/trash')), kept, emptied }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out["asked"], ["/artifacts", "/artifacts?etag=e1", "/artifacts?etag=e1", "/artifacts"])
+        self.assertTrue(out["kept"])
+        self.assertTrue(out["emptied"])
+
+    def test_a_typed_document_is_its_cached_shell_around_its_content(self):
+        body = """
+        const asked = []
+        let shells = { h1: { hash: 'h1', head: '<head>', tail: '</head><body></body>' } }
+        const ctx = { rest: async p => {
+          asked.push(p)
+          if (p.startsWith('/shells/')) { const s = shells[p.slice(8)]; if (!s) throw new Error('404: unknown shell'); return s }
+          if (p.includes('/old/')) return { html: '<whole old>' }
+          if (p.endsWith('&split=1')) return { id: 'x', shell: 'h1', content: p.includes('/b/') ? '<b>' : '<a>' }
+          return { html: '<whole>' }
+        } }
+        const a = await m.fetchDocument(ctx, '/artifacts/a/html?v=1')
+        const b = await m.fetchDocument(ctx, '/artifacts/b/html?v=1')
+        const old = await m.fetchDocument(ctx, '/artifacts/old/html?v=1')
+        m.shellCache.clear(); shells = {}
+        const gone = await m.fetchDocument(ctx, '/artifacts/a/html?v=2')
+        console.log(JSON.stringify({ a, b, old, gone, asked, cached: m.shellCache.size }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out["a"], "<head><a></head><body></body>")
+        self.assertEqual(out["b"], "<head><b></head><body></body>")
+        self.assertEqual(out["old"], "<whole old>")  # a server without split answers the whole html
+        self.assertEqual(out["gone"], "<whole>")  # a shell the server forgot: asked again without split
+        self.assertEqual(out["asked"].count("/shells/h1"), 2)  # once while cached, once after it was dropped
+        self.assertEqual(out["asked"][-1], "/artifacts/a/html?v=2")
+        self.assertEqual(out["cached"], 0)
+        self.assertIn("fetchDocument(ctx, `/artifacts/${enc(id)}/html?${q}`)", section("function fetchHtml(", "// A typed artifact's"))
+
+    def test_notify_is_validated_answered_and_shown_only_in_sight(self):
+        body = """
+        const ok = [{ message: 'Saved', kind: 'success', ms: null }, { message: 'x'.repeat(300), kind: 'error', ms: 15000 }, { message: 'Hi', kind: 'info' }]
+        const bad = [null, 'Saved', { message: '', kind: 'info' }, { message: 'x'.repeat(301), kind: 'info' }, { message: 'a', kind: 'warn' },
+          { message: 'a', kind: 'info', ms: 0 }, { message: 'a', kind: 'info', ms: 15001 }, { message: 'a', kind: 'info', ms: '9' }, { message: 3, kind: 'info' }]
+        console.log(JSON.stringify({ ok: ok.map(m.notifyArgs), bad: bad.map(m.notifyArgs), pass: m.PASS_OPS.has('notify'), grace: m.GRACE_REFUSED.has('notify') }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out["ok"][0], {"message": "Saved", "kind": "success", "ms": None})
+        self.assertEqual(out["ok"][1]["ms"], 15000)
+        self.assertEqual(out["ok"][2], {"message": "Hi", "kind": "info", "ms": None})
+        self.assertEqual(out["bad"], [None] * 9)
+        self.assertTrue(out["pass"])  # a frame out of sight is answered at once (and shows nothing)
+        self.assertTrue(out["grace"])  # a page going away shows nothing
+        handler = section("if (m.op === 'notify') {", "if (m.op === 'vendor') {")
+        self.assertIn("if (!F.hidden(rec)) toast(note.message, note.kind, note.ms)", handler)
+        self.assertIn("return reply({ ok: true, value: { ok: true } })", handler)
+        self.assertIn("...(ms ? { durationMs: ms } :", section("function toast(", "function errText("))
+
 
 
 class DashboardManifestTests(unittest.TestCase):
