@@ -2013,9 +2013,14 @@ def json_remember(p: Path, cache: dict, value: Any, st: os.stat_result, keep: in
     _cache_put(cache, keep, p, (st.st_mtime_ns, st.st_size, st.st_ino), value)
 
 
-def _cache_put(cache: dict, keep: int, p: Path, stamp: tuple, value: Any) -> None:
+STATES_KEPT = 32  # the most live states (docs', sheets', boards' each) kept parsed in memory
+
+
+def _cache_put(cache: dict, keep: int, p: Any, stamp: tuple, value: Any) -> None:
+    """``cache[p] = (stamp, value)`` as its most recently used entry; past ``keep`` entries (0: no limit) the
+    least recently used go first."""
     cache.pop(p, None)
-    if keep and len(cache) >= keep:
+    while keep and len(cache) >= keep:
         cache.pop(next(iter(cache)), None)
     cache[p] = (stamp, value)
 
@@ -2085,10 +2090,11 @@ def cards() -> list[tuple]:
                 seen.add(e.path)
     for gone in [k for k in _CARDS if k not in seen]:  # deleted artifacts (or another root, in tests)
         _CARDS.pop(gone, None)
-    if len(_METAS) > len(seen) + 64:  # metas of deleted artifacts (or another root, in tests)
-        keep = {Path(k) / "meta.json" for k in seen}
-        for gone in [k for k in _METAS if Path(k) not in keep]:
-            _METAS.pop(gone, None)
+    for cache, name in ((_METAS, "meta.json"), (_OPEN_COUNTS, "comments.json")):
+        if len(cache) > len(seen) + 64:  # those of deleted artifacts (or another root, in tests)
+            keep = {Path(k) / name for k in seen}
+            for gone in [k for k in cache if Path(k) not in keep]:
+                cache.pop(gone, None)
     return sorted(out, key=lambda c: c[0].get("updated", 0), reverse=True)
 
 

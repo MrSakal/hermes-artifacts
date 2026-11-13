@@ -564,5 +564,57 @@ class LiveHistoryBoundsTests(unittest.TestCase):
             self.assertLessEqual(len(boards.history(bid)["snaps"]), 5)
 
 
+class MemoryBoundsTests(unittest.TestCase):
+    """What a process keeps in memory per artifact is bounded, and an artifact deleted for good leaves it."""
+
+    KINDS = {
+        "doc": (docs, lambda: store.publish(type="doc", title="d", files={"doc.md": "# D\n\nx"})["id"],
+                lambda aid: docs._state_path(aid), lambda: docs._STATES),
+        "sheet": (sheets, lambda: store.publish(type="sheet", title="s", files={"sheet.json": {"sheets": [{"name": "A", "rows": [[1]]}]}})["id"],
+                  lambda aid: aid, lambda: sheets._CACHE),
+        "board": (boards, lambda: store.publish(type="board", title="b", files={"board.json": {"items": [{"id": "a", "type": "box", "text": "x"}]}})["id"],
+                  lambda aid: aid, lambda: boards._CACHE),
+    }
+
+    def test_live_state_caches_are_bounded_least_recently_used_first(self):
+        for kind, (mod, make, key, cache) in self.KINDS.items():
+            with self.subTest(kind=kind), mock.patch.object(store, "STATES_KEPT", 4):
+                cache().clear()
+                ids = [make() for _ in range(4)]
+                for aid in ids:
+                    mod.load(aid)
+                mod.load(ids[0])  # used again: the least recently used is now ids[1]
+                newer = make()
+                mod.load(newer)
+                self.assertEqual(len(cache()), 4)
+                self.assertNotIn(key(ids[1]), cache())
+                self.assertIn(key(ids[0]), cache())
+                self.assertIn(key(newer), cache())
+                mod.load(ids[1])  # dropped from memory only: read again from its file
+                k = key(newer)
+                store.trash_delete(store.delete(newer).name)  # deleted for good: forget() drops it
+                self.assertNotIn(k, cache())
+
+    def test_page_report_write_times_are_bounded(self):
+        t = time.time()
+        diagnostics._LAST.update({f"gone-{i}": t - 60 for i in range(500)})
+        diagnostics._LAST["recent"] = t - 0.2  # within WRITE_EVERY_S: still throttles that artifact's next write
+        diagnostics.flush("now", now=t)
+        self.assertLessEqual(len(diagnostics._LAST), diagnostics.LAST_KEPT)
+        self.assertIn("recent", diagnostics._LAST)
+        self.assertIn("now", diagnostics._LAST)
+        for k in ("recent", "now"):
+            diagnostics._LAST.pop(k, None)
+
+    def test_the_gallery_drops_counts_of_artifacts_gone_elsewhere(self):
+        aid = store.publish(html="<p>c</p>", title="counted")["id"]
+        store.comment_add(aid, "open")
+        gone = {store.root() / f"elsewhere-{i:03d}" / "comments.json": ((1, 1, 1), 1) for i in range(200)}
+        store._OPEN_COUNTS.update(gone)
+        self.assertIn(aid, [m["id"] for m in store.list_all()])
+        self.assertFalse(any(k in store._OPEN_COUNTS for k in gone))
+        self.assertIn(store._dir(aid) / "comments.json", store._OPEN_COUNTS)
+
+
 if __name__ == "__main__":
     unittest.main()

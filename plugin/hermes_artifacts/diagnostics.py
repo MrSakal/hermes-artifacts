@@ -60,7 +60,8 @@ _LOADS = ("ready", "threw", "timeout")  # an outcome that ends a load (stalled c
 
 _MLOCK = threading.Lock()
 _PENDING: dict = {}  # aid -> {"created": meta created, "ops": [op, ...]}
-_LAST: dict = {}  # aid -> when this process last wrote its file
+_LAST: dict = {}  # aid -> when this process last wrote its file (past LAST_KEPT, the ones that no longer matter go)
+LAST_KEPT = 64
 _TIMERS: dict = {}  # aid -> the threading.Timer that writes it next
 _ENABLED: tuple = (0.0, True)  # (read at, value): the setting, read again after 5 s
 
@@ -297,7 +298,10 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
     with _MLOCK:
         t = _TIMERS.pop(aid, None)
         pend = _PENDING.pop(aid, None)
-        _LAST[aid] = time.time() if now is None else now
+        at = _LAST[aid] = time.time() if now is None else now
+        if len(_LAST) > LAST_KEPT:  # one written WRITE_EVERY_S ago or more counts as never written: it goes
+            for k in [k for k, w in _LAST.items() if at - w >= WRITE_EVERY_S]:
+                del _LAST[k]
     if t is not None:
         t.cancel()
     if not pend or not pend["ops"]:

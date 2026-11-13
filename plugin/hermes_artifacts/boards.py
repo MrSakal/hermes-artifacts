@@ -1186,7 +1186,7 @@ def check_file(path: Path) -> None:
 
 # ----------------------------------------------------------------------------- state
 
-_CACHE: dict = {}  # aid -> ((mtime_ns, size), state)
+_CACHE: dict = {}  # aid -> ((mtime_ns, size, inode), state): at most store.STATES_KEPT, the least recently used go
 
 
 def _state_path(aid: str) -> Path:
@@ -1220,7 +1220,7 @@ def load(aid: str) -> dict:
             hit = _CACHE.get(aid)
             st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
             if st is not None:
-                _CACHE[aid] = (stamp, st)
+                store._cache_put(_CACHE, store.STATES_KEPT, aid, stamp, st)  # (a hit too: it goes last)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -1232,7 +1232,7 @@ def _save(aid: str, st: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
     s = store.write_atomic(p, json.dumps(st, ensure_ascii=False, separators=(",", ":")), backup=True)
-    _CACHE[aid] = ((s.st_mtime_ns, s.st_size, s.st_ino), st)
+    store._cache_put(_CACHE, store.STATES_KEPT, aid, (s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def outline(aid: str) -> dict:

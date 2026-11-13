@@ -201,9 +201,9 @@ class SweepAndPictureTests(unittest.TestCase):
 
 class StateCacheTests(unittest.TestCase):
     def test_the_cache_of_states_is_bounded(self):
-        for _ in range(docs.STATES_KEPT + 3):
+        for _ in range(store.STATES_KEPT + 3):
             docs.read(new_doc())
-        self.assertLessEqual(len(docs._STATES), docs.STATES_KEPT)
+        self.assertLessEqual(len(docs._STATES), store.STATES_KEPT)
 
     def test_a_poll_does_not_parse_the_state_again(self):
         aid = new_doc()

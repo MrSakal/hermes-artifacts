@@ -212,15 +212,12 @@ def _some(blocks: list) -> list:
     return blocks or [{"id": _new_id(), "md": ""}]
 
 
-_STATES: dict = {}  # state.json path -> ((mtime_ns, size, inode), state): the doc page polls every few seconds
-STATES_KEPT = 32  # the most docs' states kept in memory, the least recently used dropped first
+_STATES: dict = {}  # state.json path -> ((mtime_ns, size, inode), state): the doc page polls every few seconds;
+# at most store.STATES_KEPT, the least recently used dropped first
 
 
 def _state_put(p: Path, stamp: tuple, st: dict) -> None:
-    _STATES.pop(p, None)
-    while len(_STATES) >= STATES_KEPT:
-        _STATES.pop(next(iter(_STATES)), None)
-    _STATES[p] = (stamp, st)
+    store._cache_put(_STATES, store.STATES_KEPT, p, stamp, st)
 
 
 def load(aid: str) -> dict:
