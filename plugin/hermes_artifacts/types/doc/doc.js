@@ -125,8 +125,7 @@
     }
     return kit.fileUrl(p) || "";
   }
-  var dateFmt = new Intl.DateTimeFormat(kit.locale(), { year: "numeric", month: "short", day: "numeric" });
-  function fmtDate(v) { var d = new Date(v + "T12:00:00"); return isNaN(d) ? v : dateFmt.format(d); }
+  function fmtDate(v) { return kit.date(v) || v; }
   var PALETTE = ["gray", "blue", "green", "yellow", "orange", "red", "purple"]; // by option order: not started, under way, done…
   function optionsOf(name) {
     var list = (selects[name] || []).slice();
@@ -1162,7 +1161,7 @@
         return;
       }
       var b = h("button", { type: "button", role: "menuitem", "class": "doc-rm-item" + (it.danger ? " is-danger" : "") + (it.active ? " is-on" : ""), disabled: it.disabled || null,
-        html: (it.icon ? micon(it.icon) : '<span class="doc-rm-noicon"></span>') + "<span>" + kit.esc(it.label) + "</span>" + (it.sub ? micon("caret") : it.active ? '<i class="doc-rm-check">✓</i>' : "") });
+        html: (it.icon ? micon(it.icon) : '<span class="doc-rm-noicon"></span>') + "<span>" + kit.esc(it.label) + "</span>" + (it.sub ? micon("caret") : it.active ? '<i class="doc-rm-check">' + kit.icon("check") + "</i>" : "") });
       b.addEventListener("mousedown", function (e) { e.preventDefault(); });
       var openSub = function () {
         var r = b.getBoundingClientRect(), list = typeof it.sub === "function" ? it.sub() : it.sub;
@@ -1541,7 +1540,7 @@
     if (m[3] != null) {
       var name = m[3].trim(), opts = optionsOf(name);
       menuAt(r.left, r.bottom + 4, opts.map(function (o, i) {
-        return { label: (o === m[4].trim() ? "✓ " : "   ") + o, onClick: function () {
+        return { on: o === m[4].trim(), label: o, onClick: function () {
           chipChanged(place, "{{select:" + name + "=" + o + "}}");
         } };
       }).concat([{ label: T.editOptions, onClick: function () {
@@ -2062,7 +2061,6 @@
   var margin = h("div", { "class": "doc-margin", "aria-label": T.comment });
   view.appendChild(margin);
   var pins = [];
-  var timeFmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function drawMargin() {
     if (!live) return;
     var cards = [];
@@ -2072,7 +2070,7 @@
       cards.push({ el: anchor, node: h("div", { "class": "doc-card is-sug" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (sg.by === "hermes" ? " is-hermes" : ""), text: sg.by === "hermes" ? T.byH : T.byYou }),
-          h("span", { "class": "doc-card-when", text: sg.at ? timeFmt.format(new Date(sg.at * 1000)) : "" }),
+          h("span", { "class": "doc-card-when", text: sg.at ? kit.date(sg.at, true) : "" }),
           h("button", { type: "button", "class": "doc-card-ok", "data-sid": sg.id, "data-decide": "accept", title: T.accept, "aria-label": T.accept, text: "✓", onclick: function () { decide(sg.id, "accept"); } }),
           h("button", { type: "button", "class": "doc-card-no", "data-sid": sg.id, "data-decide": "reject", title: T.reject, "aria-label": T.reject, text: "✕", onclick: function () { decide(sg.id, "reject"); } })]),
         h("div", { "class": "doc-card-text", text: sg.kind === "replace" ? T.sReplace : sg.kind === "insert" ? T.sInsert : T.sDelete })]) });
@@ -2083,7 +2081,7 @@
       var node = h("div", { "class": "doc-card", tabindex: "0", role: "button" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (p.author === "hermes" ? " is-hermes" : ""), text: p.author === "hermes" ? T.byH : T.byYou }),
-          h("span", { "class": "doc-card-when", text: p.at ? timeFmt.format(new Date((p.at > 1e12 ? p.at : p.at * 1000))) : "" })]),
+          h("span", { "class": "doc-card-when", text: p.at ? kit.date(p.at, true) : "" })]),
         h("div", { "class": "doc-card-text", text: p.text }),
         p.replies ? h("div", { "class": "doc-card-rep", text: p.replies + " " + (p.replies === 1 ? T.reply1 : T.replies) }) : null]);
       node.addEventListener("click", function () { hm.openPin && hm.openPin(p.n); });
@@ -2236,10 +2234,10 @@
   }
   function tabMenu() {
     var items = tabs.map(function (t, i) {
-      return { label: (i === cur ? "✓ " : "   ") + (t.title || T.untitled), onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
+      return { on: i === cur, label: t.title || T.untitled, onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
     });
     if (live) items = items.concat([
-      { label: "+ " + T.newTab, onClick: function () {
+      { icon: "plus", label: T.newTab, onClick: function () {
         ask(T.tabName, T.newTab).then(function (name) {
           if (!name) return;
           edit([{ op: "add_tab", title: name, md: "" }]).then(function (r) { pull(true).then(function () {
@@ -2268,17 +2266,17 @@
   }
   var fontBtn = barBtn(T.fonts, '<span class="doc-tt">T<small>T</small></span>', function () {
     kit.menu(fontBtn, [{ hint: T.headings },
-      { label: (settings.head === "serif" ? "✓ " : "   ") + T.serif, onClick: function () { setSettings({ head: "serif" }); } },
-      { label: (settings.head !== "serif" ? "✓ " : "   ") + T.sans, onClick: function () { setSettings({ head: "sans" }); } },
+      { on: settings.head === "serif", label: T.serif, onClick: function () { setSettings({ head: "serif" }); } },
+      { on: settings.head !== "serif", label: T.sans, onClick: function () { setSettings({ head: "sans" }); } },
       { hint: T.textFont },
-      { label: (settings.body === "serif" ? "✓ " : "   ") + T.serif, onClick: function () { setSettings({ body: "serif" }); } },
-      { label: (settings.body !== "serif" ? "✓ " : "   ") + T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
+      { on: settings.body === "serif", label: T.serif, onClick: function () { setSettings({ body: "serif" }); } },
+      { on: settings.body !== "serif", label: T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
   });
   var widthBtn = barBtn(T.width, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>', function () { setSettings({ wide: !settings.wide }); });
   function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
-  var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); });
-  var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); });
-  var checkBtn = barBtn(T.checklist, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8"/></svg>', function () { insertHere({ md: "- [ ] " }); });
+  var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); }, "doc-short");
+  var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); }, "doc-short");
+  var checkBtn = barBtn(T.checklist, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8"/></svg>', function () { insertHere({ md: "- [ ] " }); }, "doc-short");
   var plusBtn = barBtn(T.insert, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>' + CARET, function () {
     var r = plusBtn.getBoundingClientRect();
     richMenu(r.left, r.bottom + 6, blockItems().filter(function (it) { return it.k !== "text"; }).map(function (it) { return it.sep ? it : { icon: it.ic, label: it.label, onClick: function () { insertHere(it); } }; })
@@ -2287,8 +2285,8 @@
   var PEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>';
   var modeBtn = barBtn(T.editing, "", function () {
     kit.menu(modeBtn, [
-      { label: (mode === "edit" ? "✓ " : "   ") + T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
-      { label: (mode === "suggest" ? "✓ " : "   ") + T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
+      { on: mode === "edit", label: T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
+      { on: mode === "suggest", label: T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
   }, "doc-mode");
   function setMode(m) {
     commit();
@@ -2653,12 +2651,11 @@
     commit();
     var t = tab();
     hm.doc.history(t.id).then(function (r) {
-      var fmt = new Intl.DateTimeFormat(kit.locale(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
       if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
       kit.menu(histBtn, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
-        return { label: fmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () {
+        return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () {
           kit.menu(histBtn, [{ label: T.restoreThis, onClick: function () {
             hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored, 0, "success"); return pull(true); })
               .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });

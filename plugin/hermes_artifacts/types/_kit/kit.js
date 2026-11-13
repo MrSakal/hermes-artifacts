@@ -28,6 +28,7 @@
     sparkle: "M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2", // Hermes' caduceus: the buttons that ask Hermes
     comment: "M4 5h16v11H9l-5 4z",
     plus: "M12 5v14M5 12h14",
+    check: "M5 12.5l4.5 4.5L19 7.5",
     minus: "M5 12h14",
     undo: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4",
     redo: "M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h4",
@@ -109,9 +110,16 @@
       if (same) return;
     }
     var m = h("div", { "class": "kit-menu", role: "menu" });
+    // on: true/false marks the item picked (a check, as Hermes' menus do); icon: a kit icon before its label.
+    // When any item has either, every item keeps that leading slot, so the labels line up.
+    var slot = items.some(function (it) { return it.on != null || it.icon; });
     items.forEach(function (it) {
       if (it.hint) return m.appendChild(h("div", { "class": "kit-hint", text: it.hint }));
-      m.appendChild(h("button", { type: "button", text: it.label, onclick: function () { close(); it.onClick(); } }));
+      var b = h("button", { type: "button", role: it.on != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.on != null ? String(!!it.on) : null,
+        onclick: function () { close(); it.onClick(); } });
+      if (slot) b.appendChild(h("span", { "class": "kit-mi" + (it.on ? " is-on" : ""), html: it.on ? icon("check") : it.icon ? icon(it.icon) : "" }));
+      b.appendChild(h("span", { text: it.label }));
+      m.appendChild(b);
     });
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();
@@ -451,7 +459,18 @@
 
   /** Dates and numbers in the app's language (not the system's): Intl's locale for this page. */
   function locale() { return LANG || (/^hu\b/i.test(navigator.language || "") ? "hu" : "en"); }
+  var dateFmts = {};
+  /** A date in the app's language, one shape on every page: "Nov 13, 2026"; with time, "Nov 13, 2026, 2:43 PM".
+   *  v: a Date, epoch seconds or ms, or an ISO string (a bare day is that day). "" when it is no date. */
+  function date(v, time) {
+    var t = v instanceof Date ? v.getTime() : typeof v === "number" ? v * (Math.abs(v) < 1e11 ? 1000 : 1)
+      : Date.parse(/^\d{4}-\d\d-\d\d$/.test(String(v)) ? v + "T12:00:00" : String(v));
+    if (!isFinite(t)) return "";
+    var k = time ? "t" : "d", o = { year: "numeric", month: "short", day: "numeric" };
+    if (time) { o.hour = "numeric"; o.minute = "2-digit"; }
+    return (dateFmts[k] || (dateFmts[k] = new Intl.DateTimeFormat(locale(), o))).format(new Date(t));
+  }
 
-  window.kit = { locale: locale, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { locale: locale, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

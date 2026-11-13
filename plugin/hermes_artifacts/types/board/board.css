@@ -223,13 +223,15 @@ html[data-thumb] .bd-top, html[data-thumb] .bd-pill, html[data-thumb] .bd-banner
 .bd-preview .bd-pill { display: none; }
 
 /* ---- narrow */
+/* the tools pill would meet the zoom pill (board.js measures): zoom goes to the top left, the working pill below it */
+.bd-zoomup .bd-zoom { left: 8px; right: auto; top: 8px; bottom: auto; }
+.bd-zoomup .bd-pill { top: 54px; }
+.bd-zoomup.bd-preview .bd-zoom { top: 84px; }
 @media (max-width: 700px) {
-  .bd-zoom { left: 8px; right: auto; top: 8px; bottom: auto; }
   .bd-top { right: 8px; top: 8px; }
-  .bd-pill { top: 54px; }
   .bd-tools { bottom: 10px; }
   .bd-ask { bottom: 64px; }
-  .bd-preview .bd-zoom, .bd-preview .bd-top { top: 84px; }
+  .bd-preview .bd-top { top: 84px; }
   .bd-banner { flex-wrap: wrap; }
   .bd-banner span { flex-basis: 100%; }
 }

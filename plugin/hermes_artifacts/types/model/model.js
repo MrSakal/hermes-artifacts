@@ -324,16 +324,24 @@
     pillB.replaceChildren.apply(pillB, items);
     pillB.hidden = !items.length;
     drawSelPill();
+    fitChrome();
+  }
+  // A view too narrow for the wide chrome (the panel beside it takes 300 px) folds it as a narrow pane does: the
+  // views into their menu, the tools into More. Measured, so the two top pills never meet whatever the width.
+  function fitChrome() {
+    app.classList.remove("is-tight");
+    if (narrow || pillL.hidden) return;
+    var a = pillL.getBoundingClientRect(), b = pillR.getBoundingClientRect(), c = pillB.hidden ? null : pillB.getBoundingClientRect();
+    if (a.right + 8 > b.left || c && c.width + 24 > viewEl.clientWidth) app.classList.add("is-tight");
   }
   function toolBtn(ic, title, mode) {
     var on = tool === "select" && gizmoMode === mode;
     return btn(ic, title, function () { setGizmo(mode); }, on ? "is-on" : "");
   }
   function snapItems() {
-    var ck = function (b) { return b ? "\u2713 " : "   "; };
-    return [{ label: ck(!snap.on) + T.snapOff, onClick: function () { snap.on = false; applySnap(); drawChrome(); } }, { hint: T.snapMove }]
-      .concat([1, 10, 100].map(function (s) { return { label: ck(snap.on && snap.move === s) + s + " mm", onClick: function () { snap.on = true; snap.move = s; applySnap(); drawChrome(); } }; }))
-      .concat([{ hint: T.snapRot }], [5, 15, 45].map(function (s) { return { label: ck(snap.on && snap.rot === s) + s + "\u00b0", onClick: function () { snap.on = true; snap.rot = s; applySnap(); drawChrome(); } }; }));
+    return [{ on: !snap.on, label: T.snapOff, onClick: function () { snap.on = false; applySnap(); drawChrome(); } }, { hint: T.snapMove }]
+      .concat([1, 10, 100].map(function (s) { return { on: !!snap.on && snap.move === s, label: s + " mm", onClick: function () { snap.on = true; snap.move = s; applySnap(); drawChrome(); } }; }))
+      .concat([{ hint: T.snapRot }], [5, 15, 45].map(function (s) { return { on: !!snap.on && snap.rot === s, label: s + "\u00b0", onClick: function () { snap.on = true; snap.rot = s; applySnap(); drawChrome(); } }; }));
   }
   function addItems() {
     return ["box", "cyl", "sphere", "cone", "prism", "extrude", "lathe"].map(function (k) { return { label: T.addKinds[k], onClick: function () { addPart(k); } }; });
@@ -343,11 +351,11 @@
     if (!glOK) return exportList.map(function (x) { return { label: x.label, onClick: x.run }; });
     if (ed) out.push({ label: T.select, onClick: function () { setGizmo(null); } }, { label: T.move, onClick: function () { setGizmo("translate"); } },
       { label: T.rotate, onClick: function () { setGizmo("rotate"); } }, { label: T.scale, onClick: function () { setGizmo("scale"); } },
-      { label: (snap.on ? "\u2713 " : "   ") + T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
+      { on: !!snap.on, label: T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
       { hint: T.add }, { label: T.addKinds.box, onClick: function () { addPart("box"); } }, { label: T.addKinds.cyl, onClick: function () { addPart("cyl"); } },
       { label: T.addKinds.extrude, onClick: function () { addPart("extrude"); } }, { label: T.importBtn, onClick: pickFile }, { hint: T.views });
-    out.push({ label: (sec.on ? "\u2713 " : "   ") + T.section, onClick: toggleSection }, { label: (tool === "measure" ? "\u2713 " : "   ") + T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
-      { label: (showDims ? "\u2713 " : "   ") + T.dims, onClick: toggleDims }, { label: T.fitSel, onClick: focusSel });
+    out.push({ on: !!sec.on, label: T.section, onClick: toggleSection }, { on: tool === "measure", label: T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
+      { on: !!showDims, label: T.dims, onClick: toggleDims }, { label: T.fitSel, onClick: focusSel });
     if (ed) out.push({ label: T.undo, onClick: undo }, { label: T.redo, onClick: redo });
     return out;
   }
@@ -921,6 +929,7 @@
   function resize() {
     if (!renderer) return;
     viewW = Math.max(1, viewEl.clientWidth); viewH = Math.max(1, viewEl.clientHeight);
+    fitChrome();
     renderer.setSize(viewW, viewH);
     labels.setSize(viewW, viewH);
     setAspect(viewW / viewH);

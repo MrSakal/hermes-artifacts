@@ -29,7 +29,7 @@ body { overflow: hidden; }
   align-items: center; gap: 6px; max-width: calc(100% - 24px); pointer-events: none; }
 .md-dock > * { pointer-events: auto; }
 .md-dock > .md-pill, .md-dock > .md-card { position: static; transform: none; max-width: 100%; }
-.md-pill .kit-btn { min-width: 30px; height: 30px; padding: 0 6px; justify-content: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
+.md-pill .kit-btn { flex-shrink: 0; min-width: 30px; height: 30px; padding: 0 6px; justify-content: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
 .md-pill .kit-btn.is-on { background: var(--color-hover); color: var(--color-accent); }
 .md-pill .kit-btn:disabled { opacity: .4; cursor: default; }
 .md-pill .kit-btn svg + svg { width: 12px; height: 12px; opacity: .6; }
@@ -88,7 +88,7 @@ body { overflow: hidden; }
 #md-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--color-border-line);
   background: var(--color-panel); font-size: 12px; }
 #md-panel[hidden] { display: none; }
-.md-tabs { display: flex; align-items: center; gap: 2px; padding: 8px 10px 6px; flex: none; }
+.md-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 8px 10px 6px; flex: none; } /* the tabs and close wrap, never cut */
 .md-tabs .md-gap { flex: 1; }
 .md-tab { height: 28px; font-size: 12.5px; justify-content: center; }
 .md-tab[aria-selected="true"] { background: var(--color-hover); color: var(--color-fg); }
@@ -161,8 +161,8 @@ html[data-thumb] .md-pill, html[data-thumb] #md-panel { display: none !important
 /* Narrow pane: the panel is a bottom sheet, the tools fold into one menu */
 #md-app.is-narrow #md-panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 45; width: auto; height: 48vh; border-left: 0;
   border-top: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 8px) var(--kit-r-lg, 8px) 0 0; box-shadow: var(--shadow-popover); }
-#md-app.is-narrow .md-wide-only { display: none !important; }
-#md-app.is-narrow .md-narrow-only { display: inline-flex !important; }
+#md-app.is-narrow .md-wide-only, #md-app.is-tight .md-wide-only { display: none !important; }
+#md-app.is-narrow .md-narrow-only, #md-app.is-tight .md-narrow-only { display: inline-flex !important; }
 #md-app.is-narrow .md-dock { bottom: 14px; }
 #md-app.is-narrow .md-card { flex-wrap: wrap; justify-content: center; }
 #md-app.is-narrow.has-sheet .md-dock, #md-app.is-narrow.has-sheet .md-axes { display: none; }

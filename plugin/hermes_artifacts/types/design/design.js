@@ -299,7 +299,26 @@
     viewEl.style.backgroundSize = g + "px " + g + "px";
     viewEl.style.backgroundPosition = tx + "px " + ty + "px";
     zoomLabel.textContent = R(z * 100) + "%";
-    drawSel(); placeTools(); sendView();
+    drawSel(); placeTools(); sendView(); stripsSoon();
+  }
+  // A frame's name strip keeps its screen size at any zoom: zoomed far out it would reach over a title or another
+  // frame above it. One that meets anything stays hidden until there is room (its name truncates, its buttons go
+  // when the frame is narrow on screen: design.css).
+  var stripsRaf = 0;
+  function stripsSoon() { if (!stripsRaf) stripsRaf = requestAnimationFrame(function () { stripsRaf = 0; crowdStrips(); }); }
+  function crowdStrips() {
+    var others = [];
+    Object.keys(boards).forEach(function (p) { var b = boards[p]; if (!b.el.hidden) others.push(b.wrap.getBoundingClientRect()); });
+    notesLayer.querySelectorAll(".dc-note").forEach(function (n) { others.push(n.getBoundingClientRect()); });
+    var shown = [];
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (b.el.hidden) return;
+      b.strip.style.visibility = "";
+      var r = b.strip.getBoundingClientRect(), hit = function (o) { return o.width && r.left + 1 < o.right && o.left < r.right - 1 && r.top + 1 < o.bottom && o.top < r.bottom - 1; };
+      var crowded = others.some(hit) || shown.some(hit);
+      if (crowded) b.strip.style.visibility = "hidden"; else shown.push(r);
+    });
   }
   function vrect() { return viewEl.getBoundingClientRect(); }
   function zoomAt(f, sx, sy) {
@@ -412,6 +431,7 @@
     b.el.classList.toggle("is-missing", !files[p]);
     if (!files[p]) { b.err.hidden = false; b.err.textContent = T.missing + ": " + p; }
     drawGuides(b, e.guides);
+    stripsSoon();
     if (!b.frame && !b.el.hidden && files[p]) {
       b.frame = new Frame({ path: p, mode: "edit", wheel: "forward", parent: b.wrap, onMsg: function (m) { boardMsg(b, m); } });
     }
@@ -514,6 +534,7 @@
   var SIZES = { s: 14, m: 17, l: 22, xl: 28, xxl: 36 }, TSIZES = { s: 40, m: 52, l: 64, xl: 72, xxl: 96 };
   function renderNotes() {
     notesLayer.replaceChildren();
+    stripsSoon();
     Object.keys(canvas.notes).forEach(function (id) {
       var n = canvas.notes[id];
       if (!n || typeof n !== "object" || !isFinite(+n.x) || !isFinite(+n.y) || pageOf(n) !== page) return;
@@ -1594,7 +1615,7 @@
   var pagesLabel = h("span");
   var pagesBtn = cbtn(kit.icon("pages") + kit.icon("caretDown"), T.pages, function () {
     kit.menu(pagesBtn, (pages.length ? pages : [{ id: null, name: T.page1 }]).map(function (pg) {
-      return { label: (pg.id === page || (!pg.id && !pages.length) ? "✓ " : "   ") + String(pg.name || pg.id).slice(0, 40), onClick: function () { if (pg.id) { setPage(pg.id); fitAll(); } } };
+      return { on: pg.id === page || (!pg.id && !pages.length), label: String(pg.name || pg.id).slice(0, 40), onClick: function () { if (pg.id) { setPage(pg.id); fitAll(); } } };
     }).concat(editable ? [{ label: T.newPage, onClick: newPage }] : []));
   }, "dc-caret");
   pagesBtn.insertBefore(pagesLabel, pagesBtn.lastChild);

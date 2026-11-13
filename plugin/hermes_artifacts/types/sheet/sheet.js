@@ -2503,7 +2503,6 @@
   // ------------------------------------------------------------------ history: list, preview in place, restore
   var banner = h("div", { "class": "sh-preview", hidden: true });
   grid.parentNode.insertBefore(banner, grid);
-  var dtFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function openHistory(anchor) {
     commitIfEditing();
     flush();
@@ -2513,7 +2512,7 @@
       if (!list.length) return kit.menu(anchor, [{ hint: T.histNone }]);
       kit.menu(anchor, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
-        return { label: dtFmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () { showPreview(s, x); } };
+        return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () { showPreview(s, x); } };
       }));
     }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
@@ -2525,7 +2524,7 @@
       if (ed) cancelEdit();
       preview = p; preview.snapRev = x.rev;
       banner.innerHTML = "";
-      banner.append(h("span", { text: fill(T.showing, { t: dtFmt.format(new Date((r.at || x.at) * 1000)) }) }),
+      banner.append(h("span", { text: fill(T.showing, { t: kit.date(r.at || x.at, true) }) }),
         h("button", { type: "button", "class": "sh-b pri", text: T.restoreThis, onclick: function () {
           hm.sheet.restore(s.id, x.rev).then(function () { closePreview(); kit.toast(T.restored, 0, "success"); undoS = []; redoS = []; drawUndo(); return readSheet(s); })
             .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
@@ -2845,10 +2844,10 @@
   var foot = document.getElementById("sh-foot");
   var tabsEl = h("div", { "class": "sh-tabs", role: "tablist", "aria-label": T.sheetWord });
   var statsEl = h("div", { "class": "sh-stats", "aria-live": "off" });
-  var pill = h("span", { "class": "sh-pill", text: T.working, hidden: true });
+  var pill = h("span", { "class": "sh-pill", role: "status", title: T.working, text: T.working, hidden: true });
   var aggBtn = h("button", { type: "button", "class": "sh-agg", "aria-haspopup": "menu", title: T.aggPick, hidden: true });
   var AGGS = ["sum", "avg", "min", "max", "count"], aggNow = null;
-  statsEl.append(aggBtn, pill);
+  statsEl.append(aggBtn);  // the pill sits in the toolbar (barSync): the host's popup chat floats over the foot
   function statNum(v) {
     if (F && F.format) { try { return F.format(Math.round(v * 1e6) / 1e6, null, L); } catch (e) {} }
     return fmtNum.format(Math.round(v * 1e6) / 1e6);
@@ -2865,7 +2864,7 @@
     if (!aggNow) return;
     kit.menu(aggBtn, AGGS.map(function (a) {
       var v = aggText(a);
-      return { label: (a === prefs.agg ? "✓ " : "  ") + T[a] + (v === null ? "" : ": " + v), onClick: function () { setPref("agg", a); stats(); aggBtn.focus(); } };
+      return { on: a === prefs.agg, label: T[a] + (v === null ? "" : ": " + v), onClick: function () { setPref("agg", a); stats(); aggBtn.focus(); } };
     }));
   });
   // Under a filter the hidden rows count for nothing.
@@ -2891,7 +2890,7 @@
       if (aggBtn._t !== html) { aggBtn.innerHTML = html; aggBtn._t = html; }
     }
     if (aggBtn.hidden === !!aggNow) aggBtn.hidden = !aggNow;
-    if (pill.hidden === hermesActive) pill.hidden = !hermesActive;
+    if (pill.hidden === hermesActive) { pill.hidden = !hermesActive; barSync(true); }
   }
 
   // ------------------------------------------------------------------ sheet tabs: switch, add, rename inline, delete, reorder
@@ -3169,18 +3168,19 @@
     grid.addEventListener("dblclick", hideErr, true);
     fxTa.addEventListener("focus", hideErr);
   }
-  // Once after the sheet opens: how many errors it holds, and the same request for the first of them.
+  // Once after the sheet opens: how many errors it holds, and the same request for the first of them. A row of
+  // its own over the toolbar (the top 56 px the host's popup chat always leaves free), never over a control.
   function errToast() {
     if (C.thumb || preview) return;
     var e = errCells(8);
     if (!e.n) return;
-    var el = h("div", { "class": "sh-errtoast", role: "status" }), close = h("button", { type: "button", "class": "sh-chip-x", title: T.close, "aria-label": T.close, text: "×" });
+    var el = h("div", { "class": "sh-errbar", role: "status" }), close = h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close") });
     el.appendChild(h("span", { text: e.n === 1 ? T.errOne : fill(T.errMany, { n: e.n }) }));
     if (canFix()) el.appendChild(h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk, onclick: function () { el.remove(); var now = errCells(8); askFix(now.list, now.n); } }));
     close.addEventListener("click", function () { el.remove(); grid.focus(); });
     el.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { el.remove(); grid.focus(); } });
     el.appendChild(close);
-    document.body.appendChild(el);
+    document.body.insertBefore(el, bar);
   }
 
   // ------------------------------------------------------------------ the toolbar: what it offers follows the selection; what does not fit goes into More
@@ -3205,14 +3205,13 @@
     { label: T.nGeneral, num: null }, { label: T.nNumber, num: "0.00" }, { label: T.nThousands, num: "#,##0" }, { label: T.nPercent, num: "0%" },
     { label: T.nFt, num: '#,##0 "Ft"' }, { label: T.nEur, num: "#,##0.00 €" }, { label: T.nUsd, num: "$#,##0.00" },
     { label: T.nDate, num: DATE_FMT }, { label: T.nText, num: "@" }];
-  function tick(on, label) { return (on ? "✓ " : "  ") + label; }
-  function numMenu(anchor) { commitIfEditing(); var c = curFmt().num || null; kit.menu(anchor, NUMS.map(function (x) { return { label: tick(x.num === c, x.label), onClick: function () { fmtSel({ num: x.num }); } }; })); }
+  function numMenu(anchor) { commitIfEditing(); var c = curFmt().num || null; kit.menu(anchor, NUMS.map(function (x) { return { on: x.num === c, label: x.label, onClick: function () { fmtSel({ num: x.num }); } }; })); }
   function alignMenu(anchor) {
     commitIfEditing();
     var f = curFmt();
     kit.menu(anchor, [["left", T.alignL], ["center", T.alignC], ["right", T.alignR]].map(function (x) {
-      return { label: tick(f.align === x[0], x[1]), onClick: function () { fmtSel({ align: f.align === x[0] ? null : x[0] }); } };
-    }).concat([{ label: tick(!!f.wrap, T.wrap), onClick: function () { toggleFmt("wrap"); } }]));
+      return { on: f.align === x[0], label: x[1], onClick: function () { fmtSel({ align: f.align === x[0] ? null : x[0] }); } };
+    }).concat([{ on: !!f.wrap, label: T.wrap, onClick: function () { toggleFmt("wrap"); } }]));
   }
   function insMenu(anchor) {
     commitIfEditing();
@@ -3337,7 +3336,7 @@
   if (!C.thumb) {
     TOOLS.forEach(function (t) {
       if (t === "|") { var sp = h("span", { "class": "sh-sep" }); bar.appendChild(sp); return tools.push({ sep: sp }); }
-      if (t === "gap") { bar.appendChild(h("span", { "class": "sh-gap" })); bar.appendChild(status); return tools.push({ gap: true }); }
+      if (t === "gap") { bar.append(h("span", { "class": "sh-gap" }), pill, status); return tools.push({ gap: true }); }
       if (!hasTool(t)) return;
       t.el = barBtn(t.label, t.html, t.run);
       if (t.text) kit.labelled(t.el, t.text);
@@ -3348,7 +3347,7 @@
     moreBtn = barBtn(T.more, kit.icon("more"), function (e, b) {
       kit.menu(b, barOver.map(function (t) {
         var on = t.pressed ? t.pressed(ctxOf()) : false;
-        return { label: (on ? "✓ " : "") + t.label.replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { t.run(null, t.menu ? b : t.el); } };
+        return { on: t.pressed ? on : null, label: t.label.replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { t.run(null, t.menu ? b : t.el); } };
       }));
     });
     moreBtn.setAttribute("aria-haspopup", "true");
@@ -3383,7 +3382,7 @@
     onBar.forEach(function (t) { if (!t.el.w) t.el.w = t.el.offsetWidth; });
     if (!moreBtn.w) moreBtn.w = moreBtn.offsetWidth;
     var seps = tools.filter(function (t) { return t.sep; }).length;
-    var room = W - 16 - moreBtn.w - 2 - Math.min(status.scrollWidth, 90) - 6 - seps * 11;
+    var room = W - 16 - moreBtn.w - 2 - Math.min(status.scrollWidth, 90) - 6 - seps * 11 - (pill.hidden ? 0 : pill.offsetWidth + 2);
     var need = 0, byPri = onBar.slice().sort(function (a, b) { return b.pri - a.pri || list.indexOf(b) - list.indexOf(a); });
     onBar.forEach(function (t) { need += t.el.w + 2; });
     barOver = [];

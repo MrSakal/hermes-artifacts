@@ -324,7 +324,7 @@
     });
     var foot = [navBtn("files", T.files, state.section === "files", function () { go("files"); }, String(Object.keys(C.files).length))];
     var lc = S.index.lastChange;
-    foot.push(h("div", { "class": "ds-nav-meta" }, [statusEl, lc && (lc.by || lc.at) ? h("span", { text: T.updated(lc.by, String(lc.at || "").slice(0, 10)) }) : null]));
+    foot.push(h("div", { "class": "ds-nav-meta" }, [statusEl, lc && (lc.by || lc.at) ? h("span", { text: T.updated(lc.by, lc.at ? kit.date(lc.at) || String(lc.at).slice(0, 10) : "") }) : null]));
     kids.push(h("div", { "class": "ds-nav-foot" }, foot));
     nav.replaceChildren.apply(nav, kids);
   }

@@ -664,7 +664,7 @@
     var s = (Date.now() - t) / 1000;
     if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
     if (s < 86400) return Math.round(s / 3600) + " h";
-    return new Date(t).toLocaleDateString(kit.locale());
+    return kit.date(t);
   }
   function isStale(d) {
     if (!d.staleAfterHours || !d.updated || !d.updated.at) return false;
@@ -1040,8 +1040,8 @@
     if (!at) return "";
     var d = new Date(at * 1000), s = (Date.now() - d.getTime()) / 1000;
     if (s < 60) return T.justNow;
-    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
-    return d.toLocaleDateString(kit.locale(), { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
+    if (s < 86400 && d.getDate() === new Date().getDate()) return d.toLocaleTimeString(kit.locale(), { hour: "numeric", minute: "2-digit" });
+    return kit.date(d, true);
   }
   function summaryText(sm, versions) {
     if (!sm) return "";
@@ -1049,7 +1049,7 @@
     if (sm.what === "restored") {
       var v = (versions || []).filter(function (x) { return x.n === sm.restored; })[0];
       var d = v && v.at ? new Date(v.at * 1000) : null;
-      return T.hRestored.replace("{when}", d ? d.toLocaleDateString(kit.locale(), { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" }) : "v" + sm.restored);
+      return T.hRestored.replace("{when}", d ? kit.date(d, true) : "v" + sm.restored);
     }
     var th = sm.things || [];
     if (!th.length) return T.hNoChange;
@@ -1204,7 +1204,7 @@
           var same = JSON.stringify(e.args) === JSON.stringify(d.source.args || {});
           histBox.appendChild(h("button", { "class": "src-hist-row", type: "button", onclick: function () {
             ta.value = JSON.stringify(e.args, null, 2); msg.textContent = T.restored; ta.dispatchEvent(new Event("input"));
-          } }, [h("span", { text: new Date(e.at * 1000).toLocaleString(kit.locale()) }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
+          } }, [h("span", { text: kit.date(e.at, true) }), h("span", { "class": "src-meta", text: (e.via === "agent" ? "Hermes" : e.via === "user" ? T.you : e.via) + (same ? " · " + T.current : "") })]));
         });
         histBox.hidden = false;
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
@@ -1295,7 +1295,7 @@
     var main = doc.querySelector("#dash-main");
     if (main) main.style.marginRight = "";
     var foot = h("p", { style: "margin:24px var(--dash-gutter,24px);font-size:12px;color:var(--color-fg-muted)",
-      text: (C.title || "") + " · " + new Date().toLocaleString(kit.locale()) + (L === "hu" ? " · a számok nem frissülnek" : " · numbers do not update") });
+      text: (C.title || "") + " · " + kit.date(new Date(), true) + (L === "hu" ? " · a számok nem frissülnek" : " · numbers do not update") });
     (doc.querySelector("#dash-main") || doc.querySelector("body")).appendChild(foot);
     return "<!doctype html>\n" + doc.outerHTML;
   }

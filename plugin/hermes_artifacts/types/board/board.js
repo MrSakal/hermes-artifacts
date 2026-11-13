@@ -1487,11 +1487,31 @@
     if (it.type === "text") return { w: 0, h: 0 };
     return { w: it.w, h: it.h };
   }
+  /** Where a w x h item put down by a click centred at (x, y) goes: there, or the nearest spot beside what it would
+   *  cover (a sticky clicked down by a title never hides it; the 0.20.0 acceptance board's did). Top-left. */
+  function freeSpot(x, y, w, h) {
+    var sol = solids(), seen = {}, todo = [{ x: x, y: y }], gap = 16;
+    var far = function (p) { return Math.hypot(p.x - x, p.y - y); };
+    for (var n = 0; n < 120 && todo.length; n++) {
+      todo.sort(function (a, b) { return far(b) - far(a); });
+      var p = todo.pop(), k = Math.round(p.x) + "," + Math.round(p.y), hit = null;
+      if (seen[k]) continue;
+      seen[k] = 1;
+      for (var i = 0; i < sol.length && !hit; i++) {
+        var b = bb(sol[i]);
+        if (p.x < b.x + b.w + 4 && b.x < p.x + w + 4 && p.y < b.y + b.h + 4 && b.y < p.y + h + 4) hit = b;
+      }
+      if (!hit) return p;
+      todo.push({ x: hit.x + hit.w + gap, y: p.y }, { x: hit.x - w - gap, y: p.y }, { x: p.x, y: hit.y + hit.h + gap }, { x: p.x, y: hit.y - h - gap });
+    }
+    return { x: x, y: y };
+  }
   function ghostAt(e) {
     var s = protoSize(proto(tool));
     if (!s.w) { ghost.hidden = true; return; }
+    var p = freeSpot((e.clientX - vrc.left - cam.x) / cam.z - s.w / 2, (e.clientY - vrc.top - cam.y) / cam.z - s.h / 2, s.w, s.h);
     ghost.hidden = false;
-    ghost.style.cssText = "left:" + (e.clientX - vrc.left - s.w * cam.z / 2) + "px;top:" + (e.clientY - vrc.top - s.h * cam.z / 2) + "px;width:" + s.w * cam.z + "px;height:" + s.h * cam.z + "px";
+    ghost.style.cssText = "left:" + (cam.x + p.x * cam.z) + "px;top:" + (cam.y + p.y * cam.z) + "px;width:" + s.w * cam.z + "px;height:" + s.h * cam.z + "px";
   }
   function addText(p) {
     if (full()) return;
@@ -1514,7 +1534,7 @@
     }
     var s = protoSize(it);
     if (dragged && it.type !== "table") { it.w = Math.max(40, rnd(r.w)); it.h = Math.max(40, rnd(r.h)); it.x = rnd(r.x); it.y = rnd(r.y); }
-    else { it.x = rnd(p.x - s.w / 2); it.y = rnd(p.y - s.h / 2); }
+    else { var f = freeSpot(p.x - s.w / 2, p.y - s.h / 2, s.w, s.h); it.x = rnd(f.x); it.y = rnd(f.y); }
     setTool("select");
     if (!addItems([it], true)) return;
     if (it.type === "table") editCell(it.id, 0, 0); else startEdit(it.id, { all: it.type === "section" });
@@ -1602,7 +1622,6 @@
     m.style.left = clamp(x, 8, Math.max(8, innerWidth - m.offsetWidth - 8)) + "px";
     m.style.top = clamp(y, 8, Math.max(8, innerHeight - m.offsetHeight - 8)) + "px";
   }
-  function tick(on, label) { return (on ? "✓ " : "") + label; }
   function swatches(names, cur, isFill, onPick, extra) {
     var box = h("div", { "class": "bd-sw" });
     names.forEach(function (n) {
@@ -1667,7 +1686,7 @@
   var zoomLbl = h("button", { type: "button", "class": "kit-btn bd-zl", title: T.zoom, "aria-label": T.zoom, onclick: function () {
     menu(zoomLbl, [25, 50, 75, 100, 150, 200].map(function (p) { return { label: p + "%", onClick: function () { zoomAt(vw / 2, vh / 2, p / 100); } }; })
       .concat([{ label: T.fit + "  (Ctrl+0)", onClick: function () { fitAll(); } },
-        { label: tick(prefs.keys, T.keys), onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
+        { on: !!prefs.keys, label: T.keys, onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
   } });
   var undoBtn = kit.button("", "undo", function () { undo(); }, T.undo + " (Ctrl+Z)"), redoBtn = kit.button("", "redo", function () { redo(); }, T.redo + " (Ctrl+Shift+Z)");
   var zoomEl = h("div", { "class": "bd-zoom bd-chrome", role: "toolbar", "aria-label": T.zoom }, [
@@ -1737,7 +1756,7 @@
     endEdit();
     var cur = (selItems()[0] || {}).size || "body";
     menu(b, [["small", T.szSmall], ["body", T.szBody], ["large", T.szLarge], ["title", T.szTitle], ["huge", T.szHuge]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) {
           if (!TEXTY[it.type] || it.type === "section") return null;
           var p = { size: x[0] === "body" ? null : x[0] }, hh = grown(it, { size: x[0] });
@@ -1751,7 +1770,7 @@
     endEdit();
     var it0 = selItems()[0] || {}, cur = it0.align || (it0.type === "text" ? "left" : "center");
     menu(b, [["left", T.alLeft], ["center", T.alCenter], ["right", T.alRight]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) { return it.type === "box" || it.type === "text" ? { align: x[0] === (it.type === "text" ? "left" : "center") ? null : x[0] } : null; });
       } };
     }));
@@ -1783,7 +1802,7 @@
   function headMenu(b, i) {
     var a = selItems()[0], cur = (Array.isArray(a.heads) ? a.heads : ["none", "arrow"])[i];
     menu(b, [["none", T.hNone], ["arrow", T.hArrow], ["circle", T.hCircle]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) {
           if (it.type !== "arrow") return null;
           var hs = (Array.isArray(it.heads) ? it.heads : ["none", "arrow"]).slice(0, 2);
@@ -1808,7 +1827,7 @@
   function widthMenu(b) {
     var cur = +(selItems()[0] || {}).width || 3;
     menu(b, [2, 3, 5, 8, 12].map(function (w) {
-      return { label: tick(cur === w, w + " px"), onClick: function () { patch(free(), function (it) { return it.type === "pen" ? { width: w === 3 ? null : w } : null; }); } };
+      return { on: cur === w, label: w + " px", onClick: function () { patch(free(), function (it) { return it.type === "pen" ? { width: w === 3 ? null : w } : null; }); } };
     }));
   }
   function linkPop(b) {
@@ -2597,7 +2616,6 @@
   var exportList = [{ id: "png", label: T.expPng, run: exportPng }, { id: "svg", label: T.expSvg, run: exportSvg }];
 
   // ------------------------------------------------------------------ history: list, view-only preview in place, restore
-  var dtFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function openHistory(anchor) {
     if (!live || !hm.board.history) return;
     endEdit(); nudgeEnd(); flush();
@@ -2606,7 +2624,7 @@
       if (!list.length) return menu(anchor, [{ hint: T.histNone }]);
       menu(anchor, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
-        return { label: dtFmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () { showPreview(x); } };
+        return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () { showPreview(x); } };
       }));
     }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
@@ -2624,7 +2642,7 @@
       preview = { rev: x.rev, keep: keep };
       ro = true; root.classList.add("bd-ro", "bd-preview");
       banner.textContent = "";
-      banner.append(h("span", { text: fill(T.showing, { t: dtFmt.format(new Date((r.at || x.at) * 1000)) }) }),
+      banner.append(h("span", { text: fill(T.showing, { t: kit.date(r.at || x.at, true) }) }),
         h("button", { type: "button", "class": "kit-btn bd-pri", text: T.restoreThis, onclick: function () {
           hm.board.restore(x.rev).then(function () { closePreview(); undoS = []; redoS = []; undoSync(); kit.toast(T.restored, 0, "success"); return readAll(); })
             .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
@@ -2755,14 +2773,24 @@
     drawCtx(); undoSync();
     kit.ready();
   }
+  // The zoom pill keeps the bottom right corner while the tools pill leaves it room; else it goes up to the top
+  // left (and the "Hermes is working" pill below it): the two never meet, whatever the width.
+  function placeChrome() {
+    if (!live) return;
+    root.classList.remove("bd-zoomup");
+    var a = toolsEl.getBoundingClientRect(), z = zoomEl.getBoundingClientRect();
+    if (a.width && z.width && a.right + 8 > z.left && a.left < z.right + 8) root.classList.add("bd-zoomup");
+  }
   boot();
+  placeChrome();
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
+      placeChrome();
       if (!booted) return boot();
       measureView();
       if (ro && !preview) fitAll(true); else { cullSoon(); }
     }).observe(view);
-  } else window.addEventListener("resize", function () { measureView(); cullSoon(); });
+  } else window.addEventListener("resize", function () { placeChrome(); measureView(); cullSoon(); });
   if (!booted) setTimeout(function () { if (!booted) { vw = vw < 2 ? 800 : vw; vh = vh < 2 ? 600 : vh; booted = true; fitAll(true); kit.ready(); } }, 300);
   setHermes(!!B0.hermes_active, B0.hermes_left, B0.hermes_ago);
   if (live) {

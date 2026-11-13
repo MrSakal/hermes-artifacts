@@ -156,6 +156,8 @@ html:not(.sh-ro) .sh-c.ck:hover::before { border-color: var(--color-accent); }
   background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-fg); }
 .sh-pill::before { content: ""; width: 6px; height: 6px; border-radius: 3px; background: var(--color-accent); animation: sh-pulse 1.2s ease-in-out infinite; }
 @keyframes sh-pulse { 50% { opacity: .3; } }
+#sh-bar .sh-pill { flex-shrink: 0; margin-right: 6px; white-space: nowrap; }
+#sh-bar.sh-tight .sh-pill { gap: 0; padding: 6px; font-size: 0; }   /* a short bar: the pulsing dot, its words in its title */
 
 /* small popovers: find, colours, a question */
 .sh-pop { position: fixed; z-index: 165; padding: 8px; border-radius: var(--kit-r-lg, 8px); border: 1px solid var(--color-border-line);
@@ -241,7 +243,7 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
   border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .kit-menu { max-height: calc(100vh - 64px); overflow-y: auto; }
 .sh-pop .kit-btn:focus-visible, .sh-chip-t:focus-visible, .sh-chip-x:focus-visible, .sh-chip-add:focus-visible, .sh-agg:focus-visible, .sh-seg button:focus-visible,
-.sh-flt-add:focus-visible, .sh-flt-q:focus-visible, .sh-pop select:focus-visible, .sh-errtip .sh-b:focus-visible, .sh-errtoast button:focus-visible,
+.sh-flt-add:focus-visible, .sh-flt-q:focus-visible, .sh-pop select:focus-visible, .sh-errtip .sh-b:focus-visible,
 .kit-menu button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 
 /* ---- zoom and layout: the grid's measures come from sheet.js (--sh-z: the zoom, --sh-rh: a row's height); text and glyphs follow */
@@ -265,18 +267,15 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
   background: var(--color-elevated, var(--color-panel)); box-shadow: var(--shadow-popover); font: 12.5px/1.35 var(--font-sans); color: var(--color-fg); }
 .sh-errtip[hidden] { display: none; }
 .sh-errtip > span { flex: 1 1 160px; min-width: 0; }
-.sh-errtip .sh-b, .sh-errtoast .sh-b { flex-shrink: 0; padding: 4px 10px; white-space: nowrap; }
+.sh-errtip .sh-b, .sh-errbar .sh-b { flex-shrink: 0; padding: 4px 10px; white-space: nowrap; }
 .sh-errtip .sh-b[hidden] { display: none; }
-/* As the kit's toast (kit-toast), the theme's raised surface, where the host's popup chat never floats: bottom
-   left above the sheet tabs, narrower than the room left of the chat; top centre in a frame under 760 px. */
-.sh-errtoast { position: fixed; left: 16px; bottom: 46px; z-index: 75; display: flex; align-items: center; gap: 10px;
-  max-width: min(420px, calc(100vw - 504px)); min-height: 44px; padding: 6px 8px 6px 14px; border-radius: var(--kit-r-lg, 8px); border: 1px solid var(--color-border-line);
-  background: var(--color-elevated, var(--color-panel)); box-shadow: var(--shadow-popover); font: 400 13px/1.4 var(--font-sans); color: var(--color-fg); }
-@media (max-width: 759.98px) {
-  .sh-errtoast { left: 50%; bottom: auto; top: 8px; transform: translateX(-50%); max-width: calc(100vw - 32px); width: max-content; }
-}
-.sh-errtoast > span { flex: 1 1 auto; min-width: 0; }
-.sh-errtoast > span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--color-bad); }
+/* The note when the sheet opens with errors: a row of its own over the toolbar, in the flow (it moves nothing
+   over anything), its words wrapping, its button and close always in view. */
+.sh-errbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; flex-shrink: 0; min-width: 0; padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid var(--color-border-line); background: color-mix(in srgb, var(--color-bad) 8%, var(--color-bg)); font: 400 12.5px/1.4 var(--font-sans); color: var(--color-fg); }
+.sh-errbar > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.sh-errbar > span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--color-bad); }
+.sh-errbar > .kit-btn { flex-shrink: 0; width: 26px; height: 26px; padding: 0; justify-content: center; }
 
 /* ---- filter: chips in the bar, tinted headers, conditions and quick picks in the popover */
 .sh-c.fa { color: var(--color-accent); }
@@ -351,7 +350,7 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
 .sh-agg:hover { background: var(--color-hover); color: var(--color-fg); }
 .sh-agg .sh-caret { margin-left: 0; }
 .sh-agg[hidden], .sh-pill[hidden] { display: none; }
-html[data-thumb] .sh-fltbar, html[data-thumb] .sh-errtip, html[data-thumb] .sh-errtoast { display: none !important; }
+html[data-thumb] .sh-fltbar, html[data-thumb] .sh-errtip { display: none !important; }
 /* the page's native controls (checkboxes, selects, scrollbars) follow the theme the sheet shows, not the system's */
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
