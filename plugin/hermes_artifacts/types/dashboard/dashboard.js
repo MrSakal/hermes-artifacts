@@ -678,7 +678,8 @@
       v = typeof v === "object" ? JSON.stringify(v) : String(v);
       return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
-    return [cols.map(q).join(",")].concat((r.rows || []).map(function (o) { return cols.map(function (c) { return q(o[c]); }).join(","); })).join("\n");
+    // RFC 4180: a cell with a comma, a quote or a line break in quotes (its quotes doubled); lines end with CRLF
+    return [cols.map(q).join(",")].concat((r.rows || []).map(function (o) { return cols.map(function (c) { return q(o[c]); }).join(","); })).join("\r\n");
   }
 
   function table(r, hit, full) {
