@@ -396,6 +396,15 @@ def _read_meta(p: Path, text: Optional[str] = None) -> dict:
         return m
 
 
+def peek_meta(aid: str) -> Optional[dict]:
+    """The artifact's meta, shared and read-only (parsed again only when meta.json changed: one stat), for
+    a caller that only looks at it (a doc's poll). Never change it: get_meta gives a copy to change."""
+    try:
+        return json_cached(_dir(aid) / "meta.json", _METAS, loader=_read_meta)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+
+
 def get_meta(aid: str) -> Optional[dict]:
     p = _dir(aid) / "meta.json"
     try:

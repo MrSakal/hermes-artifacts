@@ -15,16 +15,20 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import math
 import re
+import os
 import secrets
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
 from . import store
 
+logger = logging.getLogger(__name__)
 _LOCK = threading.RLock()
 MAX_BLOCK_CHARS = 20_000
 MAX_BLOCKS = 4000
@@ -208,13 +212,30 @@ def _some(blocks: list) -> list:
     return blocks or [{"id": _new_id(), "md": ""}]
 
 
+_STATES: dict = {}  # state.json path -> ((mtime_ns, size, inode), state): the doc page polls every few seconds
+
+
 def load(aid: str) -> dict:
-    meta = store.get_meta(aid)
+    """The doc's state, parsed again only when state.json changed (another process's write included: every
+    write replaces the file). The same dict is handed to every caller in this process: a reader only looks
+    (under _LOCK when it walks it); a writer changes it under _writing, which saves it or, on any error,
+    drops it so the next load reads the file again (an edit that fails changes nothing)."""
+    meta = store.peek_meta(aid)
     if not meta or meta.get("type") != "doc":
         raise DocError("absent", "not a doc")
     with _LOCK:
         p = _state_path(aid)
-        st = store.load_state(p)
+        try:
+            s = os.stat(p)
+        except FileNotFoundError:
+            s = None
+        st = None
+        if s is not None:
+            stamp = (s.st_mtime_ns, s.st_size, s.st_ino)
+            hit = _STATES.get(p)
+            st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
+            if st is not None and not (hit and hit[0] == stamp):
+                _STATES[p] = (stamp, st)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -223,11 +244,24 @@ def load(aid: str) -> dict:
         return st
 
 
+@contextmanager
+def _writing(aid: str):
+    """The lock for a change of the doc's state: on any error the state in memory (perhaps half changed) is
+    dropped, and the next load reads the file again."""
+    with _LOCK:
+        try:
+            yield
+        except BaseException:
+            _STATES.pop(_state_path(aid), None)
+            raise
+
+
 def _save(aid: str, st: dict) -> None:
     p = _state_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
-    store.write_atomic(p, json.dumps(st, ensure_ascii=False), backup=True)
+    s = store.write_atomic(p, json.dumps(st, ensure_ascii=False), backup=True)
+    _STATES[p] = ((s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def _tab(st: dict, tab: Optional[str]) -> dict:
@@ -265,29 +299,50 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
          blocks: Optional[list[str]] = None) -> dict:
     """A tab's blocks (id, kind, md), or what changed since ``since_rev``, or the blocks whose text holds
     ``search``, or just the named ``blocks``."""
-    st = load(aid)
+    with _LOCK:  # the state is shared (load): read it whole while no edit changes it
+        return _read(aid, load(aid), tab, since_rev, search, blocks)
+
+
+def _kind(md: str) -> str:
+    """block_kind, remembered for short blocks (a poll of a long doc asks for the same few hundred)."""
+    if len(md) > 400:
+        return block_kind(md)
+    k = _KINDS.get(md)
+    if k is None:
+        if len(_KINDS) >= 20000:
+            _KINDS.clear()
+        k = _KINDS[md] = block_kind(md)
+    return k
+
+
+_KINDS: dict = {}
+
+
+def _read(aid: str, st: dict, tab, since_rev, search, blocks) -> dict:
     t = _tab(st, tab)
     out = {"tab": t["id"], "title": t["title"], "rev": t["rev"], "tabs": overview(st), "edits": st.get("edits", 0),
            "hermes_active": time.time() - st.get("hermes_at", 0) < ACTIVE_SECS, "hermes_left": left(st),
            "hermes_ago": ago(st)}
     if st.get("selects"):
-        out["selects"] = st["selects"]
+        out["selects"] = dict(st["selects"])
     if st.get("settings"):
-        out["settings"] = st["settings"]
-    sug = [s for s in st.get("suggestions", []) if s["tab"] == t["id"]]
+        out["settings"] = dict(st["settings"])
+    sug = [dict(s) for s in st.get("suggestions", []) if s["tab"] == t["id"]]
     if sug:
         out["suggestions"] = sug
     done = {d["cid"]: d["result"].get("per_op", []) for d in st.get("done", []) if d["tab"] == t["id"]}
     if done:  # the latest edits applied under a client id: the doc page settles one whose answer it lost
         out["done"] = dict(list(done.items())[-DONE_IN_READ:])
-    view = [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in t["blocks"]]
+
+    def view(bs):
+        return [{"id": b["id"], "kind": _kind(b["md"]), "md": b["md"]} for b in bs]
     if since_rev is not None:
         # The log keeps the last entries only: older than that, the whole tab comes back (Claude's
         # since: "unavailable"), never a delta that silently misses changes.
         revs = sorted(e["rev"] for e in st["log"] if e["tab"] == t["id"])
         if int(since_rev) < t["rev"] and (not revs or revs[0] > int(since_rev) + 1):
             out["since"] = "unavailable"
-            out["blocks"] = view
+            out["blocks"] = view(t["blocks"])
             return out
         changed = {}
         for e in st["log"]:
@@ -295,18 +350,18 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
                 for bid in e.get("blocks", []):
                     changed[bid] = e["by"]
         ids = {b["id"] for b in t["blocks"]}
-        out["changed"] = [dict(v, by=changed[v["id"]]) for v in view if v["id"] in changed]
+        out["changed"] = [dict(v, by=changed[v["id"]]) for v in view(b for b in t["blocks"] if b["id"] in changed)]
         out["removed"] = [bid for bid in changed if bid not in ids]
         return out
     if blocks:
         want = set(blocks)
-        out["blocks"] = [v for v in view if v["id"] in want]
+        out["blocks"] = view(b for b in t["blocks"] if b["id"] in want)
         return out
     if search:
         q = search.lower()
-        out["blocks"] = [v for v in view if q in v["md"].lower()]
+        out["blocks"] = view(b for b in t["blocks"] if q in b["md"].lower())
         return out
-    out["blocks"] = view
+    out["blocks"] = view(t["blocks"])
     return out
 
 
@@ -524,7 +579,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
     if by not in ("user", "hermes"):
         raise DocError("invalid", "bad author")
     cid = _cid(ops)
-    with _LOCK:
+    with _writing(aid):
         st = load(aid)
         seen = _done(st, cid, by)
         if seen is not None:
@@ -679,11 +734,12 @@ def pending(t: dict) -> list[dict]:
 def outline(aid: str) -> dict:
     """What a just-published doc hands Hermes: each tab's id, rev and pending sections."""
     tabs = []
-    for t in load(aid)["tabs"]:
-        tab, left = {"id": t["id"], "title": t["title"], "rev": t["rev"]}, pending(t)
-        if left:
-            tab["pending"] = left
-        tabs.append(tab)
+    with _LOCK:
+        for t in load(aid)["tabs"]:
+            tab, left = {"id": t["id"], "title": t["title"], "rev": t["rev"]}, pending(t)
+            if left:
+                tab["pending"] = left
+            tabs.append(tab)
     return {"tabs": tabs}
 
 
@@ -697,7 +753,7 @@ def suggest(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None) ->
     if not isinstance(ops, list) or not ops or not all(isinstance(o, dict) for o in ops):
         raise DocError("invalid", "ops must be a non-empty list of objects")
     cid = _cid(ops)  # as in apply: a proposal sent again is made once
-    with _LOCK:
+    with _writing(aid):
         st = load(aid)
         seen = _done(st, cid, by)
         if seen is not None:
@@ -743,7 +799,7 @@ def decide(aid: str, sid: str, verdict: str) -> dict:
     """The person accepts or rejects a suggestion (Hermes never decides)."""
     if verdict not in ("accept", "reject"):
         raise DocError("invalid", "verdict is accept or reject")
-    with _LOCK:
+    with _writing(aid):
         st = load(aid)
         s = next((x for x in st.get("suggestions", []) if x["id"] == sid), None)
         if not s:
@@ -795,35 +851,127 @@ def file_data(aid: str, name: str) -> dict:
 
 
 # ----------------------------------------------------------------------------- history
+# Snapshots of a tab, for the page's version history (list, look at one, restore one). Each snapshot's blocks
+# are a file of their own (doc/snaps/<n>.json); doc/hist.json indexes them ({version, seq, snaps: [{tab, rev,
+# by, at, title, n: blocks, f: file number, bytes}]}). An edit writes one snapshot and the small index, never
+# the whole history again (a long doc's history of full copies was rewritten on every keystroke save).
+# Bounded by count and by bytes: the oldest go first, the newest two always stay. The index is written after
+# the snapshot it names and files are removed only after the index no longer names them, so every snapshot
+# the index lists can be read. doc/history.json (every snapshot in one file, before 0.19.1) is moved over on
+# first use, newest first within the bounds.
 MAX_SNAPS = 120
+MAX_HIST_BYTES = 12_000_000  # the snapshot files of one doc together
 SNAP_GAP = 120  # seconds: edits by the same author closer than this share one snapshot
 
 
 def _hist_path(aid: str) -> Path:
+    return store._dir(aid) / "doc" / "hist.json"
+
+
+def _old_hist_path(aid: str) -> Path:
     return store._dir(aid) / "doc" / "history.json"
 
 
-_HIST_CACHE: dict = {}  # history.json path -> (stamp, parsed): every edit reads it
+def _snaps_dir(aid: str) -> Path:
+    return store._dir(aid) / "doc" / "snaps"
+
+
+_HIST_CACHE: dict = {}  # hist.json path -> (stamp, parsed): every edit reads it
+
+
+def _hist_index(aid: str) -> dict:
+    """The parsed index ({} when none). Shared: never change it in place."""
+    p = _hist_path(aid)
+    try:
+        return store.json_cached(p, _HIST_CACHE, 8)
+    except (FileNotFoundError, ValueError):
+        pass
+    if _old_hist_path(aid).is_file():
+        with _LOCK:
+            return _migrate(aid)
+    return {}
 
 
 def _hist(aid: str, version: int) -> list:
-    """The snapshots (a new list; the snapshots in it are shared: never change one in place)."""
-    try:
-        h = store.json_cached(_hist_path(aid), _HIST_CACHE, 8)
-    except (FileNotFoundError, ValueError):
-        return []
-    return list(h.get("snaps", [])) if h.get("version") == version else []  # a republish starts it again
+    """The index's entries for ``version`` (a new list; the entries are shared: never change one in place).
+    A republish starts the history again."""
+    h = _hist_index(aid)
+    return list(h.get("snaps", [])) if h.get("version") == version else []
 
 
-def _hist_save(aid: str, version: int, snaps: list) -> None:
+def _write_snap(aid: str, seq: int, blocks: list) -> int:
+    d = _snaps_dir(aid)
+    d.mkdir(parents=True, exist_ok=True)
+    data = json.dumps({"blocks": blocks}, ensure_ascii=False, separators=(",", ":"))
+    store.write_atomic(d / f"{seq}.json", data)
+    return len(data.encode("utf-8"))
+
+
+def _entry(snap: dict, seq: int, size: int) -> dict:
+    return {"tab": snap["tab"], "rev": snap["rev"], "by": snap["by"], "at": snap["at"], "title": snap["title"],
+            "n": len(snap["blocks"]), "f": seq, "bytes": size}
+
+
+def _bounded(entries: list) -> tuple:
+    """(kept, dropped): the newest within MAX_SNAPS and MAX_HIST_BYTES, at least the newest two."""
+    kept = entries[-MAX_SNAPS:]
+    total = sum(e.get("bytes", 0) for e in kept)
+    while len(kept) > 2 and total > MAX_HIST_BYTES:
+        total -= kept.pop(0).get("bytes", 0)
+    keep = {id(e) for e in kept}
+    return kept, [e for e in entries if id(e) not in keep]
+
+
+def _hist_save(aid: str, version: int, entries: list, seq: int, drop: list, sweep: bool = False) -> None:
+    """Write the index (durable), then remove the files no entry names any more (``sweep``: every file in
+    snaps/ that the index does not name: a republish, a migration)."""
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
-    h = {"version": version, "snaps": snaps[-MAX_SNAPS:]}
-    tmp.write_text(json.dumps(h, ensure_ascii=False), encoding="utf-8")
-    st = tmp.stat()
-    tmp.replace(p)
+    entries, more = _bounded(entries)
+    h = {"version": version, "seq": seq, "snaps": entries}
+    st = store.write_atomic(p, json.dumps(h, ensure_ascii=False, separators=(",", ":")))
     store.json_remember(p, _HIST_CACHE, h, st, 8)
+    named = {e["f"] for e in entries}
+    gone = [e["f"] for e in list(drop) + more if e.get("f") not in named]
+    d = _snaps_dir(aid)
+    if sweep:
+        try:
+            gone += [int(c.name[:-5]) for c in d.iterdir() if c.name.endswith(".json") and c.name[:-5].isdigit()]
+        except OSError:
+            pass
+    for f in set(gone) - named:
+        try:
+            (d / f"{int(f)}.json").unlink()
+        except (OSError, ValueError, TypeError):
+            pass
+
+
+def _migrate(aid: str) -> dict:
+    """doc/history.json (every snapshot inline) -> doc/snaps/ + doc/hist.json, within the bounds; the old file
+    is removed once the new index is written. Unreadable: no history (as before)."""
+    old = _old_hist_path(aid)
+    try:
+        h = store.read_json(old)
+    except (OSError, ValueError):
+        return {}
+    try:
+        idx = store.json_cached(_hist_path(aid), _HIST_CACHE, 8)  # another process moved it meanwhile
+        old.unlink(missing_ok=True)
+        return idx
+    except (FileNotFoundError, ValueError):
+        pass
+    snaps = [x for x in (h.get("snaps") or []) if isinstance(x, dict) and isinstance(x.get("blocks"), list)]
+    entries, total = [], 0
+    for seq, x in reversed(list(enumerate(snaps, 1))):  # newest first: the bounds keep those
+        if len(entries) >= MAX_SNAPS or (len(entries) >= 2 and total > MAX_HIST_BYTES):
+            break
+        size = _write_snap(aid, seq, x["blocks"])
+        total += size
+        entries.insert(0, _entry(x, seq, size))
+    _hist_save(aid, h.get("version"), entries, len(snaps) + 1, [], sweep=True)
+    old.unlink(missing_ok=True)
+    logger.info("doc %s: history moved to one file per snapshot (%d kept of %d)", aid, len(entries), len(snaps))
+    return store.json_cached(_hist_path(aid), _HIST_CACHE, 8)
 
 
 def _snap(t: dict, by: str) -> dict:
@@ -833,16 +981,36 @@ def _snap(t: dict, by: str) -> dict:
 
 def _record(aid: str, st: dict, t: dict, by: str, before: Optional[dict]) -> None:
     """Called with the lock held, after an edit of tab ``t``. ``before`` is the tab as it was."""
-    snaps = _hist(aid, st["version"])
-    mine = [x for x in snaps if x["tab"] == t["id"]]
+    h = _hist_index(aid)
+    fresh = h.get("version") != st["version"]  # a republish: its snapshots start again
+    entries = [] if fresh else list(h.get("snaps", []))
+    seq = int(h.get("seq") or 1)  # file numbers never repeat, a republish included
+    mine = [x for x in entries if x["tab"] == t["id"]]
+    drop = []
+
+    def add(snap: dict) -> dict:
+        nonlocal seq
+        size = _write_snap(aid, seq, snap["blocks"])
+        e = _entry(snap, seq, size)
+        seq += 1
+        return e
     if not mine and before:  # the tab as it started: always restorable
-        snaps.append(before)
+        entries.append(add(before))
     last = mine[-1] if mine else None
     if last and last["by"] == by and by == "user" and time.time() - last["at"] < SNAP_GAP:
-        snaps[snaps.index(last)] = _snap(t, by)  # the same burst of typing
+        entries[entries.index(last)] = add(_snap(t, by))  # the same burst of typing: a new file, the old one goes
+        drop.append(last)
     else:
-        snaps.append(_snap(t, by))
-    _hist_save(aid, st["version"], snaps)
+        entries.append(add(_snap(t, by)))
+    _hist_save(aid, st["version"], entries, seq, drop, sweep=fresh and bool(h))
+
+
+def _snap_blocks(aid: str, x: dict) -> list:
+    """A listed snapshot's blocks (absent: its file is gone, which only a process outside these rules does)."""
+    try:
+        return store.read_json(_snaps_dir(aid) / f"{int(x['f'])}.json")["blocks"]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise DocError("absent", f"the snapshot at rev {x.get('rev')} can't be read")
 
 
 def history(aid: str, tab: Optional[str] = None) -> dict:
@@ -851,7 +1019,7 @@ def history(aid: str, tab: Optional[str] = None) -> dict:
     t = _tab(st, tab)
     snaps = [x for x in _hist(aid, st["version"]) if x["tab"] == t["id"]]
     return {"tab": t["id"], "rev": t["rev"],
-            "snaps": [{"rev": x["rev"], "by": x["by"], "at": x["at"], "blocks": len(x["blocks"])} for x in reversed(snaps)]}
+            "snaps": [{"rev": x["rev"], "by": x["by"], "at": x["at"], "blocks": x["n"]} for x in reversed(snaps)]}
 
 
 def at_rev(aid: str, tab: Optional[str], rev: int) -> dict:
@@ -863,12 +1031,12 @@ def at_rev(aid: str, tab: Optional[str], rev: int) -> dict:
         raise DocError("absent", f"no snapshot at or before rev {rev}")
     x = cands[-1]
     return {"tab": t["id"], "title": x["title"], "rev": x["rev"], "current_rev": t["rev"], "by": x["by"], "at": x["at"],
-            "blocks": [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in x["blocks"]]}
+            "blocks": [{"id": b["id"], "kind": _kind(b["md"]), "md": b["md"]} for b in _snap_blocks(aid, x)]}
 
 
 def restore(aid: str, tab: Optional[str], rev: int) -> dict:
     """Bring a tab back to a snapshot, as a new rev by the person (it can itself be undone the same way)."""
-    with _LOCK:
+    with _writing(aid):
         st = load(aid)
         t = _tab(st, tab)
         x = at_rev(aid, t["id"], rev)
@@ -887,7 +1055,8 @@ def restore(aid: str, tab: Optional[str], rev: int) -> dict:
 
 
 def markdown(aid: str) -> str:
-    st = load(aid)
-    if len(st["tabs"]) == 1:
-        return tab_markdown(st["tabs"][0])
-    return "\n\n".join(f"# {t['title']}\n\n" + tab_markdown(t) for t in st["tabs"])
+    with _LOCK:
+        st = load(aid)
+        if len(st["tabs"]) == 1:
+            return tab_markdown(st["tabs"][0])
+        return "\n\n".join(f"# {t['title']}\n\n" + tab_markdown(t) for t in st["tabs"])

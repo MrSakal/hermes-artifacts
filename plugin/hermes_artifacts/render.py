@@ -172,12 +172,14 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
         # and thumbnails; an open doc then follows it through doc.read.
         try:
             from . import docs
-            st = docs.load(meta["id"])
-            data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]],
-                           "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
-                           "hermes_left": 0 if thumb else docs.left(st), "hermes_ago": 0 if thumb else docs.ago(st),
-                           "selects": st.get("selects") or {}, "settings": st.get("settings") or {},
-                           "suggestions": [x for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
+            with docs._LOCK:  # the state is shared between callers (docs.load): copy what goes out
+                st = docs.load(meta["id"])
+                data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"],
+                                         "blocks": [dict(b) for b in t["blocks"]]} for t in st["tabs"]],
+                               "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
+                               "hermes_left": 0 if thumb else docs.left(st), "hermes_ago": 0 if thumb else docs.ago(st),
+                               "selects": dict(st.get("selects") or {}), "settings": dict(st.get("settings") or {}),
+                               "suggestions": [dict(x) for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
         except Exception:
             pass
     if kind == "sheet" and data["version"] == meta["versions"][-1]["n"]:
