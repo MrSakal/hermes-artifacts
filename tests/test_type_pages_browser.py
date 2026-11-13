@@ -258,7 +258,7 @@ class PickInThePage(unittest.TestCase):
     def test_a_tap_picks_and_does_not_toggle_the_page(self):
         out = self.run_page("""
           await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(200)
-          const r = await api.frame('(() => { const b = document.querySelector("label").getBoundingClientRect(); return [b.left + 30, b.top + b.height / 2] })()')
+          const r = await api.frame('(() => { const b = document.querySelector("label").getBoundingClientRect(); return [b.left + 120, b.top + b.height / 2] })()')
           await api.tap(r[0], r[1]); await api.sleep(400)
           return { picked: await api.top('window.__events.filter(e => e.event === "picked").map(e => e.detail.label)'),
                    checked: await api.frame('document.getElementById("c").checked') }
@@ -282,24 +282,27 @@ class FocusOnWholeSurfaces(unittest.TestCase):
     def tearDownClass(cls):
         cls.host.close()
 
-    def ring(self, aid, sel, then=None):
-        """Click `sel` (it takes the focus), press a key (the focus is now the keyboard's), optionally move the
-        focus to `then` by script (still the keyboard's): [:focus-visible, box-shadow] of where it is."""
-        last = then or sel
+    def ring(self, aid, sel, then=None, key=("Shift", "ShiftLeft", 16)):
+        """Click `sel` (it takes the focus), press `key` (the focus is now the keyboard's; in a sheet's grid only
+        a key it acts on counts), optionally move the focus to `then` by script (still the keyboard's):
+        [:focus-visible, box-shadow] of where it is."""
+        probe = json.dumps("(() => { const el = " + (then or sel) + "; return [el === document.activeElement && el.matches(':focus-visible'),"
+                           " getComputedStyle(el).boxShadow] })()")
         r = B.drive(f"await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n await api.sleep(600)\n"
-                    f"await api.clickIn({json.dumps(sel)}); await api.key('Shift', 'ShiftLeft', 16); await api.sleep(100)\n"
+                    f"await api.clickIn({json.dumps(sel)}); await api.key({json.dumps(key[0])}, {json.dumps(key[1])}, {key[2]}); await api.sleep(150)\n"
                     + (f"await api.frame({json.dumps(then + '.focus()')}); await api.sleep(100)\n" if then else "")
-                    + f"return await api.frame({json.dumps('(() => { const el = ' + last + '; return [el === document.activeElement && el.matches(\":focus-visible\"), getComputedStyle(el).boxShadow] })()')})")
+                    + f"return await api.frame({probe})")
         self.assertIsNone(r.get("err"), r)
         return r["out"]
 
     def test_the_sheet_grid(self):
         aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
             {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
-        visible, shadow = self.ring(aid, 'document.getElementById("sh-grid")')
+        grid = 'document.getElementById("sh-grid")'
+        visible, shadow = self.ring(aid, grid, key=("Tab", "Tab", 9))
         self.assertTrue(visible)
         self.assertEqual(shadow, "none")
-        visible, shadow = self.ring(aid, 'document.getElementById("sh-grid")', then='document.querySelector("#sh-bar .kit-btn")')
+        visible, shadow = self.ring(aid, grid, then='[...document.querySelectorAll("#sh-bar .kit-btn")].find(b => b.offsetParent && !b.disabled)', key=("Tab", "Tab", 9))
         self.assertTrue(visible)
         self.assertIn("0px 0px 0px 3px", shadow)  # a control: the kit's ring
 
