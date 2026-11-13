@@ -12,13 +12,14 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // ------------------------------------------------------------------ strings
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, MK = window.modelKit;
   var L = /^hu\b/i.test(C.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { loading: "Loading the 3D view\u2026", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", loading: "Loading the 3D view\u2026", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
       noGL: "This device can't draw 3D here (WebGL is unavailable). The parts and parameters are in the panel.",
       noKit: "The model builder didn't load.", bad: "model.json is missing or not valid JSON.", empty: "This model has no parts yet.",
       params: "Parameters", props: "Properties", outline: "Outline", noParams: "This model has no parameters.",
@@ -58,7 +59,7 @@
       addKinds: { box: "Box", cyl: "Cylinder", sphere: "Sphere", cone: "Cone", prism: "Prism", extrude: "Extrusion (rounded rectangle)",
         lathe: "Lathe (turned body)" },
       about: function (list) { return "(model parts: " + list + ")"; } },
-    hu: { loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a m\u00f3dos\u00edt\u00e1sok nem ment\u0151dnek.", loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
       noGL: "Ez az eszk\u00f6z itt nem tud 3D-t rajzolni (nincs WebGL). Az elemek \u00e9s a param\u00e9terek a panelen vannak.",
       noKit: "A modell\u00e9p\u00edt\u0151 nem t\u00f6lt\u0151d\u00f6tt be.", bad: "A model.json hi\u00e1nyzik, vagy nem \u00e9rv\u00e9nyes JSON.", empty: "Ebben a modellben m\u00e9g nincs elem.",
       params: "Param\u00e9terek", props: "Tulajdons\u00e1gok", outline: "Szerkezet", noParams: "Ennek a modellnek nincsenek param\u00e9terei.",
@@ -98,6 +99,7 @@
       addKinds: { box: "Has\u00e1b", cyl: "Henger", sphere: "G\u00f6mb", cone: "K\u00fap", prism: "Prizma", extrude: "Kih\u00faz\u00e1s (lekerek\u00edtett t\u00e9glalap)",
         lathe: "Forg\u00e1stest (eszterg\u00e1lt)" } }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var app = document.getElementById("md-app"), viewEl = document.getElementById("md-view"), panelEl = document.getElementById("md-panel");
   var R = Math.round, DEG = Math.PI / 180;
@@ -941,6 +943,8 @@
 
   // ------------------------------------------------------------------ build glue
   var building = false, buildAgain = false, firstBuild = true, buildRaf = 0, pendingPlace = null, pendingSel = null;
+  var firstDone = false; // the first build is on screen (or failed): the host's ready
+  function firstShown() { if (!firstDone) { firstDone = true; kit.ready(); } }
   function requestBuild() { if (!buildRaf) buildRaf = requestAnimationFrame(function () { buildRaf = 0; rebuild(); }); }
   function rebuild() {
     if (!glOK || !MK) { collectProblems(); return; }
@@ -949,7 +953,7 @@
     var vals = Object.keys(live).length ? Object.assign({}, live) : undefined;
     Promise.resolve().then(function () { return MK.build(model, { files: C.files, values: vals }); })
       .then(swap, function (e) { collectProblems([{ path: "model", msg: errText(e) }]); if (!sliding) renderPanel(); })
-      .then(function () { building = false; if (buildAgain) rebuild(); }, function (e) { building = false; console.error(e); });
+      .then(function () { building = false; firstShown(); if (buildAgain) rebuild(); }, function (e) { building = false; firstShown(); console.error(e); });
   }
   function collectProblems(extra) {
     var list = [], seen = {};
@@ -1900,7 +1904,7 @@
     if (!tab) tab = "outline";
     if (narrow) sheetOpen = true;
     panelHidden = false;
-    renderPanel(); drawChrome(); kit.ready();
+    renderPanel(); drawChrome(); firstShown();
   }
   if (!MK) { fallback(T.noKit); return; }
   loadThree().then(function () {
@@ -1921,5 +1925,4 @@
     three: function () { return { renderer: renderer, scene: scene, camera: camera, controls: controls, tc: tc, pivot: pivot }; },
     drag: function (fn) { dragStart(); fn(pivot); dragMove(); dragEnd(); }, pick: pick, commitParam: commitParam, render: render
   };
-  kit.ready();
 })();

@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any, Optional
 
-from . import boards, docs, history, live, render, running, sheets, store
+from . import boards, diagnostics, docs, history, live, render, running, sheets, store
 from .server import inject_bridge
 
 
@@ -60,6 +60,12 @@ def _meta(aid: str) -> dict:
     if not m:
         raise ApiError(404, "unknown artifact")
     return m
+
+
+def _page_cid(a: dict) -> bool:
+    """A doc edit sent by the doc page's outbox carries its client id (cid) on an op."""
+    ops = a.get("ops")
+    return isinstance(ops, list) and docs._cid([o for o in ops if isinstance(o, dict)]) is not None
 
 
 def _int(v) -> Optional[int]:
@@ -240,11 +246,21 @@ def _op(aid: str, op: str, a: dict) -> dict:
             raise ValueError(e.message)
     if op == "doc.edit":
         # The doc's own editor (the user typing). Hermes edits through its ha_live_edit tool.
+        ops = a.get("ops")
+        if isinstance(ops, list) and len(ops) == 1 and isinstance(ops[0], dict) and ops[0].get("op") == "batch":
+            # The page's whole outbox, in order, when it is going away or hidden (docs.apply_batch). A page op
+            # only: docs.apply (what Hermes' tool calls) knows no "batch" op.
+            try:
+                return docs.apply_batch(aid, ops[0].get("entries"), by="user", tab=a.get("tab") or None)
+            except docs.DocError as e:
+                return {"ok": False, "refused": e.code, "message": e.message}
         try:
             return docs.apply(aid, a.get("ops") or [], by="user", tab=a.get("tab") or None, base_rev=_int(a.get("base_rev")))
         except docs.DocError as e:
             if e.code == "conflict":
                 return {"ok": False, "conflict": True, **e.extra}
+            if _page_cid(a):  # the doc page's outbox: a refusal is an answer (it repairs or drops the edit), not a failure to retry
+                return {"ok": False, "refused": e.code, "message": e.message}
             raise ValueError(e.message)
     if op in ("doc.suggest", "doc.decide", "doc.upload", "doc.file"):
         try:
@@ -256,6 +272,8 @@ def _op(aid: str, op: str, a: dict) -> dict:
                 return docs.upload(aid, str(a.get("data", "")))
             return docs.file_data(aid, str(a.get("name", "")))
         except docs.DocError as e:
+            if op == "doc.suggest" and _page_cid(a):
+                return {"ok": False, "refused": e.code, "message": e.message}
             raise ValueError(e.message)
     if op == "doc.ask":
         # "@Hermes …" typed in the doc, or "Edit with Hermes" on a selection: into the chat (the host
@@ -494,6 +512,32 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             elif rest == ["chat"] and method == "GET":
                 # Host only (a page reaches nothing but /op): is the artifact's chat still there?
                 return chat_status(_meta(aid).get("session"))
+            elif rest in (["diag"], ["shown"]) and method == "POST":
+                # Host only (a page reaches nothing but /op, and no op is named diag or shown): what the host
+                # saw of a page it shows, for ha_check. The host attaches the version IT holds for that frame
+                # (never the page's own claim) and the viewer. Everything else is page-authored text: bounded
+                # here, kept as data (diagnostics.py).
+                #   POST artifacts/<id>/diag  {"version": 7, "viewer": "desktop"|"browser",
+                #       "entries": [{"k": "error"|"resource"|"rejection"|"console"|"csp", "m": "<message>",
+                #                    "at": "<file>:<line>[:<col>]", "n": 1, "stack": "<frames>"|[<frame>, ...],
+                #                    "tag": "<img>", "url": "<failed url>"}], "dropped": 0}
+                #     at most 20 entries (more: counted as dropped), m 300, at 200, stack 500 (3 frames), tag 20,
+                #     url 500 characters (longer: cut), other keys dropped, an unknown k stored as "other";
+                #     the whole body at most 64 KB (else 413).
+                #   POST artifacts/<id>/shown {"version": 7, "viewer": "desktop"|"browser",
+                #       "outcome": "ready"|"threw"|"timeout"|"stalled"}   (body at most 4 KB)
+                #     optional booleans: "recovered": true only on the post a frame reported stalled makes when it
+                #     answers again, with the outcome it had before (ready|threw): replaces stalled, no new open;
+                #     "blank": true only with outcome threw, when the page showed nothing and the previous
+                #     version stayed on screen. Anything else, or a non-boolean: 400.
+                #   -> 200 {"ok": true, "stored": true}; {"ok": true, "stored": false, "off": true} when the
+                #      page_diagnostics setting is off (nothing kept: stop sending); 400 a bad field (version
+                #      not one of the artifact's, viewer, outcome, entries not a list); 404 no such artifact.
+                m = _meta(aid)
+                if not diagnostics.enabled():
+                    return {"ok": True, "stored": False, "off": True}
+                op = (diagnostics.parse_diag if rest == ["diag"] else diagnostics.parse_shown)(m, body)
+                return {"ok": True, "stored": diagnostics.record(aid, op, m)}
             elif rest == ["comments"] and method == "GET":
                 _meta(aid)
                 return {"comments": store.comments_list(aid)}
@@ -514,6 +558,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 return _op(aid, str(body.get("op", "")), body.get("args") if isinstance(body.get("args"), dict) else {})
     except ApiError:
         raise
+    except OverflowError as e:  # a host report over its size (diagnostics)
+        raise ApiError(413, str(e))
     except docs.DocError as e:
         raise ApiError(404 if e.code == "absent" else 400, e.message)
     except live.LiveError as e:

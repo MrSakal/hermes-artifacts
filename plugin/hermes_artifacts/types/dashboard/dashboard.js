@@ -14,6 +14,7 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content;
@@ -24,7 +25,7 @@
   var bar = document.getElementById("dash-bar");
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { sources: "Sources",
+    en: { noHost: "Not connected to Hermes: live data and saving are unavailable.", sources: "Sources",
       exp: "Export", snap: "Snapshot (HTML)", json: "Data and page (JSON)", file: "File",
       failed: "Failed to load", none: "Nothing on this dashboard yet.",
       bad: "dashboard.json is missing or not valid JSON.", stopped: "This page's code stopped", stale: "Out of date",
@@ -86,7 +87,7 @@
       whyMsg: "These sources on this dashboard didn’t load: {list}. Find out why and fix what you can.", loaderSpent: "The loader ran for fifteen minutes, so no further call is made.",
       close: "Close", justNow: "Just now", copy: "Copy", copied: "Copied", expand: "Expand", downloadCsv: "Download CSV",
       showMore: "Show more", showLess: "Show less", transform: "Transform", row1: "row", noSources: "This dashboard has no sources.", noArgs: "No arguments." },
-    hu: { sources: "Források",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: az élő adatok és a mentés nem érhetők el.", sources: "Források",
       exp: "Exportálás", snap: "Pillanatkép (HTML)", json: "Adatok és oldal (JSON)", file: "Fájl",
       failed: "Nem töltött be", none: "Ezen a dashboardon még nincs semmi.",
       bad: "A dashboard.json hiányzik, vagy nem érvényes JSON.", stopped: "Az oldal kódja leállt", stale: "Elavult",
@@ -145,6 +146,8 @@
       close: "Bezárás", justNow: "Épp most", copy: "Másolás", copied: "Kimásolva", expand: "Nagyítás", downloadCsv: "Letöltés CSV-ben",
       showMore: "Több", showLess: "Kevesebb", transform: "Átalakítás", row1: "sor", noSources: "Ennek a dashboardnak nincs forrása.", noArgs: "Nincs argumentum." }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
+  window.__hermesEval = Object.assign(window.__hermesEval || {}, { "dash-page/": { strip: true, lines: 2 } }); // the version's script files: errors at their path and line
 
   // ------------------------------------------------------------------ data
   var datasets = (spec && spec.datasets) || {};
@@ -609,7 +612,7 @@
       if (type && !/javascript|^module$/.test(type)) return;
       var src = s.getAttribute("src");
       if (src) { var t = kit.fileText(src); if (t != null) scripts.push({ file: src, code: t }); }
-      else scripts.push({ file: pagePath, code: s.textContent });
+      else scripts.push({ file: pagePath, code: s.textContent, inline: true });
     });
     frag.querySelectorAll(DROP).forEach(function (n) { n.remove(); });
     var all = frag.querySelectorAll("*");
@@ -629,7 +632,9 @@
     into.replaceChildren(frag);
     scripts.forEach(function (s) {
       currentFile = s.file;
-      try { new Function("dash", "d3", "(function(){" + s.code + "\n}).call(this);\n//# sourceURL=dash-page/" + s.file)(dash, window.d3); }
+      // A script file of the version is named dash-page/<path> (the bridge reports its errors there, past the 2 lines
+      // of new Function header); a page's inline script is dash-inline/<page>: its lines are not the page's.
+      try { new Function("dash", "d3", "(function(){" + s.code + "\n}).call(this);\n//# sourceURL=" + (s.inline ? "dash-inline/" : "dash-page/") + s.file)(dash, window.d3); }
       catch (e) { pageError(e, s.file); }
     });
     currentFile = "index.html";
@@ -639,7 +644,8 @@
   }
 
   window.addEventListener("error", function (e) {
-    if (e.filename && e.filename.indexOf("dash-page/") >= 0) pageError(e.error || e.message, e.filename.split("dash-page/")[1]);
+    var pf = e.filename && /dash-(?:page|inline)\/(.*)$/.exec(e.filename);
+    if (pf) pageError(e.error || e.message, pf[1]);
     else logError("error", e.error || e.message);
   });
   window.addEventListener("unhandledrejection", function (e) { logError("rejection", e.reason); });
@@ -1620,6 +1626,7 @@
   // ------------------------------------------------------------------ boot
   if (!spec) {
     root.appendChild(h("div", { "class": "dash-err", text: T.bad }));
+    kit.ready();
     return;
   }
   var booted = false;

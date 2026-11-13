@@ -16,6 +16,11 @@ body { display: flex; flex-direction: column; }
   border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 .status { color: var(--muted); font-size: 12px; min-width: 0; }
 #frame { flex: 1; width: 100%; border: 0; background: #fff; }
+/* Two frames at a swap: the new version loads in place, invisible and inert, until its page is ready. */
+.stage { flex: 1; position: relative; display: flex; min-height: 0; }
+.stage iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+.stage iframe.pending { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.status .act { font-size: 12px; padding: 0 6px; }
 .gallery { max-width: 760px; width: 100%; margin: 0 auto; padding: 24px 16px; }
 .gallery h1 { font-size: 20px; margin: 0 0 16px; }
 .card { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; margin-bottom: 8px; background: var(--card);

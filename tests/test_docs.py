@@ -75,6 +75,191 @@ class EditTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in docs.read(self.aid, search="continued")["blocks"]], [])
         self.assertEqual([c["id"] for c in docs.read(self.aid, search="Q2")["blocks"]], [b[5]])
 
+    def test_a_multi_op_edit_is_all_or_nothing(self):  # (i) the doc page's split, merge, paste
+        b = self.ids()
+        rev = docs.read(self.aid)["rev"]
+        with self.assertRaises(docs.DocError) as e:  # an op that fails: none of the edit is applied
+            docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "head"}, {"op": "insert", "after": "b-gone", "md": "tail"}], by="user")
+        self.assertEqual(e.exception.code, "absent")
+        self.assertEqual((docs.read(self.aid)["rev"], self.ids()), (rev, b))
+        self.assertNotIn("head", docs.markdown(self.aid))
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes"}], by="hermes", base_rev=rev)
+        with self.assertRaises(docs.DocError) as e:  # a conflict on one op: the others are not applied either
+            docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "head"}, {"op": "insert", "after": b[1], "md": "tail"}], by="user", base_rev=rev)
+        self.assertEqual(e.exception.code, "conflict")
+        self.assertNotIn("tail", docs.markdown(self.aid))
+        r = docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- head"}, {"op": "insert", "after": b[2], "md": "tail\n\nmore"},
+                                  {"op": "move", "block": b[0], "after": b[3]}], by="user")
+        self.assertEqual(r["per_op"][0], [b[2]])
+        self.assertEqual(len(r["per_op"][1]), 2)  # the new blocks of that insert, in order
+        self.assertEqual(r["per_op"][2], [b[0]])
+        self.assertEqual([x["md"] for x in docs.read(self.aid, blocks=r["per_op"][1])["blocks"]], ["tail", "more"])
+
+    def test_an_edit_sent_again_is_applied_once(self):  # (j)
+        b = self.ids()
+        ops = [{"op": "insert", "after": b[1], "md": "once", "cid": "pg.1"}]
+        r1 = docs.apply(self.aid, ops, by="user")
+        r2 = docs.apply(self.aid, ops, by="user")  # its answer lost: sent again
+        self.assertEqual(docs.markdown(self.aid).count("once"), 1)
+        self.assertTrue(r2["repeat"])
+        self.assertEqual((r2["rev"], r2["per_op"]), (r1["rev"], r1["per_op"]))
+        # The page learns it from a read too, and the record lives in the doc's state (a restart keeps it).
+        self.assertEqual(docs.read(self.aid)["done"]["pg.1"], r1["per_op"])
+        self.assertEqual(docs.read(self.aid, since_rev=r1["rev"])["done"]["pg.1"], r1["per_op"])
+        self.assertTrue(any(d["cid"] == "pg.1" for d in json.loads(docs._state_path(self.aid).read_text("utf-8"))["done"]))
+        # Any kind of edit, and proposals.
+        docs.apply(self.aid, [{"op": "delete", "block": b[7], "cid": "pg.2"}], by="user")
+        docs.apply(self.aid, [{"op": "delete", "block": b[7], "cid": "pg.2"}], by="user")  # no "absent": the same answer
+        for _ in range(2):
+            docs.suggest(self.aid, [{"op": "insert", "after": b[1], "md": "proposed", "cid": "pg.3"}], by="user")
+        self.assertEqual(len(docs.read(self.aid)["suggestions"]), 1)
+        # A refused edit is not remembered: nothing of it was applied, so sent again it is tried again.
+        with self.assertRaises(docs.DocError):
+            docs.apply(self.aid, [{"op": "replace", "block": "b-gone", "md": "x", "cid": "pg.4"}], by="user")
+        self.assertIsNone(docs._done(docs.load(self.aid), "pg.4", "user"))
+        # Bounded: the last MAX_DONE.
+        for i in range(docs.MAX_DONE + 5):
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": f"# t{i}", "cid": f"pg.n{i}"}], by="user")
+        st = docs.load(self.aid)
+        self.assertEqual(len(st["done"]), docs.MAX_DONE)
+        self.assertIsNone(docs._done(st, "pg.1", "user"))
+        self.assertLessEqual(len(docs.read(self.aid)["done"]), docs.DONE_IN_READ)
+
+    def test_the_page_gets_a_refusal_as_an_answer(self):  # (i) the outbox mends or drops it, never retries it as is
+        b = self.ids()
+        r = op(self.aid, "doc.edit", ops=[{"op": "replace", "block": "b-gone", "md": "x", "cid": "pg.9"}])
+        self.assertEqual((r["ok"], r["refused"]), (False, "absent"))
+        r = op(self.aid, "doc.suggest", ops=[{"op": "replace", "block": "b-gone", "md": "x", "cid": "pg.10"}])
+        self.assertEqual(r["refused"], "absent")
+        with self.assertRaises(api.ApiError):  # without a cid, as before
+            op(self.aid, "doc.edit", ops=[{"op": "replace", "block": "b-gone", "md": "x"}])
+        r = op(self.aid, "doc.edit", ops=[{"op": "insert", "after": b[0], "md": "x", "cid": "pg.11"}])
+        self.assertEqual(op(self.aid, "doc.edit", ops=[{"op": "insert", "after": b[0], "md": "x", "cid": "pg.11"}])["per_op"], r["per_op"])
+
+    def test_a_batch_is_applied_in_order(self):  # (l)
+        b = self.ids()
+        para = b[1]
+        r = op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": [
+            {"cid": "pg.1", "via": "edit", "ops": [{"op": "replace", "block": para, "md": "V1"}], "base": 1},
+            {"cid": "pg.2", "via": "edit", "ops": [{"op": "replace", "block": para, "md": "V1 V2"}], "base": 1},
+            {"cid": "pg.3", "via": "edit", "ops": [{"op": "insert", "after": para, "md": "new", "tmp": "tmp-a"}], "base": 1},
+            {"cid": "pg.4", "via": "edit", "ops": [{"op": "replace", "block": "tmp-a", "md": "new, typed on"}], "base": 1},  # names the tmp id
+            {"cid": "pg.5", "via": "suggest", "ops": [{"op": "replace", "block": b[7], "md": "proposed"}]}]}])
+        self.assertTrue(r["ok"])
+        self.assertEqual([a["ok"] for a in r["batch"]], [True] * 5)
+        self.assertEqual(docs.read(self.aid, blocks=[para])["blocks"][0]["md"], "V1 V2")  # the later words win
+        new = r["batch"][2]["per_op"][0][0]
+        self.assertEqual(docs.read(self.aid, blocks=[new])["blocks"][0]["md"], "new, typed on")
+        self.assertEqual(len(docs.read(self.aid)["suggestions"]), 1)
+        # The first request of pg.1 lands late (it was in flight): applied already, so not again.
+        late = op(self.aid, "doc.edit", ops=[{"op": "replace", "block": para, "md": "V1", "cid": "pg.1"}], base_rev=1)
+        self.assertTrue(late["repeat"])
+        self.assertEqual(docs.read(self.aid, blocks=[para])["blocks"][0]["md"], "V1 V2")
+        # The same batch again (sent twice): nothing applied twice.
+        rev = docs.read(self.aid)["rev"]
+        op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": [
+            {"cid": "pg.3", "via": "edit", "ops": [{"op": "insert", "after": para, "md": "new", "tmp": "tmp-a"}]}]}])
+        self.assertEqual((docs.read(self.aid)["rev"], docs.markdown(self.aid).count("new, typed on")), (rev, 1))
+
+    def test_a_batch_holds_only_what_depends_on_a_failed_entry(self):  # (l) the dependency rule
+        b = self.ids()
+        base = docs.read(self.aid)["rev"]
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes"}], by="hermes", base_rev=base)
+        r = docs.apply_batch(self.aid, [
+            {"cid": "pg.1", "ops": [{"op": "replace", "block": b[1], "md": "mine"}], "base": base},           # conflict
+            {"cid": "pg.2", "ops": [{"op": "replace", "block": b[1], "md": "mine, more"}], "base": base},     # the same block: held
+            {"cid": "pg.3", "ops": [{"op": "insert", "after": b[1], "md": "split", "tmp": "tmp-s"}]},          # anchored on it: held
+            {"cid": "pg.4", "ops": [{"op": "replace", "block": "tmp-s", "md": "split, on"}]},                 # names that tmp: held
+            {"cid": "pg.5", "ops": [{"op": "replace", "block": b[2], "md": "- other"}], "base": base},        # independent: applied
+            {"cid": "pg.6", "ops": [{"op": "insert", "after": "b-gone", "md": "x", "tmp": "tmp-g"}]},          # refused
+            {"cid": "pg.7", "ops": [{"op": "replace", "block": b[7], "md": "last one"}]}], by="user")       # independent: applied
+        a = r["batch"]
+        self.assertTrue(a[0]["conflict"])
+        self.assertEqual([x.get("held", False) for x in a[1:4]], [True, True, True])
+        self.assertTrue(a[4]["ok"] and a[6]["ok"])
+        self.assertEqual(a[5]["refused"], "absent")
+        md_now = docs.markdown(self.aid)
+        self.assertNotIn("mine", md_now)
+        self.assertNotIn("split", md_now)
+        self.assertIn("- other", md_now)
+        self.assertIn("last one", md_now)
+        self.assertIsNone(docs._done(docs.load(self.aid), "pg.2", "user"))  # held: nothing of it applied, sent again later
+
+    def test_a_late_text_edit_from_the_same_page_never_overwrites_a_newer_one(self):  # (l) the sequence rule
+        b = self.ids()
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "V1 V2", "cid": "pg.2"}], by="user")
+        r = docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "V1", "cid": "pg.1"}], by="user")  # overtaken
+        self.assertTrue(r["superseded"])
+        self.assertEqual(docs.read(self.aid, blocks=[b[1]])["blocks"][0]["md"], "V1 V2")
+        self.assertTrue(docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "V1", "cid": "pg.1"}], by="user")["repeat"])
+        # In a mixed edit only the overtaken text op is skipped.
+        r = docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "old", "cid": "pg.0"}, {"op": "insert", "after": b[1], "md": "kept"}], by="user")
+        self.assertEqual((r["per_op"][0], len(r["per_op"][1])), ([], 1))
+        self.assertEqual(docs.read(self.aid, blocks=[b[1]])["blocks"][0]["md"], "V1 V2")
+        # Never rejected: another page (or the doc opened again), the same n again (mended or split up), a newer
+        # n with older words (an undo), another block, an edit without a cid, Hermes.
+        for ops in ([{"op": "replace", "block": b[1], "md": "other page", "cid": "qq.1"}],
+                    [{"op": "replace", "block": b[1], "md": "same n", "cid": "pg.2.m1"}],
+                    [{"op": "replace", "block": b[1], "md": "V1", "cid": "pg.3"}],
+                    [{"op": "replace", "block": b[2], "md": "- other block", "cid": "pg.1.r1"}],
+                    [{"op": "replace", "block": b[1], "md": "no cid"}]):
+            r = docs.apply(self.aid, ops, by="user")
+            self.assertFalse(r.get("superseded"), ops)
+            self.assertEqual(docs.read(self.aid, blocks=[ops[0]["block"]])["blocks"][0]["md"], ops[0]["md"])
+        r = docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes", "cid": "pg.0"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
+        self.assertFalse(r.get("superseded"))
+        # Kept in the doc's state, bounded.
+        st = json.loads(docs._state_path(self.aid).read_text("utf-8"))
+        self.assertIn("user:pg", st["seq"])
+        for i in range(docs.SEQ_PAGES + 3):
+            docs.apply(self.aid, [{"op": "replace", "block": b[7], "md": f"p{i}", "cid": f"pp{i}.1"}], by="user")
+        self.assertLessEqual(len(docs.load(self.aid)["seq"]), docs.SEQ_PAGES)
+
+    def test_a_batch_takes_each_entry_on_its_own_tab(self):  # (e) one call, the whole outbox, in order
+        b = self.ids()
+        t1 = docs.read(self.aid)["tab"]
+        t2 = docs.apply(self.aid, [{"op": "add_tab", "title": "Two", "md": "two"}], by="user")["new_tab"]
+        r = docs.apply_batch(self.aid, [
+            {"cid": "pg.1", "tab": t1, "ops": [{"op": "insert", "after": b[1], "md": "one", "tmp": "tmp-1"}]},
+            {"cid": "pg.2", "tab": t2, "ops": [{"op": "insert", "after": None, "md": "in two"}]},
+            {"cid": "pg.3", "tab": t1, "ops": [{"op": "replace", "block": "tmp-1", "md": "one, on"}]}], by="user")
+        self.assertEqual([a["ok"] for a in r["batch"]], [True, True, True])
+        self.assertIn("one, on", docs.markdown(self.aid))
+        self.assertEqual(docs.read(self.aid, t2)["blocks"][0]["md"], "in two")
+
+    def test_an_over_bound_batch_is_refused_whole(self):  # (f) nothing half-applied, nothing kept for later
+        b = self.ids()
+        rev = docs.read(self.aid)["rev"]
+        big = [{"cid": f"pg.{i}", "ops": [{"op": "replace", "block": b[1], "md": f"v{i}"}]} for i in range(docs.MAX_BATCH + 1)]
+        r = op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": big}])
+        self.assertEqual((r["ok"], r["refused"]), (False, "too_large"))
+        wide = [{"cid": f"pw.{i}", "ops": [{"op": "replace", "block": b[1], "md": "x" * 15000}]} for i in range(docs.MAX_BATCH_CHARS // 15000 + 2)]
+        self.assertEqual(op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": wide}])["refused"], "too_large")
+        self.assertEqual(docs.read(self.aid)["rev"], rev)  # not one entry applied
+        self.assertIsNone(docs._done(docs.load(self.aid), "pg.0", "user"))
+        self.assertTrue(op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": big[:3]}])["batch"][2]["ok"])  # what fits goes
+
+    def test_no_stored_batches(self):
+        # A state file from a build that kept batches in parts: those keys are dropped, nothing else changes.
+        b = self.ids()
+        st = docs.load(self.aid)
+        st["parts"] = {"pg.b1": {"at": 0, "next": 0, "n": 2, "held": {"1": [{"ops": [{"op": "replace", "block": b[1], "md": "OLD"}]}]}}}
+        st["parts_done"] = ["pg.b0"]
+        docs._save(self.aid, st)
+        docs.apply_batch(self.aid, [{"cid": "pz.1", "ops": [{"op": "replace", "block": b[7], "md": "new"}]}], by="user")
+        st = json.loads(docs._state_path(self.aid).read_text("utf-8"))
+        self.assertNotIn("parts", st)
+        self.assertNotIn("parts_done", st)
+        self.assertNotIn("OLD", docs.markdown(self.aid))
+        self.assertFalse(hasattr(docs, "PART_TTL") or hasattr(docs, "_parts_expire"))
+
+    def test_the_batch_is_a_page_op_only(self):
+        # Hermes' tool calls docs.apply, which knows no batch op.
+        with self.assertRaises(docs.DocError) as e:
+            docs.apply(self.aid, [{"op": "batch", "entries": []}], by="hermes")
+        self.assertEqual(e.exception.code, "invalid")
+        self.assertEqual(op(self.aid, "doc.edit", ops=[{"op": "batch", "entries": []}])["refused"], "invalid")
+
     def test_tabs(self):
         r = docs.apply(self.aid, [{"op": "add_tab", "title": "Annex", "md": "# A\n\nb"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
         st = docs.read(self.aid, "Annex")
@@ -116,6 +301,76 @@ class EditTests(unittest.TestCase):
         self.assertEqual(r.get("since"), "unavailable")
         self.assertEqual(len(r["blocks"]), len(b))
         self.assertNotIn("since", docs.read(self.aid, since_rev=r["rev"] - 2))
+
+    def test_a_base_rev_older_than_the_log_is_checked_block_by_block(self):
+        # The doc page saves the block being typed in against the rev its words were typed from, which can
+        # fall behind the log in a long session: each block's last text change, kept beyond the log, says.
+        b = self.ids()
+        for i in range(docs.MAX_LOG + 5):
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": f"t{i}"}], by="hermes", base_rev=docs.read(self.aid)["rev"])
+        self.assertGreater(min(e["rev"] for e in docs.load(self.aid)["log"]), 2)  # the log no longer reaches rev 1
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "mine"}], by="user", base_rev=1)  # untouched since: no conflict
+        with self.assertRaises(docs.DocError) as e:
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": "mine"}], by="user", base_rev=1)
+        self.assertEqual((e.exception.code, e.exception.extra["blocks"]), ("conflict", [b[0]]))
+        docs.apply(self.aid, [{"op": "insert", "after": b[1], "md": "new"}], by="user", base_rev=1)  # an insert overwrites nothing
+
+    def test_beyond_the_log_with_no_record_is_a_conflict(self):
+        # A doc state from before blocks' last changes were kept: before that record began nothing is known.
+        b = self.ids()
+        st = docs.load(self.aid)
+        st.pop("last", None)
+        st["last_from"] = {}
+        docs._save(self.aid, st)
+        docs.apply(self.aid, [{"op": "replace", "block": b[7], "md": "x"}], by="user")  # the record begins here (rev 1)
+        st = docs.load(self.aid)
+        st["last_from"][st["tabs"][0]["id"]] = 50  # as if it had begun later, and the log moved on since
+        st["tabs"][0]["rev"] = 60
+        st["log"] = []
+        docs._save(self.aid, st)
+        with self.assertRaises(docs.DocError) as e:
+            docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "mine"}], by="user", base_rev=10)
+        self.assertEqual(e.exception.code, "conflict")
+
+    def test_a_move_is_no_conflict_for_a_text_edit(self):
+        # Hermes moves the block being typed in: its words did not change, so the person's save goes through.
+        b = self.ids()
+        base = docs.read(self.aid)["rev"]
+        r = docs.apply(self.aid, [{"op": "move", "block": b[1], "after": b[5]}], by="hermes", base_rev=base)
+        self.assertIn(b[1], r["changed"])  # a reader still learns it changed place
+        self.assertEqual(docs.load(self.aid)["log"][-1]["moved"], [b[1]])
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "mine"}], by="user", base_rev=base)
+        self.assertEqual(docs.read(self.aid, blocks=[b[1]])["blocks"][0]["md"], "mine")
+        # A move and a text change of the same block in one edit is a text change.
+        base = docs.read(self.aid)["rev"]
+        docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- theirs"}, {"op": "move", "block": b[2], "after": None}],
+                   by="hermes", base_rev=base)
+        self.assertNotIn("moved", docs.load(self.aid)["log"][-1])
+        with self.assertRaises(docs.DocError):
+            docs.apply(self.aid, [{"op": "replace", "block": b[2], "md": "- mine"}], by="user", base_rev=base)
+        # Beyond the log too: a move is not a text change.
+        base = docs.read(self.aid)["rev"]
+        docs.apply(self.aid, [{"op": "move", "block": b[3], "after": None}], by="hermes", base_rev=base)
+        for i in range(docs.MAX_LOG + 5):
+            docs.apply(self.aid, [{"op": "replace", "block": b[0], "md": f"t{i}"}], by="user")
+        docs.apply(self.aid, [{"op": "replace", "block": b[3], "md": "| x | y |\n|---|---|\n| 3 | 4 |"}], by="user", base_rev=base)
+
+    def test_the_pages_conflict_keeps_the_persons_words_as_a_suggestion(self):
+        # What the doc page does when its save of the block being typed in meets Hermes' change to it.
+        b = self.ids()
+        base = docs.read(self.aid)["rev"]
+        docs.apply(self.aid, [{"op": "replace", "block": b[1], "md": "Hermes' words."}], by="hermes", base_rev=base)
+        docs.apply(self.aid, [{"op": "replace", "block": b[7], "md": "Hermes elsewhere."}], by="hermes", base_rev=base + 1)
+        r = op(self.aid, "doc.edit", ops=[{"op": "replace", "block": b[1], "md": "My words."}], base_rev=base)
+        self.assertEqual((r["ok"], r["conflict"], r["blocks"]), (False, True, [b[1]]))
+        self.assertEqual(docs.read(self.aid, blocks=[b[1]])["blocks"][0]["md"], "Hermes' words.")
+        op(self.aid, "doc.suggest", ops=[{"op": "replace", "block": b[1], "md": "My words."}])
+        sg = docs.read(self.aid)["suggestions"][0]
+        self.assertEqual((sg["by"], sg["md"], sg["was"]), ("user", "My words.", "Hermes' words."))
+        op(self.aid, "doc.decide", id=sg["id"], verdict="accept")
+        self.assertEqual(docs.read(self.aid, blocks=[b[1]])["blocks"][0]["md"], "My words.")
+        # The page's save of another block against the same old rev goes through: Hermes did not touch it.
+        self.assertTrue(op(self.aid, "doc.edit", ops=[{"op": "replace", "block": b[2], "md": "- mine"}], base_rev=base)["ok"])
 
     def test_history_at_rev_and_restore(self):
         b = [x["id"] for x in docs.read(self.aid)["blocks"]]

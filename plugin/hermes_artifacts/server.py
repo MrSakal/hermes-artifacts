@@ -134,6 +134,8 @@ class ShellHandler(_Base):
                 not secrets.compare_digest(self.headers.get("X-Hermes-Token", ""), self.cfg.token):
             return self._json(403, {"error": "forbidden"})
         parts = [unquote(p) for p in urlsplit(self.path).path.split("/") if p]
+        if len(parts) == 3 and parts[0] == "host" and parts[2] in ("diag", "shown"):
+            return self._host_report(parts[1], parts[2])
         if len(parts) != 3 or parts[0] != "api":
             return self._json(404, {"error": "not found"})
         aid, op = parts[1], parts[2]
@@ -171,6 +173,38 @@ class ShellHandler(_Base):
         except (ValueError, TypeError) as e:
             return self._json(400, {"error": str(e)})
         self._json(404, {"error": f"unknown op {op}"})
+
+    def _host_report(self, aid: str, kind: str):
+        """The shell's own reports (shell.js, never the page): a page's ops are relayed to /api/<id>/<op>
+        only (one path segment, URL-encoded), so it cannot name /host/. Token and Origin are checked by the
+        caller. The same shapes as Desktop's artifacts/<id>/diag and /shown (api.py), viewer "browser":
+        POST /host/<id>/diag  {"version": 7, "entries": [...], "dropped": 0}
+        POST /host/<id>/shown {"version": 7, "outcome": "ready"|"threw"|"timeout"|"stalled"}
+        "viewer" may be left out (else it must be "browser"). -> 200 {"ok": true, "stored": true} |
+        {"ok": true, "stored": false, "off": true}; 400 bad field; 404 no artifact; 413 over 64 KB."""
+        from . import diagnostics
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > diagnostics.MAX_BODY_BYTES:
+                if n <= 1024 * 1024:  # read it first, so the answer is not lost to a reset connection
+                    self.rfile.read(n)
+                return self._json(413, {"error": "too large"})
+            body = json.loads(self.rfile.read(n) or b"{}")
+            meta = store.get_meta(aid)
+            if not meta:
+                return self._json(404, {"error": "unknown artifact"})
+            if not diagnostics.enabled():
+                return self._json(200, {"ok": True, "stored": False, "off": True})
+            if isinstance(body, dict) and body.get("viewer", "browser") != "browser":
+                raise ValueError("viewer must be browser here")
+            op = (diagnostics.parse_diag if kind == "diag" else diagnostics.parse_shown)(meta, body, "browser")
+            return self._json(200, {"ok": True, "stored": diagnostics.record(aid, op, meta)})
+        except OverflowError as e:
+            return self._json(413, {"error": str(e)})
+        except FileNotFoundError:
+            return self._json(404, {"error": "unknown artifact"})
+        except (ValueError, TypeError) as e:
+            return self._json(400, {"error": str(e)})
 
     def _page(self, body: str):
         self._send(200, body.encode("utf-8"), "text/html; charset=utf-8", self._csp())

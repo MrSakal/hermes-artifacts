@@ -58,7 +58,7 @@ Toolset `artifacts`, 14 tools:
 |---|---|
 | `ha_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board. Refuses a publish that would replace a file someone else (the user, another chat) changed since this chat last saw it, handing back that file's text to merge onto; what it hands back counts as seen, so the next publish goes through. Files a `base=true` publish leaves alone are never its concern, and files this chat wrote itself count as seen even after a restart. Refuses a new artifact of a type whose `ha_guide` the chat has not read, handing back that guide (a new page gets its short guide with the result instead); an update is never refused for it, but a format error in one brings the guide. |
 | `ha_guide` | The file format, API and design rules of a type. Read it before the first artifact of that type. |
-| `ha_check` | What an open dashboard reported about itself (code errors, NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
+| `ha_check` | What an artifact's open page went through, any type: its errors (uncaught errors, console errors, failed loads) and whether the version showed. A dashboard also reports its own check (NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
 | `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now. |
 | `ha_list` / `ha_read` | List artifacts, or read one's file list and any file (any version), plus its stored data. |
 | `ha_open` | Show it in Hermes Desktop, or in a browser on the Hermes machine. |
@@ -78,6 +78,13 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   (`#/hermes-artifacts`).
 - The built-in view (images and files from sessions) stays one click away, behind *Session files and
   images →*.
+- A new version loads out of sight: the previous one stays on screen until the new page has loaded. One
+  that had an error while starting still replaces it, with a quiet line under the header saying so. One
+  that showed nothing, or has not loaded after 10 s, is not swapped in; the line says so, with *Show vN*.
+  A page on screen that stops responding gets a line with *Reload*: it takes every artifact frame down for
+  about 11 s (they share one browser process, which only then ends the stuck page) and loads the page
+  again; if that does not bring it back after three tries, the line says to restart Hermes. The browser
+  viewer does the same in its status line.
 - UI strings ship in English; what an artifact says is in the language the user works in.
 
 ### CLI
@@ -177,6 +184,7 @@ Set under `plugins.entries.hermes-artifacts.settings` in Hermes' `config.yaml`. 
 | `shell_port` | int | `8797` | Loopback port of the optional browser viewer (started only by `ha_open where=browser` or `hermes artifacts serve`). |
 | `content_port` | int | `8798` | Loopback port the browser viewer serves artifact HTML from (a separate, sandboxed origin). |
 | `require_approval` | bool | `false` | Off: a live dashboard query runs without asking when Hermes ran exactly that call in the chat before publishing it; any other query (one it did not run, one you edit or test in Sources) asks first, in Hermes Desktop's own dialog. On: every new or changed query asks. |
+| `page_diagnostics` | bool | `true` | On: an artifact open in Hermes Desktop or the browser viewer records its page's errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host, for `ha_check`. Off: nothing is recorded, and `ha_check` says so. |
 | `bridge_tools` | str | `""` | Comma-separated tool names an artifact may call through `window.hermes.callTool` in the browser viewer. Empty means none. |
 | `frame_ancestors` | str | `'self'` | Space-separated CSP sources that may show the browser viewer in a frame (its `frame-ancestors`). The default lets no other site frame it. Artifact content always lets the viewer frame it, plus these sources. |
 
@@ -212,6 +220,7 @@ trust gates as the agent. What a dashboard may run within it is narrowed by the 
 | Piece | File | Role |
 |---|---|---|
 | Store | `plugin/hermes_artifacts/store.py` | `<HERMES_HOME>/plugin-data/hermes-artifacts/<id>/v<N>/`, per-artifact storage, comments, inbox, replies |
+| Page diagnostics | `plugin/hermes_artifacts/diagnostics.py` | What the host saw of an open page (errors, whether a version showed), bounded and kept beside the versions for `ha_check` |
 | Rendering | `plugin/hermes_artifacts/render.py`, `bundle.py` | A page with its files inlined, or a type runtime with the artifact's files embedded as JSON |
 | Live docs | `plugin/hermes_artifacts/docs.py` | Blocks, tabs, revisions, suggestions and history of a doc; the ops behind `ha_live_edit` |
 | Live sheets | `plugin/hermes_artifacts/sheets.py`, `xlsx_in.py` | Cells, formats, charts and history of a sheet; `.xlsx` and `.csv` import |
@@ -221,7 +230,7 @@ trust gates as the agent. What a dashboard may run within it is narrowed by the 
 | Design systems | `plugin/hermes_artifacts/dsbuild.py` | Compiles a design system's generated files (`tokens.css`, `manifest.json`, `api/` cards) on every publish and save |
 | Type runtimes | `plugin/hermes_artifacts/types/<type>/` | Page, dashboard, slides, doc, sheet, board, design, model, motion and design-system viewers (shared `_kit/`), each with its `GUIDE.md` for the agent. The sheet's grid, formula engine and xlsx/CSV writer and reader are in `types/sheet/` |
 | Desktop page | `plugin/desktop/plugin.js` | `ROUTES_AREA` gallery and viewer; renders artifacts in `SandboxedFrame` from `data:` URLs; bridge host |
-| Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send; `artifacts/<id>/approval` for the host's query dialog; `trash`, `trash/restore` by entry `name` or `id`, `trash/delete` by entry `name` only: host only, an artifact page reaches none of these) |
+| Page API | `plugin/dashboard/plugin_api.py` | `/api/plugins/hermes-artifacts/*`, reached with `ctx.rest` (list, HTML, storage, send; `artifacts/<id>/approval` for the host's query dialog; `trash`, `trash/restore` by entry `name` or `id`, `trash/delete` by entry `name` only; `artifacts/<id>/diag` and `/shown`, the host's page reports: host only, an artifact page reaches none of these) |
 | Bridge | `plugin/hermes_artifacts/assets/bridge.js` | `window.hermes`, talks only to its parent over a `MessagePort` |
 | Browser viewer | `plugin/hermes_artifacts/server.py` | Optional loopback viewer: a shell origin plus a separate content origin |
 
@@ -248,6 +257,12 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
   installed; a file goes when its process has, or after a week without being rewritten.
+- **Page errors:** when an artifact is open in Hermes Desktop or the browser viewer, the plugin records the
+  page's errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host,
+  so Hermes can read them with `ha_check`. They may contain text from the page. Nothing leaves the machine;
+  the last 3 versions are kept (`<id>/diagnostics.json`, outside the versions; an error not seen again for
+  7 days goes) and deleted with the artifact. The `page_diagnostics` setting turns it off. Only the host
+  reports (`artifacts/<id>/diag` and `/shown`, the browser viewer's `/host/<id>/…`): a page cannot.
 - **Reads and writes:** that folder, the file or folder passed to `ha_publish path=`, and the folder
   named in `ha_design_system_export`.
 - **Paths the agent names:** `ha_publish path=` and `ha_design_system_export dir=` accept only paths

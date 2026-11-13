@@ -8,6 +8,7 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key).
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, hm = window.hermes, F = window.sheetFormula || null, X = window.sheetXlsx || null;
@@ -15,7 +16,7 @@
 
   // ------------------------------------------------------------------ strings
   var T = pickLang({
-    en: { undo: "Undo", redo: "Redo", bold: "Bold", italic: "Italic", underline: "Underline",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", undo: "Undo", redo: "Redo", bold: "Bold", italic: "Italic", underline: "Underline",
       alignL: "Align left", alignC: "Centre", alignR: "Align right", wrap: "Wrap text",
       numFmt: "Number format", nGeneral: "General", nNumber: "Number (0.00)", nThousands: "Thousands (1,234)", nPercent: "Percent", nFt: "Currency (Ft)",
       nEur: "Currency (€)", nUsd: "Currency ($)", nDate: "Date", nText: "Text",
@@ -63,7 +64,7 @@
       findCase: "Match case", findWhole: "Match entire cell", findFx: "Also search in formulas", repDone: "Replaced in {n} cells", repNone: "Nothing to replace",
       min: "Min", max: "Max", aggPick: "Choose what the selection shows",
       ok: "OK" },
-    hu: { undo: "Visszavonás", redo: "Mégis", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", undo: "Visszavonás", redo: "Mégis", bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott",
       alignL: "Balra igazítás", alignC: "Középre igazítás", alignR: "Jobbra igazítás", wrap: "Sortöréssel több sorba",
       numFmt: "Számformátum", nGeneral: "Általános", nNumber: "Szám (0,00)", nThousands: "Ezres tagolás (1 234)", nPercent: "Százalék", nFt: "Pénznem (Ft)",
       nEur: "Pénznem (€)", nUsd: "Pénznem ($)", nDate: "Dátum", nText: "Szöveg",
@@ -112,6 +113,7 @@
       min: "Minimum", max: "Maximum", aggPick: "Válaszd ki, mit mutasson a kijelölésről",
       ok: "OK" }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
   function fill(s, o) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return o[k] == null ? m : o[k]; }); }
 
   // Icons the kit does not have (24-unit paths, drawn like kit.icon).

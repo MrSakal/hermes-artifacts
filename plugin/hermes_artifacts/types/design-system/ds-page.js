@@ -14,12 +14,13 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, dsKit = window.dsKit, md = window.md;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { overview: "Overview", colors: "Colors", type: "Typography", components: "Components", assets: "Assets", files: "Files",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", overview: "Overview", colors: "Colors", type: "Typography", components: "Components", assets: "Assets", files: "Files",
       sections: "Sections", theme: "Theme", exp: "Export", css: "tokens.css", json: "tokens.json",
       zip: "All files (.zip)", noLib: "The export library didn't load (open the system in Hermes Desktop)",
       edit: "Edit", save: "Save", cancel: "Cancel", del: "Delete", add: "Add token", saving: "Saving…", saved: "Saved",
@@ -37,7 +38,7 @@
       updated: function (by, at) { return "Updated" + (by ? " by " + by : "") + (at ? " · " + at : ""); },
       noTokens: "tokens.json is missing or not valid JSON.", addColor: "Add color", delSure: "Delete this token?",
       uploaded: "Uploaded", fam: { spacing: "Spacing", radius: "Radius", shadow: "Shadows" } },
-    hu: { overview: "Áttekintés", colors: "Színek", type: "Tipográfia", components: "Komponensek", assets: "Eszközök", files: "Fájlok",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", overview: "Áttekintés", colors: "Színek", type: "Tipográfia", components: "Komponensek", assets: "Eszközök", files: "Fájlok",
       sections: "Fejezetek", theme: "Téma", exp: "Exportálás", css: "tokens.css", json: "tokens.json",
       zip: "Minden fájl (.zip)", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)",
       edit: "Szerkesztés", save: "Mentés", cancel: "Mégse", del: "Törlés", add: "Új token", saving: "Mentés…", saved: "Elmentve",
@@ -56,6 +57,7 @@
       noTokens: "A tokens.json hiányzik, vagy nem érvényes JSON.", addColor: "Új szín", delSure: "Törlöd ezt a tokent?",
       uploaded: "Feltöltve", fam: { spacing: "Térközök", radius: "Lekerekítés", shadow: "Árnyékok" } }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var bar = document.getElementById("ds-bar"), nav = document.getElementById("ds-nav"), main = document.getElementById("ds-main");
   bar.hidden = true; // no bar of its own: the artifact header carries the title, Export and Make default
@@ -1633,4 +1635,5 @@
   }
 
   render();
+  kit.ready();
 })();

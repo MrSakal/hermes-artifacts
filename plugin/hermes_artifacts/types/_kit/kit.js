@@ -125,11 +125,28 @@
   }
 
   var toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = document.querySelector(".kit-toast") || document.body.appendChild(h("div", { "class": "kit-toast" }));
     t.textContent = msg;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.remove(); }, 2600);
+    toastTimer = setTimeout(function () { t.remove(); }, ms > 0 ? ms : 2600);
+  }
+
+  // No host (the bridge's "offline": no port within its timeout, or the page opened on its own): the page
+  // shows what it has and says so once, in the runtime's words (degraded(T.offline) at boot). Not on cards.
+  var offline = { text: "", due: false, shown: false };
+  function offlineShow() {
+    if (offline.shown || !offline.due || !offline.text || content.thumb || !document.body) return;
+    offline.shown = true;
+    toast(offline.text, 8000);
+  }
+  function whenLoaded(fn) {
+    if (document.readyState === "complete") fn();
+    else window.addEventListener("load", function () { fn(); });
+  }
+  function degraded(text) { offline.text = String(text || ""); whenLoaded(offlineShow); }
+  if (window.hermes && window.hermes.on) {
+    window.hermes.on("offline", function () { offline.due = true; whenLoaded(offlineShow); });
   }
 
   /** Save a file: through the host (hermes.download) when available, else an <a download>. */
@@ -262,10 +279,19 @@
 
   function slug(s) { return String(s || "artifact").replace(/[\\/:*?"<>|]+/g, "_").trim().slice(0, 80) || "artifact"; }
 
-  /** Ready handshake for thumbnails: fonts, images, two frames. */
+  /** The first real render is on screen. For thumbnails: fonts, images, two frames, then data-thumb-ready.
+   *  For the host (a runtime that set window.__hermesDefer = true): hermes.ready(), once, after the fonts
+   *  and pictures or 1.5 s, whichever comes first (the bridge adds its two frames). */
+  var hostReadyAsked = false;
   function ready() {
     var imgs = Array.prototype.slice.call(document.images).map(function (i) { return i.decode ? i.decode().catch(function () {}) : 0; });
-    return Promise.all([document.fonts ? document.fonts.ready : 0].concat(imgs)).then(function () {
+    var settled = Promise.all([document.fonts ? document.fonts.ready : 0].concat(imgs));
+    if (!hostReadyAsked && window.hermes && typeof window.hermes.ready === "function") {
+      hostReadyAsked = true;
+      Promise.race([settled.catch(function () {}), new Promise(function (r) { setTimeout(r, 1500); })])
+        .then(function () { try { window.hermes.ready(); } catch (e) {} });
+    }
+    return settled.then(function () {
       requestAnimationFrame(function () { requestAnimationFrame(function () {
         document.documentElement.setAttribute("data-thumb-ready", "");
       }); });
@@ -386,5 +412,5 @@
   }
 
   window.kit = { textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
-    download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready };
+    download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

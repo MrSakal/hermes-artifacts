@@ -8,7 +8,9 @@ artifact (dashboard, slides, doc) is the type's runtime, shipped with this plugi
 from __future__ import annotations
 
 import base64
+import bisect
 import re
+from collections import Counter
 import json
 import mimetypes
 from pathlib import Path
@@ -68,13 +70,96 @@ def runtime(kind: str) -> str:
     return html
 
 
+MAP_MAX_LINES = 50000  # a longer page gets no line map (its errors then name no line of the file)
+
+
+def _matches(a: list, b: list) -> list:
+    """Pairs (i in a, j in b) of equal lines, both increasing, in about linear time: lines that occur once in
+    each are the anchors (their longest increasing run), and the runs of equal lines on either side of every
+    anchor are added to them. The bundler only replaces pieces of the page in place, so this finds every line
+    of the file that is still a line of the document, except inside a stretch of repeated lines that no anchor
+    or run reaches (those then name no line)."""
+    ca, cb = Counter(a), Counter(b)
+    where = {line: j for j, line in enumerate(b) if cb[line] == 1}
+    pairs = [(i, where[line]) for i, line in enumerate(a) if ca[line] == 1 and line in where]
+    # The longest run of pairs whose j increases too (patience sorting).
+    tails, tail_at, prev = [], [], [-1] * len(pairs)
+    for k, (_, j) in enumerate(pairs):
+        p = bisect.bisect_left(tails, j)
+        if p == len(tails):
+            tails.append(j)
+            tail_at.append(k)
+        else:
+            tails[p], tail_at[p] = j, k
+        prev[k] = tail_at[p - 1] if p else -1
+    chain, k = [], tail_at[-1] if tail_at else -1
+    while k != -1:
+        chain.append(pairs[k])
+        k = prev[k]
+    anchors = [(-1, -1)] + chain[::-1] + [(len(a), len(b))]
+    out = []
+    for (pi, pj), (ni, nj) in zip(anchors, anchors[1:]):
+        if pi >= 0:
+            out.append((pi, pj))
+        i, j = pi + 1, pj + 1  # forward from the anchor before
+        while i < ni and j < nj and a[i] == b[j]:
+            out.append((i, j))
+            i, j = i + 1, j + 1
+        back, i2, j2 = [], ni - 1, nj - 1  # back from the anchor after
+        while i2 >= i and j2 >= j and a[i2] == b[j2]:
+            back.append((i2, j2))
+            i2, j2 = i2 - 1, j2 - 1
+        out.extend(back[::-1])
+    return out
+
+
+_maps: dict = {}  # (version folder, entry, its mtime and size) -> the note: versions never change
+
+
+def line_map(entry: str, raw: str, html: str) -> str:
+    """A note appended to a page's document (it moves no line): which of the document's lines are the entry
+    file's own, as ``[first line here, first line in the file, count]`` blocks (1-based), so the bridge can name
+    ``index.html:12`` for an error on one. Lines the bundler wrote (an inlined script or stylesheet) are in no
+    block, and an error there names no file."""
+    a, b = raw.split("\n"), html.split("\n")  # read_text already made every line end "\n", as a browser counts them
+    blocks: list = []
+    if a == b:
+        blocks = [[1, 1, len(a)]]
+    elif len(a) <= MAP_MAX_LINES and len(b) <= MAP_MAX_LINES:
+        for i, j in _matches(a, b):
+            last = blocks[-1] if blocks else None
+            if last and last[0] + last[2] == j + 1 and last[1] + last[2] == i + 1:
+                last[2] += 1
+            else:
+                blocks.append([j + 1, i + 1, 1])
+    data = json.dumps({"f": entry, "m": blocks}, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
+    return f'<script type="application/json" id="hermes-lines">{data}</script>'
+
+
+def _page_map(vdir: Path, entry: str, html: str) -> str:
+    try:
+        st = (vdir / entry).stat()
+        key = (str(vdir), entry, st.st_mtime_ns, st.st_size)
+    except OSError:
+        return ""
+    hit = _maps.get(key)
+    if hit is None:
+        hit = line_map(entry, (vdir / entry).read_text("utf-8", "replace"), html)
+        if len(_maps) >= 256:
+            _maps.pop(next(iter(_maps)))
+        _maps[key] = hit
+    return hit
+
+
 def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:
     kind = meta.get("type", "page")
     if kind == "page":
         entry = store.safe_rel(page) if page else "index.html"
         if not (vdir / entry).is_file():
             raise FileNotFoundError(entry)
-        return bundle.bundle(vdir, entry)
+        html = bundle.bundle(vdir, entry)
+        # A card's picture reports no errors: no map for it.
+        return html if thumb else html + _page_map(vdir, entry, html)
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
             "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",  # the app's language, for the page's own words
             # A model's card draws no 3D: it needs model.json (its title), not the meshes.

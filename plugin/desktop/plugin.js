@@ -38,7 +38,7 @@ import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 const ID = 'hermes-artifacts'
 // This Desktop half's version. Tests keep it equal to plugin.yaml, dashboard/manifest.json and VERSION in
 // hermes_artifacts/running.py: a bump touches all four.
-const PLUGIN_VERSION = '0.17.0'
+const PLUGIN_VERSION = '0.18.0'
 const PAGE = '/hermes-artifacts'
 const CORE = '/artifacts'
 // The built-in view opened on purpose: the router ignores the query, the redirect does not.
@@ -131,6 +131,14 @@ const STRINGS = {
     noMatch: 'Nothing matches.',
     loading: 'Loading…',
     loadFailed: err => `Could not load it: ${err}`,
+    bandThrew: v => `v${v} had an error while starting`,
+    bandBlank: (v, old) => (old != null ? `v${v} showed nothing (an error while starting); showing v${old}` : `v${v} showed nothing (an error while starting)`),
+    bandNoLoad: (v, old) => (old != null ? `v${v} didn’t finish loading; showing v${old}` : `v${v} didn’t finish loading`),
+    bandShow: v => `Show v${v}`,
+    bandStalled: 'This page stopped responding',
+    bandRestarting: 'Restarting the page…',
+    bandStuck: 'This page still isn’t responding. Restart Hermes to recover it.',
+    tryAgain: 'Try again',
     backendDown: err =>
       `The plugin backend is not reachable (${err}). Install and enable hermes-artifacts on the Hermes ` +
       'this app is connected to, then restart its gateway.',
@@ -400,6 +408,14 @@ const STRINGS = {
     noMatch: 'Nincs találat.',
     loading: 'Betöltés…',
     loadFailed: err => `Nem sikerült betölteni: ${err}`,
+    bandThrew: v => `A v${v} indításkor hibát jelzett`,
+    bandBlank: (v, old) => (old != null ? `A v${v} üres maradt (hiba indításkor); a v${old} látszik` : `A v${v} üres maradt (hiba indításkor)`),
+    bandNoLoad: (v, old) => (old != null ? `A v${v} nem töltődött be teljesen; a v${old} látszik` : `A v${v} nem töltődött be teljesen`),
+    bandShow: v => `A v${v} mutatása`,
+    bandStalled: 'Az oldal nem válaszol',
+    bandRestarting: 'Az oldal újraindítása…',
+    bandStuck: 'Az oldal még mindig nem válaszol. Indítsd újra a Hermest.',
+    tryAgain: 'Újra',
     backendDown: err =>
       `A plugin backend nem érhető el (${err}). Telepítsd és engedélyezd a hermes-artifacts plugint azon a ` +
       'Hermesen, amihez az app kapcsolódik, majd indítsd újra a gatewayt.',
@@ -1606,12 +1622,13 @@ function Thumb({ ctx, art, height }) {
   }, [art.id, art.version, Boolean(art.preview)])
   const VW = 1280
   const scale = w ? w / VW : 0.2
+  const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
   return jsx('div', {
     ref: box,
     style: { position: 'relative', height, overflow: 'hidden', background: C.bg, pointerEvents: 'none' },
     children: pic
       ? jsx('img', { src: pic, alt: '', draggable: false, style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' } })
-      : src
+      : src && !held
       ? jsx(SandboxedFrame, {
           src,
           title: art.title,
@@ -2434,8 +2451,428 @@ function watchTheme() {
   }
 }
 
-/** One bridge per mounted frame: hello -> MessagePort; ops -> plugin API; events both ways. */
-function useBridge(ref, art, ctx, portRef) {
+// ---------------------------------------------------------------- frames: two at a swap, the heartbeat, reports
+// A new version loads out of sight while the one on screen stays; it is shown once its page says ready
+// (bridge.js, protocol 3), also when it threw while starting (a quiet band says so). Only a version that
+// threw and drew nothing, or said nothing in time, is not swapped in: the old one stays and the band offers
+// "Show vN". The shown page's heartbeat ("alive" every 2 s) tells a hung page from a slow one.
+
+const PROTOCOL = 3 // the port's v: 3 asks the page for "alive" (a page that says hello with less sends no ready)
+const SWAP_WAIT_MS = 10000 // the wait for ready, counted while in sight from the frame's hello (or WAIT_START_MS)
+const WAIT_START_MS = 10000 // a frame that never says hello: its wait starts this long (in sight) after it loads
+const TICK_MS = 1000 // the host's own tick for the wait and the heartbeat
+const BEAT_MS = 2000 // the page's "alive" period (bridge.js)
+const STALL_BAND_MS = 8000 // no beat this long while in sight: the band (three missed beats and some)
+const STALL_REPORT_MS = 20000 // ...and this long: reported to the server (heavy work blocks for seconds; that is no hang)
+const REPORT_GAP_MS = 1000 // at most one report a second per artifact
+// A frame that was on screen and goes (a swap, another artifact, Reload, the pane closed) leaves the screen at
+// once, but its port keeps serving this long: what its page sends while unloading (its pagehide: a doc's last
+// save, the bridge's last diag) still arrives and is applied. A frame never shown gets no such time.
+const CLOSE_GRACE_MS = 2000
+// ...except what would steer the viewer or open a dialog for a page no longer there.
+const GRACE_REFUSED = new Set(['navigate', 'showVersion', 'present', 'connectors', 'allowlist', 'chrome', 'view',
+  'send', 'ask', 'download', 'dataset.approve', 'dataset.test'])
+const LIVE_TYPES = new Set(['doc', 'sheet', 'board']) // their frame is the live doc itself: no second one
+
+// What a frame out of sight may do at once (bridge.js ops): reads, and what its page needs to draw itself
+// (live data, a library, a design system), and its own findings (report, like diag). Everything else, also
+// an op this list does not know, waits until the frame is shown and is dropped with it if it never is:
+// save, storage.set, preview.set, view, send, ask, download, navigate, present, showVersion, connectors,
+// allowlist, history.restore, doc.* / sheet.* / board.* edits, asks and restores, dataset.approve / decline /
+// test / edit, ds.default. chrome is answered at once and takes effect when the frame is shown.
+const PASS_OPS = new Set(['storage.get', 'storage.list', 'vendor', 'ds.get', 'chrome', 'report', 'callTool',
+  'history.list', 'history.diff', 'doc.read', 'doc.history', 'doc.file', 'sheet.read', 'sheet.history', 'sheet.at',
+  'board.read', 'board.history', 'board.at', 'dataset.run', 'dataset.call', 'dataset.history'])
+
+// Reload of a hung page. Measured in Chromium 157 (harness): every sandboxed artifact frame of the window shares ONE
+// renderer process, so a hung page freezes them all and a frame mounted again lands in the same hung process and
+// stays blank (and keeps it alive). Once no frame is left in it, the browser ends the hung process by itself,
+// about 10.5 s after it emptied; a frame that lands in it before then keeps it until that frame goes too. So a
+// Reload takes down EVERY frame of the plugin (the viewers' frames and the gallery's cards: $frameHold), waits,
+// mounts the page again, and counts it recovered when the new frame says hello; no hello in RESTART_HELLO_MS:
+// down again, a shorter or longer pause, up to three tries, then the band says what does work.
+const RESTART_PAUSES = [11000, 2000, 6000] // before each try (the first: past the ~10.5 s the browser takes)
+const RESTART_HELLO_MS = 4000
+const RELEASE_MS = 11000 // a stalled frame that goes another way (another artifact, the pane closed): frames wait too
+const FRAME_SETS = new Set() // every viewer's frames: a hung process stops them all, a hung page only its own
+const $frameHold = atom(0) // frames of this plugin may mount from this time on (ms since epoch; 0: now)
+let holdTimer = null
+/** Keep every artifact frame of the plugin unmounted for ms (a longer hold already running wins). */
+function holdFrames(ms) {
+  const until = Date.now() + ms
+  if (until <= $frameHold.get()) return
+  $frameHold.set(until)
+  clearTimeout(holdTimer)
+  holdTimer = setTimeout(() => { if (Date.now() >= $frameHold.get() - 10) $frameHold.set(0) }, ms)
+}
+const framesHeld = () => $frameHold.get() > Date.now()
+
+let frameSeq = 0
+let fromMaking = null // the artifact a being-made placeholder turned into: its outline stays until the page is ready
+
+/** Whether a viewer's stage is where the person can see it: the app's tab in front, the stage rendered,
+ *  not hidden by CSS (visibility, opacity, content-visibility; checkVisibility where the engine has it, else
+ *  its size), inside the window, and not clipped away (io: the IntersectionObserver's last word, when it has
+ *  one). The stage holds both frames, so the pending one's own opacity 0 does not count against it. */
+function inSightOf(el, io = null) {
+  try {
+    if (document.hidden || !el || el.isConnected === false) return false
+    if (typeof el.checkVisibility === 'function') {
+      if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false
+    } else if (!(el.offsetWidth > 0 && el.offsetHeight > 0)) return false
+    const r = el.getBoundingClientRect()
+    const vw = window.innerWidth || document.documentElement?.clientWidth || 0
+    const vh = window.innerHeight || document.documentElement?.clientHeight || 0
+    if (!(r.width > 0 && r.height > 0) || r.right <= 0 || r.bottom <= 0 || (vw && r.left >= vw) || (vh && r.top >= vh)) return false
+    return io?.seen ? io.visible : true
+  } catch {
+    return Boolean(el && el.offsetWidth > 0 && el.offsetHeight > 0 && !document.hidden)
+  }
+}
+
+/** The frames one viewer holds: the one shown and at most one pending (a new version loading out of sight),
+ *  in the order they were made (the DOM order: a frame is never moved, which would reload it). Plain state;
+ *  time only through tick(), so it runs under test without React. hooks: change() after any change a render
+ *  shows; report(aid, kind, body); reveal(rec) when a frame comes on screen; presenting(); now(). */
+function makeFrames(hooks = {}) {
+  const now = hooks.now || (() => Date.now())
+  const later = hooks.later || ((fn, ms) => setTimeout(fn, ms))
+  const recs = new Map()
+  let shown = null, pending = null, band = null, lastTick = null
+  const view = { current: null } // the shown frame's port: pins, comment mode, the title menu
+  const changed = () => {
+    view.current = shown?.port || null
+    try { hooks.change?.() } catch {}
+  }
+  const report = (rec, kind, body) => { try { hooks.report?.(rec.aid, kind, { version: rec.v, ...body }) } catch {} }
+  const outcome = (rec, o, extra = null) => {
+    if (rec.outcome === o) return
+    rec.outcome = o
+    report(rec, 'shown', { outcome: o, ...extra })
+  }
+  function make(key, v, aid, src = null) {
+    const rec = { id: ++frameSeq, key, v, aid, src, err: null, hello: 0, legacy: false, port: null, ready: null, outcome: null,
+      queue: [], exports: null, pre: 0, waited: 0, beat: now(), stalled: false, stallSent: false, held: null, dead: false }
+    recs.set(rec.id, rec)
+    return rec
+  }
+  function drop(rec) {
+    if (!rec || rec.dead) return
+    // A hung frame leaving (stalled, or on screen and silent for two beats and more): no frame may land in its process until the
+    // browser has ended it.
+    const quiet = shown === rec && rec.port && !rec.legacy && rec.hello >= PROTOCOL && now() - rec.beat > 2 * BEAT_MS + 500
+    if (rec.stalled || quiet) try { hooks.hold?.(RELEASE_MS) } catch {}
+    rec.dead = true
+    recs.delete(rec.id) // out of the list: React unmounts the frame now
+    rec.queue.length = 0 // its waiting ops go with it
+    if (shown === rec) shown = null
+    if (pending === rec) pending = null
+    const close = () => {
+      rec.grace = false
+      try { rec.port?.close() } catch {}
+      rec.port = null
+    }
+    if (rec.wasShown && rec.port) { // its page's last words while it unloads: CLOSE_GRACE_MS, then closed
+      rec.grace = true
+      later(close, CLOSE_GRACE_MS)
+    } else close()
+  }
+  function reveal(rec, b = null) {
+    if (rec.dead) return
+    if (shown && shown !== rec) drop(shown)
+    if (pending === rec) pending = null
+    shown = rec
+    rec.wasShown = true
+    if (b) band = b
+    rec.held = null
+    rec.beat = now()
+    const q = rec.queue.splice(0)
+    changed()
+    try { hooks.reveal?.(rec) } catch {}
+    q.forEach(fn => { try { fn() } catch {} })
+  }
+  /** A frame that did not load (drew nothing, or no ready in time): with one on screen it goes and a band
+   *  offers it; alone it shows anyway, with the band. */
+  function fail(rec, why) {
+    if (shown && shown !== rec) {
+      band = { kind: 'failed', why, v: rec.v, old: shown.v, key: rec.key, aid: rec.aid, src: rec.src }
+      drop(rec)
+      changed()
+    } else reveal(rec, { kind: 'failed', why, v: rec.v, old: null, key: rec.key })
+  }
+  const threwBand = rec => ({ kind: 'failed', why: 'threw', v: rec.v, old: null, key: rec.key })
+  const live = rec => Boolean(rec && !rec.dead && recs.get(rec.id) === rec)
+  let restart = null // a Reload of a hung page: {key, v, aid, src, try, until, rec, deadline}
+  function nextTry(t) {
+    restart.rec = null
+    restart.try++
+    if (restart.try > RESTART_PAUSES.length) {
+      band = { kind: 'stuck', key: restart.key, v: restart.v, aid: restart.aid, src: restart.src }
+      restart = null
+    } else {
+      const pause = RESTART_PAUSES[restart.try - 1]
+      restart.until = t + pause
+      try { hooks.hold?.(pause) } catch {}
+    }
+    changed()
+  }
+  /** Frames whose page has not beaten for STALL_BAND_MS at time t (with a heartbeat at all). */
+  const silent = t => [...recs.values()].filter(r => r.port && !r.legacy && r.hello >= PROTOCOL && t - r.beat > STALL_BAND_MS).length
+  const api = {
+    silent,
+    get restarting() { return Boolean(restart) },
+    view,
+    get shown() { return shown },
+    get pending() { return pending },
+    get band() { return band },
+    list: () => [...recs.values()],
+    live,
+    hidden: rec => shown !== rec,
+    /** The frame to show is `key` (artifact, version, reload, page). mode 'swap': load it out of sight first;
+     *  'now': replace at once (another artifact, a live type, Reload). The new record, or null when that one
+     *  is already shown or loading. */
+    want(key, v, aid, mode = 'swap') {
+      if (shown && shown.key === key) {
+        if (pending) drop(pending)
+        if (band?.kind === 'failed' && band.key !== key) band = null
+        changed()
+        return null
+      }
+      if (pending && pending.key === key) return null
+      if (pending) drop(pending) // the newest wins
+      band = null
+      restart = null // another version or artifact: that one loads (after a hold still running)
+      const rec = make(key, v, aid)
+      if (mode === 'now' || (shown && shown.aid !== aid)) reveal(rec)
+      else {
+        pending = rec
+        changed()
+      }
+      return rec
+    },
+    /** The page on screen saved a newer version of itself and stays (keepFrame): its reports name that one. */
+    /** The page on screen saved a newer version of itself and stays (keepFrame): its FUTURE reports go under
+     *  that version. No "shown" for it: that version never had a load of its own, so the agent keeps hearing
+     *  "not opened yet" for it, and what this frame logged before the save stays under the version it loaded. */
+    advance(key, v) {
+      const s = shown
+      if (!s || s.key !== key || s.v === v || typeof v !== 'number') return
+      s.v = v
+    },
+    /** A frame that was shown and has just gone, whose port still serves (CLOSE_GRACE_MS). */
+    closing: rec => Boolean(rec && rec.dead && rec.grace),
+    setSrc(rec, src) {
+      if (!live(rec)) return
+      rec.src = src
+      changed()
+    },
+    setErr(rec, err) {
+      if (!live(rec)) return
+      rec.err = String(err)
+      if (pending === rec) return fail(rec, 'load')
+      changed()
+    },
+    hold(rec, fn) { if (live(rec)) rec.queue.push(fn) },
+    hello(rec, pv) {
+      if (!live(rec)) return
+      rec.hello = Number(pv) || 0
+      // An older bridge (an older server behind this Desktop) sends no ready: shown at once, as before.
+      rec.legacy = rec.hello < PROTOCOL
+      if (rec.legacy && pending === rec) reveal(rec)
+      if (restart?.rec === rec) { // the page is back: a fresh load, which reports as one
+        restart = null
+        if (band?.kind === 'restarting') band = null
+        changed()
+      }
+    },
+    port(rec, port) {
+      if (!live(rec)) return
+      rec.port = port
+      rec.beat = now()
+      if (shown === rec) changed()
+    },
+    /** The page's ready: shown unless it threw AND drew nothing (blank); a missing blank counts as false. */
+    ready(rec, threw, blank = false) {
+      if (!live(rec) || rec.ready) return
+      threw = Boolean(threw)
+      blank = threw && blank === true
+      rec.ready = { threw, blank }
+      outcome(rec, threw ? 'threw' : 'ready', blank ? { blank: true } : null) // blank: the old one stayed
+      if (pending === rec) {
+        if (blank) return fail(rec, 'blank')
+        const b = threw ? threwBand(rec) : null
+        if (hooks.presenting?.()) { rec.held = { band: b }; return } // not under a deck being presented: when it ends
+        return reveal(rec, b)
+      }
+      if (shown === rec) {
+        if (threw) band = { ...threwBand(rec), why: blank ? 'blank' : 'threw' }
+        else if (band?.kind === 'failed' && band.key === rec.key) band = null // a slow one that made it after all
+        changed()
+      }
+    },
+    diag(rec, detail) {
+      if (!live(rec) && !(rec?.dead && rec.grace)) return
+      const body = diagBody(detail)
+      if (body) report(rec, 'diag', body)
+    },
+    beat(rec) {
+      if (!live(rec)) return
+      rec.beat = now()
+      if (!rec.stalled) return
+      rec.stalled = false
+      // It was only busy: the server's record goes back to how the page had shown.
+      if (rec.stallSent) {
+        rec.stallSent = false
+        if (rec.outcome === 'ready' || rec.outcome === 'threw') {
+          report(rec, 'shown', { outcome: rec.outcome, recovered: true, ...(rec.ready?.blank ? { blank: true } : {}) })
+        }
+      }
+      if (band?.kind === 'stalled' && shown === rec) band = null
+      changed()
+    },
+    /** Every TICK_MS: the wait for ready and the heartbeat. inSight: the host's tab is in front and this
+     *  viewer's pane is shown. A tick that comes late (a host asleep or throttled) accuses no page. */
+    tick(inSight) {
+      const t = now()
+      const late = lastTick !== null && t - lastTick > 2 * TICK_MS
+      const step = lastTick === null || late ? TICK_MS : t - lastTick
+      lastTick = t
+      const held = Boolean(hooks.held?.())
+      if (held) inSight = false // the frames are down: nothing loads, nothing beats
+      if (restart && !restart.rec && t >= restart.until && !held) {
+        const r = make(restart.key, restart.v, restart.aid, restart.src)
+        restart.rec = r
+        restart.deadline = t + RESTART_HELLO_MS
+        reveal(r)
+      } else if (restart?.rec && !restart.rec.hello && t >= restart.deadline) {
+        drop(restart.rec) // landed in the hung process again
+        nextTry(t)
+      }
+      if (inSight) {
+        for (const rec of [...recs.values()]) {
+          if (rec.ready || rec.legacy || rec.outcome || !rec.src || rec.err) continue
+          // The wait starts at the page's hello (or, without one, WAIT_START_MS after the frame loads).
+          if (!rec.hello && rec.pre < WAIT_START_MS) { rec.pre += step; continue }
+          rec.waited += step
+          if (rec.waited < SWAP_WAIT_MS) continue
+          outcome(rec, 'timeout')
+          if (pending === rec) fail(rec, 'timeout')
+          else if (shown === rec) {
+            band = { kind: 'failed', why: 'timeout', v: rec.v, old: null, key: rec.key }
+            changed()
+          }
+        }
+      }
+      const s = shown
+      if (!s || !s.port || s.legacy || s.hello < PROTOCOL) return
+      if (late || !inSight) { s.beat = t; return } // paused: no beats are expected of a page nobody sees
+      const gap = t - s.beat
+      if (!s.stalled && gap > STALL_BAND_MS) {
+        s.stalled = true
+        band = { kind: 'stalled', key: s.key }
+        changed()
+      }
+      // Only a page that is silent alone is the culprit: when other frames (another version loading, another
+      // viewer) went silent with it, the whole process is stuck and no page is blamed to the server.
+      if (s.stalled && !s.stallSent && gap >= STALL_REPORT_MS) {
+        let others = -1
+        FRAME_SETS.forEach(f => { others += f.silent(t) })
+        if (others > 0) return
+        s.stallSent = true
+        report(s, 'shown', { outcome: 'stalled' })
+      }
+    },
+    presenting(on) { if (!on && pending?.held) reveal(pending, pending.held.band) },
+    /** "Show vN" on a failed band: that version, at once. */
+    force() {
+      const b = band
+      if (!b || b.kind !== 'failed' || !b.src) return
+      band = null
+      if (pending) drop(pending)
+      reveal(make(b.key, b.v, b.aid, b.src))
+    },
+    /** Reload on a stalled band (or Try again once it is stuck): every frame down, then the page again. */
+    reload() {
+      const base = shown || (band?.kind === 'stuck' ? band : null)
+      if (!base || restart) return
+      const info = { key: base.key, v: base.v, aid: base.aid, src: base.src }
+      const hung = Boolean(shown?.stalled)
+      if (pending) drop(pending)
+      if (shown) drop(shown) // a hung one holds every frame as it goes (RELEASE_MS)
+      restart = { ...info, try: 1, until: now() + RESTART_PAUSES[0], rec: null, deadline: 0 }
+      if (!hung) try { hooks.hold?.(RESTART_PAUSES[0]) } catch {}
+      band = { kind: 'restarting', key: info.key }
+      changed()
+    },
+    dispose() {
+      FRAME_SETS.delete(api)
+      for (const rec of [...recs.values()]) drop(rec)
+      band = null
+      restart = null
+    }
+  }
+  FRAME_SETS.add(api)
+  return api
+}
+
+/** A page's "diag" detail made safe to forward: the server checks it too, this keeps one post small. */
+function diagBody(detail) {
+  const d = detail && typeof detail === 'object' ? detail : {}
+  const cut = (x, n) => (typeof x === 'string' ? x.slice(0, n) : undefined)
+  const count = x => (Number.isFinite(x) && x > 0 ? Math.min(Math.floor(x), 1e6) : 0)
+  const all = Array.isArray(d.entries) ? d.entries.filter(e => e && typeof e === 'object') : []
+  const entries = all.slice(0, 20).map(e => {
+    const o = { k: cut(e.k, 20) || 'other', m: cut(e.m, 300) || '', n: count(e.n) || 1 }
+    for (const [k, n] of [['at', 200], ['tag', 20], ['url', 500]]) if (typeof e[k] === 'string') o[k] = e[k].slice(0, n)
+    if (Array.isArray(e.stack)) o.stack = e.stack.slice(0, 3).filter(s => typeof s === 'string').map(s => s.slice(0, 200))
+    return o
+  })
+  const dropped = count(d.dropped) + (all.length - entries.length)
+  return entries.length || dropped ? { entries, dropped } : null
+}
+
+// Page diagnostics and frame outcomes to the plugin's own routes (artifacts/<id>/diag, /shown) with the version
+// THIS host holds for the frame, never the page's claim. Best effort and never in the page's way: a failed post
+// is dropped; the server's {off: true} (the page_diagnostics setting is off) stops them for this run of the app.
+let reportsOff = false
+const reportQ = new Map() // artifact id -> {busy, items: [{kind, body}]}
+function hostReport(ctx, aid, kind, body) {
+  if (reportsOff || !aid || !ctx?.rest) return
+  let q = reportQ.get(aid)
+  if (!q) reportQ.set(aid, (q = { busy: false, items: [] }))
+  const last = q.items[q.items.length - 1]
+  if (kind === 'diag' && last?.kind === 'diag' && last.body.version === body.version) {
+    // Waiting for the gap: one post for both (the counts are deltas; the server merges equal entries).
+    const all = last.body.entries.concat(body.entries)
+    last.body.entries = all.slice(0, 20)
+    last.body.dropped += body.dropped + (all.length - last.body.entries.length)
+  } else {
+    if (q.items.length >= 20) q.items.shift() // a page that floods: the oldest go
+    q.items.push({ kind, body: { ...body, viewer: 'desktop' } })
+  }
+  pumpReports(ctx, aid, q)
+}
+async function pumpReports(ctx, aid, q) {
+  if (q.busy) return
+  q.busy = true
+  try {
+    while (q.items.length && !reportsOff) {
+      const { kind, body } = q.items.shift()
+      try {
+        const r = await ctx.rest(`/artifacts/${enc(aid)}/${kind}`, { method: 'POST', body })
+        if (r && r.off === true) reportsOff = true
+      } catch {}
+      if (q.items.length) await new Promise(res => setTimeout(res, REPORT_GAP_MS))
+    }
+  } finally {
+    q.busy = false
+    if (!q.items.length && reportQ.get(aid) === q) reportQ.delete(aid)
+  }
+}
+
+/** One frame's bridge (hello -> its own MessagePort; ops -> plugin API; events both ways). A frame out of sight
+ *  answers reads at once and keeps the rest until it is shown (PASS_OPS). */
+function useBridge(ref, art, ctx, portRef, rec, F) {
   const t = usePluginI18n(ID)
   useEffect(() => {
     watchTheme()
@@ -2448,16 +2885,22 @@ function useBridge(ref, art, ctx, portRef) {
     const { id: aid, title } = art
     // The artifact as the list has it now (its chat and latest version move on while the frame stays).
     const live = () => { const c = current(); return c && c.id === aid ? c : art0 }
+    const pageEvent = (event, detail) => {
+      if (event === 'ready') return F.ready(rec, detail?.threw === true, detail?.blank === true)
+      if (event === 'diag') return F.diag(rec, detail)
+      if (event === 'alive') return F.beat(rec)
+      if (F.hidden(rec)) return // out of sight and inert: nothing the person did there
+      onPageEvent(event, detail)
+    }
     const onMessage = e => {
       const frame = ref.current
-      if (!frame || e.source !== frame.contentWindow) return
+      if (!frame || e.source !== frame.contentWindow || !F.live(rec)) return
       const d = e.data
       if (!d || d.__hermes_bridge !== 1 || d.kind !== 'hello') return
+      F.hello(rec, typeof d.v === 'number' ? d.v : 0)
       const ch = new MessageChannel()
       portRef.current = ch.port1
-      ch.port1.onmessage = async ev => {
-        const m = ev.data || {}
-        if (m.event) return onPageEvent(m.event, m.detail)
+      const handle = async m => {
         const reply = r => ch.port1.postMessage({ id: m.id, ...r })
         const gesture = navigator.userActivation?.isActive === true
         const art = live()
@@ -2479,7 +2922,8 @@ function useBridge(ref, art, ctx, portRef) {
           }
           if (m.op === 'chrome') {
             const list = Array.isArray(m.args?.exports) ? m.args.exports : []
-            $exports.set(list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) })))
+            rec.exports = list.slice(0, 12).filter(x => x && typeof x.id === 'string').map(x => ({ id: x.id.slice(0, 40), label: String(x.label || x.id).slice(0, 60) }))
+            if (!F.hidden(rec)) $exports.set(rec.exports) // else when it is shown
             return reply({ ok: true, value: { ok: true } })
           }
           if (m.op === 'view') {
@@ -2594,7 +3038,19 @@ function useBridge(ref, art, ctx, portRef) {
           reply({ ok: false, error: String(err?.message || err) })
         }
       }
-      frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: 2 }, '*', [ch.port2])
+      ch.port1.onmessage = ev => {
+        const m = ev.data || {}
+        if (m.event) return pageEvent(m.event, m.detail)
+        if (F.closing(rec)) { // its page's last edits as it went: they are the person's own
+          if (GRACE_REFUSED.has(m.op)) return ch.port1.postMessage({ id: m.id, ok: false, error: 'the page is closing' })
+          return handle(m)
+        }
+        if (!F.live(rec)) return
+        if (F.hidden(rec) && !PASS_OPS.has(m.op)) return F.hold(rec, () => handle(m))
+        return handle(m)
+      }
+      frame.contentWindow.postMessage({ __hermes_bridge: 1, kind: 'port', v: PROTOCOL }, '*', [ch.port2])
+      F.port(rec, ch.port1)
       postToPage(portRef, 'theme', { mode: hostMode(), vars: hostTheme() })
       postToPage(portRef, 'run', runInfo())
       const ro = $reopen.get()
@@ -2605,9 +3061,10 @@ function useBridge(ref, art, ctx, portRef) {
       const now = live()
       postToPage(portRef, 'versions', { latest: now.version, shown: $shown.get() ?? now.version })
       sendPins(portRef)
+      if (!F.hidden(rec) && $picking.get()) postToPage(portRef, 'comment-mode', { on: true })
     }
     const offMessage = listen(ctx, window, 'message', onMessage)
-    const exit = () => postToPage(portRef, 'present-exit', {})
+    const exit = () => { if (!F.hidden(rec)) postToPage(portRef, 'present-exit', {}) }
     presentExit.add(exit)
     const docPush = id => id === aid && postToPage(portRef, 'doc', {})
     docListeners.add(docPush)
@@ -2621,15 +3078,75 @@ function useBridge(ref, art, ctx, portRef) {
       offMessage()
       presentExit.delete(exit)
       docListeners.delete(docPush)
-      const session = viewSessions.get(aid)
-      if (session) {
-        viewSessions.delete(aid)
-        ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: 'view', args: { session, closed: true } } }).catch(() => {})
-      }
       portRef.current = null
-      if ($presenting.get()) $presenting.set(false)
     }
   }, [art?.id, art?.title])
+}
+
+/** One artifact frame. Out of sight (a version loading) it stays in the viewport, invisible and inert, in
+ *  our own wrapper: Chromium may defer a frame that is display:none or off screen, and SandboxedFrame takes
+ *  no aria or inert props. Shown and hidden are the same element, so the swap never reloads it. */
+function Frame({ ctx, art, rec, F, presenting }) {
+  const t = usePluginI18n(ID)
+  const ref = useRef(null)
+  const portRef = useRef(null)
+  const wrap = useRef(null)
+  const hidden = F.hidden(rec)
+  const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
+  useBridge(ref, art, ctx, portRef, rec, F)
+  useEffect(() => { if (wrap.current) wrap.current.inert = hidden }, [hidden])
+  return jsx('div', {
+    ref: wrap,
+    'aria-hidden': hidden ? 'true' : undefined,
+    'data-frame': hidden ? 'pending' : 'shown',
+    style: hidden
+      ? { position: 'absolute', inset: 0, display: 'flex', opacity: 0, pointerEvents: 'none' }
+      : { position: 'relative', flex: 1, minWidth: 0, display: 'flex' },
+    children: rec.src && !held
+      ? jsx(SandboxedFrame, {
+          ref,
+          sandbox: SANDBOX,
+          src: rec.src,
+          title: art.title,
+          // The letterbox around a presenting deck is chrome: core's full-window media backdrop (bg-black).
+          className: presenting && !hidden ? MEDIA_BACKDROP : undefined,
+          style: presenting && !hidden
+            ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0 }
+            : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
+        })
+      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: rec.err ? t('loadFailed', rec.err) : t('loading') })
+  })
+}
+
+/** One quiet line under the header (as the making band): a version that did not load while another shows
+ *  ("Show vN"), or a page that stopped answering ("Reload"). */
+function FrameBand({ F }) {
+  const t = usePluginI18n(ID)
+  const [h, hp] = useHover()
+  const b = F.band
+  if (!b) return null
+  const text = b.kind === 'stalled' ? t('bandStalled') : b.kind === 'restarting' ? t('bandRestarting') : b.kind === 'stuck' ? t('bandStuck')
+    : b.why === 'threw' ? t('bandThrew', b.v) : t(b.why === 'blank' ? 'bandBlank' : 'bandNoLoad', b.v, b.old)
+  const act = b.kind === 'stalled' ? [t('reload'), () => F.reload()] : b.kind === 'stuck' ? [t('tryAgain'), () => F.reload()] : b.kind === 'restarting' ? null : b.old != null && b.src ? [t('bandShow', b.v), () => F.force()] : null
+  return jsxs('div', {
+    role: 'status',
+    'aria-live': 'polite',
+    style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, padding: '6px 12px', fontSize: 12, color: C.text2, borderBottom: `1px solid ${C.line}` },
+    children: [
+      // One height with or without the action (20px lines), so the band does not jump when it changes.
+      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, lineHeight: '20px' }, title: text, children: text }),
+      act
+        ? jsx('button', {
+            type: 'button',
+            onClick: act[1],
+            ...hp,
+            style: { ...font, flexShrink: 0, border: 0, borderRadius: C.rSm, padding: '0 8px', fontSize: 12, lineHeight: '20px', cursor: 'pointer',
+              color: h ? C.fg : C.accent, background: h ? C.hover : 'transparent' },
+            children: act[0]
+          })
+        : null
+    ]
+  })
 }
 
 const keepFrame = new Map() // artifact id -> the versions its own page saved (shown already: no reload)
@@ -2790,6 +3307,7 @@ function closeDock() {
  *  the registry removes by id and would take the new tile with it. */
 function dock(ctx, art) {
   markClosed(art.session, false)
+  if ($dockMaking.get()) fromMaking = art.id // its outline stays until the page is ready
   $dockMaking.set(null) // a placeholder there becomes the artifact
   openTile(ctx, art.title)
 }
@@ -3975,22 +4493,73 @@ function Viewer({ ctx, docked = false }) {
   const nonce = useValue($nonce)
   const page = useValue($page)
   const panel = useValue($panel)
-  const ref = useRef(null)
-  const portRef = useRef(null)
+  const stage = useRef(null)
   const presenting = useValue($presenting)
   const chat = useValue($chat)
   const picking = useValue($picking)
   const comments = useValue($comments)
   const makings = useValue($makings)
+  const [, setTick] = useState(0)
   const art = current()
+  // The frames this viewer holds (makeFrames): the one shown, and a new version loading out of sight.
+  const fr = useRef(null)
+  if (!fr.current) {
+    fr.current = makeFrames({
+      change: () => setTick(n => n + 1),
+      report: (aid, kind, body) => hostReport(ctx, aid, kind, body),
+      presenting: () => $presenting.get(),
+      hold: ms => holdFrames(ms),
+      held: framesHeld,
+      // On screen now: its exports in our toolbar, comment mode and the pins (also re-sent on its hello).
+      reveal: rec => {
+        $exports.set(rec.exports || [])
+        if (fromMaking === rec.aid) fromMaking = null
+        postToPage(fr.current.view, 'comment-mode', { on: $picking.get() })
+        sendPins(fr.current.view)
+      }
+    })
+  }
+  const F = fr.current
+  const portRef = F.view // the shown frame's port
   // Its chat is making another artifact (the placeholder stays away while this one shows): the step line here.
   const making = art?.session && !$dockMaking.get() ? makings[art.session] || null : null
   // Comment mode and the pins reach the page whether or not the comments list is open.
   useEffect(() => postToPage(portRef, 'comment-mode', { on: picking }), [picking])
   useEffect(() => sendPins(portRef), [comments])
-  const [src, setSrc] = useState(null)
-  const [loadErr, setLoadErr] = useState(null)
-  useBridge(ref, art, ctx, portRef)
+  // The host's tick (the wait for ready, the heartbeat) while this viewer is mounted; a deck that stops
+  // presenting lets a version that came meanwhile in.
+  useEffect(() => {
+    // Clipping by the app's own panes (a background tab, a scrolled-away tile) is the observer's to see.
+    const io = { seen: false, visible: true }
+    let obs = null
+    try {
+      if (typeof IntersectionObserver === 'function' && stage.current) {
+        obs = new IntersectionObserver(es => { const x = es[es.length - 1]; io.seen = true; io.visible = Boolean(x?.isIntersecting) })
+        obs.observe(stage.current)
+      }
+    } catch {}
+    const off = every(ctx, () => F.tick(inSightOf(stage.current, io)), TICK_MS)
+    const offPresent = $presenting.listen(on => F.presenting(on))
+    return () => {
+      typeof off === 'function' ? off() : clearInterval(off)
+      obs?.disconnect()
+      offPresent()
+      F.dispose()
+    }
+  }, [])
+  // The artifact's view context and full screen belong to the viewer, not to one of its frames.
+  useEffect(() => {
+    if (!art) return undefined
+    const aid = art.id
+    return () => {
+      const session = viewSessions.get(aid)
+      if (session) {
+        viewSessions.delete(aid)
+        ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: 'view', args: { session, closed: true } } }).catch(() => {})
+      }
+      if ($presenting.get()) $presenting.set(false)
+    }
+  }, [art?.id])
 
   const v = art ? (shown ?? art.version) : null
   // The version the frame holds: a newer one its own page saved (autosave, an edit) is shown already,
@@ -4000,47 +4569,47 @@ function Viewer({ ctx, docked = false }) {
   const own = art && keepFrame.get(art.id)
   const fv = art && h0.id === art.id && h0.nonce === nonce && shown === null && h0.v !== null && own && own.has(v) ? h0.v : v
   held.current = { id: art?.id ?? null, v: fv, nonce }
+  const key = art ? `${art.id}:${fv}:${nonce}:${page || ''}` : null
   useEffect(() => {
-    if (!art) return undefined
-    let live = true
-    setSrc(null)
-    setLoadErr(null)
-    $exports.set([])
+    if (!art) return
+    // Another artifact, or a live type (its frame is the live doc itself): at once. A new version of the
+    // same one loads out of sight first.
+    const rec = F.want(key, fv, art.id, LIVE_TYPES.has(art.type) ? 'now' : 'swap')
+    if (!rec) return
     if (nonce) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:${fv}:`) && htmlCache.delete(k))
     fetchHtml(ctx, art.id, fv, { page })
-      .then(u => live && setSrc(u))
-      .catch(err => live && setLoadErr(String(err?.message || err)))
-    return () => {
-      live = false
-    }
-  }, [art?.id, fv, nonce, page])
+      .then(u => F.setSrc(rec, u))
+      .catch(err => F.setErr(rec, String(err?.message || err)))
+  }, [key])
+  // The page saved a newer version and keeps its frame (keepFrame): its reports go under that version now.
+  useEffect(() => { if (art && fv !== v) F.advance(key, v) }, [key, v])
 
   if (!art) return null
+  const band = F.band
+  // The header names the version on screen when a newer one did not load.
+  const hv = band?.kind === 'failed' && band.old != null ? band.old : v
   return jsxs('div', {
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
     children: [
-      jsx(Header, { ctx, art, v, portRef, docked }),
+      jsx(Header, { ctx, art, v: hv, portRef, docked }),
       making ? jsx(MakingLine, { ctx, m: making, band: true }) : null,
+      jsx(FrameBand, { F }),
       jsxs('div', {
         style: { position: 'relative', display: 'flex', flex: 1, minHeight: 0 },
         children: [
           jsxs('div', {
+            ref: stage,
             id: docked ? undefined : `${ID}-stage`,
             style: { position: 'relative', flex: 1, minWidth: 0, display: 'flex' },
             children: [
-          src
-            ? jsx(SandboxedFrame, {
-                ref,
-                sandbox: SANDBOX,
-                src,
-                title: art.title,
-                // The letterbox around a presenting deck is chrome: core's full-window media backdrop (bg-black).
-                className: presenting ? MEDIA_BACKDROP : undefined,
-                style: presenting
-                  ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0 }
-                  : { flex: 1, minWidth: 0, height: '100%', border: 0, background: C.bg }
-              }, `${art.id}:${fv}:${nonce}:${page || ''}`) // the key as jsx's own argument, not inside the props
-            : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: loadErr ? t('loadFailed', loadErr) : t('loading') }),
+              // Never moved, only added and removed: the key is the frame's own.
+              jsx(Fragment, { children: F.list().map(rec => jsx(Frame, { ctx, art, rec, F, presenting }, `f${rec.id}`)) }),
+              // Nothing on screen yet (a first load): the being-made outline it came from, else "Loading".
+              F.shown
+                ? null
+                : fromMaking === art.id
+                  ? jsx(MakingSkeleton, { type: art.type })
+                  : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') }),
               docked ? null : jsx(CommentPopover, { ctx, art }),
               jsx(ConfirmSend, {}),
               chat === 'float' && !docked ? jsx(FloatingChat, { ctx, art }, art.id) : null
