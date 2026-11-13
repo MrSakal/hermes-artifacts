@@ -176,13 +176,13 @@
     if (C.files["design-system.json"] != null) files["design-system.json"] = withChange(note);
     status("saving");
     return window.hermes.save(files, C.version).then(function (r) {
-      if (!r || r.conflict || !r.ok) { status("failed"); kit.toast(r && r.conflict ? T.conflict : T.notSaved); return false; }
+      if (!r || r.conflict || !r.ok) { status("failed"); kit.toast(r && r.conflict ? T.conflict : T.notSaved, 0, "error"); return false; }
       C.version = r.version;
       Object.keys(files).forEach(function (p) { if (files[p] == null) delete C.files[p]; else C.files[p] = files[p]; });
       load();
       status("saved");
       return true;
-    }, function (e) { status("failed"); kit.toast(String(e && e.message || T.notSaved)); return false; });
+    }, function (e) { status("failed"); kit.toast(String(e && e.message || T.notSaved), 0, "error"); return false; });
   }
   function tokensText(t) { return JSON.stringify(t, null, 2) + "\n"; }
 
@@ -239,7 +239,7 @@
       if (!all["tokens.css"]) all["tokens.css"] = new TextEncoder().encode(tokensCss());
       var zip = fflate.zipSync(all, { level: 6 });
       kit.download(kit.slug(S.title) + ".zip", new Blob([zip], { type: "application/zip" }), "application/zip");
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   var exportList = [
     { id: "tokens-css", label: T.css, run: function () { kit.download("tokens.css", tokensCss(), "text/css"); } },
@@ -591,7 +591,7 @@
   // ---- asking Hermes (staged in the artifact's chat, the user sends it)
   function askHermes(text, data) {
     if (!window.hermes || !window.hermes.send) return;
-    window.hermes.send(text, data || { section: state.section }).then(null, function (e) { kit.toast(String(e && e.message || e)); });
+    window.hermes.send(text, data || { section: state.section }).then(null, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function askBox(what) {
     var can = !C.thumb && window.hermes && window.hermes.send;
@@ -640,7 +640,7 @@
   }
   function confirmMenu(anchor, q, fn) { kit.menu(anchor, [{ hint: q }, { label: T.del, onClick: fn }]); }
   function copyText(s) {
-    var done = function () { kit.toast(X.copied + ": " + s); };
+    var done = function () { kit.toast(X.copied + ": " + s, 0, "success"); };
     try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s).then(done, fallback); } catch (e) {}
     fallback();
     function fallback() {
@@ -692,7 +692,7 @@
     var next = JSON.parse(JSON.stringify(S.tokens || {}));
     var list = next[fam] && Array.isArray(next[fam].tokens) ? next[fam].tokens : [];
     var entry = list.filter(function (t) { return t && cleanKey(t.name) === name; })[0];
-    if (!entry) { kit.toast(T.notSaved); return Promise.resolve(false); }
+    if (!entry) { kit.toast(T.notSaved, 0, "error"); return Promise.resolve(false); }
     var err = fn(entry, next);
     if (err) { kit.toast(err); render(); return Promise.resolve(false); }
     return saveTokens(next, note);
@@ -1213,7 +1213,7 @@
   function editStyle(name, fn, note) {
     var next = JSON.parse(JSON.stringify(S.tokens || {})), hit = null;
     ((next.type && next.type.groups) || []).forEach(function (g) { (g.styles || []).forEach(function (s) { if (!hit && s && cleanKey(s.name) === name) hit = s; }); });
-    if (!hit) { kit.toast(T.notSaved); return Promise.resolve(false); }
+    if (!hit) { kit.toast(T.notSaved, 0, "error"); return Promise.resolve(false); }
     var err = fn(hit, next);
     if (err) { kit.toast(err); return Promise.resolve(false); }
     return saveTokens(next, note);
@@ -1330,7 +1330,7 @@
     var file = fontPick.files && fontPick.files[0];
     if (!file) return;
     var ext = (/\.(woff2?|ttf|otf)$/i.exec(file.name) || [])[1];
-    if (!ext || file.size > 8 * 1024 * 1024) { kit.toast(X.fontTooBig); return; }
+    if (!ext || file.size > 8 * 1024 * 1024) { kit.toast(X.fontTooBig, 0, "error"); return; }
     ext = ext.toLowerCase();
     var base = file.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "font";
     var name = base + "." + ext, n = 2;
@@ -1347,7 +1347,7 @@
       var family = base.replace(/[-_]?(thin|extra-?light|light|regular|medium|semi-?bold|extra-?bold|bold|black|heavy|italic|variable|vf)\b/gi, "").replace(/[-_]+/g, " ").trim() || base;
       next.type.fonts.push({ family: family, file: name, weight: String(w), style: /italic/i.test(base) ? "italic" : "normal" });
       files["tokens.json"] = tokensText(next);
-      saveFiles(files, "uploaded fonts/" + name).then(function (ok) { if (ok) { kit.toast(T.uploaded + ": " + name); state.section = "type"; render(); } });
+      saveFiles(files, "uploaded fonts/" + name).then(function (ok) { if (ok) { kit.toast(T.uploaded + ": " + name, 0, "success"); state.section = "type"; render(); } });
     };
     rd.readAsDataURL(file);
   });
@@ -1525,7 +1525,7 @@
     if (!file || !g) return;
     // An SVG goes up as its text (the server keeps it only when static) and shows through <img>.
     var svg = file.type === "image/svg+xml" || (!file.type && /\.svg$/i.test(file.name));
-    if (svg ? file.size > 2 * 1024 * 1024 : !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig); return; }
+    if (svg ? file.size > 2 * 1024 * 1024 : !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig, 0, "error"); return; }
     var ext = svg ? "svg" : { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" }[file.type];
     var base = file.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "image";
     var name = base + "." + ext, n = 2;
@@ -1544,7 +1544,7 @@
       rec.files[name] = { name: name, size: file.size, type: svg ? "image/svg+xml" : file.type };
       saveFiles(files, "uploaded " + path).then(function (ok) {
         if (!ok) { load(); return; }
-        kit.toast(T.uploaded + ": " + name);
+        kit.toast(T.uploaded + ": " + name, 0, "success");
         state.section = "assets"; state.editing = null; render();
       });
     };

@@ -223,6 +223,20 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P.run('hermes.storage.get("a")').then(null, () => { r2.at = P.now }); await P.tick(0)
   out.alone = { hello: P.hello.length, rejectedAt: r2.at }
 
+  // --- the page's own toast: its mark says its kind (i, a check, an alert) ------------------------------
+  P = page({ alone: true }); P.dcl(); P.load(); vm.runInContext(KIT, P.sb)
+  out.marks = []
+  for (const k of ['info', 'success', 'error', 'warn']) {
+    P.run('kit.toast("note", 0, ' + JSON.stringify(k) + ')'); await P.tick(0)
+    const t = P.doc.toasts[P.doc.toasts.length - 1]
+    out.marks.push([t.getAttribute('class'), t.getAttribute('role'), (t.innerHTML || '').replace(/<\/?svg[^>]*>|<circle[^>]*>/g, '')])
+  }
+  // --- Hermes at work: a read without hermes_ago is "just now", never NaN ---------------------------
+  P = page(); P.connect(3); P.dcl(); P.load(); vm.runInContext(KIT, P.sb); await P.tick(10)
+  P.port.onmessage({ data: { event: 'run', detail: { on: false } } })
+  out.workLeft = P.run('kit.hermesWork.seen(true, 10); kit.hermesWork.left()')
+  out.workOnAfterRun = P.run('kit.hermesWork.on()')
+
   // --- "at": where it is true, and nowhere else ---------------------------------------------------------
   // Hermes Desktop: one document; the server's map says which lines are index.html's own.
   P = page({ elements: { 'hermes-lines': { textContent: JSON.stringify({ f: 'index.html', m: [[1, 1, 10], [21, 11, 100]] }) } } })
@@ -405,6 +419,33 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual(o["notice"], ["No host"])
         self.assertEqual(o["offlineNotCounted"], [])
         self.assertEqual(o["alone"], {"hello": 0, "rejectedAt": 0})
+
+    def test_the_own_toast_marks_its_kind(self):
+        info = '<path d="M12 11v5.5M12 7.5h.01"/>'
+        check = '<path d="M8 12.2l2.8 2.8L16 9.6"/>'
+        alert = '<path d="M12 7.5v5.5M12 16.5h.01"/>'
+        self.assertEqual(self.out["marks"], [["kit-toast is-info", "status", info], ["kit-toast is-success", "status", check],
+                                             ["kit-toast is-error", "alert", alert], ["kit-toast is-info", "status", info]])
+        kit = (TYPES / "_kit" / "kit.js").read_text("utf-8")
+        self.assertIn('toast(offline.text, 8000, "error");', kit)  # no host: an error, not a success
+
+    def test_a_read_without_hermes_ago_is_just_now(self):
+        self.assertIsInstance(self.out["workLeft"], (int, float))  # NaN would come back as null
+        self.assertGreater(self.out["workLeft"], 9)  # its own 10 s (the 15 s "fresh" window counts from now)
+        self.assertLessEqual(self.out["workLeft"], 10)
+        self.assertFalse(self.out["workOnAfterRun"])  # no run in flight here: the host's word wins
+
+    def test_failures_and_successes_say_so(self):
+        # Every caught error a runtime shows is an error toast, every "done" a success (the kit's mark and role).
+        for p in TYPES.rglob("*.js"):
+            if "vendor" in p.parts or p.parent.name == "_kit":
+                continue
+            src = p.read_text("utf-8")
+            for bad in ("kit.toast(String(e && e.message || e));", "kit.toast(String(err && err.message || err));", "kit.toast(errText(e));",
+                        "kit.toast(T.expFail);", "kit.toast(T.conflict);", "kit.toast(T.sent);", "kit.toast(T.restored);"):
+                self.assertNotIn(bad, src, p.name)
+        self.assertIn('kit.toast(T.expFail, 0, "error")', (TYPES / "board" / "board.js").read_text("utf-8"))
+        self.assertIn('kit.toast(T.done, 0, "success")', (TYPES / "motion" / "motion.js").read_text("utf-8"))
 
     def test_at_only_where_it_is_true(self):
         self.assertEqual(self.out["mapped"], [

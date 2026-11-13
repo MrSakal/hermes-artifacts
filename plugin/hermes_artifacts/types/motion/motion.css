@@ -49,7 +49,8 @@ html, body { overflow: hidden; }
 .mo-time i { font-style: normal; color: var(--color-fg-muted); }
 .mo-spacer { flex: 1; }
 .mo-tl { position: relative; height: 48px; cursor: pointer; touch-action: none; outline: none; }
-.mo-tl:focus-visible { box-shadow: 0 0 0 2px var(--color-accent); border-radius: var(--kit-r-sm, 6px); }
+/* Its own ring (a kit-surface: not the kit's ring round the whole strip, nor none). */
+.mo-tl.kit-surface:focus-visible { box-shadow: 0 0 0 2px var(--color-accent) !important; border-radius: var(--kit-r-sm, 6px); }
 .mo-segs { position: absolute; left: 0; right: 0; top: 14px; height: 30px; display: flex; gap: 4px; }
 .mo-seg { position: relative; min-width: 0; height: 100%; display: flex; align-items: center; border-radius: var(--kit-r-lg, 8px);
   border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg-secondary); font-size: 12px; overflow: hidden; }

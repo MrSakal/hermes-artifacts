@@ -717,7 +717,7 @@
   });
   var trans = h("div", { "class": "mo-trans" }, [playBtn, restartBtn, loopBtn, timeEl, h("span", { "class": "mo-spacer" }),
     volWrap, commentBtn, expBtn, presentBtn, tweaksBtn]);
-  var tl = h("div", { "class": "mo-tl", role: "slider", tabindex: "0", "aria-label": "Timeline" });
+  var tl = h("div", { "class": "mo-tl kit-surface", role: "slider", tabindex: "0", "aria-label": "Timeline" });
   var segsEl = h("div", { "class": "mo-segs" }), headEl = h("div", { "class": "mo-head" }), rangeEl = h("div", { "class": "mo-range", hidden: true });
   tl.append(segsEl, rangeEl, headEl);
   function muteIcon() {
@@ -1056,11 +1056,11 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); kit.toast(T.noSave); return; }
     status("saving");
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || r.ok === false) { status("failed"); return; }
       if (r.version) C.version = r.version;
       pendingSave = null; status("saved");
-    }).catch(function (e) { status("failed"); kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { status("failed"); kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function reload() {
     var was = playing;
@@ -1537,13 +1537,13 @@
    *  film's own size and fps at high quality. */
   async function exportMp4(o) {
     if (exporting) return;
-    if (!window.VideoEncoder || !window.VideoFrame) { kit.toast(T.noCodec); return; }
+    if (!window.VideoEncoder || !window.VideoFrame) { kit.toast(T.noCodec, 0, "error"); return; }
     exporting = true; pause();
     var mo = mp4Opts(o), FPS = mo.fps; // this export's frame rate, not the film's
     var keep = cur, w = mo.w, hh = mo.h, n = Math.max(1, Math.round(total * FPS)), bx = busyBox("MP4 · " + w + "×" + hh + " · " + FPS + " fps");
     try {
       var cfg = await pickVideoConfig(w, hh, FPS, mo.bitrate);
-      if (!cfg) { kit.toast(T.noCodec); return; }
+      if (!cfg) { kit.toast(T.noCodec, 0, "error"); return; }
       await withFonts();
       var samples = [], avcC = null, err = null, TS = 90000, delta = Math.round(TS / FPS);
       var enc = new VideoEncoder({
@@ -1579,7 +1579,7 @@
       var bytes = ENC.mp4(au.track ? [vtrack, au.track] : [vtrack]);
       kit.download(nameBase() + ".mp4", new Blob([bytes], { type: "video/mp4" }), "video/mp4");
       kit.toast(au.why || T.done);
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { bx.done(); exporting = false; renderAt(keep); ui(); }
   }
 
@@ -1602,8 +1602,8 @@
       }
       if (bx.cancelled.v) { kit.toast(T.cancelled); return; }
       kit.download(nameBase() + ".gif", new Blob([gif.finish()], { type: "image/gif" }), "image/gif");
-      kit.toast(T.done);
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+      kit.toast(T.done, 0, "success");
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { bx.done(); exporting = false; renderAt(keep); ui(); }
   }
 
@@ -1617,7 +1617,7 @@
       await drawFrame(keep, canvas);
       var blob = await new Promise(function (r) { canvas.toBlob(r, "image/png"); });
       kit.download(nameBase() + "-" + fmtShort(keep).replace(":", "m") + "s.png", blob, "image/png");
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { exporting = false; renderAt(keep); ui(); }
   }
 

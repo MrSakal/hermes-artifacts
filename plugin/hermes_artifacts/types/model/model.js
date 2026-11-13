@@ -1640,8 +1640,8 @@
   function importFile(file) {
     if (!editable()) return;
     var m = MESH_EXT.exec(file.name || "");
-    if (!m) return kit.toast(T.badExt);
-    if (file.size > MAX_MESH) return kit.toast(T.tooBig);
+    if (!m) return kit.toast(T.badExt, 0, "error");
+    if (file.size > MAX_MESH) return kit.toast(T.tooBig, 0, "error");
     var ext = m[1].toLowerCase();
     busy(true);
     file.arrayBuffer().then(function (buf) {
@@ -1653,7 +1653,7 @@
           if (res.object) res.object.traverse(function (o) { if (o.geometry) o.geometry.dispose(); });
         });
       });
-    }).catch(function (e) { kit.toast(errText(e)); }).then(function () { busy(false); });
+    }).catch(function (e) { kit.toast(errText(e), 0, "error"); }).then(function () { busy(false); });
   }
   function addFilePart(name, ext, bytes, res) {
     var base = String(name).replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 56) || "mesh", path, n = 1;
@@ -1670,7 +1670,7 @@
     if (fit) { fit = round(fit, 0); part.fit = [fit, fit, fit]; }
     edit(function () { if (!Array.isArray(model.parts)) model.parts = []; model.parts.push(part); sel = [part.id]; });
     pendingPlace = part.id;
-    kit.toast(T.imported + ": " + path);
+    kit.toast(T.imported + ": " + path, 0, "success");
   }
   /** An imported mesh lands on the ground at the origin: once built, its box tells the offset. */
   function placeImported() {
@@ -1712,7 +1712,7 @@
     files["model.json"] = text;
     saving = true; status();
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; kit.toast(T.conflict); attachGizmo(); drawChrome(); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; kit.toast(T.conflict, 0, "error"); attachGizmo(); drawChrome(); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || !r.ok) throw new Error(r && r.error || "save failed");
       C.version = r.version;
       savedText = text; C.files["model.json"] = text;
@@ -1721,7 +1721,7 @@
       dirty = modelText() !== savedText || pendingRefs().length > 0;
       status(true);
       sendPreview();
-    }).catch(function (e) { kit.toast(T.notSaved + ": " + errText(e)); }).then(function () { saving = false; status(statusEl.textContent === T.saved); sendView(); });
+    }).catch(function (e) { kit.toast(T.notSaved + ": " + errText(e), 0, "error"); }).then(function () { saving = false; status(statusEl.textContent === T.saved); sendView(); });
   }
   /** The current view as a PNG without the grid, helpers, gizmo or selection; transparent background. */
   function picture(width) {
@@ -1762,7 +1762,7 @@
   function bare(fn) {
     if (!root || !MK) { kit.toast(T.noView); return Promise.resolve(); }
     busy(true); restoreAll(); removeCaps();
-    return Promise.resolve().then(fn).catch(function (e) { kit.toast(errText(e)); }).then(function () { busy(false); paint(); addCaps(); invalidate(); });
+    return Promise.resolve().then(fn).catch(function (e) { kit.toast(errText(e), 0, "error"); }).then(function () { busy(false); paint(); addCaps(); invalidate(); });
   }
   function blob(data, type) { return new Blob([data], { type: type }); }
   function dataUrlBlob(url) {
@@ -1815,7 +1815,7 @@
       var text = T.about(list) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawSelPill(); return; }
       window.hermes.send(text, { parts: ids, file: "model.json" }, { deliver: "send" })
-        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(errText(err)); });
+        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(errText(err), 0, "error"); });
       drawSelPill();
     });
   }

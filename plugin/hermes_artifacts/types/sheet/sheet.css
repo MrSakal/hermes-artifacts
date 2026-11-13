@@ -267,10 +267,14 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
 .sh-errtip > span { flex: 1 1 160px; min-width: 0; }
 .sh-errtip .sh-b, .sh-errtoast .sh-b { flex-shrink: 0; padding: 4px 10px; white-space: nowrap; }
 .sh-errtip .sh-b[hidden] { display: none; }
-/* As Hermes' toast (kit-toast): bottom right, above the sheet tabs, the theme's raised surface. */
-.sh-errtoast { position: fixed; right: 16px; bottom: 46px; z-index: 75; display: flex; align-items: center; gap: 10px;
-  max-width: min(420px, calc(100vw - 32px)); min-height: 44px; padding: 6px 8px 6px 14px; border-radius: var(--kit-r-lg, 8px); border: 1px solid var(--color-border-line);
+/* As the kit's toast (kit-toast), the theme's raised surface, where the host's popup chat never floats: bottom
+   left above the sheet tabs, narrower than the room left of the chat; top centre in a frame under 760 px. */
+.sh-errtoast { position: fixed; left: 16px; bottom: 46px; z-index: 75; display: flex; align-items: center; gap: 10px;
+  max-width: min(420px, calc(100vw - 504px)); min-height: 44px; padding: 6px 8px 6px 14px; border-radius: var(--kit-r-lg, 8px); border: 1px solid var(--color-border-line);
   background: var(--color-elevated, var(--color-panel)); box-shadow: var(--shadow-popover); font: 400 13px/1.4 var(--font-sans); color: var(--color-fg); }
+@media (max-width: 759.98px) {
+  .sh-errtoast { left: 50%; bottom: auto; top: 8px; transform: translateX(-50%); max-width: calc(100vw - 32px); width: max-content; }
+}
 .sh-errtoast > span { flex: 1 1 auto; min-width: 0; }
 .sh-errtoast > span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--color-bad); }
 

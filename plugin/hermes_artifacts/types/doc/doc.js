@@ -593,7 +593,7 @@
         fix.ops.forEach(function (o) { if (o.tmp && focused && focused.id === o.tmp) focused.sug = false; }); // its words: a block of its own now
       } else {
         outbox.shift(); e.done(r);
-        kit.toast(String(r.message || r.refused));
+        kit.toast(String(r.message || r.refused), 0, "error");
       }
       pump();
     });
@@ -1997,7 +1997,7 @@
       hm.doc.upload(rd.result).then(function (r) {
         docFiles[r.name] = rd.result;
         insertBlock(afterId, "![" + (file.name || "").replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "") + "](" + r.src + ")", null);
-      }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); });
+      }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e), 0, "error"); });
     };
     rd.readAsDataURL(file);
   }
@@ -2045,8 +2045,8 @@
   // ------------------------------------------------------------------ asking Hermes in the doc
   function toChat(kind, txt, blocks, selection, extra) {
     return hm.doc.ask(Object.assign({ kind: kind, tab: tab().id, tabTitle: tab().title, blocks: blocks, selection: selection || "", text: txt }, extra || {}))
-      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); return r; })
-      .catch(function (e) { kit.toast(String(e && e.message || e)); });
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); return r; })
+      .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function askHere(id, request) {
     var b = blockOf(id);
@@ -2125,7 +2125,7 @@
   var marginRaf = 0; // a resize fires many times a frame; the cards are laid out once
   window.addEventListener("resize", function () { if (!marginRaf) marginRaf = requestAnimationFrame(function () { marginRaf = 0; drawMargin(); }); });
   function decide(sid, verdict) {
-    hm.doc.decide(sid, verdict).then(function () { return pull(true); }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    hm.doc.decide(sid, verdict).then(function () { return pull(true); }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
 
   // ------------------------------------------------------------------ live: Hermes' changes appear here
@@ -2531,7 +2531,7 @@
       var zip = fflate.zipSync(files, { level: 6 });
       kit.download(kit.slug(title()) + ".docx", new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   // --- PDF: A4 pages laid out from whole blocks, each page pictured (SVG foreignObject) ----------
@@ -2633,7 +2633,7 @@
       }
       var bytes = await pdf.save();
       kit.download(kit.slug(title()) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   // ------------------------------------------------------------------ export menu, history, the bar
@@ -2660,12 +2660,12 @@
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
         return { label: fmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () {
           kit.menu(histBtn, [{ label: T.restoreThis, onClick: function () {
-            hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored); return pull(true); })
-              .catch(function (e) { kit.toast(String(e && e.message || e)); });
+            hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored, 0, "success"); return pull(true); })
+              .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
           } }, { label: T.cancel, onClick: function () {} }]);
         } };
       }));
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }), T.hist);
   histBtn.hidden = !live;
   var sep = function () { return h("span", { "class": "doc-sep" }); };

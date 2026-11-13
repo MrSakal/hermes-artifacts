@@ -468,7 +468,7 @@
           fx.addEventListener("click", function (e) {
             e.stopPropagation();
             window.hermes.send(T.fixMsg(b.path, String(b.errors[0]).slice(0, 300)), { artboard: b.path }, { deliver: "send" })
-              .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }).catch(function (er) { kit.toast(String(er && er.message || er)); });
+              .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }).catch(function (er) { kit.toast(String(er && er.message || er), 0, "error"); });
           });
           b.err.append(fx);
         }
@@ -929,7 +929,7 @@
       n.setAttribute("src", new Array(path.split("/").length).join("../") + up);
       commitFile(path);
       select(path, [tid]);
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
 
   // ------------------------------------------------------------------ properties panel
@@ -1235,7 +1235,7 @@
     focus.frame = new Frame({ path: p, mode: "play", wheel: "native", parent: boxEl, onMsg: function (m) {
       if (m.t === "link") followLink(p, m.file);
       else if (m.t === "key") key(m);
-      else if (m.t === "error" && m.errors && m.errors.length) kit.toast(T.error + ": " + m.errors[0]);
+      else if (m.t === "error" && m.errors && m.errors.length) kit.toast(T.error + ": " + m.errors[0], 0, "error");
     } });
     fitFocus();
     drawTools(); renderPanel(); sendView();
@@ -1337,7 +1337,7 @@
       var text = T.about(titleOf(a.p), a.p, a.label) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
       window.hermes.send(text, { artboard: a.p, element: a.id, selector: a.n ? cssPath(a.n) : null }, { deliver: "send" })
-        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(String(err && err.message || err), 0, "error"); });
       drawTools();
     });
   }
@@ -1391,7 +1391,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); return; }
     inFlight = true; status("saving");
     window.hermes.save(d.files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || !r.ok) throw new Error(r && r.error || "save failed");
       C.version = r.version;
       Object.keys(d.files).forEach(function (p) { if (d.cur[p] != null) saved.files[p] = d.cur[p]; });
@@ -1511,7 +1511,7 @@
     try {
       var r = await picture(p, { scale: 2 });
       kit.download(baseName() + "-" + kit.slug(stem(p).replace(/\//g, "-")) + ".png", r.blob, "image/png");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
   var PAPER = { letter: [816, 1056], a4: [794, 1123] };
   async function addBoardPages(P, pdf, layer, p) {
@@ -1554,7 +1554,7 @@
       layer.finish();
       var bytes = await pdf.save();
       kit.download(baseName() + (all ? "" : "-" + kit.slug(stem(list[0]).replace(/\//g, "-"))) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
   /** A standalone page: the artboard and the runtime, working (links to the other artboards too). */
   function exportHtml() {

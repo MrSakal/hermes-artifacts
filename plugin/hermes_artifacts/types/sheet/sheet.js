@@ -1314,7 +1314,7 @@
     return chain;
   }
   function conflicted(s) {
-    kit.toast(T.conflict);
+    kit.toast(T.conflict, 0, "error");
     undoS = undoS.filter(function (e) { return e.id !== s.id; }); redoS = redoS.filter(function (e) { return e.id !== s.id; });
     return readSheet(s);
   }
@@ -1335,7 +1335,7 @@
         if (e && e.conflict) return conflicted(s);
         throw e;
       });
-    }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); })
+    }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e), 0, "error"); })
       .then(function (r) {
         inflight--;
         if (!inflight && !pending()) setStatus(T.saved);
@@ -1728,7 +1728,7 @@
     if (!f || !f.options || ro()) return;
     commitIfEditing();
     var opts = f.options, v = valueOf(s, k), now = optIdx(opts, v, display(s, k, v)), on = Math.max(0, now);
-    var list = h("div", { "class": "sh-pop sh-ddl", role: "listbox", tabindex: "-1", "aria-label": T.dropdown });
+    var list = h("div", { "class": "sh-pop sh-ddl kit-surface", role: "listbox", tabindex: "-1", "aria-label": T.dropdown });
     opts.forEach(function (o, i) {
       list.appendChild(h("div", { role: "option", "data-i": i, "aria-selected": i === now ? "true" : "false" }, [h("span", { "class": "sh-pl " + pillCls(f, i), text: o }),
         h("button", { type: "button", "class": "sh-ddm", "data-m": i, title: T.ddOpt, "aria-label": T.ddOpt + ": " + o, tabindex: "-1", text: "⋯" })]));
@@ -2515,7 +2515,7 @@
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
         return { label: dtFmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () { showPreview(s, x); } };
       }));
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function showPreview(s, x) {
     hm.sheet.at(s.id, x.rev).then(function (r) {
@@ -2527,14 +2527,14 @@
       banner.innerHTML = "";
       banner.append(h("span", { text: fill(T.showing, { t: dtFmt.format(new Date((r.at || x.at) * 1000)) }) }),
         h("button", { type: "button", "class": "sh-b pri", text: T.restoreThis, onclick: function () {
-          hm.sheet.restore(s.id, x.rev).then(function () { closePreview(); kit.toast(T.restored); undoS = []; redoS = []; drawUndo(); return readSheet(s); })
-            .catch(function (e) { kit.toast(String(e && e.message || e)); });
+          hm.sheet.restore(s.id, x.rev).then(function () { closePreview(); kit.toast(T.restored, 0, "success"); undoS = []; redoS = []; drawUndo(); return readSheet(s); })
+            .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         } }),
         h("button", { type: "button", "class": "sh-b", text: T.backNow, onclick: closePreview }));
       banner.hidden = false;
       document.documentElement.classList.add("sh-ro");
       invalidate(); refresh();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function closePreview() {
     if (!preview) return;
@@ -2568,13 +2568,14 @@
   function exportXlsx() {
     commitIfEditing();
     flush();
-    if (!X || !X.write) return kit.toast(T.noXlsx);
+    if (!X || !X.write) return kit.toast(T.noXlsx, 0, "error");
     busy(true);
     lib("fflate.umd.js", "fflate").then(function () {
-      var bytes = X.write({ sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze, merges: s.merges, rules: s.rules, charts: s.charts }; }) });
+      var bytes = X.write({ series: T.series, sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze, merges: s.merges, rules: s.rules, charts: s.charts,
+        label: function (k, v) { return display(s, k, v); } }; }) });
       var type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       kit.download(kit.slug(bookTitle()) + ".xlsx", new Blob([bytes], { type: type }), type);
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); }).then(function () { busy(false); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); }).then(function () { busy(false); });
   }
   function exportCsv() {
     commitIfEditing();
@@ -2613,8 +2614,8 @@
         return [{ name: base, cells: cells, fmt: {}, cols: {}, freeze: { rows: 0, cols: 0 } }];
       });
     p.then(function (sheets) { return importSheets(sheets, base); })
-      .then(function () { kit.toast(T.imported); })
-      .catch(function (e) { kit.toast(String(e && e.message || e)); })
+      .then(function () { kit.toast(T.imported, 0, "success"); })
+      .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); })
       .then(function () { busy(false); });
   });
   function csvCells(text) {
@@ -2807,8 +2808,8 @@
       if (!text) return;
       var Rc = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, R.r1 + 60), c2: Math.min(R.c2, R.c1 + 20) };
       hm.sheet.ask({ text: text, sheet: s.id, tab: s.name, range: rn, selection: tsvOf(s, Rc).slice(0, 2000) })
-        .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); })
-        .catch(function (e) { kit.toast(String(e && e.message || e)); });
+        .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); })
+        .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
     });
   }
   function flashBox(r, c) {
@@ -3114,8 +3115,8 @@
     var sameSheet = cells.filter(function (x) { return x.s === first.s; }), R = null;
     sameSheet.forEach(function (x) { var p = parseKey(x.k); R = R ? { r1: Math.min(R.r1, p.r), c1: Math.min(R.c1, p.c), r2: Math.max(R.r2, p.r), c2: Math.max(R.c2, p.c) } : { r1: p.r, c1: p.c, r2: p.r, c2: p.c }; });
     hm.sheet.ask({ text: text.slice(0, 3500), sheet: first.s.id, tab: first.s.name, range: rangeName(R), selection: lines.join("\n").slice(0, 2000) })
-      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); })
-      .catch(function (e) { kit.toast(String(e && e.message || e)); });
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); })
+      .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   // The error cells of the selection (the active cell first), for the toolbar's button.
   function selErrs() {

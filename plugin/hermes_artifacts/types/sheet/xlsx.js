@@ -378,7 +378,9 @@
   var NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
   var NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
   var CHART_W = 380, CHART_H = 240, EMU = 9525; // the page's chart card, in px
-  function chartXml(sh, ch, sheetName) {
+  // The page's own words: a series without a name is "<series> N" in its language (book.series), a label is the
+  // text the sheet shows for its cell (sheet.label(key, value): a date as formatted there), else the value.
+  function chartXml(sh, ch, sheetName, series) {
     var b = parseBox(ch.range);
     if (!b) return null;
     b.r2 = Math.min(b.r2, b.r1 + 200); b.c2 = Math.min(b.c2, b.c1 + 8);
@@ -400,10 +402,17 @@
     }
     var type = ch.type === "line" || ch.type === "pie" ? ch.type : "bar", ser = "", si = 0;
     var labels = [];
-    for (var r = r0; r <= b.r2; r++) { var lv = labelCol ? at(r, b.c1) : null; labels.push(labelCol ? (lv == null ? "" : String(lv)) : String(r - r0 + 1)); }
+    var label = typeof sh.label === "function" ? sh.label : null;
+    function labelOf(r) {
+      var lv = at(r, b.c1);
+      if (lv == null) return "";
+      if (label) { try { var s = label(colName(b.c1) + (r + 1), lv); if (typeof s === "string") return s; } catch (e) {} }
+      return String(lv);
+    }
+    for (var r = r0; r <= b.r2; r++) labels.push(labelCol ? labelOf(r) : String(r - r0 + 1));
     for (var c = labelCol ? b.c1 + 1 : b.c1; c <= b.c2; c++) {
       if (type === "pie" && si > 0) break; // a pie shows its first series, as the page does
-      var name = head && at(b.r1, c) != null ? String(at(b.r1, c)) : "Series " + (si + 1);
+      var name = head && at(b.r1, c) != null ? String(at(b.r1, c)) : (series || "Series") + " " + (si + 1);
       var num = '<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="' + nPts + '"/>';
       for (var r2 = r0; r2 <= b.r2; r2++) { var v = at(r2, c); if (typeof v === "number" && isFinite(v)) num += '<c:pt idx="' + (r2 - r0) + '"><c:v>' + numText(v) + "</c:v></c:pt>"; }
       num += "</c:numCache>";
@@ -434,10 +443,10 @@
       '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>';
   }
   /** One sheet's charts: {drawing, rels, charts: [xml]} with chart numbers from `first` on, or null. */
-  function drawingOf(sh, sheetName, first) {
+  function drawingOf(sh, sheetName, first, series) {
     var list = [], anchors = "", rels = "";
     (sh.charts || []).forEach(function (ch) {
-      var x = ch && chartXml(sh, ch, sheetName);
+      var x = ch && chartXml(sh, ch, sheetName, series);
       if (!x) return;
       var p = parseCell(String(ch.at || "").replace(/\$/g, "")) || {r: 0, c: 0}, k = list.length + 1;
       list.push(x);
@@ -546,7 +555,7 @@
     var files = {}, sheetsXml = "", relsXml = "", ctXml = "", n = src.length;
     var parts = [], draws = [], chartNo = 1;
     for (var i = 0; i < n; i++) {
-      var dr = drawingOf(src[i] || {}, names[i], chartNo);
+      var dr = drawingOf(src[i] || {}, names[i], chartNo, book && typeof book.series === "string" ? book.series : "");
       if (dr) chartNo += dr.charts.length;
       draws.push(dr);
       parts.push(sheetXml(src[i] || {}, i, !!dr));

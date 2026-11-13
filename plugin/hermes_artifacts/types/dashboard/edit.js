@@ -140,7 +140,7 @@
       var p = api.pagePath();
       var html = p ? kit.fileText(p) : null;
       if (html == null) {
-        if (window.hermes && window.hermes.send) window.hermes.send(T.editAskMsg, { editable: false }).then(function () { kit.toast(T.staged); }, function () {});
+        if (window.hermes && window.hermes.send) window.hermes.send(T.editAskMsg, { editable: false }).then(function () { kit.toast(T.staged, 0, "success"); }, function () {});
         kit.toast(T.editNeedsPage);
         return;
       }

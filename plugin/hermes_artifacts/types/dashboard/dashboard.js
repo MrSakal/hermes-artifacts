@@ -741,7 +741,7 @@
     return (Date.now() - at) / 1000 < 60 ? T.justNow : T.updatedAgo + " " + ago(at);
   }
   function copyText(text) {
-    var done = function () { kit.toast(T.copied); };
+    var done = function () { kit.toast(T.copied, 0, "success"); };
     var fallback = function () {
       var ta = h("textarea", { style: "position:fixed;opacity:0;top:0;left:0" });
       ta.value = text; document.body.appendChild(ta); ta.select();
@@ -785,7 +785,7 @@
     var tools = h("div", { "class": "src-tools" }, [
       full ? null : iconBtn("expand", T.expand, function () { expandResult(id); }),
       iconBtn("copy", T.copy, function () { copyText(isValue ? JSON.stringify(r.value, null, 2) : toTsv(r)); }),
-      iconBtn("download", T.downloadCsv, function () { kit.download(id + ".csv", "\ufeff" + toCsv(isValue ? asTable(rows) : r), "text/csv"); kit.toast(T.saved); })
+      iconBtn("download", T.downloadCsv, function () { kit.download(id + ".csv", "\ufeff" + toCsv(isValue ? asTable(rows) : r), "text/csv"); kit.toast(T.saved, 0, "success"); })
     ]);
     var body;
     if (rows.length === 1) {
@@ -895,10 +895,10 @@
         files[path] = p.text;
         if (path !== d.source.path) files[d.source.path] = null;
         window.hermes.save(files, C.version).then(function (r) {
-          if (r && r.conflict) { kit.toast(T.conflict); return; }
-          delete picks[id]; kit.toast(T.fileSaved);
+          if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
+          delete picks[id]; kit.toast(T.fileSaved, 0, "success");
           if (window.hermes.history) window.hermes.history.show(null, "sources");
-        }, function (e) { kit.toast(String(e && e.message || e)); });
+        }, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
       }, T.saveFile), T.saveFile)]));
     }
     return kids;
@@ -906,10 +906,10 @@
   function saveArgs(id, d, args) {
     if (!window.hermes || !window.hermes.dataset || !window.hermes.dataset.edit) { kit.toast(T.noBridge); return; }
     window.hermes.dataset.edit(id, args, C.version).then(function (r) {
-      if (r && r.conflict) { kit.toast(T.conflict); return; }
+      if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
       C.version = r.version; d.source.args = args; delete argDraft[id]; delete live[id];
-      loadLive(id); kit.toast(T.querySaved); renderSources();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+      loadLive(id); kit.toast(T.querySaved, 0, "success"); renderSources();
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function transformOf(id, d) {
     if (loaders[id]) return { desc: loaders[id].description, code: String(loaders[id].fn) };
@@ -949,7 +949,7 @@
     return h("div", { "class": "src-look" }, [
       h("span", { "class": "src-look-t", text: T.look + ": " + name }),
       kit.labelled(kit.button(T.lookChange, "", function () {
-        window.hermes.send(T.lookMsg.replace("{now}", name), { look: true }).then(function () { kit.toast(T.staged); }, function () {});
+        window.hermes.send(T.lookMsg.replace("{now}", name), { look: true }).then(function () { kit.toast(T.staged, 0, "success"); }, function () {});
       }), T.lookChange)
     ]);
   }
@@ -1106,8 +1106,8 @@
       h("p", { "class": "src-desc", text: (v.by === "user" ? T.you : "Hermes") + " · " + summaryText(v.summary, histList) }),
       v.current ? h("p", { "class": "src-meta", style: "margin:6px 0 0", text: T.hIsNow }) : h("div", { "class": "src-actions" }, [
         kit.labelled(kit.button(T.hRestore, "undo", function () {
-          window.hermes.history.restore(n).then(function () { kit.toast(T.hRestoredToast); window.hermes.history.show(null, "history"); },
-            function (e) { kit.toast(String(e && e.message || e)); });
+          window.hermes.history.restore(n).then(function () { kit.toast(T.hRestoredToast, 0, "success"); window.hermes.history.show(null, "history"); },
+            function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         }), T.hRestore)
       ]),
       v.current ? null : h("p", { "class": "src-meta", style: "margin:8px 0 0", text: T.hRestoreHint })
@@ -1222,7 +1222,7 @@
         editing = null;
         delete live[id];
         loadLive(id); // saved by the user, so already approved (unless approval is required)
-        kit.toast(T.querySaved);
+        kit.toast(T.querySaved, 0, "success");
         renderSources();
       }).catch(function (e) { msg.textContent = String(e && e.message || e); });
     }
@@ -1406,7 +1406,7 @@
       ask.addEventListener("click", function () {
         var msg = T.aboutSel + (place && place.id ? " (#" + place.id + ")" : "") + ": \u201c" + text.slice(0, 600) + "\u201d\n";
         if (window.hermes && window.hermes.send) window.hermes.send(msg, { selection: text.slice(0, 600), place: place && place.id || null })
-          .then(function () { kit.toast(T.staged); }, function () {});
+          .then(function () { kit.toast(T.staged, 0, "success"); }, function () {});
         hideAsk();
         try { window.getSelection().removeAllRanges(); } catch (err) {}
       });
@@ -1556,7 +1556,7 @@
           // One dialog in Hermes Desktop for all of them; the answer is given there, not by this click.
           window.hermes.dataset.approve(pending, C.version)
             .then(function (r) { if (r && r.allowed) pending.forEach(function (id) { loadLive(id); }); })
-            .catch(function (e) { kit.toast(String(e && e.message || e)); });
+            .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         }), T.allow),
         kit.labelled(kit.button(T.decline, "", function () {
           pending.forEach(function (id) { live[id].status = "declined"; window.hermes.dataset.decline(id, C.version).catch(function () {}); });
@@ -1579,19 +1579,19 @@
   function saveDraft() {
     var files = DK.saveDraftFiles(kit.content.files, spec, draft);
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { kit.toast(T.conflict); return; }
-      kit.toast(T.draftSaved);
+      if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
+      kit.toast(T.draftSaved, 0, "success");
       window.hermes.history.show(null, null);
-    }, function (e) { kit.toast(String(e && e.message || e)); });
+    }, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function cancelDraft() {
     var files = {};
     DK.draftFiles(kit.content.files, draft).forEach(function (p) { files[p] = null; });
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { kit.toast(T.conflict); return; }
+      if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
       kit.toast(T.draftCancelled);
       window.hermes.history.show(null, null);
-    }, function (e) { kit.toast(String(e && e.message || e)); });
+    }, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function setDraftView(v) {
     draftView = v;

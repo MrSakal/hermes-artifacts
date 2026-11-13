@@ -156,9 +156,10 @@
       if (!document.body) return;
       var old = document.querySelector(".kit-toast");
       if (old) old.remove();
-      var t = h("div", { "class": "kit-toast" + (kind === "error" ? " is-error" : ""), role: kind === "error" ? "alert" : "status",
+      var t = h("div", { "class": "kit-toast is-" + kind, role: kind === "error" ? "alert" : "status",
         html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-          (kind === "error" ? '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/>' : '<circle cx="12" cy="12" r="9"/><path d="M8 12.2l2.8 2.8L16 9.6"/>') + "</svg>" });
+          '<circle cx="12" cy="12" r="9"/>' + (kind === "error" ? '<path d="M12 7.5v5.5M12 16.5h.01"/>' : kind === "success" ? '<path d="M8 12.2l2.8 2.8L16 9.6"/>' :
+          '<path d="M12 11v5.5M12 7.5h.01"/>') + "</svg>" });
       t.appendChild(h("span", { text: text }));
       var x = h("button", { type: "button", "aria-label": T0.close, title: T0.close, html: icon("close") });
       x.addEventListener("click", function () { clearTimeout(toastTimer); t.remove(); });
@@ -175,7 +176,7 @@
   function offlineShow() {
     if (offline.shown || !offline.due || !offline.text || content.thumb || !document.body) return;
     offline.shown = true;
-    toast(offline.text, 8000);
+    toast(offline.text, 8000, "error");
   }
   function whenLoaded(fn) {
     if (document.readyState === "complete") fn();
@@ -283,7 +284,7 @@
   function workSeen(active, left, ago) {
     var now = Date.now();
     if (!active) { work.at = null; work.until = 0; return; }
-    work.at = now - Math.max(0, ago) * 1000;
+    work.at = now - (typeof ago === "number" && isFinite(ago) ? Math.max(0, ago) : 0) * 1000; // no hermes_ago: just now
     work.until = now + (typeof left === "number" && left > 0 ? left * 1000 : 300000);
   }
   function workOn() {

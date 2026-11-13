@@ -28,6 +28,10 @@ if (inp.mode === 'write') {
   const z = F.unzipSync(bytes), xml = {};
   for (const k of Object.keys(z)) xml[k] = F.strFromU8(z[k]);
   out = {parts: Object.keys(z), xml, back: X.read(bytes), b64: b64(bytes)};
+} else if (inp.mode === 'words') {  // the page's own words: its "series", its label text (here "<key=value>")
+  const sh = Object.assign({}, inp.arg.sheet, inp.arg.label ? { label: (k, v) => '<' + k + '=' + v + '>' } : {});
+  const z = F.unzipSync(X.write({ series: inp.arg.series, sheets: [sh] }));
+  out = F.strFromU8(z['xl/charts/chart1.xml']);
 } else if (inp.mode === 'read') {
   out = X.read(new Uint8Array(Buffer.from(inp.arg, 'base64')));
 } else if (inp.mode === 'csv') {
@@ -165,6 +169,21 @@ class XlsxTests(unittest.TestCase):
         self.assertEqual(int(sst.get("uniqueCount")), len(sst))
         self.assertIn('<t xml:space="preserve">  leading space</t>', xml["xl/sharedStrings.xml"])
         self.assertIn("Wall &lt;panels&gt; &amp; &quot;co&quot;", xml["xl/sharedStrings.xml"])
+
+    def test_a_chart_speaks_the_pages_words(self):
+        """An unnamed series is named in the page's language, a label is the text the sheet shows for it."""
+        sheet = {"name": "S", "cells": {"A1": "2026-01-05", "B1": 3, "A2": "2026-02-05", "B2": 4},
+                 "charts": [{"id": "c1", "type": "bar", "range": "A1:B2", "title": "", "at": "D2"}]}
+        hu = node("words", {"sheet": sheet, "series": "Adatsor", "label": True})
+        self.assertIn("<c:v>Adatsor 1</c:v>", hu)
+        self.assertIn("<c:v>&lt;A1=2026-01-05&gt;</c:v>", hu)
+        self.assertIn("<c:v>&lt;A2=2026-02-05&gt;</c:v>", hu)
+        bare = node("words", {"sheet": sheet})  # a caller without them: as before
+        self.assertIn("<c:v>Series 1</c:v>", bare)
+        self.assertIn("<c:v>2026-01-05</c:v>", bare)
+        page = (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js").read_text("utf-8")
+        self.assertIn("X.write({ series: T.series, sheets:", page)
+        self.assertIn("label: function (k, v) { return display(s, k, v); }", page)
 
     def test_charts_go_into_the_file(self):
         """A sheet's charts are DrawingML charts on the same ranges (the export used to drop them)."""

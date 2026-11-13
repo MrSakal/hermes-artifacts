@@ -91,13 +91,19 @@ body { background: var(--color-bg); color: var(--color-fg); font: 400 var(--size
 .kit-drawer { position: fixed; top: 44px; right: 0; bottom: 0; z-index: 40; width: min(420px, 100%); overflow: auto;
   background: var(--color-panel); border-left: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 /* A note to the person: Hermes shows its own toast (hermes.notify); this one, for a page with no host, looks like
-   it: the theme's raised surface with its line, a leading mark, a close button, bottom right, never over the
-   middle of the page. */
-.kit-toast { position: fixed; right: 16px; bottom: 16px; z-index: 170; display: flex; align-items: center; gap: 10px;
-  width: max-content; max-width: min(420px, calc(100vw - 32px)); min-height: 44px; padding: 10px 8px 10px 14px;
+   it: the theme's raised surface with its line, a leading mark (i, a check, an alert), a close button. Never
+   where the host's popup chat floats over the frame (right 16, bottom 16, at most 440 wide and the frame's
+   height less 72): bottom left, narrower than the room left of the chat; a frame under 760 px has no such
+   room, so there it sits top centre, in the 56 px the chat always leaves free above it. */
+.kit-toast { position: fixed; left: 16px; bottom: 16px; z-index: 170; display: flex; align-items: center; gap: 10px;
+  width: max-content; max-width: min(420px, calc(100vw - 504px)); min-height: 44px; padding: 10px 8px 10px 14px;
   border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 8px); background: var(--color-elevated, var(--color-panel));
   color: var(--color-fg); box-shadow: var(--shadow-popover); font: 400 13px/1.4 var(--font-sans); }
+@media (max-width: 759.98px) {
+  .kit-toast { left: 50%; bottom: auto; top: 8px; transform: translateX(-50%); max-width: calc(100vw - 32px); }
+}
 .kit-toast > svg { flex: 0 0 auto; width: 16px; height: 16px; color: var(--color-accent); }
+.kit-toast.is-info > svg { color: var(--color-fg-muted); }
 .kit-toast.is-error > svg { color: var(--color-bad); }
 .kit-toast > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .kit-toast > button { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
@@ -122,8 +128,9 @@ html[data-thumb], html[data-thumb] * { scrollbar-width: none; }
 html[data-thumb] *::-webkit-scrollbar, html[data-thumb]::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* Keyboard focus as Hermes shows it: the accent's 3 px ring, no outline, on every control of every page.
-   Not on an editing surface (a doc's text, a board's or a model's canvas: class kit-surface), whose caret or
-   selection shows where the focus is, nor on a bare field whose box shows it (kit-bare: the board's ask line). */
+   Not on a whole surface (a doc's text, a board's or a model's canvas, a sheet's grid and its dropdown list, a
+   deck shown full screen, a film's timeline: class kit-surface), whose caret, selection, active cell or own ring
+   shows where the focus is, nor on a bare field whose box shows it (kit-bare: the board's ask line). */
 :where(button, a[href], input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="tab"], [role="menuitem"],
   [role="option"], [role="slider"], [role="checkbox"], [role="switch"], [role="radio"], [tabindex]):not([contenteditable]):not(.kit-surface):not(.kit-bare):focus-visible {
   outline: none !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 50%, transparent) !important; }

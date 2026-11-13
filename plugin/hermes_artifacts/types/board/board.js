@@ -768,7 +768,7 @@
         undoS = undoS.filter(function (s) { return !names(s, bad); }); redoS = redoS.filter(function (s) { return !names(s, bad); });
       } else { undoS = []; redoS = []; }
       pend = [];
-      kit.toast(e && e.conflict ? T.conflict : (e && e.message ? String(e.message) : T.failed));
+      kit.toast(e && e.conflict ? T.conflict : (e && e.message ? String(e.message) : T.failed), 0, "error");
       return readAll().then(function () {
         if (!keep.length || !canEdit()) return;
         var ids = [];
@@ -1701,8 +1701,8 @@
     if (!text) return;
     flush();
     hm.board.ask({ text: text.slice(0, 2000), ids: sel.slice(0, 100) })
-      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); })
-      .catch(function (x) { kit.toast(String(x && x.message || x)); });
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); })
+      .catch(function (x) { kit.toast(String(x && x.message || x), 0, "error"); });
     closeAsk();
     view.focus({ preventScroll: true });
   });
@@ -2330,7 +2330,7 @@
     if (!sel.length) return;
     clipLocal = clipText();
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(clipLocal).catch(function () {}); } catch (e) {}
-    if (cut) deleteSel(); else kit.toast(T.copied);
+    if (cut) deleteSel(); else kit.toast(T.copied, 0, "success");
   }
   function menuPaste() {
     var local = function () { if (clipLocal) pasteText(clipLocal); else kit.toast(T.pasteHint); };
@@ -2357,13 +2357,13 @@
   }
   function addImageFile(file, at) {
     if (!canEdit() || full()) return;
-    if (!file || !/^image\//.test(file.type)) return kit.toast(T.imgBad);
+    if (!file || !/^image\//.test(file.type)) return kit.toast(T.imgBad, 0, "error");
     var url = URL.createObjectURL(file), img = new Image();
     img.onload = function () {
       var w = img.naturalWidth, hh = img.naturalHeight, src = null;
       try { src = w && hh ? shrink(img) : null; } catch (e) { src = null; }
       URL.revokeObjectURL(url);
-      if (!src) return kit.toast(w && hh ? T.imgBig : T.imgBad);
+      if (!src) return kit.toast(w && hh ? T.imgBig : T.imgBad, 0, "error");
       var k = Math.min(1, 420 / w, 420 / hh), p = at || { x: (vw / 2 - cam.x) / cam.z, y: (vh / 2 - cam.y) / cam.z };
       var it = { id: newId(), type: "image", src: src, w: Math.max(8, rnd(w * k)), h: Math.max(8, rnd(hh * k)) };
       it.x = rnd(p.x - it.w / 2); it.y = rnd(p.y - it.h / 2);
@@ -2372,7 +2372,7 @@
       if (hm.board.upload) hm.board.upload(src).then(function (r) { if (r && typeof r.src === "string" && r.src) it.src = r.src; }).catch(function () {}).then(put);
       else put();
     };
-    img.onerror = function () { URL.revokeObjectURL(url); kit.toast(T.imgBad); };
+    img.onerror = function () { URL.revokeObjectURL(url); kit.toast(T.imgBad, 0, "error"); };
     img.src = url;
   }
   function pickImage() {
@@ -2588,10 +2588,10 @@
         var cv = document.createElement("canvas");
         cv.width = Math.round(o.w * k); cv.height = Math.round(o.h * k);
         cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(function (b) { if (b) kit.download(fileName() + ".png", b, "image/png"); else kit.toast(T.expFail); }, "image/png");
-      } catch (e) { kit.toast(T.expFail); }
+        cv.toBlob(function (b) { if (b) kit.download(fileName() + ".png", b, "image/png"); else kit.toast(T.expFail, 0, "error"); }, "image/png");
+      } catch (e) { kit.toast(T.expFail, 0, "error"); }
     };
-    img.onerror = function () { kit.toast(T.expFail); };
+    img.onerror = function () { kit.toast(T.expFail, 0, "error"); };
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(o.svg);
   }
   var exportList = [{ id: "png", label: T.expPng, run: exportPng }, { id: "svg", label: T.expSvg, run: exportSvg }];
@@ -2608,7 +2608,7 @@
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
         return { label: dtFmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () { showPreview(x); } };
       }));
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function swap(list) {
     endEdit(); cancelGesture(); setInteract(null); closePop();
@@ -2626,13 +2626,13 @@
       banner.textContent = "";
       banner.append(h("span", { text: fill(T.showing, { t: dtFmt.format(new Date((r.at || x.at) * 1000)) }) }),
         h("button", { type: "button", "class": "kit-btn bd-pri", text: T.restoreThis, onclick: function () {
-          hm.board.restore(x.rev).then(function () { closePreview(); undoS = []; redoS = []; undoSync(); kit.toast(T.restored); return readAll(); })
-            .catch(function (e) { kit.toast(String(e && e.message || e)); });
+          hm.board.restore(x.rev).then(function () { closePreview(); undoS = []; redoS = []; undoSync(); kit.toast(T.restored, 0, "success"); return readAll(); })
+            .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         } }),
         h("button", { type: "button", "class": "kit-btn", text: T.backNow, onclick: closePreview }));
       banner.hidden = false;
       cull(); drawCtx(); drawUi(); undoSync();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function closePreview() {
     if (!preview) return;

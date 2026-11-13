@@ -428,7 +428,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); return; }
     inFlight = true; status("saving");
     window.hermes.save(d.files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       C.version = r.version;
       Object.keys(d.html).forEach(function (id) { saved.html[id] = d.html[id]; fileIds[id] = true; });
       d.removed.forEach(function (id) { delete saved.html[id]; delete fileIds[id]; });
@@ -970,7 +970,7 @@
       if (e.key !== "Enter" || !inp.value.trim()) return;
       var text = T.about(cur + 1, s.id, titleOf(s), target ? labelOf(target) : "") + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
-      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(String(err && err.message || err), 0, "error"); });
       drawTools();
     });
   }
@@ -1049,7 +1049,7 @@
       var el = place(h("img", { src: im.url, "data-src-path": path, alt: (file.name || "").replace(/\.[^.]+$/, "").slice(0, 80),
         style: "position:absolute;left:" + R(x) + "px;top:" + R(y) + "px;width:" + w + "px;height:" + hh + "px;margin:0;object-fit:cover" }));
       select([el]); changed();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   var filePick = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp", hidden: true });
   filePick.addEventListener("change", function () { if (filePick.files[0]) insertImage(filePick.files[0]); filePick.value = ""; });
@@ -1136,7 +1136,7 @@
     stopEdit(); closeGrid(); select([]);
     var main = h("div", { "class": "sl-pmain" }), box = h("div", { "class": "sl-pbox" }), count = h("div", { "class": "sl-count" });
     main.appendChild(box);
-    pres = { el: h("div", { id: "sl-present", tabindex: "0" }, [main, count]), main: main, box: box, count: count,
+    pres = { el: h("div", { id: "sl-present", "class": "kit-surface", tabindex: "0" }, [main, count]), main: main, box: box, count: count,
       i: isHidden(slides[cur]) ? visible(cur, 1) : cur, steps: [],
       presenter: false, t0: Date.now(), pausedFor: 0, pauseAt: null, notesSize: 22 };
     document.body.appendChild(pres.el);
@@ -1593,7 +1593,7 @@
       var blob = await pptx.write({ outputType: "blob", compression: true });
       kit.download(kit.slug(pptx.title) + ".pptx", blob, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
       if (warn.length) kit.toast(warn.length + " element(s) exported as best effort");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   async function exportPdf() {
@@ -1616,7 +1616,7 @@
       layer.finish();
       var bytes = await pdf.save();
       kit.download(kit.slug(deck.title || C.title) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   async function exportPng() {
@@ -1625,7 +1625,7 @@
       var c = await rasterize(slides[cur], 1);
       var blob = await new Promise(function (r) { c.toBlob(r, "image/png"); });
       kit.download(kit.slug(deck.title || C.title) + "-" + (cur + 1) + ".png", blob, "image/png");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   function exportHtml() {
