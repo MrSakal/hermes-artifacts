@@ -455,27 +455,66 @@
     hoverBox = hoverBox || box(mark());
     place2(hoverBox, el);
   }
-  /** The element's box narrowed to where its words are drawn (a list item or a paragraph spans the column;
-   *  its words may end far left): the host puts its pin at the right end and its form beside it, so a pin
-   *  where the words end leaves the form room. {left, top, width, height}, the element's own top and height. */
-  function inked(el) {
-    var r = el.getBoundingClientRect();
+  // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
+  var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;
+  /** The first line of the element's words, {top, height}; null when it has none (an image). */
+  function firstLine(el) {
     try {
-      var rg = document.createRange();
-      rg.selectNodeContents(el);
-      var t = rg.getBoundingClientRect();
-      var l = Math.max(r.left, t.left), rt = Math.min(r.right, t.right);
-      if (t.width > 0 && t.height > 0 && rt > l) return { left: l, top: r.top, width: rt - l, height: r.height };
+      var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
+      for (var i = 0; (n = w.nextNode()) && i < 400; i++) {
+        if (!/\S/.test(n.nodeValue)) continue;
+        rg.selectNodeContents(n);
+        var q = rg.getClientRects()[0];
+        if (q && q.height > 0) return { top: q.top, height: q.height };
+      }
     } catch (_) {}
-    return r;
+    return null;
+  }
+  var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|svg)$/;
+  /** Whether a pin at box {l, t, r, b} would cover anything of another element: its words, or a picture or
+   *  control. The element itself, what holds it (the column, the body) and the plugin's own marks don't count. */
+  function blocked(el, box) {
+    var pts = [[(box.l + box.r) / 2, (box.t + box.b) / 2], [box.l + 1, box.t + 1], [box.r - 1, box.t + 1], [box.l + 1, box.b - 1], [box.r - 1, box.b - 1]];
+    var seen = [];
+    for (var p = 0; p < pts.length; p++) {
+      var hits = document.elementsFromPoint ? document.elementsFromPoint(pts[p][0], pts[p][1]) : [];
+      for (var k = 0; k < hits.length; k++) {
+        var h = hits[k];
+        if (seen.indexOf(h) >= 0 || h === el || h.contains(el) || el.contains(h) || h.closest("[data-hermes-ui]")) continue;
+        seen.push(h);
+        if (SOLID.test(h.tagName)) return true;
+        try {
+          var w = document.createTreeWalker(h, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
+          for (var i = 0; (n = w.nextNode()) && i < 200; i++) {
+            if (!/\S/.test(n.nodeValue)) continue;
+            rg.selectNodeContents(n);
+            var rs = rg.getClientRects();
+            for (var j = 0; j < rs.length; j++) {
+              var q = rs[j];
+              if (q.width && q.height && q.left < box.r && q.right > box.l && q.top < box.b && q.bottom > box.t) return true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    return false;
+  }
+  /** The picked element for the host: its box (x, y, w, h), its first line (ly, lh) and whether the pin's
+   *  spot right (fr) and left (fl) of it, on that line, is free of other elements' words. */
+  function pickRect(el) {
+    var r = el.getBoundingClientRect(), line = firstLine(el);
+    var ly = line ? line.top : r.top, lh = line ? line.height : Math.min(r.height, 24);
+    var t = Math.max(PIN_EDGE, Math.min(window.innerHeight - PIN - PIN_EDGE, ly + lh / 2 - PIN / 2));
+    var R = r.right + PIN_GAP, L = r.left - PIN_GAP - PIN;
+    return { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh,
+             fr: !blocked(el, { l: R, t: t, r: R + PIN, b: t + PIN }), fl: !blocked(el, { l: L, t: t, r: L + PIN, b: t + PIN }) };
   }
   function onPick(e) {
     if (!picking) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    var el = e.target, r = inked(el);
+    var el = e.target;
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
-    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(),
-                     rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(), rect: pickRect(el) });
     follow(el);
   }
   // The element picked last, while its new comment is open: when the page scrolls or the frame is resized its
@@ -489,8 +528,7 @@
       pickedTimer = 0;
       if (!picked || !picked.isConnected) return;
       pickedAt = Date.now();
-      var r = inked(picked);
-      emit("picked-rect", { rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
+      emit("picked-rect", { rect: pickRect(picked) });
     }, Math.max(0, PICKED_GAP_MS - (Date.now() - pickedAt)));
   }
   function follow(el) {

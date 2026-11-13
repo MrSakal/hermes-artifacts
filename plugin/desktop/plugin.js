@@ -73,6 +73,7 @@ const STRINGS = {
     stepWrite: name => `Writing the ${name.toLowerCase()}`,
     stepPublish: 'Publishing',
     makingBand: name => `Making a new ${name.toLowerCase()}`,
+    editingBand: title => `Editing ${title}`,
     saved: name => `Saved ${name}`,
     saveFailed: (name, err) => `Couldn’t save ${name}: ${err}`,
     exportFailed: 'The export didn’t come through. Try again.',
@@ -87,6 +88,7 @@ const STRINGS = {
     duplicate: 'Duplicate',
     duplicated: 'Duplicated',
     copySuffix: ' (copy)',
+    copySuffixN: n => ` (copy ${n})`,
     openChat: 'Open chat',
     rename: 'Rename',
     versions: 'Versions',
@@ -196,7 +198,6 @@ const STRINGS = {
     folderSearch: 'Search or create a folder',
     createFolder: n => `Create “${n}”`,
     noFolder: 'No folder',
-    inNoFolder: 'It may already be in No folder.',
     movedTo: n => `Moved to ${n}`,
     movedOut: 'Moved out of its folder',
     copyLink: 'Copy link',
@@ -249,6 +250,7 @@ const STRINGS = {
     addComment: 'Comment',
     pickHint: 'Click the part of the page you want to comment on.',
     cancel: 'Cancel',
+    discard: 'Discard',
     save: 'Save',
     sendToHermes: 'Send to Hermes',
     sent: 'Sent to the chat',
@@ -262,6 +264,8 @@ const STRINGS = {
     fAll: 'All',
     react: 'Add reaction',
     noComments: 'No comments yet. Comment on a part of the page and send it to Hermes to change it.',
+    noOpenComments: 'No open comments.',
+    noResolvedComments: 'No resolved comments.',
     you: 'You',
     hermes: 'Hermes',
     type_page: 'Page',
@@ -361,6 +365,7 @@ const STRINGS = {
     stepWrite: name => `Írja: ${name.toLowerCase()}`,
     stepPublish: 'Közzététel',
     makingBand: name => `Új ${name.toLowerCase()} készül`,
+    editingBand: title => `Szerkesztés: ${title}`,
     saved: name => `Mentve: ${name}`,
     saveFailed: (name, err) => `Nem sikerült menteni: ${name} (${err})`,
     exportFailed: 'Az exportálás nem sikerült. Próbáld újra.',
@@ -375,6 +380,7 @@ const STRINGS = {
     duplicate: 'Duplikálás',
     duplicated: 'Duplikálva',
     copySuffix: ' (másolat)',
+    copySuffixN: n => ` (másolat ${n})`,
     openChat: 'Chat megnyitása',
     rename: 'Átnevezés',
     versions: 'Verziók',
@@ -484,7 +490,6 @@ const STRINGS = {
     folderSearch: 'Mappa keresése vagy létrehozása',
     createFolder: n => `„${n}” létrehozása`,
     noFolder: 'Nincs mappa',
-    inNoFolder: 'Lehet, hogy már nincs mappában.',
     movedTo: n => `Áthelyezve ide: ${n}`,
     movedOut: 'Kivéve a mappából',
     copyLink: 'Link másolása',
@@ -537,6 +542,7 @@ const STRINGS = {
     addComment: 'Komment',
     pickHint: 'Kattints az oldal arra a részére, amihez kommentet írnál.',
     cancel: 'Mégse',
+    discard: 'Elvetés',
     save: 'Mentés',
     sendToHermes: 'Küldés a Hermesnek',
     sent: 'Elküldve a chatbe',
@@ -550,6 +556,8 @@ const STRINGS = {
     fAll: 'Mind',
     react: 'Reakció',
     noComments: 'Még nincs komment. Kommentelj az oldal egy részéhez, és küldd el a Hermesnek, hogy átírja.',
+    noOpenComments: 'Nincs nyitott komment.',
+    noResolvedComments: 'Nincs megoldott komment.',
     you: 'Te',
     hermes: 'Hermes',
     type_page: 'Oldal',
@@ -795,6 +803,21 @@ function endMaking(sid) {
   }
 }
 
+// Artifacts the person just asked Hermes to change from here (a comment sent, the chat over the artifact, a
+// page's ask about itself): id -> when. A guide read in that artifact's chat for its type is then an edit of
+// it, not something new: no placeholder, and the step line says "Editing <title>" (MakingLine). The tool
+// calls say it too once one writes to an artifact there is (onTool).
+const editAsked = new Map()
+const EDIT_ASK_MS = 10 * 60 * 1000
+function askedEdit(art) {
+  if (art?.id) editAsked.set(art.id, Date.now())
+}
+/** The artifact a chat's making of `type` works on, when the person asked for a change of it; else null. */
+function editOf(sid, type, now = Date.now()) {
+  for (const [id, at] of editAsked) if (now - at > EDIT_ASK_MS) editAsked.delete(id)
+  return $list.get().find(a => a.session === sid && editAsked.has(a.id) && (!type || a.type === type))?.id || null
+}
+
 /** The backend's `making` event: {session, type, phase: guide | done | ended, started, title?, id?, open?}. */
 function onMaking(ctx, p) {
   const sid = p?.session
@@ -805,10 +828,12 @@ function onMaking(ctx, p) {
     // artifacts, that pane says what Hermes is doing until then (Viewer's step line).
     if (!PLACEHOLDER.has(p.type) && dockOwner() !== sid) return setMaking(sid, null)
     const prev = $makings.get()[sid]
+    const edit = editOf(sid, p.type)
     setMaking(sid, { session: sid, type: p.type, started: prev && prev.type === p.type ? prev.started : Date.now(),
-      title: null, step: 'guide', tool: null, local: false })
-    showMaking(ctx, sid)
+      title: null, step: 'guide', tool: null, local: false, edit })
+    if (!edit) showMaking(ctx, sid) // an edit shows in the artifact itself
   } else if (p.phase === 'done') {
+    if (p.id) editAsked.delete(p.id)
     if (p.open === false) endMaking(sid) // published without showing: no open event follows
     else if ($makings.get()[sid]) setMaking(sid, { step: 'publish', title: p.title || null }) // the open event hands over
   } else endMaking(sid)
@@ -887,10 +912,13 @@ function onTool(ctx, ev) {
     if (m) setMaking(sid, name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
   } else if (ev.type === 'tool.start') {
     if (!m) return
+    // A write to an artifact there is: the making is an edit of it.
+    const edit = !m.edit && (name === 'ha_publish' || name === 'ha_live_edit') && typeof args?.id === 'string' &&
+      $list.get().some(a => a.id === args.id) ? { edit: args.id } : {}
     if (name === 'ha_publish') {
       const type = typeof args?.type === 'string' && (PLACEHOLDER.has(args.type) || args.type === 'doc') ? args.type : m.type
-      setMaking(sid, { step: 'publish', title: (typeof args?.title === 'string' && args.title.trim()) || m.title || null, type })
-    } else setMaking(sid, name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
+      setMaking(sid, { step: 'publish', title: (typeof args?.title === 'string' && args.title.trim()) || m.title || null, type, ...edit })
+    } else setMaking(sid, { ...(name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) }), ...edit })
   } else if (ev.type === 'tool.complete' && m && m.step !== 'publish') setMaking(sid, { step: 'think' })
 }
 
@@ -1531,8 +1559,19 @@ function ago(ts) {
   if (s < 60) return 'now'
   if (s < 3600) return `${Math.floor(s / 60)}m`
   if (s < 86400) return `${Math.floor(s / 3600)}h`
-  const d = new Date(ts * 1000)
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) // as Hermes writes its own dates
+  return dateText(ts)
+}
+
+/** A date (epoch seconds) as this whole half writes one: the month's short name and the day, with the time when
+ *  asked, in Hermes' UI language (never the system's), the shape the type pages' histories use (kit.locale()). */
+const dateFmts = new Map()
+function dateText(ts, time = false) {
+  const lang = tr('lang') === 'hu' ? 'hu' : 'en'
+  const key = `${lang}:${time ? 1 : 0}`
+  if (!dateFmts.has(key)) {
+    dateFmts.set(key, new Intl.DateTimeFormat(lang, { month: 'short', day: 'numeric', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) }))
+  }
+  return dateFmts.get(key).format(new Date(ts * 1000))
 }
 
 // ---------------------------------------------------------------- look
@@ -1672,7 +1711,9 @@ function useFocusWithin() {
 // React.memo where the host's React has it (a stub without it: the component as it is).
 const memo = typeof React.memo === 'function' ? React.memo : c => c
 
-function IconButton({ icon, title, onClick, active, label, pressed, data, disabled = false }) {
+/** `count` (a number, 0 for none): a count after the icon in room kept for two digits, so the buttons beside it
+ *  stay where they are when it comes and goes. */
+function IconButton({ icon, title, onClick, active, label, pressed, data, count, disabled = false }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
@@ -1693,7 +1734,7 @@ function IconButton({ icon, title, onClick, active, label, pressed, data, disabl
       alignItems: 'center',
       gap: 6,
       height: 30,
-      padding: label ? '0 12px' : '0 7px',
+      padding: label ? '0 12px' : count !== undefined ? '0 6px 0 7px' : '0 7px',
       border: 0,
       cursor: disabled ? 'default' : 'pointer',
       opacity: disabled ? 0.5 : 1, // Hermes' disabled:opacity-50
@@ -1701,7 +1742,11 @@ function IconButton({ icon, title, onClick, active, label, pressed, data, disabl
       color: (active || h) && !disabled ? C.fg : C.text2,
       background: (active || h) && !disabled ? C.hover : 'transparent'
     },
-    children: [jsx(Icon, { name: icon }), label ? jsx('span', { children: label }) : null]
+    children: [
+      jsx(Icon, { name: icon }),
+      label ? jsx('span', { children: label }) : null,
+      count !== undefined ? jsx('span', { style: { minWidth: '2ch', textAlign: 'left', fontVariantNumeric: 'tabular-nums' }, children: count ? String(count) : '' }) : null
+    ]
   })
 }
 
@@ -1952,6 +1997,17 @@ function TileDsMenu({ ctx, kind, onClose }) {
   })
 }
 
+/** How many menus, popovers and dialogs of this half are open: while any is, no tile shows its tooltip (one
+ *  opening takes a tooltip shown away), so a tooltip never peeks out behind a menu. */
+const $popups = atom(0)
+function usePopupOpen(on = true) {
+  useEffect(() => {
+    if (!on) return undefined
+    $popups.set($popups.get() + 1)
+    return () => $popups.set(Math.max(0, $popups.get() - 1))
+  }, [on])
+}
+
 /** A New tile's tooltip: its name, by Hermes, what it makes. Under the tile and its name (`top`: never over
  *  them), flipped above it when there is no room below (useFit); `x` keeps it inside sideways (NewTile). */
 function TileTip({ kind, x, width, top }) {
@@ -1976,6 +2032,7 @@ function NewTile({ ctx, kind }) {
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false)
+  const popups = useValue($popups)
   const ds = DS_KINDS.includes(kind)
   // The tooltip is wider than its tile: centred under it, but kept inside what is visible (the first clipping parent, else the window).
   const wrap = useRef(null)
@@ -2025,7 +2082,7 @@ function NewTile({ ctx, kind }) {
           jsx('span', { style: { fontSize: 13, color: C.fg, paddingBottom: 2 }, children: t(`tile_${kind}`) })
         ]
       }),
-      (h || f) && !menu ? jsx(TileTip, { kind, x: tipX, width: TIP_W, top: tipTop }) : null,
+      (h || f) && !popups ? jsx(TileTip, { kind, x: tipX, width: TIP_W, top: tipTop }) : null,
       ds && (h || f || menu)
         ? jsx('div', {
             style: { position: 'absolute', top: 6, right: 6 },
@@ -2091,29 +2148,60 @@ async function copyText(text) {
 /** Opens the artifact in Hermes Desktop (the page reads ?artifact= on arrival). */
 const artifactLink = id => `hermes://open${PAGE}?artifact=${enc(id)}`
 
-/** A card's ••• menu (also on right click): Pin, Rename, Duplicate, Copy link, Move to, Delete. P, R, C act at once. */
-function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
+/** A copy's title suffix: " (copy)", then " (copy 2)", " (copy 3)"… past the titles there are (`titles`). */
+function copySuffix(title, titles, t = tr) {
+  const have = new Set(titles)
+  if (!have.has(title + t('copySuffix'))) return t('copySuffix')
+  for (let n = 2; ; n++) if (!have.has(title + t('copySuffixN', n))) return t('copySuffixN', n)
+}
+
+/** Duplicate (a card's menu, the title menu): the copy under the next free copy title. Resolves its record, or null. */
+async function duplicateArt(ctx, art) {
+  const suffix = copySuffix(art.title, $list.get().map(a => a.title))
+  const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix } }).catch(e => (toast(errText(e), 'error'), null))
+  if (!r) return null
+  await refresh(ctx)
+  toast(tr('duplicated'))
+  return r
+}
+
+/** The card menu's letter keys, the same while the menu is open and on a focused card or row: P pin, R rename,
+ *  D duplicate, C copy link, M move to (the menu opens there). Delete has none: it asks first, in the menu. */
+const CARD_KEYS = { p: 'pin', r: 'rename', d: 'duplicate', c: 'link', m: 'move' }
+function cardKey(e) {
+  const el = e.target
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName || '') || el?.isContentEditable) return null
+  return CARD_KEYS[String(e.key || '').toLowerCase()] || null
+}
+/** A card action by its key (CARD_KEYS), Move to aside. */
+function cardAction(ctx, art, k, onRename) {
+  if (k === 'pin') return patchMeta(ctx, art, { pinned: !art.pinned })
+  if (k === 'rename') return onRename()
+  if (k === 'duplicate') return duplicateArt(ctx, art)
+  if (k === 'link') return copyText(artifactLink(art.id))
+}
+
+/** A card's ••• menu (also on right click): Pin, Rename, Duplicate, Copy link, Move to, Delete; `start` 'move'
+ *  opens it on Move to. Its letter keys (CARD_KEYS) act at once. */
+function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main' }) {
   const t = usePluginI18n(ID)
   const folders = useValue($folders)
   const def = useValue($dsDefault)
-  const [view, setView] = useState('main')
+  const [view, setView] = useState(start)
   const [confirm, setConfirm] = useState(false)
   const [q, setQ] = useState('')
   const act = fn => () => (onClose(), fn())
-  const pin = act(() => patchMeta(ctx, art, { pinned: !art.pinned }))
-  const rename = act(onRename)
-  const link = act(() => copyText(artifactLink(art.id)))
+  const run = k => act(() => cardAction(ctx, art, k, onRename))
   useEffect(() => {
     if (view !== 'main') return undefined
-    const key = e => {
-      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA)$/.test(e.target?.tagName || '')) return
-      const k = e.key.toLowerCase()
-      if (k === 'p') (e.preventDefault(), pin())
-      if (k === 'r') (e.preventDefault(), rename())
-      if (k === 'c') (e.preventDefault(), link())
-    }
-    return listen(ctx, window, 'keydown', key)
-  }, [view, art.pinned])
+    return listen(ctx, window, 'keydown', e => {
+      const k = cardKey(e)
+      if (!k) return
+      e.preventDefault()
+      if (k === 'move') setView('move')
+      else run(k)()
+    })
+  }, [view, art])
   if (view === 'move') {
     const name = q.trim()
     const hits = folders.filter(f => !name || f.toLowerCase().includes(name.toLowerCase()))
@@ -2131,8 +2219,9 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
         { sep: true },
         { input: true, key: 'q', value: q, placeholder: t('folderSearch'), onChange: setQ, onEnter: () => name && moveTo(name)() },
         ...(name && !folders.some(f => f.toLowerCase() === name.toLowerCase()) ? [{ key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }] : []),
-        ...hits.map(f => ({ key: `f:${f}`, icon: 'folder', label: f, checked: art.folder === f, onClick: moveTo(f) })),
-        { key: 'none', icon: 'folder', label: t('noFolder'), checked: !art.folder, sub2: !art.folder ? t('inNoFolder') : '', onClick: moveTo('') }
+        // Where it is now: checked, and no move to there.
+        ...hits.map(f => ({ key: `f:${f}`, icon: 'folder', label: f, checked: art.folder === f, disabled: art.folder === f, onClick: moveTo(f) })),
+        { key: 'none', icon: 'folder', label: t('noFolder'), checked: !art.folder, disabled: !art.folder, onClick: moveTo('') }
       ]
     })
   }
@@ -2141,18 +2230,11 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
     align,
     width: 240,
     items: [
-      { icon: 'pin', label: art.pinned ? t('unpin') : t('pin'), right: 'P', onClick: pin },
-      { icon: 'pencil', label: t('rename'), right: 'R', onClick: rename },
-      {
-        icon: 'copy',
-        label: t('duplicate'),
-        onClick: act(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(errText(e), 'error'), null))
-          if (r) (await refresh(ctx), toast(t('duplicated')))
-        })
-      },
-      { icon: 'link', label: t('copyLink'), right: 'C', onClick: link },
-      { icon: 'folder', label: t('moveTo'), sub: true, onClick: () => setView('move') },
+      { icon: 'pin', label: art.pinned ? t('unpin') : t('pin'), right: 'P', onClick: run('pin') },
+      { icon: 'pencil', label: t('rename'), right: 'R', onClick: run('rename') },
+      { icon: 'copy', label: t('duplicate'), right: 'D', onClick: run('duplicate') },
+      { icon: 'link', label: t('copyLink'), right: 'C', onClick: run('link') },
+      { icon: 'folder', label: t('moveTo'), right: 'M', sub: true, onClick: () => setView('move') },
       ...(art.type === 'design-system'
         ? [{ sep: true }, { icon: 'palette', label: def === art.id ? t('dsUnset') : t('dsMake'), onClick: act(() => setDefaultDs(ctx, art, def !== art.id)) }]
         : []),
@@ -2185,6 +2267,7 @@ function TitleText({ ctx, art, renaming, setRenaming, style }) {
 function RenameDialog({ ctx, art, onClose }) {
   const t = usePluginI18n(ID)
   const [name, setName] = useState(art.title)
+  usePopupOpen()
   const changed = name.trim() && name.trim() !== art.title
   const save = () => changed && (onClose(), patchMeta(ctx, art, { title: name.trim() }))
   return jsx('div', {
@@ -2220,16 +2303,33 @@ function RenameDialog({ ctx, art, onClose }) {
 
 /** A card (memo: a poll or a publish re-renders only the cards whose artifact changed; loadList keeps the
  *  object of an unchanged one). `sort` is a prop so the time shown follows Sort by. */
+/** The open comments on a card or a row: the comment icon and their number. */
+function CommentCount({ n }) {
+  const t = usePluginI18n(ID)
+  return jsxs('span', { title: t('openComments', n), style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(n)] })
+}
+
+/** A focused card's or row's keys: Enter opens it, the card menu's letters (CARD_KEYS) act as in the menu. */
+function cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }) {
+  if (renaming || menu || e.target !== e.currentTarget) return
+  if (e.key === 'Enter') return openOnPage(ctx, art.id)
+  const k = cardKey(e)
+  if (!k) return
+  e.preventDefault()
+  if (k === 'move') setMenu('move')
+  else cardAction(ctx, art, k, () => setRenaming(true))
+}
+
 const Card = memo(function Card({ ctx, art, sort }) {
   const t = usePluginI18n(ID)
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState(false) // false, or the view it opened on: 'main' | 'move'
   const [renaming, setRenaming] = useState(false)
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
   return jsxs('div', {
     ...hp,
     ...fp,
-    onContextMenu: e => (e.preventDefault(), setMenu(true)),
+    onContextMenu: e => (e.preventDefault(), setMenu('main')),
     style: { position: 'relative', display: 'flex' },
     children: [
       jsxs('div', {
@@ -2237,7 +2337,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
         tabIndex: 0,
         className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
-        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openOnPage(ctx, art.id),
+        onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }),
         style: {
           ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: C.rXl, overflow: 'hidden', padding: 8,
           cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease'
@@ -2264,7 +2364,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
               }),
               jsx(DsBadge, { art }),
               art.pinned && !(h || menu) ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
-              art.comments ? jsxs('span', { title: t('openComments', art.comments), style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(art.comments)] }) : null
+              art.comments ? jsx(CommentCount, { n: art.comments }) : null
             ]
           })
         ]
@@ -2274,9 +2374,9 @@ const Card = memo(function Card({ ctx, art, sort }) {
         ? jsxs('div', {
             style: { position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 },
             children: [
-              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: menu, onClick: () => setMenu(!menu) }),
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
               jsx(OverlayBtn, { icon: 'pin', title: art.pinned ? t('unpin') : t('pin'), active: art.pinned, onClick: () => patchMeta(ctx, art, { pinned: !art.pinned }) }),
-              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
+              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, start: menu, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
             ]
           })
         : null
@@ -2288,12 +2388,12 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState(false) // as a card's
   const [renaming, setRenaming] = useState(false)
   return jsxs('div', {
     ...hp,
     ...fp,
-    onContextMenu: e => (e.preventDefault(), setMenu(true)),
+    onContextMenu: e => (e.preventDefault(), setMenu('main')),
     style: { position: 'relative' },
     children: [
       jsxs('div', {
@@ -2301,13 +2401,14 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
         tabIndex: 0,
         className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
-        onKeyDown: e => e.key === 'Enter' && !renaming && e.target === e.currentTarget && openOnPage(ctx, art.id),
+        onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }),
         style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
           jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
           jsx(DsBadge, { art }),
-          art.pinned ? jsx('span', { style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
+          art.pinned ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
+          art.comments ? jsx(CommentCount, { n: art.comments }) : null,
           jsx('span', { style: { width: 110, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.folder || '' }),
           jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
           jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(sortTime(art, sort)) }),
@@ -2318,8 +2419,8 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
         ? jsxs('div', {
             style: { position: 'absolute', top: 6, right: 6 },
             children: [
-              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: menu, onClick: () => setMenu(!menu) }),
-              menu ? jsx(CardMenu, { ctx, art, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
+              menu ? jsx(CardMenu, { ctx, art, start: menu, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
             ]
           })
         : null
@@ -2344,7 +2445,7 @@ function TrashRow({ ctx, item }) {
       jsx('div', { style: { flex: 1, minWidth: 96, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
       jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${item.type}`) || item.type }),
       jsx('span', {
-        title: item.deleted_at ? new Date(item.deleted_at * 1000).toLocaleString() : undefined,
+        title: item.deleted_at ? dateText(item.deleted_at, true) : undefined,
         style: { ...cell, width: 110 },
         children: item.deleted_at ? t('deletedAgo', ago(item.deleted_at)) : ''
       }),
@@ -2401,7 +2502,9 @@ function inDate(a, when) {
   if (when === 'yesterday') return at >= today - DAY && at < today
   return at >= Date.now() / 1000 - (when === '7d' ? 7 : 30) * DAY
 }
-const TYPE_KEYS = ['doc', 'sheet', 'board', 'slides', 'design', 'model', 'design-system', 'dashboard', 'motion']
+// The Type filter's rows, each under the name its cards wear (type_*); "Other" only while something is of
+// none of them (an artifact of a type this half does not know yet).
+const TYPE_KEYS = ['doc', 'sheet', 'board', 'slides', 'design', 'model', 'design-system', 'dashboard', 'motion', 'page']
 
 /** Filter and sort: Sort by, Type (with counts), Date opened, Pinned. */
 function FilterMenu({ ctx, onClose }) {
@@ -2423,7 +2526,7 @@ function FilterMenu({ ctx, onClose }) {
     return jsx(PopMenu, {
       onClose,
       align: 'right',
-      items: [back, { sep: true }, ...[...TYPE_KEYS, 'other'].map(k => ({ key: k, label: k === 'other' ? t('other') : t(`type_${k}`), box: true, checked: types.includes(k), right: String(count(k)), onClick: toggle(k) }))]
+      items: [back, { sep: true }, ...[...TYPE_KEYS, ...(count('other') || types.includes('other') ? ['other'] : [])].map(k =>({ key: k, label: k === 'other' ? t('other') : t(`type_${k}`), box: true, checked: types.includes(k), right: String(count(k)), onClick: toggle(k) }))]
     })
   }
   if (view === 'date')
@@ -2444,8 +2547,9 @@ function FilterMenu({ ctx, onClose }) {
   })
 }
 
-/** How many filters are on (Type, Date opened, Pinned only), and the reset of all three. */
-const filterCount = (types, date, pinned) => (types.length ? 1 : 0) + (date !== 'any' ? 1 : 0) + (pinned ? 1 : 0)
+/** How many filter values are on (each type ticked, Date opened, Pinned only: Doc + Sheet is 2), and the
+ *  reset of them all. */
+const filterCount = (types, date, pinned) => types.length + (date !== 'any' ? 1 : 0) + (pinned ? 1 : 0)
 function clearFilters() {
   $types.set([])
   $date.set('any')
@@ -3343,14 +3447,17 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
           }
           if (m.op === 'doc.ask') {
             const a = m.args || {}
+            if (a.kind !== 'convert') askedEdit(art) // a convert makes a new artifact from the doc
             value.mode = await toChat(t(a.kind === 'edit' ? 'docEditMsg' : a.kind === 'convert' ? 'docConvertMsg' : 'docAskMsg', title, aid, a, value.id), gesture, art)
             return reply({ ok: true, value })
           }
           if (m.op === 'sheet.ask') {
+            askedEdit(art)
             value.mode = await toChat(t('sheetAskMsg', title, aid, m.args || {}, value.id), gesture, art)
             return reply({ ok: true, value })
           }
           if (m.op === 'board.ask') {
+            askedEdit(art)
             value.mode = await toChat(t('boardAskMsg', title, aid, m.args || {}, value.id), gesture, art)
             return reply({ ok: true, value })
           }
@@ -3559,6 +3666,17 @@ async function waitReply(ctx, aid, rid) {
 
 const $focusPin = atom(0) // the thread whose pin was clicked on the page (its number)
 
+/** The picked element's rect from the page, checked: {x, y, w, h} (its box) and, from a 0.20 bridge, its first
+ *  line (ly, lh) and whether the pin's spot right / left of it is free (fr, fl). null when malformed. */
+function pickedRect(r) {
+  if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite)) return null
+  const out = { x: r.x, y: r.y, w: r.w, h: r.h }
+  if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
+  if (typeof r.fr === 'boolean') out.fr = r.fr
+  if (typeof r.fl === 'boolean') out.fl = r.fl
+  return out
+}
+
 function onPageEvent(event, detail) {
   if (event === 'pinOpen') {
     $picking.set(false)
@@ -3574,15 +3692,14 @@ function onPageEvent(event, detail) {
     return
   }
   if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
-    const d = $draft.get(), r = detail && detail.rect
-    if (d?.rect && r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && ['x', 'y', 'w', 'h'].some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: { x: r.x, y: r.y, w: r.w, h: r.h } })
+    const d = $draft.get(), r = pickedRect(detail && detail.rect)
+    if (d?.rect && r && Object.keys(r).some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: r })
     return
   }
   if (event === 'picked' && $picking.get()) {
     $picking.set(false)
     const anchor = detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40) } : null
-    const r = detail && detail.rect
-    const rect = r && [r.x, r.y, r.w, r.h].every(Number.isFinite) ? { x: r.x, y: r.y, w: r.w, h: r.h } : null
+    const rect = pickedRect(detail && detail.rect)
     if (!rect) $panel.set(true)
     $draft.set({ anchor, rect })
   }
@@ -3862,6 +3979,7 @@ async function copyCommand(text, t) {
 function ConfirmSend() {
   const t = usePluginI18n(ID)
   const c = useValue($confirm)
+  usePopupOpen(Boolean(c))
   if (!c) return null
   if (c.kind === 'allowlist') return jsx(AllowDialog, { c, t })
   const long = c.kind === 'queryLong'
@@ -4187,6 +4305,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
     sentAt.current = Date.now()
     setWaiting(true)
     try {
+      if (art) askedEdit(art) // words written over the artifact ("Describe the change you want…")
       // A chat with nothing made yet takes the words as they are; an artifact's chat learns which one.
       await host.request('prompt.submit', { session_id: id, text: art ? t('sendMsg', art.title, body) : body })
     } catch (e) {
@@ -4360,6 +4479,7 @@ function useFit(ref, below, gap = 6) {
 function PopMenu({ items, onClose, align = 'left', width = 260 }) {
   const ref = useRef(null)
   useFit(ref, 38)
+  usePopupOpen()
   useEffect(() => {
     // The button that opened it toggles it: a press there is left to its click, so the menu
     // closes instead of closing on mousedown and reopening on click.
@@ -4458,7 +4578,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   useEffect(() => {
     ctx.rest(`/artifacts/${enc(art.id)}`).then(r => setSize(r.size)).catch(() => {})
   }, [art.id, art.version])
-  const date = art.updated ? new Date(art.updated * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
+  const date = art.updated ? dateText(art.updated, true) : ''
   const close = fn => () => {
     onClose()
     fn()
@@ -4492,17 +4612,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
             { sep: true }]
         : []),
       { icon: 'download', label: t('exportMenu'), sub: true, disabled: !exportItems.length, onClick: () => setView('export') },
-      {
-        icon: 'copy',
-        label: t('duplicate'),
-        onClick: close(async () => {
-          const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix: t('copySuffix') } }).catch(e => (toast(errText(e), 'error'), null))
-          if (!r) return
-          await refresh(ctx)
-          openHere(ctx, r.id)
-          toast(t('duplicated'))
-        })
-      },
+      { icon: 'copy', label: t('duplicate'), onClick: close(async () => { const r = await duplicateArt(ctx, art); if (r) openHere(ctx, r.id) }) },
       { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(errText(e), 'error') } }) },
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
@@ -4644,7 +4754,7 @@ function Header({ ctx, art, v, portRef, docked }) {
           jsx(IconButton, {
             icon: 'comment',
             title: t('comment'),
-            label: open ? String(open) : null,
+            count: open,
             active: picking,
             onClick: () => {
               $draft.set(null)
@@ -4684,16 +4794,34 @@ function Header({ ctx, art, v, portRef, docked }) {
 
 const PIN = 26 // the new comment's pin
 const COMMENT_W = 320 // its box
+const TEXT_MAX_H = 160 // a comment's text box grows up to this, then scrolls
+const PIN_GAP = 6 // between the element and its pin (bridge.js PIN_GAP)
+const PIN_EDGE = 4 // the least room between the pin and the stage's edge (bridge.js PIN_EDGE)
+/** Where the new comment's pin goes for the element clicked: in the free space beside its box, right of it
+ *  (else left), centred on its first line, so it never covers the element's words or a neighbour's (the
+ *  bridge says whether that spot is free of other elements: fr, fl). Only an element with no free side
+ *  (it fills the stage, or words are on both sides) gets it over itself, in its top right corner. Pure. */
+function pinSpot(rect, bw, bh) {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+  const ly = Number.isFinite(rect.ly) ? rect.ly : rect.y
+  const lh = Number.isFinite(rect.lh) && rect.lh > 0 ? rect.lh : Math.min(rect.h, 24)
+  const y = clamp(ly + lh / 2 - PIN / 2, PIN_EDGE, bh - PIN - PIN_EDGE)
+  const right = rect.x + rect.w + PIN_GAP, left = rect.x - PIN_GAP - PIN
+  if (rect.fr !== false && right >= PIN_EDGE && right + PIN <= bw - PIN_EDGE) return { x: right, y }
+  if (rect.fl !== false && left >= PIN_EDGE && left + PIN <= bw - PIN_EDGE) return { x: left, y }
+  return { x: clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE) }
+}
+
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
- *  h in stage px; the bridge narrows it to where the element's words end) and the box's height `h`: the pin
- *  on that top right corner, the box beside the pin, never over it. Tried in turn: right of the pin, under
- *  it, left of it, over it; pin and box always inside the stage. None fits whole (a narrow stage, the pin
- *  half way down): under or over the pin, wherever there is more room, cut to that room (box.maxH; it
- *  scrolls). Pure: tested without a DOM. */
+ *  h in stage px, its first line and free sides: pickedRect) and the box's height `h`: the pin beside the
+ *  element (pinSpot), the box beside the pin, never over it. Tried in turn: right of the pin, under it, left
+ *  of it, over it; pin and box always inside the stage. None fits whole (a narrow stage, the pin half way
+ *  down): under or over the pin, wherever there is more room, cut to that room (box.maxH; it scrolls).
+ *  Pure: tested without a DOM. */
 function placeCommentBox(rect, bw, bh, h) {
   const M = 8, GAP = 8, MIN_H = 100
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
-  const pin = { x: clamp(rect.x + rect.w - PIN / 2, 4, bw - PIN - 4), y: clamp(rect.y - PIN / 2, 4, bh - PIN - 4) }
+  const pin = pinSpot(rect, bw, bh)
   const top = clamp(rect.y, M, Math.max(M, bh - h - M))
   const left = clamp(pin.x + PIN - COMMENT_W, M, Math.max(M, bw - COMMENT_W - M))
   const tries = [
@@ -4852,6 +4980,8 @@ function MakingLine({ ctx, m, band = false }) {
   useEffect(() => every(ctx, () => setTick(n => n + 1), 1000), [])
   const name = m.type ? t(`type_${m.type}`) : t('makingArtifact')
   const step = stepText(t, m, name)
+  // An artifact there is, being changed (onMaking, onTool): its name, never "a new one".
+  const edited = m.edit ? $list.get().find(a => a.id === m.edit) : null
   return jsxs('div', {
     role: 'status',
     'aria-live': 'polite',
@@ -4859,7 +4989,7 @@ function MakingLine({ ctx, m, band = false }) {
       color: C.text2, ...(band ? { borderBottom: `1px solid ${C.line}` } : {}) },
     children: [
       jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 },
-        children: band ? `${t('makingBand', name)} · ${step}` : step }),
+        children: band ? `${edited ? t('editingBand', edited.title) : t('makingBand', name)} · ${step}` : step }),
       jsx('span', { style: { flexShrink: 0, color: C.text3, fontVariantNumeric: 'tabular-nums' }, children: elapsedText(Date.now() - (m.started || Date.now())) })
     ]
   })
@@ -4999,6 +5129,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
     try {
       const c = await ctx.rest(`/artifacts/${enc(art.id)}/comments`, { method: 'POST', body: { text: body, anchor, parent, version: $shown.get() ?? art.version } })
       if (send) {
+        askedEdit(art)
         const where = anchor ? `${anchor.label || 'element'} “${(anchor.text || '').slice(0, 80)}”` : ''
         const msg = art.type === 'doc'
           ? T('docCommentMsg', art.title, art.id, parent || c.id, anchor, body)
@@ -5019,18 +5150,31 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       setBusy(false)
     }
   }
+  // Discard (✕ and Esc, the new comment and a reply alike): the words go with the form.
+  const discard = () => (setText(''), onDone())
+  // It grows with its words up to TEXT_MAX_H, then scrolls: no resize grip.
+  const area = useRef(null)
+  useLayoutEffect(() => {
+    const el = area.current
+    if (!el) return
+    el.style.height = 'auto'
+    const full = el.scrollHeight + el.offsetHeight - el.clientHeight
+    el.style.height = `${Math.min(full, TEXT_MAX_H)}px`
+    el.style.overflowY = full > TEXT_MAX_H ? 'auto' : 'hidden'
+  }, [text])
   return jsxs('div', {
     onClick: e => e.stopPropagation(),
     style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 },
     children: [
       jsx('textarea', {
+        ref: area,
         autoFocus: true,
         value: text,
         rows: compact ? 2 : 3,
         onChange: e => setText(e.target.value),
         onFocus: e => e.target.setSelectionRange(e.target.value.length, e.target.value.length),
         onKeyDown: e => {
-          if (e.key === 'Escape') return onDone()
+          if (e.key === 'Escape') return discard()
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || (compact && !e.shiftKey && !e.nativeEvent.isComposing))) {
             e.preventDefault()
             submit()
@@ -5038,14 +5182,16 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
         },
         'aria-label': t('comment'),
         className: INPUT,
-        style: { ...font, resize: 'vertical', padding: 8, borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
+        style: { ...font, resize: 'none', boxSizing: 'border-box', padding: 8, borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13, lineHeight: 1.45 }
       }),
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8 },
         children: [
-          jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer' }, children: [jsx('input', { type: 'checkbox', className: FOCUS, checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
+          jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer', minWidth: 0 }, children: [jsx('input', { type: 'checkbox', className: FOCUS, checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),
-          compact ? null : jsx('button', { type: 'button', onClick: onDone, className: TEXT_BTN, style: { ...font, height: 26, padding: '0 10px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('cancel') }),
+          compact
+            ? jsx('button', { type: 'button', onClick: discard, title: t('discard'), 'aria-label': t('discard'), className: TEXT_BTN, style: { ...font, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, padding: 0, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, cursor: 'pointer', flexShrink: 0 }, children: jsx(Icon, { name: 'close', size: 14 }) })
+            : jsx('button', { type: 'button', onClick: discard, className: TEXT_BTN, style: { ...font, height: 26, padding: '0 10px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('discard') }),
           jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), className: TEXT_BTN, title: compact ? t('save') : undefined, 'aria-label': compact ? t('save') : undefined, style: { ...font, height: 26, padding: '0 12px', border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
         ]
       })
@@ -5064,6 +5210,9 @@ function CommentsPanel({ ctx, art, portRef }) {
   const open = roots.filter(c => !c.resolved)
   const done = roots.filter(c => c.resolved)
   const replies = id => comments.filter(c => c.parent === id)
+  // What the list says when the tab shown has nothing, the same for every type: none at all, or none open /
+  // resolved while the other tab has some.
+  const empty = !roots.length ? 'noComments' : filter === 'open' && !open.length ? 'noOpenComments' : filter === 'resolved' && !done.length ? 'noResolvedComments' : null
   // Beside the artifact when there is room; over it when the view is narrow (a split), so the artifact
   // is never squeezed to a sliver.
   const box = useRef(null)
@@ -5119,7 +5268,6 @@ function CommentsPanel({ ctx, art, portRef }) {
                 ]
               })
             : null,
-          !draft && !picking && roots.length === 0 ? jsx('p', { style: { fontSize: 12, color: C.text3, lineHeight: 1.5 }, children: t('noComments') }) : null,
           roots.length
             ? jsx('div', {
                 style: { display: 'flex', gap: 2, padding: 2, borderRadius: C.rMd, background: C.hover, alignSelf: 'flex-start' },
@@ -5129,6 +5277,7 @@ function CommentsPanel({ ctx, art, portRef }) {
                     children: `${label} ${n}` }))
               })
             : null,
+          !draft && !picking && empty ? jsx('p', { style: { fontSize: 12, color: C.text3, lineHeight: 1.5, margin: 0 }, children: t(empty) }) : null,
           ...(filter !== 'resolved' ? open.map((c, i) => jsx(CommentItem, { c, n: c.anchor?.selector ? open.filter(x => x.anchor?.selector).indexOf(c) + 1 : 0, replies: replies(c.id), ctx, art, portRef }, c.id)) : []),
           ...(filter !== 'open' ? done.map(c => jsx(CommentItem, { c, n: 0, replies: replies(c.id), ctx, art, portRef }, c.id)) : [])
         ]

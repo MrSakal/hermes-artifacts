@@ -19,9 +19,11 @@ SRC = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
 EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errText, reuseSame, thumbKind, fetchVendor,"
            " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
            " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
-           " fetchHtml, htmlStamp, dropHtml, htmlCache }\n")
+           " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, copySuffix, dateText, cardKey, CARD_KEYS,"
+           " askedEdit, editOf, $popups }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
-            "clearFiltersTip", "noPreviewYet", "openComments"]
+            "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copySuffixN", "discard", "noOpenComments",
+            "noResolvedComments"]
 
 
 def section(start, end):
@@ -136,9 +138,56 @@ class CommentPinTests(unittest.TestCase):
         self.assertEqual(out, {"rect": {"x": 600, "y": 425, "w": 120, "h": 30}, "sameAnchor": True, "bad": True, "none": None})
         self.assertIn("useEffect(() => setText('@Hermes '), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
-        self.assertIn('emit("picked-rect", { rect: { x: r.left, y: r.top, w: r.width, h: r.height } });', bridge)
+        self.assertIn('emit("picked-rect", { rect: pickRect(picked) });', bridge)
         self.assertIn('window.addEventListener("scroll", pickedMoved, true);', bridge)
         self.assertIn('window.addEventListener("resize", pickedMoved);', bridge)
+
+    def test_the_pin_never_covers_its_element_when_there_is_room(self):
+        # 0.20 click-through: the pin sat on the last letters of "Site survey" and the line above. Now it goes
+        # beside the element's box, centred on its first line; over the element only when no side has room.
+        body = """
+        const out = [], cut = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+        for (const [bw, bh] of [[1150, 860], [1568, 860], [760, 640], [400, 520]]) {
+          const rects = [{ x: 160, y: 355, w: 775, h: 165, ly: 355, lh: 27 }, { x: 20, y: 40, w: 300, h: 24 }, { x: bw - 140, y: 300, w: 120, h: 40 },
+            { x: 0, y: 200, w: bw - 40, h: 30 }, { x: 40, y: 200, w: bw - 40, h: 30 }, { x: 10, y: 0, w: 200, h: 18 }, { x: 10, y: bh - 18, w: 200, h: 18 },
+            { x: 0, y: 0, w: bw, h: bh }, { x: 100, y: 100, w: 200, h: 60, fr: false }, { x: 100, y: 100, w: 200, h: 60, fr: false, fl: false }]
+          for (const rect of rects) {
+            const pin = m.pinSpot(rect, bw, bh), p = { x: pin.x, y: pin.y, w: m.PIN, h: m.PIN }
+            const fitsR = rect.fr !== false && rect.x + rect.w + m.PIN_GAP + m.PIN <= bw - 4
+            const fitsL = rect.fl !== false && rect.x - m.PIN_GAP - m.PIN >= 4
+            const inside = pin.x >= 0 && pin.x + m.PIN <= bw && pin.y >= 0 && pin.y + m.PIN <= bh
+            out.push({ bw, rect, pin, room: fitsR || fitsL, covers: cut(p, rect), inside, side: pin.x >= rect.x + rect.w ? 'r' : pin.x + m.PIN <= rect.x ? 'l' : 'over' })
+          }
+        }
+        console.log(JSON.stringify(out))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        for o in out:
+            self.assertTrue(o["inside"], o)
+            if o["room"]:
+                self.assertFalse(o["covers"], o)  # pin rect ∩ picked rect = ∅
+            else:
+                self.assertEqual(o["side"], "over", o)  # the corner, inside the element
+        first = out[0]  # the reported list item: right of its box, centred on its first line (355 + 27 / 2)
+        self.assertEqual(first["side"], "r")
+        self.assertEqual(first["pin"]["y"] + 13, 355 + 13.5)
+        self.assertIn({"side": "l"}, [{"side": o["side"]} for o in out if o["rect"].get("fr") is False and "fl" not in o["rect"]])
+        self.assertTrue(all(o["side"] == "over" for o in out if o["rect"].get("fl") is False))
+
+    def test_the_bridge_reports_the_first_line_and_the_free_sides(self):
+        body = """
+        console.log(JSON.stringify([m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 2, lh: 20, fr: false, fl: true }), m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 'a', fr: 1 }),
+          m.pickedRect({ x: 1, y: NaN, w: 3, h: 4 })]))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out, [{"x": 1, "y": 2, "w": 3, "h": 4, "ly": 2, "lh": 20, "fr": False, "fl": True}, {"x": 1, "y": 2, "w": 3, "h": 4}, None])
+        bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
+        self.assertIn("var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;", bridge)  # the host's own numbers
+        self.assertIn("const PIN = 26", SRC)
+        self.assertIn("const PIN_GAP = 6", SRC)
+        self.assertIn("const PIN_EDGE = 4", SRC)
+        self.assertIn('rect: pickRect(el) });', bridge)
+        self.assertNotIn("function inked(", bridge)
 
     def test_the_pin_is_drawn_over_the_box(self):
         pop = section("function CommentPopover(", "function DockView(")
@@ -468,6 +517,8 @@ class LookTests(unittest.TestCase):
         console.log(JSON.stringify({ n, after: m.filterCount(m.$types.get(), m.$date.get(), m.$pinnedOnly.get()) }))
         """
         self.assertEqual(run_node(stub_module(EXPORTS), body), {"n": 3, "after": 0})
+        # each value ticked counts: Doc + Sheet is 2, not one "Type"
+        self.assertEqual(run_node(stub_module(EXPORTS), "console.log(JSON.stringify(m.filterCount(['doc', 'sheet'], 'any', false)))"), 2)
         gallery = section("function Gallery(", "// ---------------------------------------------------------------- viewer")
         self.assertIn("label: t('clearFilters', filterCount(types, date, pinnedOnly))", gallery)
         self.assertIn("pressed: filtered", gallery)
@@ -486,6 +537,123 @@ class LookTests(unittest.TestCase):
             self.assertNotEqual(out["en"][k], out["hu"][k], k)
         for k in ("errStorage", "errDraining", "errOffline", "errGeneric"):
             self.assertNotIn("_", out["en"][k])  # no code in the sentence
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class ClickThroughTests(unittest.TestCase):
+    """The 0.20 click-through in Hermes Desktop: tooltips behind menus, filter names and counts, the list's
+    comment badge, a still header, the comment forms, empty states, one date shape, the edit band, Move to,
+    copy titles and the card menu's keys."""
+
+    def test_no_tile_tooltip_while_a_menu_or_dialog_is_open(self):
+        self.assertIn("(h || f) && !popups ? jsx(TileTip,", section("function NewTile(", "/** A small round button"))
+        for name, end in (("function PopMenu(", "function MenuRow("), ("function RenameDialog(", "const Card = memo("),
+                          ("function ConfirmSend(", "function AllowDialog(")):
+            self.assertIn("usePopupOpen(", section(name, end), name)
+        self.assertEqual(SRC.count("role: 'tooltip'"), 1)  # TileTip is the half's only drawn tooltip
+        self.assertEqual(run_node(stub_module(EXPORTS), "console.log(JSON.stringify(m.$popups.get()))"), 0)
+        hook = section("function usePopupOpen(", "/** A New tile's tooltip")
+        self.assertIn("return () => $popups.set(Math.max(0, $popups.get() - 1))", hook)  # closed: counted off
+
+    def test_the_type_filter_names_types_as_the_cards_do(self):
+        menu = section("function FilterMenu(", "function NewMenu(")
+        self.assertIn("'dashboard', 'motion', 'page']", SRC)  # a page is "Page" in the filter, as on its card
+        self.assertIn("count('other') || types.includes('other') ? ['other'] : []", menu)
+        self.assertIn("label: k === 'other' ? t('other') : t(`type_${k}`)", menu)
+
+    def test_a_list_row_shows_open_comments_like_a_card(self):
+        self.assertIn("art.comments ? jsx(CommentCount, { n: art.comments }) : null", section("const Card = memo(", "const ListRow = memo("))
+        self.assertIn("art.comments ? jsx(CommentCount, { n: art.comments }) : null", section("const ListRow = memo(", "function TrashRow("))
+
+    def test_the_header_keeps_room_for_the_comment_count(self):
+        header = section("function Header(", "const PIN = 26")
+        self.assertIn("count: open,", header)
+        self.assertNotIn("label: open ? String(open) : null", header)
+        btn = section("function IconButton(", "function Chip(")
+        self.assertIn("minWidth: '2ch'", btn)
+        self.assertIn("children: count ? String(count) : ''", btn)
+
+    def test_comment_forms_grow_without_a_grip_and_discard_by_one_name(self):
+        form = section("function CommentForm(", "function CommentsPanel(")
+        self.assertIn("resize: 'none'", form)
+        self.assertNotIn("resize: 'vertical'", form)
+        self.assertIn("el.style.height = `${Math.min(full, TEXT_MAX_H)}px`", form)
+        self.assertIn("title: t('discard'), 'aria-label': t('discard')", form)  # the draft's ✕
+        self.assertIn("children: t('discard') })", form)  # the reply's
+        self.assertNotIn("t('cancel')", form)
+        self.assertIn("if (e.key === 'Escape') return discard()", form)
+
+    def test_one_empty_state_for_every_type_and_tab(self):
+        panel = section("function CommentsPanel(", "function Viewer(")
+        self.assertIn("!roots.length ? 'noComments' : filter === 'open' && !open.length ? 'noOpenComments' : filter === 'resolved' && !done.length ? 'noResolvedComments' : null", panel)
+        self.assertIn("children: t(empty) })", panel)
+
+    def test_dates_in_the_app_language_one_shape(self):
+        body = "console.log(JSON.stringify([m.dateText(Date.UTC(2026, 10, 13, 14, 43) / 1000), m.dateText(Date.UTC(2026, 10, 13, 14, 43) / 1000, true)]))"
+        day, when = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(day, "Nov 13")
+        self.assertRegex(when, r"^Nov 13, \d\d:43 [AP]M$")  # the type pages' history shape (kit.locale(): en)
+        self.assertNotIn("toLocaleDateString(undefined", SRC)
+        self.assertNotIn("toLocaleString()", SRC)
+        self.assertIn("const lang = tr('lang') === 'hu' ? 'hu' : 'en'", section("function dateText(", "// ---------------------------------------------------------------- look"))
+        self.assertIn("const date = art.updated ? dateText(art.updated, true) : ''", section("function TitleMenu(", "function TitleButton("))
+
+    def test_an_edit_of_an_artifact_there_is_says_editing(self):
+        body = """
+        m.$list.set([{ id: 'a1', session: 's1', type: 'sheet', title: 'Test sheet' }, { id: 'a2', session: 's2', type: 'doc', title: 'D' }])
+        const before = m.editOf('s1', 'sheet')
+        m.askedEdit({ id: 'a1' })
+        const now = Date.now()
+        console.log(JSON.stringify([before, m.editOf('s1', 'sheet'), m.editOf('s1', 'dashboard'), m.editOf('s2', 'doc'), m.editOf('s1', 'sheet', now + 11 * 60 * 1000)]))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), [None, "a1", None, None, None])
+        line = section("function MakingLine(", "function MakingSkeleton(")
+        self.assertIn("edited ? t('editingBand', edited.title) : t('makingBand', name)", line)
+        making = section("function onMaking(", "/** The publish's `open`")
+        self.assertIn("if (!edit) showMaking(ctx, sid)", making)
+        tool = section("function onTool(", "/** After a reload")
+        self.assertIn("(name === 'ha_publish' || name === 'ha_live_edit') && typeof args?.id === 'string'", tool)
+        # marked where the person asks for a change: a comment sent, the chat over the artifact, a page's ask
+        self.assertIn("askedEdit(art)", section("function CommentForm(", "function CommentsPanel("))
+        self.assertIn("if (art) askedEdit(art)", section("function FloatingChat(", "function visibleBox("))
+        self.assertIn("if (a.kind !== 'convert') askedEdit(art)", SRC)
+
+    def test_move_to_marks_where_it_is(self):
+        menu = section("function CardMenu(", "/** The title on a card")
+        self.assertIn("checked: !art.folder, disabled: !art.folder", menu)
+        self.assertIn("checked: art.folder === f, disabled: art.folder === f", menu)
+        self.assertNotIn("inNoFolder", SRC)
+
+    def test_a_second_copy_gets_a_number(self):
+        body = """
+        const en = (k, ...a) => (typeof m.STRINGS.en[k] === 'function' ? m.STRINGS.en[k](...a) : m.STRINGS.en[k])
+        const S = (title, titles) => m.copySuffix(title, titles, en)
+        console.log(JSON.stringify([S('X', ['X']), S('X', ['X', 'X (copy)']), S('X', ['X', 'X (copy)', 'X (copy 2)']), S('X', ['X', 'X (copy 2)'])]))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), [" (copy)", " (copy 2)", " (copy 3)", " (copy)"])
+        self.assertEqual(SRC.count("body: { suffix }"), 1)  # the card menu and the title menu: duplicateArt
+        self.assertNotIn("suffix: t('copySuffix')", SRC)
+
+    def test_every_hinted_card_key_acts_in_the_menu_and_on_a_card(self):
+        body = """
+        const ev = (key, extra = {}) => ({ key, target: { tagName: 'DIV' }, ...extra })
+        console.log(JSON.stringify([m.CARD_KEYS, ['p', 'R', 'd', 'c', 'm', 'x'].map(k => m.cardKey(ev(k))), m.cardKey(ev('p', { ctrlKey: true })),
+          m.cardKey(ev('p', { target: { tagName: 'INPUT' } }))]))
+        """
+        keys, got, ctrl, typing = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(keys, {"p": "pin", "r": "rename", "d": "duplicate", "c": "link", "m": "move"})
+        self.assertEqual(got, ["pin", "rename", "duplicate", "link", "move", None])
+        self.assertIsNone(ctrl)
+        self.assertIsNone(typing)
+        menu = section("function CardMenu(", "/** The title on a card")
+        hints = {"P": "run('pin')", "R": "run('rename')", "D": "run('duplicate')", "C": "run('link')", "M": "setView('move')"}
+        for letter, action in hints.items():
+            self.assertIn(f"right: '{letter}'", menu)
+            self.assertIn(action, menu)
+        self.assertEqual(menu.count("right: '"), len(hints))  # a hint only where a key acts
+        for name, end in (("const Card = memo(", "const ListRow = memo("), ("const ListRow = memo(", "function TrashRow(")):
+            self.assertIn("onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming })", section(name, end), name)
+        self.assertIn("if (renaming || menu || e.target !== e.currentTarget) return", section("function cardKeyDown(", "const Card = memo("))
 
 
 @unittest.skipIf(NODE is None, "node not installed")
