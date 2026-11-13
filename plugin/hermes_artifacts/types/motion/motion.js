@@ -4,12 +4,13 @@
    (retyped, recolored, refaced, recut, retouched) and exports MP4, GIF and PNG. */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, FK = window.FilmKit, SND = window.MotionSound, ENC = window.MotionEncode;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)",
       restart: "Restart (Home)", stepHint: "← → one frame · Shift + ← → one second",
       present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
       style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long",
@@ -29,7 +30,7 @@
       building: "Exporting", cancel: "Cancel", frames: "frames", noCodec: "This browser can't encode video (WebCodecs H.264 missing)",
       noAudio: "Exported without sound: this browser can't encode AAC", fontsOff: "Web fonts couldn't be embedded: the export uses fallback fonts",
       done: "Exported", cancelled: "Export cancelled", s: "s" },
-    hu: { retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)",
       restart: "Újrakezdés (Home)", stepHint: "← → egy képkocka · Shift + ← → egy másodperc",
       present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
       style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú",
@@ -50,6 +51,8 @@
       noAudio: "Hang nélkül exportálva: ez a böngésző nem tud AAC-t kódolni", fontsOff: "A webes betűk nem ágyazhatók be: az export tartalék betűkkel készül",
       done: "Exportálva", cancelled: "Export megszakítva", s: "mp" }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
+  window.__hermesEval = Object.assign(window.__hermesEval || {}, { "modules/": { lines: 2 } }); // runModule: errors in modules/<name> at their own line
 
   var realNow = performance.now.bind(performance);
   var EPOCH = Date.UTC(2026, 0, 1);

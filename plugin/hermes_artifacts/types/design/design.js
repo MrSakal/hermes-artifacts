@@ -18,12 +18,13 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, DC = window.DC;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { pages: "Pages", page1: "Page 1", pageN: "Page", newPage: "New page", prototypes: "Prototypes", statics: "Static artboards", zoom: "Zoom",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", pages: "Pages", page1: "Page 1", pageN: "Page", newPage: "New page", prototypes: "Prototypes", statics: "Static artboards", zoom: "Zoom",
       tools: "Tools", tSelect: "Select (V)", tHand: "Hand (H)", tText: "Text (T)", tBoard: "Artboard (A)", tSticky: "Sticky note (S)", tPen: "Pencil (P)",
       shapes: "Shapes", rect: "Rectangle (R)", oval: "Oval (O)", arrow: "Arrow (Shift+L)", line: "Line (L)", newBoard: "New artboard", phText: "Text",
       properties: "Properties", outline: "Outline", code: "Code", copyCode: "Copy", copied: "Copied", nothing: "Select an artboard or an element.",
@@ -47,7 +48,7 @@
       bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
       noBoard: "No artboard to export", imgOnly: "png, jpeg, gif or webp",
       about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
       tools: "Eszközök", tSelect: "Kijelölés (V)", tHand: "Kéz (H)", tText: "Szöveg (T)", tBoard: "Rajzlap (A)", tSticky: "Cetli (S)", tPen: "Ceruza (P)",
       shapes: "Alakzatok", rect: "Téglalap (R)", oval: "Ellipszis (O)", arrow: "Nyíl (Shift+L)", line: "Vonal (L)", newBoard: "Új rajzlap", phText: "Szöveg",
       properties: "Tulajdonságok", outline: "Szerkezet", code: "Kód", copyCode: "Másolás", copied: "Kimásolva", nothing: "Jelölj ki egy rajzlapot vagy egy elemet.",
@@ -70,6 +71,7 @@
       bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", none: "Jelölj ki egy elemet vagy rajztáblát.",
       noBoard: "Nincs exportálható rajztábla", imgOnly: "png, jpeg, gif vagy webp",}
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var bar = document.getElementById("dc-bar"), app = document.getElementById("dc-app");
   var viewEl = document.getElementById("dc-view"), world = document.getElementById("dc-world"), panelEl = document.getElementById("dc-panel");
@@ -1754,5 +1756,8 @@
     state: function () { return { z: z, tx: tx, ty: ty, sel: sel, selBoard: selBoard, focus: focus && focus.path, page: page, pending: pending }; },
     openFocus: openFocus, closeFocus: closeFocus, setPlay: function (p, on) { setPlay(boards[p], on); }, undo: undo, redo: redo, setStyle: setStyle,
     exportPng: exportPng, exportPdf: exportPdf, exportHtml: exportHtml, picture: picture, setProp: setProp, fitAll: fitAll };
-  kit.ready();
+  // Ready once the artboards drew (each in its own frame), or after 4 s: a slow or broken one keeps its own error mark.
+  var drawn = Object.keys(boards).map(function (p) { return boards[p].frame; }).filter(Boolean)
+    .map(function (f) { return f.whenReady(); });
+  Promise.race([Promise.all(drawn), new Promise(function (r) { setTimeout(r, 4000); })]).then(function () { kit.ready(); });
 })();

@@ -834,8 +834,8 @@ class PublishTests(unittest.TestCase):
         desk = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         for s in ("type_board", "tile_board", "prompt_board", "boardAskMsg", "plugin.${ID}.board", "m.op === 'board.restore' && !gesture"):
             self.assertIn(s, desk)
-        self.assertIn("version: 0.17.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
-        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.17.0")
+        self.assertIn("version: 0.18.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
+        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.18.0")
 
     def test_ask_goes_to_the_inbox(self):
         aid = pub()

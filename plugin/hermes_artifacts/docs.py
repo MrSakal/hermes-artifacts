@@ -172,7 +172,8 @@ def _fresh(aid: str, meta: dict) -> dict:
         tabs = [{"id": _new_id("t"), "title": meta.get("title", "Doc")[:120], "blocks": _some(blocks_from_markdown(md)), "rev": 1}]
     return {"version": meta["versions"][-1]["n"], "tabs": tabs, "log": [], "edits": 0, "updated": time.time(),
             "hermes_at": time.time(),  # Hermes just published it
-            "selects": selects, "settings": settings, "suggestions": []}
+            "selects": selects, "settings": settings, "suggestions": [],
+            "last": {}, "last_from": {t["id"]: t["rev"] for t in tabs}}
 
 
 # ----------------------------------------------------------------------------- the doc's own settings
@@ -217,6 +218,8 @@ def load(aid: str) -> dict:
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
+        for k in ("parts", "parts_done"):  # left by a test build that kept batches in parts: not used, dropped
+            st.pop(k, None)
         return st
 
 
@@ -276,6 +279,9 @@ def read(aid: str, tab: Optional[str] = None, *, since_rev: Optional[int] = None
     sug = [s for s in st.get("suggestions", []) if s["tab"] == t["id"]]
     if sug:
         out["suggestions"] = sug
+    done = {d["cid"]: d["result"].get("per_op", []) for d in st.get("done", []) if d["tab"] == t["id"]}
+    if done:  # the latest edits applied under a client id: the doc page settles one whose answer it lost
+        out["done"] = dict(list(done.items())[-DONE_IN_READ:])
     view = [{"id": b["id"], "kind": block_kind(b["md"]), "md": b["md"]} for b in t["blocks"]]
     if since_rev is not None:
         # The log keeps the last entries only: older than that, the whole tab comes back (Claude's
@@ -331,6 +337,178 @@ def _conflict(aid: str, t: dict, ids: list[str], base: int) -> DocError:
                           f"ha_live_read id={aid} tab=<tab> blocks=<ids>", tab=t["id"])
 
 
+MAX_DONE = 200  # edits remembered by their client id (cid), so one sent again is applied once
+DONE_IN_READ = 30  # the latest of them a read hands back (cid -> per_op): a page learns an edit landed
+
+
+def _cid(ops: list) -> Optional[str]:
+    """The client's id for an edit (on any of its ops; the doc page puts it on the first)."""
+    for o in ops:
+        c = o.get("cid") if isinstance(o, dict) else None
+        if isinstance(c, str) and c.strip():
+            return c.strip()[:80]
+    return None
+
+
+def _done(st: dict, cid: Optional[str], by: str) -> Optional[dict]:
+    """The first answer to an edit already applied under this cid (None: not applied yet). Refused
+    edits are not remembered: nothing of them was applied, so they are simply tried again."""
+    if not cid:
+        return None
+    for d in reversed(st.get("done", [])):
+        if d["cid"] == cid and d["by"] == by:
+            return dict(d["result"])
+    return None
+
+
+def _remember(st: dict, cid: Optional[str], by: str, tab: str, result: dict) -> None:
+    """Kept in the doc's state (saved with the edit itself, so a restart remembers), the last MAX_DONE."""
+    if cid:
+        st["done"] = (st.get("done", []) + [{"cid": cid, "by": by, "tab": tab, "result": dict(result)}])[-MAX_DONE:]
+
+
+SEQ_PAGES = 50  # pages whose edit order is kept (the latest used)
+SEQ_BLOCKS = 2000  # blocks per page
+
+
+def _seq(cid: Optional[str]) -> Optional[tuple]:
+    """A doc page's cid is "<page>.<n>[.<tag>]": n counts that page's edits in the order they were made (an
+    edit mended or split up after a refusal or a conflict keeps its n). -> (page, n), or None."""
+    parts = (cid or "").split(".")
+    if len(parts) < 2 or not parts[0]:
+        return None
+    try:
+        return parts[0], int(parts[1])
+    except ValueError:
+        return None
+
+
+def _superseded(st: dict, cid: Optional[str], by: str, block) -> bool:
+    """A text op on a block from a page that has already applied a LATER edit (a higher n) to that block:
+    it arrived late (sent twice, or overtaken), so applying it would put older words over newer ones from the
+    same page. Never so across pages (another page, or this doc opened again, has its own count), nor for the
+    same n again (an edit mended or split up), nor for a newer n with older words (an undo is a new edit)."""
+    s = _seq(cid)
+    if not s or not block:
+        return False
+    rec = st.get("seq", {}).get(f"{by}:{s[0]}")
+    return bool(rec) and rec["b"].get(str(block), -1) > s[1]
+
+
+def _seq_note(st: dict, cid: Optional[str], by: str, blocks: list) -> None:
+    """The highest n each page applied per block: kept in the doc's state, SEQ_PAGES pages x SEQ_BLOCKS blocks."""
+    s = _seq(cid)
+    if not s or not blocks:
+        return
+    seqs = st.setdefault("seq", {})
+    rec = seqs.setdefault(f"{by}:{s[0]}", {"at": 0, "b": {}})
+    rec["at"] = time.time()
+    for b in blocks:
+        if b:
+            rec["b"][str(b)] = max(rec["b"].get(str(b), -1), s[1])
+    if len(rec["b"]) > SEQ_BLOCKS:
+        rec["b"] = dict(sorted(rec["b"].items(), key=lambda kv: kv[1])[-SEQ_BLOCKS:])
+    if len(seqs) > SEQ_PAGES:
+        for k in sorted(seqs, key=lambda k: seqs[k]["at"])[:len(seqs) - SEQ_PAGES]:
+            del seqs[k]
+
+
+MAX_BATCH = 2000  # entries in one batch
+MAX_BATCH_CHARS = 2_000_000  # characters of its entries as JSON (the page cuts its outbox to fit both)
+
+
+def _batch_run(aid: str, entries: list, by: str, tab: Optional[str], made: dict, failed: set) -> list:
+    """Entries applied in order, each as its own call would be, on its own tab (an entry's "tab", else the
+    call's). made (tmp id -> block) and failed (ids of failed entries) carry over from the entries before."""
+    out: list = []
+
+    def named(ops):
+        return {str(o[k]) for o in ops for k in ("block", "after") if o.get(k)}
+
+    def own(ops):
+        return {str(o[k]) for o in ops for k in ("block", "tmp") if o.get(k)}
+
+    for e in entries:
+        ops = e.get("ops") if isinstance(e, dict) else None
+        if not isinstance(ops, list) or not ops or not all(isinstance(o, dict) for o in ops):
+            out.append({"ok": False, "refused": "invalid", "message": "an entry needs ops"})
+            continue
+        ids = named(ops) | {made.get(x, x) for x in named(ops)}
+        if ids & failed:
+            failed |= own(ops) | {made.get(x, x) for x in own(ops)}
+            out.append({"ok": False, "held": True})
+            continue
+        sent = []
+        for i, o in enumerate(ops):
+            x = {k: v for k, v in o.items() if k not in ("tmp", "cid")}
+            for k in ("block", "after"):
+                if x.get(k) in made:
+                    x[k] = made[x[k]]
+            if i == 0 and e.get("cid"):
+                x["cid"] = str(e["cid"])
+            sent.append(x)
+        etab = e.get("tab") or tab
+        try:
+            if e.get("via") == "suggest":
+                r = suggest(aid, sent, by=by, tab=etab)
+            else:
+                r = apply(aid, sent, by=by, tab=etab, base_rev=e.get("base"))
+        except DocError as x:
+            failed |= own(ops) | {made.get(y, y) for y in own(ops)}
+            out.append({"ok": False, "conflict": True, **x.extra} if x.code == "conflict"
+                       else {"ok": False, "refused": x.code, "message": x.message})
+            continue
+        per = r.get("per_op") or []
+        for i, o in enumerate(ops):
+            if o.get("op") == "insert" and o.get("tmp") and i < len(per) and per[i]:
+                made[str(o["tmp"])] = per[i][0]
+        out.append(r)
+    return out
+
+
+def apply_batch(aid: str, entries: list, *, by: str, tab: Optional[str] = None) -> dict:
+    """The doc page's outbox sent as one call (the page is going away, or hidden): entries [{cid, via: "edit" |
+    "suggest", ops, base, tab}] applied strictly in that order under the doc's lock, each on its own tab and
+    exactly as its own call would be (the same conflict rules, a cid already applied answered from its record
+    and not applied again). A tmp id an earlier entry's insert made (its op's "tmp") names that new block in
+    the later ones. An entry refused or in conflict does not stop the others, except those that depend on it:
+    an entry that names (as its block or its anchor) a block a failed entry changed or a tmp id it would have
+    made is not applied either, answered {"ok": false, "held": true}, and its own blocks and tmp ids count as
+    failed for the entries after it. The page keeps a held entry and sends it again, in its place, after it has
+    dealt with the one it depends on, so no one's words are lost. -> {"ok": true, "batch": [answer per entry]}
+    More than MAX_BATCH entries or MAX_BATCH_CHARS is refused whole, before anything is applied (the page
+    sends its oldest stretch that fits; nothing is stored here for later)."""
+    if not isinstance(entries, list) or not entries:
+        raise DocError("invalid", "a batch is a non-empty list of entries")
+    if len(entries) > MAX_BATCH:
+        raise DocError("too_large", f"a batch is at most {MAX_BATCH} entries")
+    if len(json.dumps(entries, ensure_ascii=False)) > MAX_BATCH_CHARS:
+        raise DocError("too_large", f"a batch is at most {MAX_BATCH_CHARS} characters")
+    with _LOCK:
+        return {"ok": True, "batch": _batch_run(aid, entries, by, tab, {}, set())}
+
+
+LAST_KEEP = 20000  # blocks whose last text change is kept beyond the log's reach
+
+
+def _last(st: dict, t: dict) -> tuple:
+    """Each block's last text change ({id: [rev, by, tab]}, kept beyond the log, so an edit against a rev the
+    log no longer reaches is still checked block by block), and the tab's rev when that record began:
+    before it, nothing is known."""
+    since = st.setdefault("last_from", {}).setdefault(t["id"], t["rev"])
+    return st.setdefault("last", {}), since
+
+
+def _note(st: dict, last: dict, ids: list, rev: int, by: str, tab: str) -> None:
+    for b in ids:
+        last[b] = [rev, by, tab]
+    if len(last) > LAST_KEEP:  # the oldest go; what they said is then unknown: their tab's record begins later
+        for b, v in sorted(last.items(), key=lambda kv: kv[1][0])[:len(last) - LAST_KEEP]:
+            del last[b]
+            frm = st.setdefault("last_from", {})
+            frm[v[2]] = max(frm.get(v[2], 0), v[0])
+
+
 def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base_rev: Optional[int] = None) -> dict:
     """Apply edits to one tab, atomically. Ops:
       {"op": "replace", "block": id, "md": "…"}           change a block (or split it: md with blank lines)
@@ -338,13 +516,21 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
       {"op": "delete", "block": id}
       {"op": "move", "block": id, "after": id | null}
       {"op": "add_tab", "title": "…", "md": "…"} / {"op": "rename_tab", "title": "…"} / {"op": "delete_tab"}
-    With ``base_rev``: a block someone else changed after that rev is not overwritten (code "conflict")."""
-    if not isinstance(ops, list) or not ops:
-        raise DocError("invalid", "ops must be a non-empty list")
+    With ``base_rev``: a block someone else changed after that rev is not overwritten (code "conflict").
+    All or nothing: an op that fails leaves the doc as it was. An op may carry ``cid`` (the client's id for
+    this edit, the same when it sends the edit again): an edit already applied under that cid is not
+    applied again, its first answer comes back (with ``repeat``). The answer's ``per_op`` lists, per op,
+    the blocks it changed (an insert: the new ones)."""
+    if not isinstance(ops, list) or not ops or not all(isinstance(o, dict) for o in ops):
+        raise DocError("invalid", "ops must be a non-empty list of objects")
     if by not in ("user", "hermes"):
         raise DocError("invalid", "bad author")
+    cid = _cid(ops)
     with _LOCK:
         st = load(aid)
+        seen = _done(st, cid, by)
+        if seen is not None:
+            return dict(seen, repeat=True)
         t = _tab(st, tab)
         before = _snap(t, "start")
         # Filling a section still to write needs no guard: nobody else writes into a pending block (typing
@@ -361,20 +547,46 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         if by == "hermes" and base_rev is None and any(guarded(o) for o in ops):
             raise DocError("missing_guard", "replace and delete need base_rev: the rev you read (ha_live_read)",
                            rev=t["rev"])
+        # A text op older than one the same page already applied to that block (it arrived late) is skipped:
+        # never older words over newer ones from the same page (see _seq).
+        skip = {i for i, o in enumerate(ops) if o.get("op") in ("replace", "delete") and _superseded(st, cid, by, o.get("block"))}
+        if skip and len(skip) == len(ops):
+            out = {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": [], "new_tab": None,
+                   "per_op": [[] for _ in ops], "superseded": True}
+            _remember(st, cid, by, t["id"], out)
+            _save(aid, st)
+            return dict(out)
+        last, since = _last(st, t)
         if base_rev is not None:
-            touched = {o.get("block") for o in ops if o.get("block")}
+            base = int(base_rev)
+            # Only a change of a block's text (replace, delete) overwrites someone's words: a move does not,
+            # and a block someone else only moved meanwhile is no conflict either.
+            touched = {o.get("block") for i, o in enumerate(ops) if o.get("op") in ("replace", "delete") and o.get("block") and i not in skip}
             hits = set()
-            for e in st["log"]:
-                if e["tab"] == t["id"] and e["rev"] > int(base_rev) and e["by"] != by:
-                    hits |= touched & set(e.get("blocks", []))
+            revs = [e["rev"] for e in st["log"] if e["tab"] == t["id"]]
+            if base < t["rev"] and (not revs or min(revs) > base + 1):
+                # The log keeps the last entries only. Beyond it, each block's last text change (kept for
+                # good) says; a block with none since that record began was not changed, and before it
+                # nothing is known, so it counts as changed (never overwritten unseen).
+                hits |= {b for b in touched if (b in last and last[b][0] > base and last[b][1] != by)
+                         or (b not in last and base < since)}
+            else:
+                for e in st["log"]:
+                    if e["tab"] == t["id"] and e["rev"] > base and e["by"] != by:
+                        hits |= touched & (set(e.get("blocks", [])) - set(e.get("moved", [])))
             if hits:
                 if by == "hermes":
                     raise _conflict(aid, t, sorted(hits), int(base_rev))
                 raise DocError("conflict", "a block you changed was changed meanwhile: read it again",
                                rev=t["rev"], blocks=sorted(hits))
         changed: list[str] = []
+        moved: list[str] = []  # blocks whose place changed (not their words)
+        starts: list[int] = []  # where each op's blocks begin in changed
         new_tab = None
-        for o in ops:
+        for i_op, o in enumerate(ops):
+            starts.append(len(changed))
+            if i_op in skip:
+                continue
             kind = o.get("op")
             if kind == "replace":
                 try:
@@ -407,6 +619,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
                 at = 0 if after in (None, "") else _index(t, str(after)) + 1
                 t["blocks"].insert(at, b)
                 changed.append(b["id"])
+                moved.append(b["id"])
             elif kind == "add_tab":
                 new_tab = {"id": _new_id("t"), "title": str(o.get("title") or "Tab")[:120],
                            "blocks": _some(blocks_from_markdown(o.get("md") or "")), "rev": 1}
@@ -436,13 +649,24 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         st["edits"] = st.get("edits", 0) + (1 if by == "user" else 0)
         if by == "hermes":
             st["hermes_at"] = time.time()
-        st["log"].append({"tab": t["id"], "rev": t["rev"], "by": by, "blocks": changed, "at": time.time()})
+        entry = {"tab": t["id"], "rev": t["rev"], "by": by, "blocks": changed, "at": time.time()}
+        text = [c for c in dict.fromkeys(changed) if c not in ("settings", "selects", "tab")
+                and changed.count(c) > moved.count(c)]  # blocks whose words this edit wrote (or removed)
+        only_moved = sorted(set(moved) - set(text))
+        if only_moved:
+            entry["moved"] = only_moved
+        st["log"].append(entry)
         st["log"] = st["log"][-MAX_LOG:]
+        _note(st, last, text, t["rev"], by, t["id"])
+        per_op = [changed[a:b] for a, b in zip(starts, starts[1:] + [len(changed)])]
+        out = {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
+               "new_tab": new_tab["id"] if new_tab else None, "per_op": per_op}
+        _remember(st, cid, by, t["id"], out)
+        _seq_note(st, cid, by, [o.get("block") for i, o in enumerate(ops) if o.get("op") in ("replace", "delete") and i not in skip])
         _save(aid, st)
         if any(x["id"] == t["id"] for x in st["tabs"]):  # a deleted tab keeps no history
             _record(aid, st, t, by, before)
-        out = {"ok": True, "tab": t["id"], "rev": t["rev"], "changed": changed,
-               "new_tab": new_tab["id"] if new_tab else None}
+        out = dict(out)
         left = pending(t)
         if left:
             out["pending"] = left  # sections still to write, in reading order
@@ -472,10 +696,14 @@ MAX_SUGGESTIONS = 300
 
 
 def suggest(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None) -> dict:
-    if not isinstance(ops, list) or not ops:
-        raise DocError("invalid", "ops must be a non-empty list")
+    if not isinstance(ops, list) or not ops or not all(isinstance(o, dict) for o in ops):
+        raise DocError("invalid", "ops must be a non-empty list of objects")
+    cid = _cid(ops)  # as in apply: a proposal sent again is made once
     with _LOCK:
         st = load(aid)
+        seen = _done(st, cid, by)
+        if seen is not None:
+            return dict(seen, repeat=True)
         t = _tab(st, tab)
         sugs = st.setdefault("suggestions", [])
         made = []
@@ -507,8 +735,10 @@ def suggest(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None) ->
         st["log"] = st["log"][-MAX_LOG:]
         if by == "hermes":
             st["hermes_at"] = time.time()
+        out = {"ok": True, "tab": t["id"], "rev": t["rev"], "suggestions": made}
+        _remember(st, cid, by, t["id"], out)
         _save(aid, st)
-        return {"ok": True, "tab": t["id"], "rev": t["rev"], "suggestions": made}
+        return out
 
 
 def decide(aid: str, sid: str, verdict: str) -> dict:
@@ -645,12 +875,14 @@ def restore(aid: str, tab: Optional[str], rev: int) -> dict:
         t = _tab(st, tab)
         x = at_rev(aid, t["id"], rev)
         before = _snap(t, "user")
+        last, _ = _last(st, t)
         t["blocks"] = [{"id": b["id"], "md": b["md"]} for b in x["blocks"]] or _some([])
         t["title"] = x["title"]
         t["rev"] += 1
         st["log"].append({"tab": t["id"], "rev": t["rev"], "by": "user", "blocks": [b["id"] for b in t["blocks"]] + ["tab"],
                           "at": time.time(), "restored": x["rev"]})
         st["log"] = st["log"][-MAX_LOG:]
+        _note(st, last, [b["id"] for b in t["blocks"]], t["rev"], "user", t["id"])
         _save(aid, st)
         _record(aid, st, t, "restore", before)
         return {"ok": True, "tab": t["id"], "rev": t["rev"], "restored": x["rev"]}

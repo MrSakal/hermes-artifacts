@@ -27,7 +27,7 @@ if str(_ROOT) not in sys.path:
 _PKG = _ROOT / "hermes_artifacts"
 # Reload order: dependencies first.
 _MODULES = tuple("hermes_artifacts." + m for m in (
-    "dsbuild", "models", "store", "running", "docs", "calc", "sheets", "xlsx_in", "boards", "history", "bundle", "render", "server", "live", "api"))
+    "dsbuild", "models", "store", "diagnostics", "running", "docs", "calc", "sheets", "xlsx_in", "boards", "history", "bundle", "render", "server", "live", "api"))
 _lock = threading.Lock()
 _stamp = None
 

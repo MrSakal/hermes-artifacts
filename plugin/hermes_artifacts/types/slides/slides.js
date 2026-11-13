@@ -16,13 +16,14 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content;
   var W = 1920, H = 1080;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { color: "Text color", textStyle: "Text style", comment: "Comment", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", color: "Text color", textStyle: "Text style", comment: "Comment", hiddenTag: "Hidden: skipped when presenting", addSection: "Add section",
       delSection: "Remove section", sectionPh: "Section name", newSection: "Section",
       present: "Present", grid: "All slides", notes: "Notes", exp: "Export", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "This slide (PNG)", html: "Web page (HTML)", save: "Save", saving: "Saving…", saved: "Saved", notSaved: "Not saved",
@@ -55,7 +56,7 @@
       pSizing: "Sizing", szFill: "Fill", szHug: "Hug contents", szFixed: "Fixed", pLayout: "Layout", pDirection: "Direction", dirRow: "Row",
       dirCol: "Column", pGap: "Gap", pPadding: "Padding", detach: "Free position",
       about: function (n, id, title, label) { return "(slide " + n + " “" + title + "”, id " + id + (label ? ", element “" + label + "”" : "") + ")"; } },
-    hu: { color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", color: "Szövegszín", textStyle: "Szövegstílus", comment: "Megjegyzés", hiddenTag: "Rejtett: vetítéskor kimarad", addSection: "Szakasz hozzáadása",
       delSection: "Szakasz törlése", sectionPh: "Szakasz neve", newSection: "Szakasz",
       present: "Vetítés", grid: "Összes dia", notes: "Jegyzetek", exp: "Exportálás", pdf: "PDF", pptx: "PowerPoint (.pptx)",
       png: "Ez a dia (PNG)", html: "Weboldal (HTML)", save: "Mentés", saving: "Mentés…", saved: "Elmentve", notSaved: "Nincs mentve",
@@ -88,6 +89,7 @@
       pSizing: "Méretezés", szFill: "Kitöltés", szHug: "Tartalomhoz igazodik", szFixed: "Fix", pLayout: "Elrendezés", pDirection: "Irány", dirRow: "Vízszintes",
       dirCol: "Függőleges", pGap: "Térköz", pPadding: "Belső margó", detach: "Szabad elhelyezés" }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var deck = kit.json("deck.json", null);
   var bar = document.getElementById("sl-bar"), rail = document.getElementById("sl-rail");
@@ -96,7 +98,7 @@
   bar.hidden = true; // Claude's deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
   var mainEl = document.getElementById("sl-main"), strip = document.getElementById("sl-strip"), stripHead = document.getElementById("sl-striphead"),
     propsEl = document.getElementById("sl-props");
-  if (!deck) { document.body.appendChild(h("div", { "class": "kit-empty", text: T.bad })); return; }
+  if (!deck) { document.body.appendChild(h("div", { "class": "kit-empty", text: T.bad })); kit.ready(); return; }
   var editable = !C.thumb;
 
   // ------------------------------------------------------------------ slides
@@ -1894,7 +1896,7 @@
   // A click beside the slide lets go of the selection: the panel then shows the slide's own properties.
   if (editable) stageWrap.addEventListener("pointerdown", function (e) { if (e.target === stageWrap || e.target === stage) { stopEdit(); select([]); } });
 
-  if (!slides.length) { stage.replaceWith(h("div", { "class": "kit-empty", text: T.empty })); return; }
+  if (!slides.length) { stage.replaceWith(h("div", { "class": "kit-empty", text: T.empty })); kit.ready(); return; }
   buildRail();
   show(cur);
   drawChrome(); drawProps();

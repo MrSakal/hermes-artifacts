@@ -8,6 +8,7 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key); messages to Hermes are always English.
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes, E = window.docEdit, WG = window.docWidgets;
@@ -17,7 +18,10 @@
       restoreThis: "Restore this state", restored: "Restored", cancel: "Cancel",
       exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)", toSlides: "Slides from this doc", toDesign: "Design from this doc",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Type / for blocks, or @Hermes and a request.",
-      saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", conflict: "Hermes changed this block meanwhile: it now shows Hermes' text",
+      saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", noHost: "Not connected to Hermes: changes won't be saved.", conflict: "Hermes changed this block meanwhile: it shows Hermes' text, yours is kept as a suggestion on it",
+      keptGone: "Hermes removed this block meanwhile: your text is kept as a new block",
+      retrying: "Not saved yet: your text stays here and is sent again",
+      keptNew: "Hermes changed this block meanwhile: your text is kept as a new block after it",
       asking: "Hermes is writing…", editWith: "Edit with Hermes", comment: "Comment",
       editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename tab", tabs: "Tabs", delTabAsk: "Delete this tab and everything in it?", ok: "OK",
       byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled",
@@ -48,7 +52,10 @@
       restoreThis: "Visszaállítás erre", restored: "Visszaállítva", cancel: "Mégse",
       exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)", toSlides: "Slides készítése a doksiból", toDesign: "Design készítése a doksiból",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Írj / jelet a blokkokhoz, vagy @Hermes és a kérésed.",
-      saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", conflict: "Ezt a blokkot közben a Hermes módosította: most az ő szövege látszik",
+      saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", conflict: "Ezt a blokkot közben a Hermes módosította: az ő szövege látszik, a tiéd javaslatként megmaradt rajta",
+      keptGone: "Ezt a blokkot közben a Hermes törölte: a szövegedet új blokként megtartottuk",
+      retrying: "Még nincs mentve: a szöveged itt marad, és újra elküldjük",
+      keptNew: "Ezt a blokkot közben a Hermes módosította: a szövegedet utána, új blokként megtartottuk",
       asking: "A Hermes ír…", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
       editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Fül átnevezése", tabs: "Fülek", delTabAsk: "Törlöd ezt a fület a teljes tartalmával együtt?", ok: "OK",
       byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen",
@@ -76,6 +83,7 @@
       wLabels: { latex: "Képlet", math: "Képlet", tex: "Képlet", csv: "CSV", chart: "Grafikon", svg: "Rajz" },
       colors: { gray: "Szürke", red: "Piros", orange: "Narancs", yellow: "Sárga", green: "Zöld", blue: "Kék", purple: "Lila" } }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var bar = document.getElementById("doc-bar"), page = document.getElementById("doc-page"), toc = document.getElementById("doc-toc");
   var view = document.getElementById("doc-view");
@@ -169,7 +177,20 @@
   function isCode(s) { return /^(`{3,}|~{3,})/.test(String(s || "").trim()); }
 
   // ------------------------------------------------------------------ suggestions (Suggesting mode)
-  function sugFor(id) { return suggestions.filter(function (s) { return s.block === id && s.kind !== "insert"; }); }
+  function sugFor(id) {
+    var list = suggestions.filter(function (s) { return s.block === id && s.kind !== "insert"; });
+    var p = pendingSug(id); // the person's proposal still on its way shows as theirs already (a failure keeps it in sight)
+    return p ? [p].concat(list.filter(function (s) { return s.by !== "user"; })) : list;
+  }
+  function pendingSug(id) {
+    var box = typeof outbox === "undefined" || !outbox ? [] : outbox;
+    for (var i = box.length - 1; i >= 0; i--) {
+      var e = box[i], o = e.ops[0];
+      if (e.via === "suggest" && e.ops.length === 1 && o.op === "replace" && (realIds[o.block] || o.block) === id)
+        return { id: "p-" + e.cid, block: id, kind: "replace", md: o.md, by: "user" };
+    }
+    return null;
+  }
   function sugAfter(id) { return suggestions.filter(function (s) { return s.kind === "insert" && (s.block || null) === id; }); }
   function words(s) { return String(s).split(/(\s+)/).filter(function (x) { return x !== ""; }); }
   function simple(s) { var a = md.parse(s); return a.length === 1 && (a[0].t === "p" || a[0].t === "h"); }
@@ -225,6 +246,8 @@
     if (sg && sg.kind === "delete") return '<div class="sug-old">' + renderMd(s) + "</div>";
     return renderMd(s);
   }
+  // What a block's drawing depends on: a block whose key did not change is not drawn again.
+  function drawKey(b, html) { return (html == null ? blockHtml(b) : html) + "\u0001" + editable(b) + "\u0001" + (!s(b.md) && tab().blocks.length === 1); }
   function drawBlock(b, el) {
     el = el || h("div", { "class": "doc-blk" });
     el.setAttribute("data-block", b.id);
@@ -233,7 +256,9 @@
     el.classList.toggle("is-pend", pendingOf(b.md) !== null);
     el.classList.toggle("is-widget", isWidget(b.md));
     el.classList.toggle("has-sug", sugFor(b.id).length > 0);
-    el.innerHTML = blockHtml(b);
+    var html = blockHtml(b);
+    el.innerHTML = html;
+    el._drawn = drawKey(b, html);
     fixDom(el);
     var ed = editable(b);
     if (ed && isCode(b.md)) { el.removeAttribute("contenteditable"); var c = el.querySelector("pre code"); if (c) c.setAttribute("contenteditable", "plaintext-only"); }
@@ -263,6 +288,163 @@
     applySettings();
     drawToc(); drawTabs(); drawMargin();
   }
+
+  // >>> pure: what needs no page (tests/test_doc_page.py runs this block under node)
+  /** Put `nodes` into `parent` in that order, moving only what is out of place. `keep` (the block being typed
+   *  in) is never taken out of the page: a node taken out loses the focus, the caret, an IME composition and
+   *  its undo, and the keys typed next go nowhere. The others move around it. */
+  function placeBlocks(parent, nodes, keep) {
+    var want = new Set(nodes), n, nx, ref, i;
+    if (keep && (!want.has(keep) || keep.parentNode !== parent)) keep = null;
+    for (n = parent.firstChild; n; n = nx) { nx = n.nextSibling; if (!want.has(n)) parent.removeChild(n); }
+    var at = keep ? nodes.indexOf(keep) : nodes.length;
+    for (ref = parent.firstChild, i = 0; i < at; i++) { if (nodes[i] === ref) ref = ref.nextSibling; else parent.insertBefore(nodes[i], ref); }
+    if (keep) for (ref = keep.nextSibling, i = at + 1; i < nodes.length; i++) { if (nodes[i] === ref) ref = ref.nextSibling; else parent.insertBefore(nodes[i], ref); }
+  }
+  /** What a read of the doc does to the block being typed in. here: the server still has it; same: its text
+   *  there is the one this page has; unsaved: words typed here are not saved yet (or are on their way).
+   *  "keep": left as it is (the person's words win until they pause; a change by Hermes then meets the save
+   *  as a conflict); "redraw": the server's text, the caret kept; "readd": gone there, kept here and saved
+   *  as a new block; "drop": gone, nothing of the person's lost. */
+  function onRead(here, same, unsaved) {
+    if (here) return same || unsaved ? "keep" : "redraw";
+    return unsaved ? "readd" : "drop";
+  }
+  /** The tab's blocks after a read: the server's, except blocks whose words here are not saved yet (keepMd:
+   *  id -> those words), which keep them. One of those the server no longer has stays where it was, after the
+   *  block it followed. -> {blocks, back: [{id, after}]} (back: kept here although gone there). */
+  function mergeBlocks(srv, was, keepMd) {
+    var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); }, at = {}, back = [];
+    var out = srv.map(function (b) { at[b.id] = 1; return { id: b.id, md: has(keepMd, b.id) ? keepMd[b.id] : b.md }; });
+    was.forEach(function (w, i) {
+      if (!has(keepMd, w.id) || at[w.id]) return;
+      var after = null;
+      for (var k = i - 1; k >= 0 && after === null; k--) if (at[was[k].id]) after = was[k].id;
+      var j = 0;
+      if (after !== null) for (j = 0; j < out.length; j++) if (out[j].id === after) { j++; break; }
+      out.splice(j, 0, { id: w.id, md: keepMd[w.id] }); at[w.id] = 1; back.push({ id: w.id, after: after });
+    });
+    return { blocks: out, back: back };
+  }
+  /** A save's answer: "ok" only when the server took the words; anything else (no answer, an error, a
+   *  refusal) is "failed" and the words wait to be sent again; "conflict": Hermes changed that block. */
+  function saveOutcome(r) { return r && r.refused ? "refused" : r && r.conflict ? "conflict" : r && r.rev && r.ok !== false ? "ok" : "failed"; }
+  /** The page's edits still on their way (the outbox: [{via, ops}]), played over the server's blocks so a read
+   *  never takes back a change not answered yet: a block's new words, a new block (by its tmp id, after its
+   *  anchor or, that gone, after the nearest block before it that is still there), a removed or moved block.
+   *  A changed block the server no longer has shows again where it was. real: tmp id -> the server's id. */
+  function replayOps(blocks, entries, real) {
+    var out = blocks.map(function (b) { return { id: b.id, md: b.md }; });
+    var R = function (id) { return id != null && real[id] ? real[id] : id; };
+    var at = function (id) { id = R(id); for (var i = 0; i < out.length; i++) if (out[i].id === id) return i; return -1; };
+    var spot = function (after, prevs) { // where a block goes after `after` (null: the top)
+      if (after == null) return 0;
+      var list = [after].concat(prevs || []);
+      for (var i = 0; i < list.length; i++) { var k = list[i] == null ? -1 : at(list[i]); if (k >= 0) return k + 1; }
+      return 0;
+    };
+    entries.forEach(function (e) {
+      if (e.via !== "edit") return; // a proposal changes no block
+      e.ops.forEach(function (o) {
+        var k;
+        if (o.op === "replace") {
+          if ((k = at(o.block)) >= 0) out[k].md = o.md;
+          else out.splice(spot((o._prevs || [])[0], (o._prevs || []).slice(1)), 0, { id: o.block, md: o.md });
+        } else if (o.op === "insert") {
+          if (at(o.tmp) < 0) out.splice(spot(o.after, o._aprevs), 0, { id: o.tmp, md: o.md });
+        } else if (o.op === "delete") {
+          if ((k = at(o.block)) >= 0) out.splice(k, 1);
+        } else if (o.op === "move" && (k = at(o.block)) >= 0) {
+          var b = out.splice(k, 1)[0];
+          out.splice(spot(o.after, o._aprevs), 0, b);
+        }
+      });
+    });
+    return out;
+  }
+  /** An edit the server refused because a block it names is gone (Hermes removed it meanwhile), made to fit
+   *  the doc as it is now (ids: the server's blocks): new words for a gone block go in as a new block where
+   *  it was; a delete or a move of a gone block is dropped; a new or moved block whose anchor is gone goes
+   *  after the nearest block before it that is still there. -> {via, ops, gone} or null when nothing in it
+   *  could be the reason (it is dropped then). */
+  function repairOps(e, ids, real) {
+    var have = {}, made = {}, ops = [], changed = false, gone = false;
+    ids.forEach(function (id) { have[id] = 1; });
+    var ok = function (id) { return id == null || !!have[id != null && real[id] ? real[id] : id] || !!made[id]; };
+    var anchor = function (list) { for (var i = 0; i < (list || []).length; i++) if (list[i] != null && ok(list[i])) return list[i]; return null; };
+    e.ops.forEach(function (o) {
+      var x = {}, k;
+      for (k in o) x[k] = o[k];
+      if ((o.op === "replace" || o.op === "delete" || o.op === "move") && !ok(o.block)) {
+        changed = true;
+        if (o.op !== "replace") return;
+        x = { op: "insert", after: anchor(o._prevs), md: o.md, tmp: o.block, _aprevs: o._prevs };
+        gone = true;
+      }
+      if ((x.op === "insert" || x.op === "move") && x.after != null && !ok(x.after)) { x.after = anchor(x._aprevs); changed = true; }
+      if (x.tmp) made[x.tmp] = 1;
+      ops.push(x);
+    });
+    if (!changed) return null;
+    return { via: gone && e.asBlock ? "edit" : e.via, ops: ops, gone: gone };
+  }
+  /** A read older than what this page already saw (the newest read merged, or its own saves' revs) would put
+   *  old text back: it is not merged. */
+  function staleRead(rev, seen, acked) { return rev < Math.max(seen || 0, acked || 0); }
+  /** How many of the outbox's oldest entries one batch takes: as many as fit maxCount entries and maxChars of
+   *  JSON (sizes: each entry's JSON length), at least one. The rest waits (see flush). */
+  function batchFit(sizes, maxCount, maxChars) {
+    var n = 0, chars = 0;
+    while (n < sizes.length && n < maxCount && (n === 0 || chars + sizes[n] <= maxChars)) chars += sizes[n++];
+    return n;
+  }
+  var PURE = { placeBlocks: placeBlocks, onRead: onRead, mergeBlocks: mergeBlocks, saveOutcome: saveOutcome, staleRead: staleRead,
+    replayOps: replayOps, repairOps: repairOps, batchFit: batchFit };
+  // <<< pure
+
+  // A read of the doc changes only the blocks that changed (see placeBlocks), and what is on screen stays put:
+  // the block being typed in, or else the first one on screen, keeps its place in the window.
+  function patch(redrawMine) {
+    var keep = focused && blockEl(focused.id), have = {}, nodes = [];
+    page.querySelectorAll(".doc-blk[data-block]").forEach(function (el) { have[el.getAttribute("data-block")] = el; });
+    var anchor = keep && onScreen(keep) ? keep : firstOnScreen(), top = anchor ? anchor.getBoundingClientRect().top : 0;
+    sugAfter(null).forEach(function (sg) { nodes.push(sugBlock(sg)); });
+    tab().blocks.forEach(function (b) {
+      var el = have[b.id];
+      if (el && el === keep) { if (redrawMine) redrawKept(b, el); nodes.push(el); }
+      else nodes.push(el && el._drawn === drawKey(b) ? el : drawBlock(b, el));
+      sugAfter(b.id).forEach(function (sg) { nodes.push(sugBlock(sg)); });
+    });
+    placeBlocks(page, nodes, keep);
+    ast = md.parse(fullText());
+    applySettings();
+    drawToc(); drawTabs(); drawMargin();
+    if (anchor && anchor.isConnected) { var dy = anchor.getBoundingClientRect().top - top; if (Math.abs(dy) >= 1) window.scrollBy(0, dy); }
+  }
+  function onScreen(el) { var r = el.getBoundingClientRect(); return r.bottom > bar.getBoundingClientRect().bottom && r.top < innerHeight; }
+  function firstOnScreen() {
+    var all = page.querySelectorAll(".doc-blk[data-block]");
+    for (var i = 0; i < all.length; i++) if (onScreen(all[i])) return all[i];
+    return null;
+  }
+  // Hermes changed the block the caret is in while nothing typed there waits to be saved: its new text, the
+  // caret where it was (by its place in the text), the focus kept.
+  function redrawKept(b, el) {
+    var had = el.contains(document.activeElement), off = had ? caretOffset(el) : -1;
+    drawBlock(b, el);
+    focused.saved = b.md; focused.base = tab().rev;
+    if (!had) return;
+    var tg = el.getAttribute("contenteditable") === "true" ? el : el.querySelector("[contenteditable=plaintext-only]");
+    if (!tg) { focused = null; return; }
+    if (document.activeElement !== tg) tg.focus({ preventScroll: true });
+    if (off >= 0) caretAtOffset(tg, off);
+  }
+  function caretOffset(el) {
+    var s0 = window.getSelection();
+    if (!s0.rangeCount || !el.contains(s0.anchorNode)) return -1;
+    var r = document.createRange(); r.selectNodeContents(el); r.setEnd(s0.anchorNode, s0.anchorOffset);
+    return r.toString().length;
+  }
   function drawToc() {
     toc.replaceChildren.apply(toc, Array.prototype.map.call(page.querySelectorAll(".doc-blk > h1, .doc-blk > h2, .doc-blk > h3"), function (el) {
       return h("a", { href: "#", "class": "l" + el.tagName[1], text: el.textContent,
@@ -282,37 +464,220 @@
     clearTimeout(statusTimer);
     if (x === T.saved) statusTimer = setTimeout(function () { status.textContent = ""; }, 1500);
   }
-  var chain = Promise.resolve(), edits = 0, inflight = 0;
-  function edit(ops) {
+  var edits = 0;
+  // The outbox: every change the page makes goes out as one logical edit, {cid, via ("edit" or "suggest"),
+  // ops, base, t}, and stays here until the server answers it: taken, a conflict, or a refusal. One at a
+  // time, in order. A failure (an error, no answer within 20 s) keeps it at the head; it goes again after a
+  // pause that doubles up to 30 s, with the SAME cid, and the server answers a cid it already applied with
+  // that first answer, so an edit is applied once however often it is sent. Until answered, its ops are played
+  // over every read (replayOps), so a read never takes back a change still on its way. An edit that changes
+  // several blocks (a split, a merge) is one entry: the server takes all of it or none.
+  // A cid is "<page>.<n>[.<tag>]": n counts this page's edits in the order they were made; an edit mended or
+  // split up keeps its n (tag m1, r…), so the server can tell an older edit of a block from a newer one (docs._seq).
+  var outbox = [], sending = null, mending = false, retryTimer = null, retryMs = 0, cidN = 0, leaving = false;
+  var PAGE = Math.random().toString(36).slice(2, 8) + Date.now().toString(36);
+  function prevsOf(id) { // the blocks before it here (nearest first): where it goes back if what it names is gone
+    var i = indexOf(realIds[id] || id), out = [];
+    for (var k = i - 1; k >= 0 && out.length < 8; k--) out.push(tab().blocks[k].id);
+    return out;
+  }
+  function enqueue(via, ops, base, more) {
     if (!live) { setStatus(T.offline); return Promise.reject(new Error(T.offline)); }
     var t = tab();
+    ops = ops.map(function (o) {
+      var x = {}; for (var k in o) x[k] = o[k];
+      if (x.op === "insert" && !x.tmp) x.tmp = "tmp-" + Math.random().toString(36).slice(2, 10);
+      if (x.block) x._prevs = prevsOf(x.block);
+      if (x.op === "insert" || x.op === "move") x._aprevs = x.after == null ? [] : [x.after].concat(prevsOf(x.after));
+      return x;
+    });
+    // New words for a block whose last change waits unsent go in that same entry (never past another one).
+    var last = more && more.at != null ? null : outbox[outbox.length - 1];
+    if (last && last !== sending && !last.sent && last.t === t && last.via === via && last.ops.length === 1 && ops.length === 1 &&
+        last.ops[0].op === "replace" && ops[0].op === "replace" && last.ops[0].block === ops[0].block) {
+      last.ops[0].md = ops[0].md;
+      if (base != null && (last.base == null || base < last.base)) last.base = base;
+      return last.promise;
+    }
+    var n = more && more.n != null ? more.n : ++cidN;
+    var e = { n: n, cid: PAGE + "." + n + (more && more.tag ? "." + more.tag : ""), via: via, ops: ops, base: base, t: t, sent: false, fixes: 0 };
+    for (var k2 in more || {}) if (k2 !== "at" && k2 !== "n" && k2 !== "tag") e[k2] = more[k2];
+    e.promise = new Promise(function (res) { e.done = res; });
+    if (more && more.at != null) outbox.splice(more.at, 0, e); else outbox.push(e); // at: the place of the edit it stands for
     setStatus(T.saving);
-    inflight++;
-    chain = chain.then(function () {
-      // A block made here a moment ago may still wait for its id: by now the server gave it one.
-      var sent = ops.map(function (o) {
-        var x = {}; for (var k in o) if (k !== "tmp") x[k] = o[k];
-        if (x.block && realIds[x.block]) x.block = realIds[x.block];
-        if (x.after && realIds[x.after]) x.after = realIds[x.after];
-        return x;
-      });
-      return hm.doc.edit(t.id, sent, t.rev).then(function (r) {
-        ops.forEach(function (o) { if (o.tmp && r && r.changed) settleId(o.tmp, r.changed[r.changed.length - 1]); });
-        if (r && r.conflict) { kit.toast(T.conflict); return pull(true).then(function () { return r; }); }
-        if (r && r.rev) { if (r.rev === t.rev + 1) t.rev = r.rev; else pull(true); } // someone else edited in between
-        edits++;
-        setStatus(T.saved);
-        return r;
-      });
-    }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); })
-      .then(function (r) { inflight--; sendView(); return r; });
-    return chain;
+    pump();
+    return e.promise;
   }
-  function propose(ops) {
-    setStatus(T.saving);
-    return hm.doc.suggest(tab().id, ops).then(function (r) { setStatus(T.saved); return pull(true).then(function () { return r; }); })
-      .catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); });
+  /** base: the rev a block's words were typed against (its own, older than the tab's when Hermes changed
+   *  that block meanwhile), so the server sees the conflict instead of the person's save overwriting it. */
+  function edit(ops, base) { return enqueue("edit", ops, base); }
+  function propose(ops) { return enqueue("suggest", ops).then(function (r) { return pull(true).then(function () { return r; }); }); }
+  function wire(e) { // the ops as the server takes them: ids it gave meanwhile, an anchor still unsettled moved back, the cid
+    return e.ops.map(function (o, i) {
+      var x = {}; for (var k in o) if (k !== "tmp" && k.charAt(0) !== "_") x[k] = o[k];
+      if (x.block && realIds[x.block]) x.block = realIds[x.block];
+      if (x.after && realIds[x.after]) x.after = realIds[x.after];
+      if (x.after && /^tmp-/.test(x.after)) { var a = (o._aprevs || []).slice(1).filter(function (p) { return !/^tmp-/.test(realIds[p] || p); })[0]; x.after = a ? realIds[a] || a : null; }
+      if (i === 0) x.cid = e.cid;
+      return x;
+    });
   }
+  function baseOf(e) { // fixed when it first goes out: the same base however often it is sent
+    if (!e.sent) { e.sent = true; e.sentBase = e.base != null && e.base < e.t.rev ? e.base : e.t.rev; }
+    return e.sentBase;
+  }
+  function send(e) {
+    var t = e.t;
+    baseOf(e);
+    e.flying = true;
+    var ops = wire(e);
+    inTime(e.via === "suggest" ? hm.doc.suggest(t.id, ops) : hm.doc.edit(t.id, ops, e.sentBase))
+      .then(function (r) { answered(e, r); }, function () { answered(e, null); });
+  }
+  function pump() {
+    if (leaving || batching || sending || mending || retryTimer || !outbox.length) return; // a batch out: its answer first
+    sending = outbox[0];
+    send(sending);
+  }
+  function inTime(p) { // a save with no answer is a failed save (it is sent again), not a hang
+    return Promise.race([p, new Promise(function (res, rej) { setTimeout(function () { rej(new Error(T.retrying)); }, 20000); })]);
+  }
+  function answered(e, r) {
+    e.flying = false;
+    if (sending === e) sending = null;
+    var how = saveOutcome(r), i = outbox.indexOf(e);
+    if (i < 0) return pump(); // answered already (sent twice: a retry and a flush)
+    if (how === "failed") { if (i === 0) failed(); return; } // stays where it is; the pump sends it again
+    if (how === "refused") { if (i === 0) mend(e, r); return; }
+    outbox.splice(i, 1);
+    retryMs = 0;
+    if (how === "conflict") e.done(conflicted(e.t, e, r, i));
+    else { took(e, r); e.done(r); }
+    if (!outbox.length) setStatus(T.saved);
+    sendView();
+    pump();
+  }
+  function took(e, r) { // the server has it: its new blocks get their ids, the page knows the rev it reached
+    var per = r.per_op || [];
+    e.ops.forEach(function (o, i) {
+      if (o.tmp && per[i] && per[i].length) settleId(o.tmp, per[i][0]);
+      else if (o.tmp && !r.per_op && r.changed && r.changed.length) settleId(o.tmp, r.changed[r.changed.length - 1]);
+    });
+    if (e.say) { kit.toast(e.say); e.say = null; } // what became of the person's words, once it is true
+    if (!r.rev) return;
+    var t = e.t;
+    t.acked = Math.max(t.acked || 0, r.rev); // the server is at least here: an older read is stale
+    if (r.rev === t.rev + 1) t.rev = r.rev; else if (!r.repeat) pull(true); // someone else edited in between
+    if (e.via !== "edit") return;
+    edits++;
+    if (e.ops.some(function (o) { return o.op === "insert" && md.parse(o.md || "").length > 1 || o.op === "replace" && md.parse(o.md || "").length > 1 && !/^(`{3,}|~{3,})/.test((o.md || "").trim()); })) pull(true); // it split into blocks
+  }
+  function failed() {
+    if (leaving) return; // the page is going: what it had went out in its flush
+    setStatus(T.retrying);
+    if (!retryMs) kit.toast(T.retrying); // once, however often it fails
+    retryMs = Math.min(30000, (retryMs || 1500) * 2);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(function () { retryTimer = null; pump(); }, retryMs);
+  }
+  // Refused (Hermes removed a block it names): read the doc, make the edit fit it (repairOps), send that,
+  // still first in line; dropped when nothing in it could be the reason, and said.
+  function mend(e, r) {
+    mending = true;
+    pull(true).then(function () {
+      mending = false;
+      if (outbox[0] !== e) return pump();
+      var fix = repairOps(e, (e.t.srv || []).slice(), realIds);
+      if (fix && !fix.ops.length) { outbox.shift(); e.done(r); return pump(); } // all it did is done already (a delete of a removed block)
+      if (fix) {
+        e.cid = PAGE + "." + e.n + ".m" + (++e.fixes); e.via = fix.via; e.ops = fix.ops; e.sent = false; // the same n: still that edit
+        if (fix.gone) e.say = T.keptGone;
+        fix.ops.forEach(function (o) { if (o.tmp && focused && focused.id === o.tmp) focused.sug = false; }); // its words: a block of its own now
+      } else {
+        outbox.shift(); e.done(r);
+        kit.toast(String(r.message || r.refused));
+      }
+      pump();
+    });
+  }
+  // Hermes changed a block meanwhile that this edit changes too, and the server kept Hermes' text. The
+  // person's words are not dropped: they become a suggestion on that block (accepting it puts them back).
+  // The block being typed in stays focused and editable with the person's words: what they type on goes to
+  // that suggestion (f.sug), and the block shows Hermes' text with it once they leave it. The edit's other
+  // ops (a new block from a split, a move, a block Hermes did not touch) go again, as one edit; a block
+  // Hermes removed meanwhile gets the words back as a new block (repairOps).
+  function conflicted(t, e, r, at) {
+    var hit = r.blocks || [], rest = [];
+    e.ops.forEach(function (o) {
+      var bid = realIds[o.block] || o.block;
+      if (o.op === "replace" && hit.indexOf(bid) >= 0) {
+        var f = focused && focused.id === bid ? focused : null, el = blockEl(bid);
+        var text = f && el ? mdOf(el) : o.md; // what was typed since the save left, too
+        if (f) { f.sug = true; f.saved = text; }
+        enqueue("suggest", [{ op: "replace", block: bid, md: text }], null, { asBlock: true, say: T.conflict }); // said once it is there
+      } else if (!(o.op === "delete" && hit.indexOf(bid) >= 0)) rest.push(o); // a delete of what Hermes changed: it stays
+    });
+    // in its place and with its n: never after (nor taken for newer than) an edit made after it
+    if (rest.length) enqueue("edit", rest, e.sentBase, { at: at || 0, n: e.n, tag: "r" + (++e.fixes) });
+    return pull(true).then(function () { return r; });
+  }
+  // Leaving the page (a reload, the pane closed, another artifact, a new version) or hiding it: what waits for
+  // a pause is saved now, and the whole outbox goes out at once as ONE ordered batch (docs.apply_batch): every
+  // entry not answered yet, in outbox order, the one in flight included (its first request may still land:
+  // its cid makes that harmless), each with its own cid. Never side by side, so never out of order. Posted in
+  // this handler (the frame may be going). On pagehide nothing is sent after it: no retry, no pump.
+  function flush(going) {
+    if (!live) return;
+    if (focused && blockEl(focused.id)) save(false);
+    clearTimeout(retryTimer); retryTimer = null;
+    if (going) leaving = true;
+    if (!outbox.length || batching) return;
+    var all = outbox.map(function (e) { return { cid: e.cid, via: e.via, ops: wireBatch(e), base: baseOf(e), tab: e.t.id }; });
+    // The oldest stretch that fits one call (docs.MAX_BATCH, MAX_BATCH_CHARS): nothing sent side by side. A
+    // page that stays sends the rest one by one after the answer (pump); one that goes loses only what did not
+    // fit, which takes hours of typing offline.
+    var n = batchFit(all.map(function (x) { return JSON.stringify(x).length; }), BATCH_COUNT, BATCH_CHARS), run = outbox.slice(0, n);
+    batching++;
+    run.forEach(function (e) { e.batched = (e.batched || 0) + 1; });
+    inTime(hm.doc.edit(tab().id, [{ op: "batch", entries: all.slice(0, n) }], null))
+      .then(function (r) { batchAnswered(run, r); }, function () { batchAnswered(run, null); });
+  }
+  var BATCH_COUNT = 2000, BATCH_CHARS = 1900000, batching = 0; // under docs.MAX_BATCH and MAX_BATCH_CHARS (2 000 000)
+  // The answers to a batch, the page still here (hidden, not gone): each entry as if it had been answered on
+  // its own, in order; a held one (it depends on one that failed) stays, in its place, for the pump.
+  function batchAnswered(run, r) {
+    batching--;
+    run.forEach(function (e) { e.batched--; });
+    var answers = r && r.ok !== false && Array.isArray(r.batch) ? r.batch : null;
+    if (!answers) { if (!leaving && outbox.length) failed(); return; }
+    run.forEach(function (e, k) {
+      var a = answers[k], i = outbox.indexOf(e), how = a && a.held ? "held" : saveOutcome(a);
+      if (i < 0 || how === "held" || how === "failed") return;
+      if (how === "refused") { e.refusal = a; return; }
+      outbox.splice(i, 1);
+      if (how === "conflict") e.done(conflicted(e.t, e, a, i));
+      else { took(e, a); e.done(a); }
+    });
+    retryMs = 0;
+    if (!outbox.length) setStatus(T.saved);
+    sendView();
+    var head = outbox[0];
+    if (head && head.refusal && !sending && !mending) { var a0 = head.refusal; head.refusal = null; return mend(head, a0); }
+    pump();
+  }
+  function wireBatch(e) { // as wire(), but a tmp id an earlier entry of the batch makes is left for the server to fill in
+    return e.ops.map(function (o) {
+      var x = {}; for (var k in o) if (k.charAt(0) !== "_") x[k] = o[k];
+      if (x.block && realIds[x.block]) x.block = realIds[x.block];
+      if (x.after && realIds[x.after]) x.after = realIds[x.after];
+      return x;
+    });
+  }
+  function unsaved() { return outbox.length > 0 || !!(focused && (focused.timer || composing)); }
+  window.addEventListener("pagehide", function () { flush(true); });
+  window.addEventListener("pageshow", function (ev) { if (ev.persisted && leaving) { leaving = false; pump(); } }); // back from the page cache
+  document.addEventListener("visibilitychange", function () { if (document.hidden) flush(false); });
+  window.addEventListener("beforeunload", function (ev) { if (!live || !unsaved()) return; flush(false); ev.preventDefault(); ev.returnValue = ""; });
   /** One block's new Markdown: an edit, or in Suggesting mode a proposal. */
   function writeBlock(id, mdText, opts) {
     var b = blockOf(id);
@@ -324,50 +689,63 @@
       return propose([{ op: "replace", block: id, md: mdText }]);
     }
     b.md = mdText;
-    var p = edit([{ op: "replace", block: id, md: mdText }]);
-    if (md.parse(mdText).length > 1 && !/^(`{3,}|~{3,})/.test(mdText.trim())) p = p.then(function () { return pull(true); }); // it split into blocks
-    return p;
+    if (opts && opts.sug) return enqueue("suggest", [{ op: "replace", block: id, md: mdText }], null, { asBlock: true })
+      .then(function (r) { return r && r.ok !== false ? { ok: true, sug: true, rev: r.rev } : r; });
+    return edit([{ op: "replace", block: id, md: mdText }], opts && opts.base != null ? opts.base : tab().rev);
   }
   // A new block shows and takes the caret at once; its id comes back from the server a moment later.
   var realIds = {}, tmpWait = {};
   function settleId(tmp, real) {
     realIds[tmp] = real;
     var b = blockOf(tmp), el = blockEl(tmp);
-    if (b) b.id = real;
-    if (el) { el.setAttribute("data-block", real); el.id = "blk-" + real; }
+    if (b && !blockOf(real)) b.id = real; else if (b) tab().blocks.splice(indexOf(tmp), 1); // a read showed it already
+    if (el && !blockEl(real)) { el.setAttribute("data-block", real); el.id = "blk-" + real; } else if (el && el !== blockEl(real)) { if (!(focused && focused.id === tmp)) el.remove(); else { var o = blockEl(real); o.remove(); el.setAttribute("data-block", real); el.id = "blk-" + real; } }
     if (focused && focused.id === tmp) focused.id = real;
     if (tmpWait[tmp]) { tmpWait[tmp](real); delete tmpWait[tmp]; }
+  }
+  function showNew(afterId, mdText, focusIt) { // a block here at once, under a tmp id until the server gives it one
+    var tmp = { id: "tmp-" + Math.random().toString(36).slice(2, 10), md: mdText };
+    tab().blocks.splice(afterId ? indexOf(afterId) + 1 : 0, 0, tmp);
+    var tel = drawBlock(tmp), prev0 = afterId ? blockEl(afterId) : null;
+    if (prev0) { var nx0 = prev0.nextSibling; while (nx0 && nx0.classList && nx0.classList.contains("sug-add")) nx0 = nx0.nextSibling; page.insertBefore(tel, nx0); }
+    else page.insertBefore(tel, page.firstChild);
+    if (focusIt) focusBlock(tmp.id, focusIt === "end");
+    drawToc();
+    return tmp.id;
   }
   function insertBlock(afterId, mdText, focusIt) {
     if (mode === "suggest") return propose([{ op: "insert", after: afterId, md: mdText }]);
     if (realIds[afterId]) afterId = realIds[afterId];
-    if (md.parse(mdText).length <= 1 || !mdText.trim()) {
-      var tmp = { id: "tmp-" + Math.random().toString(36).slice(2, 10), md: mdText };
-      tab().blocks.splice(afterId ? indexOf(afterId) + 1 : 0, 0, tmp);
-      var tel = drawBlock(tmp), prev0 = afterId ? blockEl(afterId) : null;
-      if (prev0) { var nx0 = prev0.nextSibling; while (nx0 && nx0.classList && nx0.classList.contains("sug-add")) nx0 = nx0.nextSibling; page.insertBefore(tel, nx0); }
-      else page.insertBefore(tel, page.firstChild);
-      if (focusIt) focusBlock(tmp.id, focusIt === "end");
-      drawToc();
-      var waiting = new Promise(function (res) { tmpWait[tmp.id] = res; });
-      edit([{ op: "insert", after: afterId, md: mdText, tmp: tmp.id }]);
-      return waiting;
-    }
-    // Several blocks (the one-block case returned above): the server splits them; the doc is read again.
-    return edit([{ op: "insert", after: afterId, md: mdText }]).then(function (r) {
-      if (!r || !r.changed) return null;
-      return pull(true).then(function () { return r.changed[0]; });
-    });
+    var tmp = showNew(afterId, mdText, focusIt); // several paragraphs too: the server splits them, a read then shows each
+    var waiting = new Promise(function (res) { tmpWait[tmp] = res; });
+    edit([{ op: "insert", after: afterId, md: mdText, tmp: tmp }]);
+    return waiting;
+  }
+  /** One block becomes two, as ONE edit (the server takes both or neither): block `id` gets `mdText`, and a
+   *  new block with `newMd` goes after `after` (id itself, or the block before it). Enter in a paragraph,
+   *  leaving a list, lifting a list's first item, "---". base: the rev id's words were typed against. */
+  function splitBlock(id, mdText, after, newMd, focusIt, base) {
+    var b = blockOf(id), el = blockEl(id);
+    if (!b) return Promise.resolve();
+    if (mode === "suggest") return propose([{ op: "replace", block: id, md: mdText }, { op: "insert", after: after, md: newMd }]);
+    if (realIds[after]) after = realIds[after];
+    b.md = mdText;
+    if (el) drawBlock(b, el);
+    var tmp = showNew(after, newMd, focusIt);
+    var waiting = new Promise(function (res) { tmpWait[tmp] = res; });
+    edit([{ op: "replace", block: id, md: mdText }, { op: "insert", after: after, md: newMd, tmp: tmp }], base != null ? base : tab().rev);
+    return waiting;
   }
   function removeBlock(id) {
     if (mode === "suggest") return propose([{ op: "delete", block: id }]);
     var i = indexOf(id);
     if (i < 0) return Promise.resolve();
     if (tab().blocks.length === 1) { tab().blocks[0].md = ""; drawBlock(tab().blocks[0], blockEl(id)); return edit([{ op: "replace", block: id, md: "" }]); }
+    var p = edit([{ op: "delete", block: id }]); // first: it notes where the block was
     tab().blocks.splice(i, 1);
     var el = blockEl(id); if (el) el.remove();
     drawToc();
-    return edit([{ op: "delete", block: id }]);
+    return p;
   }
 
   // ------------------------------------------------------------------ editing a block in place
@@ -394,21 +772,37 @@
     if (code) { var b = blockOf(el.getAttribute("data-block")), m = /^(`{3,}|~{3,})\s*([\w+#.-]*)/.exec(s(b && b.md)) || [0, "```", ""]; return m[1] + m[2] + "\n" + code.textContent.replace(/\n$/, "") + "\n" + m[1]; }
     return E.toMd(el);
   }
+  // The block being typed in: saved (its words as last handed to the outbox), timer (a save waiting for a
+  // pause), base (the rev its words were typed against: Hermes' change to it after that is a conflict, never
+  // overwritten), sug (Hermes changed it: the words typed here go to the person's suggestion on it), theirs
+  // (Hermes' text then). Words handed to the outbox stay there until the server takes them.
+  function track(id, el) { return { id: id, el: el, saved: (blockOf(id) || {}).md, timer: null, base: tab().rev, sug: false, theirs: null }; }
+  var composing = false; // an IME composition: the block it is in is not touched until it ends
+  page.addEventListener("compositionstart", function () { composing = true; });
+  page.addEventListener("compositionend", function () { composing = false; });
+  function pendingFor(id) { // an edit of this block still in the outbox
+    return outbox.some(function (e) { return e.ops.some(function (o) { return (realIds[o.block] || o.block) === id || o.tmp === id || realIds[o.tmp] === id; }); });
+  }
+  function dirty(f, el) { return !!(f.timer || f.sug || composing || pendingFor(f.id) || (el && mdOf(el) !== f.saved)); }
   function scheduleSave(el) {
     var id = el.getAttribute("data-block");
-    if (!focused || focused.id !== id) focused = { id: id, el: el, saved: (blockOf(id) || {}).md, timer: null };
+    if (!focused || focused.id !== id) focused = track(id, el);
     clearTimeout(focused.timer);
     focused.timer = setTimeout(function () { save(false); }, 700);
   }
   function save(final) {
     if (!focused) return Promise.resolve();
     var f = focused, el = blockEl(f.id);
-    clearTimeout(f.timer);
+    clearTimeout(f.timer); f.timer = null;
     if (!el) return Promise.resolve();
     var now = mdOf(el);
     if (now === f.saved) return Promise.resolve();
-    f.saved = now;
-    return writeBlock(f.id, now).then(function () { if (final) redrawOne(f.id); });
+    f.saved = now; // in the outbox now: kept and sent until the server takes it (a block Hermes removed comes back: repairOps)
+    var p = writeBlock(f.id, now, f.sug ? { sug: true } : { base: f.base });
+    if (final) redrawOne(f.id);
+    return p.then(function (r) {
+      if (r && !r.sug && saveOutcome(r) === "ok" && mode !== "suggest") f.base = r.rev; // the next save is checked from here
+    });
   }
   function redrawOne(id) { var b = blockOf(id), el = blockEl(id); if (b && el && !(focused && focused.id === id)) { drawBlock(b, el); drawToc(); } }
   function commit() {
@@ -416,6 +810,7 @@
     var f = focused;
     save(false);
     focused = null;
+    if (f.sug) { var b0 = blockOf(f.id); if (b0 && f.theirs != null) b0.md = f.theirs; pull(true); } // now it shows Hermes' text and the person's suggestion on it
     redrawOne(f.id);
     ast = md.parse(fullText());
     sendView();
@@ -431,7 +826,7 @@
     if (!el || el.hasAttribute("data-source")) return;
     markEmpty(el, true);
     if (focused && focused.id !== el.getAttribute("data-block")) commit();
-    if (!focused) focused = { id: el.getAttribute("data-block"), el: el, saved: (blockOf(el.getAttribute("data-block")) || {}).md, timer: null };
+    if (!focused) focused = track(el.getAttribute("data-block"), el);
     sendView();
   });
   page.addEventListener("focusout", function (e) {
@@ -536,6 +931,11 @@
     if (!b) return;
     if (slash.open && slash.key(e)) return;
     var r = E.caretRange(), code = el.querySelector("[contenteditable=plaintext-only]");
+    if (focused && focused.sug && focused.id === id && (e.key === "Enter" || e.key === "Tab" || (e.key === "Backspace" && r && r.collapsed && E.caretAt(el, false)))) {
+      e.preventDefault(); // the block holds the person's suggestion on Hermes' text: typed on, never split or merged
+      if (e.key === "Enter") document.execCommand("insertLineBreak");
+      return;
+    }
     if (code) { // a code block: lines are its own; Escape leaves it
       if (e.key === "Escape") { e.preventDefault(); code.blur(); }
       return;
@@ -585,10 +985,10 @@
     var c0 = containerOf(r.startContainer, el) || el, quote = c0.tagName === "BLOCKQUOTE";
     var line = el.textContent.trim();
     if (/^(```|~~~)\s*[\w+#.-]*$/.test(line) || /^-{3,}$/.test(line)) { // "```" or "---" then Enter
-      var b0 = blockOf(id);
-      b0.md = /^-{3,}$/.test(line) ? "---" : line + "\n\n" + line.slice(0, 3);
-      drawBlock(b0, el); writeBlock(id, b0.md);
-      if (/^-/.test(line)) insertBlock(id, "", "start"); else focusBlock(id, false);
+      var b0 = blockOf(id), base0 = focused && focused.id === id ? focused.base : null;
+      if (/^-{3,}$/.test(line)) { focused = null; splitBlock(id, "---", id, "", "start", base0); return; } // the rule and the line after it: one edit
+      b0.md = line + "\n\n" + line.slice(0, 3);
+      drawBlock(b0, el); writeBlock(id, b0.md); focusBlock(id, false);
       return;
     }
     if (E.caretAt(c0, false) && c0.textContent.trim()) { // at the start: a new empty block above
@@ -600,12 +1000,9 @@
     var tmp = h("p"); tmp.appendChild(frag);
     var after = E.inlineMd(tmp).trim();
     if (quote) after = after ? "> " + after : "";
-    var now = mdOf(el);
+    var now = mdOf(el), base = focused && focused.id === id ? focused.base : null;
     focused = null;
-    var b = blockOf(id);
-    writeBlock(id, now);
-    if (mode !== "suggest") { b.md = now; drawBlock(b, el); }
-    insertBlock(id, after, "start");
+    splitBlock(id, now, id, after, "start", base); // its first part and the new block: one edit
   }
   function enterInItem(el, li) {
     var list = li.parentNode, task = li.classList.contains("task") || !!li.querySelector(":scope > input");
@@ -614,11 +1011,10 @@
       if (nested) { outdent(li); scheduleSave(el); return; }
       li.remove();
       if (!list.children.length) list.remove();
-      var id = el.getAttribute("data-block"), now = mdOf(el);
+      var id = el.getAttribute("data-block"), now = mdOf(el), base = focused && focused.id === id ? focused.base : null;
       focused = null;
       if (!s(now)) { blockOf(id).md = ""; drawBlock(blockOf(id), el); writeBlock(id, ""); focusBlock(id, false); return; }
-      writeBlock(id, now); blockOf(id).md = now; drawBlock(blockOf(id), el);
-      insertBlock(id, "", "start");
+      splitBlock(id, now, id, "", "start", base); // the list and the line after it: one edit
       return;
     }
     var sub = Array.prototype.filter.call(li.children, function (c) { return c.tagName === "UL" || c.tagName === "OL"; });
@@ -657,10 +1053,10 @@
     Array.prototype.slice.call(li.childNodes).forEach(function (c) { if (!(c.nodeType === 1 && (c.tagName === "INPUT" || c.tagName === "UL" || c.tagName === "OL"))) tmp.appendChild(c); });
     var lead = E.inlineMd(tmp).trim(), list = li.parentNode;
     li.remove();
-    var rest = list.children.length ? mdOf(el) : "";
+    var rest = list.children.length ? mdOf(el) : "", base = focused && focused.id === id ? focused.base : null;
     focused = null;
     var prev = indexOf(id) > 0 ? tab().blocks[indexOf(id) - 1].id : null;
-    if (rest) { writeBlock(id, rest); blockOf(id).md = rest; drawBlock(blockOf(id), el); insertBlock(prev, lead || "", "start"); }
+    if (rest) { splitBlock(id, rest, prev, lead || "", "start", base); } // the list's rest and the paragraph above it: one edit
     else { blockOf(id).md = lead; drawBlock(blockOf(id), el); writeBlock(id, lead); focusBlock(id, false); }
   }
   function mergeUp(el, b) {
@@ -802,7 +1198,7 @@
 
   function saveEl(el) {
     var id = el.getAttribute("data-block");
-    if (!focused || focused.id !== id) focused = { id: id, el: el, saved: (blockOf(id) || {}).md, timer: null };
+    if (!focused || focused.id !== id) focused = track(id, el);
     var p = save(false);
     if (!(document.activeElement && el.contains(document.activeElement))) focused = null;
     return p;
@@ -1083,7 +1479,7 @@
     var li = e.target.closest("li"), el = e.target.closest(".doc-blk[data-block]");
     if (!li || !el || !live) return;
     li.classList.toggle("done", e.target.checked);
-    if (!focused || focused.id !== el.getAttribute("data-block")) focused = { id: el.getAttribute("data-block"), el: el, saved: (blockOf(el.getAttribute("data-block")) || {}).md, timer: null };
+    if (!focused || focused.id !== el.getAttribute("data-block")) focused = track(el.getAttribute("data-block"), el);
     save(false);
   });
   var popover = null;
@@ -1510,8 +1906,8 @@
     }
     if (replace && el) {
       var b = blockOf(id); b.md = it.md; drawBlock(b, el);
-      if (/^(```|---|\|)/.test(it.md)) writeBlock(id, it.md);
-      if (it.md === "---") return insertBlock(id, "", "start");
+      if (it.md === "---") { b.md = ""; return splitBlock(id, "---", id, "", "start"); } // one edit
+      if (/^(```|\|)/.test(it.md)) writeBlock(id, it.md);
       if (/^\|/.test(it.md)) { var c1 = el.querySelector("td,th"); if (c1) { el.focus(); E.placeCaret(c1, true); } return; }
       if (/^```/.test(it.md) && !isWidget(it.md)) { var cd = el.querySelector("[contenteditable=plaintext-only]"); if (cd) { cd.focus(); E.placeCaret(cd, false); } return; }
       if (isWidget(it.md)) return /^```chart/.test(it.md) ? openData(el) : openSource(el);
@@ -1626,7 +2022,8 @@
       scheduleSave(el);
       return;
     }
-    save(false).then(function () { insertBlock(el.getAttribute("data-block"), mdText, null); });
+    save(false); // its own words first (the outbox keeps the order), the pasted blocks after them, at once
+    insertBlock(el.getAttribute("data-block"), mdText, null);
   });
   page.addEventListener("dragover", function (e) { if (live && e.dataTransfer && Array.prototype.some.call(e.dataTransfer.items || [], function (i) { return i.kind === "file"; })) e.preventDefault(); });
   page.addEventListener("drop", function (e) {
@@ -1741,7 +2138,7 @@
   var pulling = null;
   function pull(force) {
     if (!live) return Promise.resolve();
-    if (pulling) return pulling;
+    if (pulling) return force ? pulling.then(function () { return pull(true); }) : pulling; // a forced read sees what is there now
     var t = tab();
     pulling = hm.doc.read(t.id, force ? null : t.rev).then(function (r) {
       if (typeof r.hermes_active === "boolean") { kit.hermesWork.seen(r.hermes_active, r.hermes_left, r.hermes_ago); hermesNow(); }
@@ -1754,6 +2151,8 @@
   function merge(full, flash) {
     var byId = {};
     tabs.forEach(function (t) { byId[t.id] = t; });
+    var seen = byId[full.tab];
+    if (seen && staleRead(full.rev, seen.rev, seen.acked)) return; // sent before a save landed, come after it: old text
     var curId = tab().id;
     tabs = full.tabs.map(function (o) { var t = byId[o.id] || { id: o.id, blocks: [], rev: 0 }; t.title = o.title; return t; });
     cur = Math.max(0, tabs.findIndex(function (t) { return t.id === curId; }));
@@ -1761,17 +2160,39 @@
     if (typeof full.edits === "number") edits = full.edits;
     selects = full.selects || {}; settings = full.settings || {}; suggestions = full.suggestions || [];
     if (t.id !== full.tab) return;
-    // The block being typed in keeps the person's words (theirs wins until it saves), unless Hermes changed it.
-    var mine = focused && blockEl(focused.id) && document.activeElement && blockEl(focused.id).contains(document.activeElement) ? focused.id : null;
-    t.blocks = full.blocks.map(function (b) {
-      if (mine && b.id === mine && flash.indexOf(b.id) < 0) { var m0 = blockOf(mine); return { id: b.id, md: m0 ? m0.md : b.md }; }
-      return { id: b.id, md: b.md };
-    });
+    // An edit the server applied whose answer never came (an error after it, a lost connection): the read
+    // says so (done: cid -> its blocks), so it is settled here and never sent, nor shown, twice.
+    var done = full.done || {}, settled = false;
+    while (outbox.length && !outbox[0].flying && Object.prototype.hasOwnProperty.call(done, outbox[0].cid)) {
+      var e0 = outbox.shift(), r0 = { ok: true, rev: full.rev, per_op: done[e0.cid], repeat: true };
+      clearTimeout(retryTimer); retryTimer = null; retryMs = 0; settled = true;
+      took(e0, r0); e0.done(r0);
+    }
+    // The block being typed in keeps the person's words (theirs win until they pause), Hermes' change to it
+    // included: the save then meets it as a conflict and keeps their words as a suggestion (see conflicted).
+    // Every edit still in the outbox is played over the server's blocks (replayOps): a failed or slow save,
+    // a split, a new or moved block, a paste, is never taken back by a read.
+    var keepMd = {};
+    var f = focused, fel = f && blockEl(f.id), mine = fel ? f.id : null, act = null, local = null;
+    if (mine) {
+      var srv = full.blocks.find(function (b) { return b.id === mine; });
+      local = (blockOf(mine) || {}).md;
+      if (f.sug && srv) f.theirs = srv.md;
+      act = onRead(!!srv, !!srv && srv.md === local, dirty(f, fel));
+      if (act === "keep" || act === "readd") keepMd[mine] = local;
+    }
+    var was = t.blocks;
+    t.srv = full.blocks.map(function (b) { return b.id; }); // what the server has: an edit it refuses is made to fit it (mend)
+    var m = mergeBlocks(replayOps(full.blocks, outbox, realIds), was, keepMd);
+    t.blocks = m.blocks;
+    m.back.forEach(function (x) { if (x.id === mine) f.sug = false; }); // gone there: its words go back in as a new block
+    if (act === "drop") { clearTimeout(f.timer); focused = null; }
     t.rev = full.rev;
-    if (mine && flash.indexOf(mine) >= 0) focused = null;
     flash.forEach(function (id) { delete pendingAsks[id]; });
-    render();
+    patch(act === "redraw");
+    if (settled) { setStatus(outbox.length ? T.saving : T.saved); pump(); }
     flash.forEach(function (id) {
+      if (id === mine && act !== "redraw") return; // still the person's words there
       var el = blockEl(id);
       if (!el) return;
       el.classList.add("by-hermes"); el.title = T.byHermes;
@@ -1780,7 +2201,7 @@
   }
   if (live) {
     hm.on("doc", function () { pull(false); });
-    setInterval(function () { if (!document.hidden && !(focused && inflight)) pull(false); }, 2500);
+    setInterval(function () { if (!document.hidden && !(focused && sending)) pull(false); }, 2500);
   }
 
   // ------------------------------------------------------------------ view context (with the next chat message)
@@ -1792,7 +2213,7 @@
       return { mode: focused ? "edit" : "read", suggesting: mode === "suggest" || undefined, tab: { id: tab().id, title: tab().title, rev: tab().rev },
         section: head ? head.textContent.trim().slice(0, 80) : null,
         selected: sel ? [sel.trim().slice(0, 300)] : [], blocks: blocks.slice(0, 20),
-        asking: Object.keys(pendingAsks), version: C.version, edits: edits, dirty: !!(inflight || focused && focused.timer) };
+        asking: Object.keys(pendingAsks), version: C.version, edits: edits, dirty: !!(outbox.length || focused && focused.timer) };
     });
   }
   window.addEventListener("scroll", sendView, { passive: true });
@@ -2249,8 +2670,13 @@
   bar.append.apply(bar, [titleEl].concat(tools).concat([h("span", { "class": "doc-gap" }), status, histBtn, expBtn]).concat(live ? [modeBtn] : []));
   setMode(mode);
 
-  render();
-  titleEl.textContent = title();
-  if (live) pull(true);
-  kit.ready();
+  // The first render, then ready for the host, once: also when the render throws (the bridge then says threw;
+  // an error before this point gets the bridge's own fallback, 1 s after it). An empty doc renders like any other.
+  try {
+    render();
+    titleEl.textContent = title();
+    if (live) pull(true);
+  } finally {
+    kit.ready();
+  }
 })();

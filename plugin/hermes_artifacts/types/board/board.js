@@ -12,6 +12,7 @@
  */
 (function () {
   "use strict";
+  window.__hermesDefer = true; // the host's "ready" comes from kit.ready(), after the first real render
   // The UI's words in the app's language (hu over en, key by key).
   function pickLang(t, l) { var o = {}, k; for (k in t.en) o[k] = t.en[k]; for (k in t[l] || {}) o[k] = t[l][k]; return o; }
   var kit = window.kit, h = kit.h, C = kit.content, hm = window.hermes, G = window.boardGeo;
@@ -20,6 +21,7 @@
   // ------------------------------------------------------------------ strings
   var T = pickLang({
     en: {
+      noHost: "Not connected to Hermes: changes won't be saved.",
       board: "Whiteboard", noGeo: "The board could not load its geometry module.",
       select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes",
       image: "Image", ask: "Ask Hermes", askPh: "Describe a change", send: "Send", sent: "Sent to Hermes", drafted: "Put in the chat box",
@@ -52,6 +54,7 @@
       colours: { yellow: "Yellow", peach: "Peach", pink: "Pink", green: "Green", blue: "Blue", purple: "Purple", gray: "Gray", ink: "Ink", terracotta: "Terracotta" }
     },
     hu: {
+      noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.",
       board: "Tábla", noGeo: "A tábla geometriai modulja nem töltődött be.",
       select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok",
       image: "Kép", ask: "Hermes megkérése", askPh: "Írd le a változtatást", send: "Küldés", sent: "Elküldve Hermesnek", drafted: "Bekerült a csevegőmezőbe",
@@ -84,6 +87,7 @@
       colours: { yellow: "Sárga", peach: "Barack", pink: "Rózsaszín", green: "Zöld", blue: "Kék", purple: "Lila", gray: "Szürke", ink: "Tinta", terracotta: "Terrakotta" }
     }
   }, L);
+  kit.degraded(T.noHost); // no host: said once; the page still shows what it has
   function fill(s, o) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return o[k] != null ? o[k] : m; }); }
 
   var root = document.getElementById("bd-root") || document.getElementById("board") || document.body.appendChild(h("div", { id: "bd-root" }));

@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.17.0
+version: 0.18.0
 description: >
   Claude-style artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
@@ -47,6 +47,11 @@ config_schema:
     default: false
     label: Ask before every live dashboard query
     description: Off, a live query runs without asking when Hermes ran exactly that call in the chat before publishing it; any other query asks first, in Hermes Desktop's own dialog. On, every new or changed query asks.
+  page_diagnostics:
+    type: bool
+    default: true
+    label: Record page errors for Hermes
+    description: On, an artifact open in Hermes Desktop or the browser viewer records its errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host, for ha_check. The last 3 versions are kept and deleted with the artifact. Off, nothing is recorded.
   bridge_tools:
     type: str
     default: ""
