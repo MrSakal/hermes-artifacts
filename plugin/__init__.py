@@ -1278,6 +1278,7 @@ CHECK_CLAIMS = " Claims in check and runs are the page's: verify with your own q
 # VIEWER_RECENT_S. Otherwise ha_check waits at most NO_VIEWER_WAIT_S: nobody is there to report.
 VIEWER_RECENT_S = 60
 NO_VIEWER_WAIT_S = 2
+CHECK_POLL_S = 0.1  # how often ha_check looks again while it waits
 _SHOWN_AT: dict = {}  # artifact id -> when this process last sent it to a viewer (publish's open, ha_open)
 
 
@@ -1327,10 +1328,16 @@ def _check(args: dict, **kw) -> str:
             break
         if time.time() >= deadline:
             break
-        time.sleep(1)
+        time.sleep(max(0.0, min(CHECK_POLL_S, deadline - time.time())))
     if rec and rec.get("shown") and wait and time.time() - float(rec.get("last") or 0) < 2:
-        # Just shown: its errors may still be on their way (a host's reports are written once a second).
-        time.sleep(max(0.0, min(diagnostics.WRITE_EVERY_S + 0.2, deadline - time.time())))
+        # Just shown: its errors may still be on their way. A host's reports are written at most once a second
+        # (diagnostics.WRITE_EVERY_S), with whatever came meanwhile, so what arrived within 0.2 s of that report
+        # is on disk once a write newer than that is, and at the latest WRITE_EVERY_S later: wait for whichever
+        # comes first (ha_check used to sleep WRITE_EVERY_S + 0.2 from when it noticed, whatever the file said).
+        covered = float(rec.get("last") or 0) + 0.2
+        until = min(covered + diagnostics.WRITE_EVERY_S, deadline)
+        while diagnostics.written_at(aid) <= covered and time.time() < until:
+            time.sleep(max(0.0, min(CHECK_POLL_S, until - time.time())))
         rec = diagnostics.version_record(aid, latest)
     page = diagnostics.page_view(rec) if rec else None
     if not on:

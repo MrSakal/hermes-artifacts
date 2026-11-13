@@ -360,6 +360,14 @@ def version_record(aid: str, n: int, now: Optional[float] = None) -> Optional[di
     return read(aid, now).get(f"v{int(n)}")
 
 
+def written_at(aid: str) -> float:
+    """When the artifact's record was last written to disk (by any process), 0 when never."""
+    try:
+        return os.stat(_path(aid)).st_mtime
+    except (OSError, ValueError):
+        return 0.0
+
+
 # ----------------------------------------------------------------------------- for the agent
 
 # What ha_check hands the agent of a version's errors (the full set stays on disk): the most useful few,
