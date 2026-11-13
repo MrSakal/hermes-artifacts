@@ -34,6 +34,21 @@ def _view(m: dict, base=None, extras: Optional[tuple] = None) -> dict:
             "comments": comments, **({"preview": True} if preview else {})}
 
 
+def copy_title(title: str, word: str, titles) -> str:
+    """Duplicate's title: "X (copy)", then "X (copy 2)", "X (copy 3)"… whichever of those ``titles`` (the
+    artifacts there are) lacks first. A copy of a copy counts on from its original: "X (copy)" and
+    "X (copy 2)" give the next free "X (copy n)". ``word`` is the gallery's own word for it ("copy",
+    "másolat")."""
+    m = re.fullmatch(r"(.*) \(" + re.escape(word) + r"(?: [0-9]+)?\)", title, re.S)
+    base, have = (m.group(1) if m and m.group(1).strip() else title), set(titles)
+    n = 1
+    while True:
+        name = (base[:200 - len(word) - 12] + (f" ({word})" if n == 1 else f" ({word} {n})"))
+        if name not in have:
+            return name
+        n += 1
+
+
 # A typed artifact's document is its type's runtime (250-560 KB, the same for every artifact of the type) with
 # one content tag before </head>. The host may cache the runtime part ("shell", the bridge already in it) by its
 # hash and fetch only the content: GET artifacts/<id>/html?split=1 -> {id, version, type, shell: <hash>,
@@ -546,8 +561,10 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     raise ApiError(404, "unknown version")
             elif rest == ["duplicate"] and method == "POST":
                 m = _meta(aid)
-                suffix = str(body.get("suffix") or " (copy)")[:40]
-                new = store.publish(path=str(store.version_dir(aid)), title=(m["title"] + suffix)[:200],
+                word = str(body.get("word") or "").strip()
+                word = word if 0 < len(word) <= 30 and not re.search(r"[()\s]", word) else "copy"
+                title = copy_title(m["title"], word, [x["title"] for x in store.list_all()])
+                new = store.publish(path=str(store.version_dir(aid)), title=title,
                                     description=m.get("description", ""), type=m.get("type", "page"),
                                     session=m.get("session"))
                 return _view(store.get_meta(new["id"]))

@@ -87,8 +87,7 @@ const STRINGS = {
     exportMenu: 'Export',
     duplicate: 'Duplicate',
     duplicated: 'Duplicated',
-    copySuffix: ' (copy)',
-    copySuffixN: n => ` (copy ${n})`,
+    copyWord: 'copy',
     openChat: 'Open chat',
     rename: 'Rename',
     versions: 'Versions',
@@ -379,8 +378,7 @@ const STRINGS = {
     exportMenu: 'Exportálás',
     duplicate: 'Duplikálás',
     duplicated: 'Duplikálva',
-    copySuffix: ' (másolat)',
-    copySuffixN: n => ` (másolat ${n})`,
+    copyWord: 'másolat',
     openChat: 'Chat megnyitása',
     rename: 'Átnevezés',
     versions: 'Verziók',
@@ -2148,17 +2146,10 @@ async function copyText(text) {
 /** Opens the artifact in Hermes Desktop (the page reads ?artifact= on arrival). */
 const artifactLink = id => `hermes://open${PAGE}?artifact=${enc(id)}`
 
-/** A copy's title suffix: " (copy)", then " (copy 2)", " (copy 3)"… past the titles there are (`titles`). */
-function copySuffix(title, titles, t = tr) {
-  const have = new Set(titles)
-  if (!have.has(title + t('copySuffix'))) return t('copySuffix')
-  for (let n = 2; ; n++) if (!have.has(title + t('copySuffixN', n))) return t('copySuffixN', n)
-}
-
-/** Duplicate (a card's menu, the title menu): the copy under the next free copy title. Resolves its record, or null. */
+/** Duplicate (a card's menu, the title menu): the copy under the next free copy title, which the server picks
+ *  (api.copy_title) in the gallery's language. Resolves its record, or null. */
 async function duplicateArt(ctx, art) {
-  const suffix = copySuffix(art.title, $list.get().map(a => a.title))
-  const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { suffix } }).catch(e => (toast(errText(e), 'error'), null))
+  const r = await ctx.rest(`/artifacts/${enc(art.id)}/duplicate`, { method: 'POST', body: { word: tr('copyWord') } }).catch(e => (toast(errText(e), 'error'), null))
   if (!r) return null
   await refresh(ctx)
   toast(tr('duplicated'))

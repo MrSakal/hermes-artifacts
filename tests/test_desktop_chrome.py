@@ -20,10 +20,10 @@ SRC = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
 EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errText, reuseSame, thumbKind, fetchVendor,"
            " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
            " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
-           " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, copySuffix, dateText, cardKey, CARD_KEYS,"
+           " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, dateText, cardKey, CARD_KEYS,"
            " askedEdit, editOf, $popups, panelMode, panelStyle, VIEW_ROW, VIEW_FILL, FRAME_FIT, PANEL_W, STAGE_MIN }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
-            "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copySuffixN", "discard", "noOpenComments",
+            "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copyWord", "discard", "noOpenComments",
             "noResolvedComments"]
 
 
@@ -720,15 +720,11 @@ class ClickThroughTests(unittest.TestCase):
         self.assertIn("checked: art.folder === f, disabled: art.folder === f", menu)
         self.assertNotIn("inNoFolder", SRC)
 
-    def test_a_second_copy_gets_a_number(self):
-        body = """
-        const en = (k, ...a) => (typeof m.STRINGS.en[k] === 'function' ? m.STRINGS.en[k](...a) : m.STRINGS.en[k])
-        const S = (title, titles) => m.copySuffix(title, titles, en)
-        console.log(JSON.stringify([S('X', ['X']), S('X', ['X', 'X (copy)']), S('X', ['X', 'X (copy)', 'X (copy 2)']), S('X', ['X', 'X (copy 2)'])]))
-        """
-        self.assertEqual(run_node(stub_module(EXPORTS), body), [" (copy)", " (copy 2)", " (copy 3)", " (copy)"])
-        self.assertEqual(SRC.count("body: { suffix }"), 1)  # the card menu and the title menu: duplicateArt
-        self.assertNotIn("suffix: t('copySuffix')", SRC)
+    def test_the_server_names_a_copy(self):
+        # one place numbers copies (api.copy_title, test_viewer_api); the half sends only its language's word
+        self.assertEqual(SRC.count("/duplicate`"), 1)  # the card menu and the title menu: duplicateArt
+        self.assertIn("body: { word: tr('copyWord') }", section("async function duplicateArt(", "const CARD_KEYS"))
+        self.assertNotIn("copySuffix", SRC)
 
     def test_every_hinted_card_key_acts_in_the_menu_and_on_a_card(self):
         body = """
