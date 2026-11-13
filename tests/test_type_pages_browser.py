@@ -203,5 +203,112 @@ class CardPictures(unittest.TestCase):
         self.check(self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"])
 
 
+LONG_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui}p{margin:0;padding:12px 16px;height:60px}"
+             "label{display:block;padding:12px 16px}</style><label><input type=checkbox id=c> Anchor points checked</label>"
+             + "".join(f"<p id=p{i}>Paragraph {i}</p>" for i in range(60)))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PickInThePage(unittest.TestCase):
+    """The comment pick in a page: the picked element's rect follows a scroll at most every 40 ms and only
+    while its comment is open (the host's pick-follow off ends it); a finger's tap picks too and leaves the
+    page's own controls alone."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+        cls.aid = store.publish(title="Long page", type="page", html=LONG_PAGE)["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def run_page(self, body):
+        r = B.drive(f"await api.go({json.dumps(self.host.url(self.aid))}, 800); {READY}\n" + body)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_rect_follows_while_the_comment_is_open_and_then_stops(self):
+        out = self.run_page("""
+          const n = () => api.top('window.__events.filter(e => e.event === "picked-rect").length')
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(200)
+          await api.clickIn('document.getElementById("p20")')
+          await api.top('window.__post("comment-mode", {on: false})'); await api.sleep(100)
+          const picked = await api.top('window.__events.filter(e => e.event === "picked").length')
+          const t0 = Date.now(), start = await n()
+          for (let i = 0; i < 40; i++) { await api.frame('scrollBy(0, 7)'); await api.sleep(5) }
+          await api.sleep(200)
+          const ms = Date.now() - t0, during = (await n()) - start
+          const last = await api.top('window.__events.filter(e => e.event === "picked-rect").pop().detail.rect.y')
+          const real = await api.frame('document.getElementById("p20").getBoundingClientRect().top')
+          await api.top('window.__post("pick-follow", {on: false})'); await api.sleep(100)
+          const stopped = await n()
+          for (let i = 0; i < 10; i++) { await api.frame('scrollBy(0, 9)'); await api.sleep(30) }
+          await api.sleep(200)
+          return { picked, during, ms, last, real, after: (await n()) - stopped }
+        """)
+        self.assertEqual(out["picked"], 1, out)
+        self.assertGreater(out["during"], 0, out)
+        self.assertLessEqual(out["during"], out["ms"] / 40 + 2, out)  # at most one every 40 ms (40 scrolls in a row)
+        self.assertAlmostEqual(out["last"], out["real"], delta=1)  # the last one is where the element ended up
+        self.assertEqual(out["after"], 0, out)  # the comment closed: nothing more
+
+    def test_a_tap_picks_and_does_not_toggle_the_page(self):
+        out = self.run_page("""
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(200)
+          const r = await api.frame('(() => { const b = document.querySelector("label").getBoundingClientRect(); return [b.left + 30, b.top + b.height / 2] })()')
+          await api.tap(r[0], r[1]); await api.sleep(400)
+          return { picked: await api.top('window.__events.filter(e => e.event === "picked").map(e => e.detail.label)'),
+                   checked: await api.frame('document.getElementById("c").checked') }
+        """)
+        self.assertEqual(out["picked"], ["label"], out)
+        self.assertFalse(out["checked"], out)
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class FocusOnWholeSurfaces(unittest.TestCase):
+    """Keyboard focus on a whole surface (a sheet's grid, a film's timeline) draws no kit ring round it: the
+    grid shows its active cell, the timeline its own 2 px ring; a control still gets the kit's 3 px one."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def ring(self, aid, sel, then=None):
+        """Click `sel` (it takes the focus), press a key (the focus is now the keyboard's), optionally move the
+        focus to `then` by script (still the keyboard's): [:focus-visible, box-shadow] of where it is."""
+        last = then or sel
+        r = B.drive(f"await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n await api.sleep(600)\n"
+                    f"await api.clickIn({json.dumps(sel)}); await api.key('Shift', 'ShiftLeft', 16); await api.sleep(100)\n"
+                    + (f"await api.frame({json.dumps(then + '.focus()')}); await api.sleep(100)\n" if then else "")
+                    + f"return await api.frame({json.dumps('(() => { const el = ' + last + '; return [el === document.activeElement && el.matches(\":focus-visible\"), getComputedStyle(el).boxShadow] })()')})")
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_sheet_grid(self):
+        aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        visible, shadow = self.ring(aid, 'document.getElementById("sh-grid")')
+        self.assertTrue(visible)
+        self.assertEqual(shadow, "none")
+        visible, shadow = self.ring(aid, 'document.getElementById("sh-grid")', then='document.querySelector("#sh-bar .kit-btn")')
+        self.assertTrue(visible)
+        self.assertIn("0px 0px 0px 3px", shadow)  # a control: the kit's ring
+
+    def test_the_motion_timeline(self):
+        aid = self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"]
+        visible, shadow = self.ring(aid, 'document.querySelector(".mo-tl")')
+        self.assertTrue(visible)
+        self.assertIn("0px 0px 0px 2px", shadow)  # its own ring, not the kit's 3 px one
+
+
 if __name__ == "__main__":
     unittest.main()

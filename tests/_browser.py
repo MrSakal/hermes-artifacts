@@ -193,6 +193,11 @@ async function main() {
       if (!r) throw new Error('nothing for ' + sel)
       await api.mouse(r[0], r[1]); await sleep(150)
     },
+    /** A finger's tap (touch start and end) at x, y of the window. */
+    tap: async (x, y) => {
+      await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+      await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    },
     type: async text => { await send('Input.insertText', { text }) },
     key: async (key, code, vk) => { await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: code || key, windowsVirtualKeyCode: vk || 0 }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: code || key, windowsVirtualKeyCode: vk || 0 }) },
     shot: async file => { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(file, Buffer.from(r.data, 'base64')) }

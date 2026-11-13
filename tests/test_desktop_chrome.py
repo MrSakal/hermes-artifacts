@@ -18,7 +18,8 @@ from test_desktop_plugin import NODE, PLUGIN, run_node, stub_module  # noqa: E40
 SRC = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
 EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errText, reuseSame, thumbKind, fetchVendor,"
            " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
-           " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft }\n")
+           " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
+           " fetchHtml, htmlStamp, dropHtml, htmlCache }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments"]
 
@@ -69,7 +70,7 @@ class PopupFitTests(unittest.TestCase):
         for name in ("function CardMenu(", "function FilterMenu(", "function NewMenu(", "function TileDsMenu(", "function TitleMenu("):
             start = SRC.index(name)
             self.assertIn("jsx(PopMenu,", SRC[start:start + 6000], name)
-        self.assertIn("placeCommentBox(draft.rect, bw, bh, boxH)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, boxH, cover)", section("function CommentPopover(", "function DockView("))
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -104,8 +105,9 @@ class CommentPinTests(unittest.TestCase):
             { x: bw - 200, y: bh - 24, w: 200, h: 24 }, { x: 20, y: bh / 2, w: bw - 40, h: 30 }, { x: bw / 2, y: 2, w: 10, h: 18 },
             { x: -30, y: -10, w: 80, h: 40 }, { x: bw - 10, y: bh + 5, w: 40, h: 20 }]
           for (const rect of rects) {
-            for (const h of [120, 170, 260]) {
-              const { pin, box } = m.placeCommentBox(rect, bw, bh, h)
+            for (const h0 of [120, 170, 260]) {
+              const { pin, box } = m.placeCommentBox(rect, bw, bh, h0)
+              const h = box.maxH ? Math.min(h0, box.maxH) : h0
               const apart = box.x >= pin.x + m.PIN || box.x + m.COMMENT_W <= pin.x || box.y >= pin.y + m.PIN || box.y + h <= pin.y
               const inside = box.x >= 0 && box.x + m.COMMENT_W <= bw && box.y >= 0 && box.y + h <= bh &&
                 pin.x >= 0 && pin.x + m.PIN <= bw && pin.y >= 0 && pin.y + m.PIN <= bh
@@ -143,6 +145,67 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("zIndex: 28, width: PIN", pop)
         self.assertIn("zIndex: 27, width: COMMENT_W", pop)
 
+    def test_with_the_list_floating_over_a_narrow_view_nothing_goes_under_it(self):
+        # Under 760 px the comments list floats over the stage's right (min(340px, 92%), z 30, over the pin's 28
+        # and the box's 27): the pin and the box keep to the width left of it, or the box goes into the list.
+        body = """
+        const out = []
+        for (const bw of [360, 400, 440, 520, 600, 675, 676, 700, 759]) {
+          const cover = Math.min(340, bw * 0.92), free = bw - cover
+          for (const bh of [520, 760]) {
+            const rects = [{ x: 10, y: 40, w: 120, h: 24 }, { x: bw / 2, y: bh / 2, w: 80, h: 20 }, { x: bw - 120, y: 100, w: 100, h: 30 },
+              { x: 0, y: bh - 30, w: bw, h: 30 }, { x: free - 40, y: 10, w: 30, h: 20 }]
+            for (const rect of rects) for (const h0 of [120, 170, 260]) {
+              const { pin, box } = m.commentLayout(rect, bw, bh, h0, cover)
+              const h = box && box.maxH ? Math.min(h0, box.maxH) : h0 // cut to the room left: it scrolls
+              const docks = m.commentDocks(bw, cover)
+              const pinOk = !pin || (pin.x >= 0 && pin.x + m.PIN <= free && pin.y >= 0 && pin.y + m.PIN <= bh)
+              const boxOk = docks ? box === null : box && box.x >= 0 && box.x + m.COMMENT_W <= free && box.y >= 0 && box.y + h <= bh &&
+                (!pin || box.x >= pin.x + m.PIN || box.x + m.COMMENT_W <= pin.x || box.y >= pin.y + m.PIN || box.y + h <= pin.y)
+              const pinShown = free >= m.PIN + 8 ? pin !== null : pin === null
+              if (!pinOk || !boxOk || !pinShown) out.push({ bw, bh, rect, h, pin, box, docks })
+            }
+          }
+        }
+        const docked = [360, 520, 675, 676, 759, 760].map(bw => m.commentDocks(bw, bw < 760 ? Math.min(340, bw * 0.92) : 0))
+        console.log(JSON.stringify({ out, docked }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out["out"], [])
+        self.assertEqual(out["docked"], [True, True, True, False, False, False])  # 676 px: the 336 left of the list take the box
+        panel = section("function CommentsPanel(", "function Viewer(")
+        self.assertIn("draft && (!draft.rect || docked)", panel)  # the docked box is written in the list
+        self.assertIn("$panelCover.set(w < 760 ? Math.min(340, w * 0.92) : 0)", panel)
+        self.assertIn("$panelCover.set(0)", panel)  # closed or gone: nothing covered
+        self.assertIn("width: 'min(340px, 92%)'", panel)  # the same width the placement keeps out of
+        self.assertIn("commentLayout(draft.rect, bw, bh, boxH, cover)", section("function CommentPopover(", "function DockView("))
+        # in the pane beside a chat too (it had no box at all: the stage there has no id)
+        self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage })", section("function Viewer(", "function Toast("))
+
+    def test_an_element_scrolled_out_of_the_frame_has_no_pin(self):
+        body = """
+        const L = r => m.commentLayout(r, 1000, 700, 170, 0)
+        console.log(JSON.stringify([L({ x: 100, y: -80, w: 200, h: 40 }).pin, L({ x: 100, y: 720, w: 200, h: 40 }).pin,
+          L({ x: -300, y: 100, w: 200, h: 40 }).pin, L({ x: 100, y: -20, w: 200, h: 40 }).pin !== null, L({ x: 100, y: 720, w: 200, h: 40 }).box !== null]))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), [None, None, None, True, True])  # partly in view: still pinned
+
+    def test_the_page_stops_following_when_the_comment_closes(self):
+        viewer = section("function Viewer(", "function Toast(")
+        self.assertIn("if (!following) postToPage(portRef, 'pick-follow', { on: false })", viewer)
+        body = """
+        const anchor = { selector: '#a', text: 'x', label: 'p' }
+        m.$draft.set({ anchor, rect: { x: 1, y: 2, w: 3, h: 4 } })
+        const before = m.$draft.get()
+        m.onPageEvent('picked-rect', { rect: { x: 1, y: 2, w: 3, h: 4 } })
+        console.log(JSON.stringify({ same: m.$draft.get() === before }))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), {"same": True})  # an unchanged rect re-renders nothing
+        bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
+        self.assertIn('on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });', bridge)
+        self.assertIn("var PICKED_GAP_MS = 40;", bridge)
+        self.assertNotIn('"contextmenu", "touchstart"', bridge)  # a tap's touchstart is never cancelled
+
 
 @unittest.skipIf(NODE is None, "node not installed")
 class ErrorTextTests(unittest.TestCase):
@@ -158,6 +221,21 @@ class ErrorTextTests(unittest.TestCase):
         out = run_node(stub_module(EXPORTS), body)  # the stub translate returns the key
         self.assertEqual(out[:7], ["errStorage", "errStorage", "errDraining", "errOffline", "errGeneric", "errGeneric", "errGeneric"])
         self.assertEqual(out[7], "an artifact 'x' exists again; delete or rename it first")
+
+    def test_offline_only_when_no_answer_came(self):
+        # A server's own sentence about a timeout is its sentence; "offline" is a request that got no answer.
+        body = """
+        const abort = Object.assign(new Error('signal is aborted without reason'), { name: 'AbortError' })
+        const cases = [new Error('500: {"detail":"query timed out after 30 s"}'), new Error('query timed out after 30 s'),
+          new Error('504: {"detail":"timeout"}'), new Error('502: Failed to fetch'), new TypeError('Failed to fetch'), abort,
+          new Error('net::ERR_CONNECTION_REFUSED'), new Error('timeout'), new Error('not connected to the gateway'),
+          new Error('NetworkError when attempting to fetch resource.'), new Error('the network error log is full: rotate it')]
+        console.log(JSON.stringify(cases.map(c => m.errText(c))))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out, ["query timed out after 30 s", "query timed out after 30 s", "errGeneric", "Failed to fetch", "errOffline",
+                               "errOffline", "errOffline", "errOffline", "errOffline", "errOffline",
+                               "the network error log is full: rotate it"])
 
     def test_every_error_shown_goes_through_it(self):
         self.assertNotIn("toast(String(e", SRC)
@@ -274,6 +352,32 @@ class GalleryPerfTests(unittest.TestCase):
         self.assertEqual(out, {"ok": 2, "all": 4})  # a failed fetch is not kept
         self.assertIn("value: await fetchVendor(ctx,", SRC)
 
+    def test_the_html_cache_follows_the_meta_and_forgets_a_deleted_id(self):
+        # The document carries the title and the stored preview: a rename or a new picture is a new entry; a
+        # rename and a delete drop the id's entries (a reused id is another artifact).
+        body = """
+        globalThis.window = { location: { hash: '#/', replace() {} }, addEventListener() {}, removeEventListener() {} }
+        const asked = []
+        const ctx = { rest: async p => { asked.push(p); return { html: '<p>' + p + '</p>' } } }
+        const a = { id: 'a', version: 1, updated: 10, title: 'Plan' }
+        await m.fetchHtml(ctx, 'a', 1, { stamp: m.htmlStamp(a) }); await m.fetchHtml(ctx, 'a', 1, { stamp: m.htmlStamp(a) })
+        const once = asked.length
+        await m.fetchHtml(ctx, 'a', 1, { stamp: m.htmlStamp({ ...a, title: 'Plan B' }) })
+        await m.fetchHtml(ctx, 'a', 1, { stamp: m.htmlStamp({ ...a, preview: true }) })
+        const meta = asked.length
+        await m.fetchHtml(ctx, 'ab', 1, { stamp: m.htmlStamp(a) })
+        m.dropHtml('a')
+        const left = [...m.htmlCache.keys()].map(k => k.split(':')[0])
+        await m.fetchHtml(ctx, 'a', 1, { stamp: m.htmlStamp(a) })
+        console.log(JSON.stringify({ once, meta, left, again: asked.length }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out, {"once": 1, "meta": 3, "left": ["ab"], "again": 5})
+        self.assertIn("dropHtml(art.id) // its document carries the title", section("async function patchMeta(", "/** Text to the system clipboard"))
+        self.assertEqual(SRC.count("dropHtml(art.id) // the id may come back as another artifact"), 2)  # the card's and the title's Delete
+        self.assertIn("fetchHtml(ctx, art.id, fv, { page, stamp: htmlStamp(art) })", section("function Viewer(", "function Toast("))
+        self.assertIn("fetchHtml(ctx, art.id, art.version, { thumb: true, stamp: htmlStamp(art) })", SRC)
+
     def test_the_html_cache_is_dropped_only_by_reload(self):
         viewer = section("function Viewer(", "function Toast(")
         self.assertNotIn("if (nonce) htmlCache", viewer)
@@ -330,6 +434,15 @@ class LookTests(unittest.TestCase):
         self.assertNotIn("boxShadow", section("function OverlayBtn(", "async function patchMeta("))
         # the tile's name keeps room inside its ring
         self.assertIn("padding: 4, margin: -4", section("function NewTile(", "/** A small round button"))
+
+    def test_a_click_does_not_hold_the_hover_buttons(self):
+        # A card's and a row's buttons show on hover and for the keyboard's focus; a click focuses a button
+        # without :focus-visible, and that alone keeps nothing shown once the pointer leaves.
+        hook = section("function useFocusWithin(", "// React.memo")
+        self.assertIn("el.matches(':focus-visible')", hook)
+        self.assertIn("onFocus: e => setF(keyboard(e.target))", hook)
+        for name in ("const Card = memo(", "const ListRow = memo("):
+            self.assertIn("useFocusWithin()", section(name, "\n})"), name)
 
     def test_quiet_text_meets_four_and_a_half(self):
         self.assertIn("text3: 'var(--conversation-scaffold-text, var(--ui-text-secondary))'", SRC)
@@ -446,9 +559,27 @@ class ServerContractTests(unittest.TestCase):
         self.assertTrue(out["pass"])  # a frame out of sight is answered at once (and shows nothing)
         self.assertTrue(out["grace"])  # a page going away shows nothing
         handler = section("if (m.op === 'notify') {", "if (m.op === 'vendor') {")
-        self.assertIn("if (!F.hidden(rec)) toast(note.message, note.kind, note.ms)", handler)
+        self.assertIn("if (!F.hidden(rec) && noteGate(rec.notes || (rec.notes = { times: [], msg: '' }), note.message, Date.now())) toast(noteText(art.title, note.message), note.kind, note.ms)", handler)
         self.assertIn("return reply({ ok: true, value: { ok: true } })", handler)
         self.assertIn("...(ms ? { durationMs: ms } :", section("function toast(", "function errText("))
+
+    def test_a_frame_cannot_flood_the_toasts_or_pass_for_hermes(self):
+        body = """
+        const g = { times: [], msg: '' }, at = []
+        const steps = [[0, 'A'], [500, 'B'], [1500, 'A'], [1500, 'B'], [3000, 'C'], [4500, 'D'], [6000, 'E'], [7500, 'F'], [9000, 'G'],
+          [61000, 'F'], [61200, 'H'], [70000, 'F']]
+        for (const [t, msg] of steps) at.push(m.noteGate(g, msg, t))
+        console.log(JSON.stringify({ at, short: m.noteText('Facade orders 2026', 'Saved'), long: m.noteText('x'.repeat(60), 'Saved'), none: m.noteText('', 'Saved') }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        # under a second apart, the same words again within the minute and a sixth in a minute are not shown
+        self.assertEqual(out["at"], [True, False, False, True, True, True, True, False, False, True, False, False])
+        self.assertEqual(out["short"], "Facade orders 2026: Saved")
+        self.assertEqual(out["long"], "x" * 39 + "…: Saved")
+        self.assertEqual(out["none"], "?: Saved")
+        handler = section("if (m.op === 'notify') {", "if (m.op === 'vendor') {")
+        # a plain page has no kit: refused as an error the bridge rejects with (the kit then shows its own)
+        self.assertIn("if ((art.type || 'page') === 'page') return reply({ ok: false, error:", handler)
 
 
 

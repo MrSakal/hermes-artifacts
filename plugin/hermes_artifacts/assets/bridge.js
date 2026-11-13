@@ -476,41 +476,56 @@
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
     emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(),
                      rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
-    picked = el;
+    follow(el);
   }
-  // The element picked last: when the page scrolls or the frame is resized its new rect goes to the host (once
-  // a frame), so the new comment's pin and form stay at it. The next pick mode forgets it.
-  var picked = null, pickedRaf = 0;
+  // The element picked last, while its new comment is open: when the page scrolls or the frame is resized its
+  // new rect goes to the host (at most every PICKED_GAP_MS), so the comment's pin and form stay at it. The host
+  // says when the comment closes (pick-follow off); the next pick mode forgets it too. Listening only meanwhile.
+  var PICKED_GAP_MS = 40;
+  var picked = null, pickedTimer = 0, pickedAt = 0;
   function pickedMoved() {
-    if (!picked || pickedRaf) return;
-    pickedRaf = requestAnimationFrame(function () {
-      pickedRaf = 0;
+    if (!picked || pickedTimer) return;
+    pickedTimer = setTimeout(function () {
+      pickedTimer = 0;
       if (!picked || !picked.isConnected) return;
+      pickedAt = Date.now();
       var r = inked(picked);
       emit("picked-rect", { rect: { x: r.left, y: r.top, w: r.width, h: r.height } });
-    });
+    }, Math.max(0, PICKED_GAP_MS - (Date.now() - pickedAt)));
   }
-  window.addEventListener("scroll", pickedMoved, true);
-  window.addEventListener("resize", pickedMoved);
+  function follow(el) {
+    if (!picked) { window.addEventListener("scroll", pickedMoved, true); window.addEventListener("resize", pickedMoved); }
+    picked = el;
+  }
+  function unfollow() {
+    if (!picked) return;
+    picked = null;
+    if (pickedTimer) { clearTimeout(pickedTimer); pickedTimer = 0; }
+    window.removeEventListener("scroll", pickedMoved, true); window.removeEventListener("resize", pickedMoved);
+  }
+  on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });
   function setPicking(on) {
     picking = !!on;
-    if (picking) picked = null;
+    if (picking) unfollow();
     document.documentElement.style.cursor = picking ? "crosshair" : "";
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }
   }
   // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
   // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
-  // still comes (onPick; a page that picks on its own, like motion, takes it on window first).
+  // still comes (onPick; a page that picks on its own, like motion, takes it on window first). A finger's tap
+  // is a pointerdown too (its default kept from the page: no mouse events, no focus after it); its touch events
+  // only stay from the page's handlers: cancelling them would cancel the tap's click, the pick itself.
   function swallow(e) {
     if (!picking) return;
     var t = e.target;
     if (t && t.closest && t.closest("[data-hermes-ui]")) return;
-    if (e.cancelable) e.preventDefault();
+    if (e.cancelable && e.type.slice(0, 5) !== "touch") e.preventDefault();
     e.stopImmediatePropagation();
   }
-  ["pointerdown", "mousedown", "pointerup", "mouseup", "dblclick", "auxclick", "contextmenu", "touchstart", "dragstart", "selectstart"]
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "dblclick", "auxclick", "contextmenu", "dragstart", "selectstart"]
     .forEach(function (t) { window.addEventListener(t, swallow, { capture: true, passive: false }); });
+  ["touchstart", "touchend"].forEach(function (t) { window.addEventListener(t, swallow, { capture: true, passive: true }); });
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onPick, true);
   on("comment-mode", function (d) { setPicking(d && d.on); });

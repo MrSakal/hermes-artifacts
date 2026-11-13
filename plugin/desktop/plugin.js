@@ -604,6 +604,7 @@ const $panel = atom(false) // comments panel open
 const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
+const $panelCover = atom(0) // px of the stage's right the comments list covers while it floats over it (0: beside it, or closed)
 const $toast = atom(null)
 const $confirm = atom(null) // {kind: send|query, text, at, resolve}: a page asked to send something or to run a live query; the user confirms it here, outside the frame (Claude's vouched send)
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
@@ -1204,6 +1205,7 @@ async function loadTrash(ctx) {
 async function restoreFromTrash(ctx, item) {
   try {
     await ctx.rest('/trash/restore', { method: 'POST', body: { name: item.name } })
+    if (item.id) dropHtml(item.id) // what the id showed meanwhile is not this copy
     toast(T('restored', item.title))
   } catch (err) {
     toast(errText(err), 'error') // e.g. the id is taken again: the server says so
@@ -1309,12 +1311,17 @@ function toast(msg, kind = 'info', ms = null) {
   setTimeout(() => $toast.get() === text && $toast.set(null), 2600)
 }
 
+// A fetch that got no answer, in the words browsers and the host use for it (the whole message, nothing more).
+const OFFLINE = /^(?:typeerror:\s*)?(?:failed to fetch|load failed|networkerror when attempting to fetch resource\.?|network ?error|net::err_[a-z_]+|(?:connect )?econn[a-z]+\b.*|not connected\b.*|(?:the )?(?:operation|request|signal) timed out\.?|timed out|timeout)$/i
+
 /** What went wrong, as a sentence the person can act on (EN/HU): a request or host failure never shows as a
  *  bare code. `503: {"detail":"storage_unavailable"}` and the like are read for their detail; a known code
  *  gets its own sentence, any other bare code (one word, no spaces) the general one. A message that is
- *  already a sentence (the plugin's server says what to do) is kept. */
+ *  already a sentence (the plugin's server says what to do) is kept. "Offline" only for a request that got no
+ *  answer at all (no status, the fetch's own words): a server's "query timed out after 30 s" is its sentence. */
 function errText(err) {
   let m = String(err?.message ?? err ?? '').trim()
+  const answered = /^\d{3}:/.test(m)
   const j = /^\d{3}:\s*(\{[\s\S]*\})$/.exec(m)
   if (j) {
     try { m = String(JSON.parse(j[1])?.detail ?? m).trim() } catch {}
@@ -1322,7 +1329,7 @@ function errText(err) {
   m = m.replace(/^\d{3}:\s*/, '').trim()
   if (/storage_unavailable|database is locked|disk i\/o/i.test(m)) return tr('errStorage')
   if (/runtime_draining|draining/i.test(m)) return tr('errDraining')
-  if (/failed to fetch|networkerror|network error|load failed|econn|timed out|timeout|not connected/i.test(m)) return tr('errOffline')
+  if (!answered && (err?.name === 'AbortError' || err?.name === 'TimeoutError' || OFFLINE.test(m))) return tr('errOffline')
   if (!m || !/\s/.test(m)) return tr('errGeneric')
   return m
 }
@@ -1335,8 +1342,14 @@ function toDataUrl(html) {
   return `data:text/html;charset=utf-8;base64,${btoa(bin)}`
 }
 
-// Rendered HTML per (id, version, page, thumb): a version never changes, so this is a plain LRU.
+// Rendered HTML per (id, version, what the document carries of its meta, page, thumb): a version's files never
+// change, but its document also carries the title and the stored preview picture, so those are in the key
+// (htmlStamp); a rename, a delete and a reused id drop the id's entries (dropHtml). Else a plain LRU.
 const htmlCache = new Map()
+const htmlStamp = art => JSON.stringify([art?.updated ?? null, art?.title ?? '', Boolean(art?.preview)])
+function dropHtml(id) {
+  htmlCache.forEach((_, k) => k.startsWith(`${id}:`) && htmlCache.delete(k))
+}
 let hostLang = 'en' // set from the plugin's i18n (the app's active language)
 /** A card preview has no bridge, so it gets Hermes' theme written into its page as a meta tag (read by the kit at start). */
 function withTheme(html, theme) {
@@ -1361,9 +1374,9 @@ function themeForThumbs() {
   return thumbTheme
 }
 
-function fetchHtml(ctx, id, v, { page = null, thumb = false } = {}) {
+function fetchHtml(ctx, id, v, { page = null, thumb = false, stamp = '' } = {}) {
   const theme = thumb ? themeForThumbs() : null
-  const key = `${id}:${v}:${page || ''}:${thumb ? 1 : 0}:${hostLang}` + (theme ? `:${JSON.stringify(theme)}` : '')
+  const key = `${id}:${v}:${stamp}:${page || ''}:${thumb ? 1 : 0}:${hostLang}` + (theme ? `:${JSON.stringify(theme)}` : '')
   if (htmlCache.has(key)) {
     const hit = htmlCache.get(key)
     htmlCache.delete(key)
@@ -1648,10 +1661,12 @@ function useHover() {
   return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }]
 }
 
-/** Whether the focus is inside the element (its buttons that show on hover show for the keyboard too). */
+/** Whether the keyboard's focus is inside the element (its buttons that show on hover show for the keyboard
+ *  too). A click focuses a button without :focus-visible: that does not hold them once the pointer leaves. */
 function useFocusWithin() {
   const [f, setF] = useState(false)
-  return [f, { onFocus: () => setF(true), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) setF(false) } }]
+  const keyboard = el => { try { return el.matches(':focus-visible') } catch { return true } }
+  return [f, { onFocus: e => setF(keyboard(e.target)), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) setF(false) } }]
 }
 
 // React.memo where the host's React has it (a stub without it: the component as it is).
@@ -1805,7 +1820,7 @@ function Thumb({ ctx, art, height }) {
       return () => { live = false }
     }
     // A card that left before its turn costs nothing.
-    queueThumb(() => !live ? Promise.resolve() : fetchHtml(ctx, art.id, art.version, { thumb: true }).then(u => new Promise(done => {
+    queueThumb(() => !live ? Promise.resolve() : fetchHtml(ctx, art.id, art.version, { thumb: true, stamp: htmlStamp(art) }).then(u => new Promise(done => {
       if (!live) return done()
       const timer = setTimeout(() => end(), THUMB_LOAD_MS)
       const end = () => { clearTimeout(timer); if (loaded.current === end) loaded.current = null; done() }
@@ -1817,7 +1832,7 @@ function Thumb({ ctx, art, height }) {
       loaded.current?.() // a card that leaves gives its load slot back at once
       setSrc(null) // and its frame: unmounted
     }
-  }, [near, kind, art.id, art.version])
+  }, [near, kind, art.id, art.version, htmlStamp(art)])
   const VW = 1280
   const scale = w ? w / VW : 0.2
   const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
@@ -2049,6 +2064,7 @@ function OverlayBtn({ icon, title, active, onClick }) {
 
 async function patchMeta(ctx, art, body) {
   await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body }).catch(e => toast(errText(e), 'error'))
+  dropHtml(art.id) // its document carries the title
   await refresh(ctx)
 }
 
@@ -2150,6 +2166,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right' }) {
           if (!confirm) return setConfirm(true)
           onClose()
           await ctx.rest(`/artifacts/${enc(art.id)}`, { method: 'DELETE' }).catch(() => {})
+          dropHtml(art.id) // the id may come back as another artifact
           refresh(ctx)
         }
       }
@@ -2763,6 +2780,28 @@ function notifyArgs(a) {
   return { message, kind, ms }
 }
 
+// A frame's notes are Hermes' own toasts: one frame may not flood the stack. Per frame, a note less than a
+// second after the last one shown, the same words again within the minute, or a sixth in a minute is answered
+// (the page does not retry) and not shown.
+const NOTE_GAP_MS = 1000
+const NOTE_WINDOW_MS = 60000
+const NOTE_MAX = 5
+/** Whether a frame's note shows now; `g` is that frame's own {times, msg}, updated when it does. */
+function noteGate(g, message, now) {
+  g.times = g.times.filter(at => now - at < NOTE_WINDOW_MS)
+  const last = g.times.length ? g.times[g.times.length - 1] : null
+  if (last !== null && (now - last < NOTE_GAP_MS || message === g.msg)) return false
+  if (g.times.length >= NOTE_MAX) return false
+  g.times.push(now)
+  g.msg = message
+  return true
+}
+/** A frame's note as shown: under its artifact's name (cut to 40), so it never reads as Hermes' own words. */
+function noteText(title, message) {
+  const name = String(title || '').trim()
+  return `${name.length > 40 ? `${name.slice(0, 39)}…` : name || '?'}: ${message}`
+}
+
 // Reload of a hung page. Measured in Chromium 157 (harness): every sandboxed artifact frame of the window shares ONE
 // renderer process, so a hung page freezes them all and a frame mounted again lands in the same hung process and
 // stays blank (and keeps it alive). Once no frame is left in it, the browser ends the hung process by itself,
@@ -3237,10 +3276,12 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
             return reply({ ok: true, value: { ok: true, fullscreen: Boolean(document.fullscreenElement) } })
           }
           if (m.op === 'notify') {
-            // The kit's short note (kit.js toast): Hermes' own toast. Out of sight it is answered, not shown.
+            // The kit's short note (kit.js toast): Hermes' own toast, under the artifact's name and kept to a
+            // few (noteGate). A plain page has no kit: it shows its own. Out of sight it is answered, not shown.
+            if ((art.type || 'page') === 'page') return reply({ ok: false, error: 'notify is for the typed artifacts; a page shows its own note' })
             const note = notifyArgs(m.args)
             if (!note) return reply({ ok: false, error: 'notify takes {message: 1-300 characters, kind: info|success|error, ms: null or 1-15000}' })
-            if (!F.hidden(rec)) toast(note.message, note.kind, note.ms)
+            if (!F.hidden(rec) && noteGate(rec.notes || (rec.notes = { times: [], msg: '' }), note.message, Date.now())) toast(noteText(art.title, note.message), note.kind, note.ms)
             return reply({ ok: true, value: { ok: true } })
           }
           if (m.op === 'vendor') {
@@ -3534,7 +3575,7 @@ function onPageEvent(event, detail) {
   }
   if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
     const d = $draft.get(), r = detail && detail.rect
-    if (d?.rect && r && [r.x, r.y, r.w, r.h].every(Number.isFinite)) $draft.set({ ...d, rect: { x: r.x, y: r.y, w: r.w, h: r.h } })
+    if (d?.rect && r && [r.x, r.y, r.w, r.h].every(Number.isFinite) && ['x', 'y', 'w', 'h'].some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: { x: r.x, y: r.y, w: r.w, h: r.h } })
     return
   }
   if (event === 'picked' && $picking.get()) {
@@ -4493,6 +4534,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
           if (!confirm) return setConfirm(true)
           onClose()
           await ctx.rest(`/artifacts/${enc(art.id)}`, { method: 'DELETE' }).catch(() => {})
+          dropHtml(art.id) // the id may come back as another artifact
           closeDock()
           closeArtifact()
           if (routeArtifact()) host.navigate(PAGE) // its own route would reopen it: the gallery
@@ -4519,6 +4561,7 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
         if (e.key === 'Enter' && name.trim()) {
           setRenaming(false)
           await ctx.rest(`/artifacts/${enc(art.id)}/meta`, { method: 'POST', body: { title: name.trim() } }).catch(() => {})
+          dropHtml(art.id) // its document carries the title
           refresh(ctx)
         }
       },
@@ -4644,9 +4687,11 @@ const COMMENT_W = 320 // its box
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
  *  h in stage px; the bridge narrows it to where the element's words end) and the box's height `h`: the pin
  *  on that top right corner, the box beside the pin, never over it. Tried in turn: right of the pin, under
- *  it, left of it, over it; pin and box always inside the stage. Pure: tested without a DOM. */
+ *  it, left of it, over it; pin and box always inside the stage. None fits whole (a narrow stage, the pin
+ *  half way down): under or over the pin, wherever there is more room, cut to that room (box.maxH; it
+ *  scrolls). Pure: tested without a DOM. */
 function placeCommentBox(rect, bw, bh, h) {
-  const M = 8, GAP = 8
+  const M = 8, GAP = 8, MIN_H = 100
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
   const pin = { x: clamp(rect.x + rect.w - PIN / 2, 4, bw - PIN - 4), y: clamp(rect.y - PIN / 2, 4, bh - PIN - 4) }
   const top = clamp(rect.y, M, Math.max(M, bh - h - M))
@@ -4658,54 +4703,78 @@ function placeCommentBox(rect, bw, bh, h) {
     { x: left, y: pin.y - GAP - h }
   ]
   const fits = b => b.x >= M && b.x + COMMENT_W <= bw - M && b.y >= M && b.y + h <= bh - M
-  const box = tries.find(fits) || { x: left, y: clamp(pin.y + PIN + GAP, M, Math.max(M, bh - h - M)) }
-  return { pin, box }
+  const whole = tries.find(fits)
+  if (whole) return { pin, box: whole }
+  const below = bh - M - (pin.y + PIN + GAP), above = pin.y - GAP - M
+  if (Math.max(below, above) >= MIN_H) {
+    return { pin, box: below >= above ? { x: left, y: pin.y + PIN + GAP, maxH: below } : { x: left, y: M, maxH: above } }
+  }
+  return { pin, box: { x: left, y: clamp(pin.y + PIN + GAP, M, Math.max(M, bh - h - M)) } }
+}
+
+/** Whether the new comment's box goes into the comments list: the list floats over the stage (`cover` px of
+ *  its right, a narrow view) and the width left of it does not take the box. */
+const commentDocks = (bw, cover) => cover > 0 && bw - cover < COMMENT_W + 16
+/** The new comment's pin and box in a stage of bw x bh whose right `cover` px the floating comments list
+ *  covers: placed in the width left of the list (placeCommentBox), never under it. box null: the box is in
+ *  the list (commentDocks). pin null: its element is out of the frame (scrolled away), or the list leaves no
+ *  room for it; an element behind the list gets its pin at the list's edge, on its own line. Pure. */
+function commentLayout(rect, bw, bh, h, cover = 0) {
+  const free = Math.max(0, bw - cover)
+  const off = rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= 0 || rect.y >= bh
+  const { pin, box } = placeCommentBox(rect, free, bh, h)
+  return { pin: off || free < PIN + 8 ? null : pin, box: commentDocks(bw, cover) ? null : box }
 }
 
 /** Claude's in-place comment: a box beside the element clicked, "@Hermes" ready, Send to Hermes on. */
-function CommentPopover({ ctx, art }) {
+function CommentPopover({ ctx, art, stageRef }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
+  const cover = useValue($panelCover)
   const [text, setText] = useState('')
   useEffect(() => setText('@Hermes '), [draft?.anchor]) // a new pick; the pin following its element keeps the text
+  const stage = stageRef.current
+  const bw = stage ? stage.clientWidth : 1200
+  const bh = stage ? stage.clientHeight : 800
+  const docks = commentDocks(bw, cover) // the floating comments list leaves no room: the box is in the list
   const boxRef = useRef(null)
   const [boxH, setBoxH] = useState(170)
   useLayoutEffect(() => {
     const el = boxRef.current
     if (!el) return undefined
-    const measure = () => setBoxH(el.offsetHeight || 170)
+    // Its whole height, also while it is cut to the room left (box.maxH): else the cut would be its height.
+    const measure = () => setBoxH(el.scrollHeight + el.offsetHeight - el.clientHeight || 170)
     measure()
     let ro = null
     try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
     return () => ro?.disconnect()
-  }, [Boolean(draft?.rect)])
+  }, [Boolean(draft?.rect), docks])
   // The stage narrows or grows (the comments list opens beside it, the window is resized): placed again.
   const [, setStageTick] = useState(0)
   useLayoutEffect(() => {
-    const stage = document.getElementById(`${ID}-stage`)
-    if (!stage || !draft?.rect) return undefined
+    const el = stageRef.current
+    if (!el || !draft?.rect) return undefined
     let ro = null
-    try { ro = new ResizeObserver(() => setStageTick(n => n + 1)); ro.observe(stage) } catch {}
+    try { ro = new ResizeObserver(() => setStageTick(n => n + 1)); ro.observe(el) } catch {}
     return () => ro?.disconnect()
   }, [Boolean(draft?.rect)])
   if (!draft?.rect) return null
-  const stage = document.getElementById(`${ID}-stage`)
-  const bw = stage ? stage.clientWidth : 1200
-  const bh = stage ? stage.clientHeight : 800
-  const { pin, box } = placeCommentBox(draft.rect, bw, bh, boxH)
+  const { pin, box } = commentLayout(draft.rect, bw, bh, boxH, cover)
   const label = draft.anchor ? draft.anchor.text || draft.anchor.label : ''
   return jsxs('div', {
     children: [
       // The pin over the popover's layer: whatever the placement, it is never covered.
-      jsx('div', { style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: PIN, height: PIN, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }),
-      jsxs('div', {
-        ref: boxRef,
-        style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: bh - 16, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
-        children: [
-          label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
-          jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
-        ]
-      })
+      pin ? jsx('div', { style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: PIN, height: PIN, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }) : null,
+      box
+        ? jsxs('div', {
+            ref: boxRef,
+            style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH ?? bh - 16, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
+            children: [
+              label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
+              jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
+            ]
+          })
+        : null
     ]
   })
 }
@@ -4999,15 +5068,29 @@ function CommentsPanel({ ctx, art, portRef }) {
   // is never squeezed to a sliver.
   const box = useRef(null)
   const [narrow, setNarrow] = useState(false)
+  const [rowW, setRowW] = useState(0)
+  const cover = useValue($panelCover)
   useLayoutEffect(() => {
     const host = box.current?.parentElement
     if (!host) return undefined
-    const check = () => setNarrow(host.clientWidth < 760)
+    const check = () => {
+      const w = host.clientWidth
+      setNarrow(w < 760)
+      setRowW(w)
+      // Floating, it covers the stage's right (min(340px, 92%)): the new comment's box keeps out of it.
+      $panelCover.set(w < 760 ? Math.min(340, w * 0.92) : 0)
+    }
     check()
     const ro = new ResizeObserver(check)
     ro.observe(host)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      $panelCover.set(0)
+    }
   }, [])
+  // A picked element's comment whose box has no room left of the floating list is written here.
+  const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)
+  useEffect(() => { if (docked) setText('@Hermes ') }, [docked && draft?.anchor])
   return jsxs('aside', {
     ref: box,
     style: narrow
@@ -5027,7 +5110,7 @@ function CommentsPanel({ ctx, art, portRef }) {
         style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 },
         children: [
           picking ? jsx('div', { style: { fontSize: 12, color: C.accent, padding: '4px 2px' }, children: t('pickHint') }) : null,
-          draft && !draft.rect
+          draft && (!draft.rect || docked)
             ? jsxs('div', {
                 style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${C.accent}`, background: C.card },
                 children: [
@@ -5097,6 +5180,9 @@ function Viewer({ ctx, docked = false }) {
   // Comment mode and the pins reach the page whether or not the comments list is open.
   useEffect(() => postToPage(portRef, 'comment-mode', { on: picking }), [picking])
   useEffect(() => sendPins(portRef), [comments])
+  // The new comment's box closed (sent, cancelled, another pick): the page stops following its element.
+  const following = Boolean(useValue($draft)?.rect)
+  useEffect(() => { if (!following) postToPage(portRef, 'pick-follow', { on: false }) }, [following])
   // The host's tick (the wait for ready, the heartbeat) while this viewer is mounted; a deck that stops
   // presenting lets a version that came meanwhile in.
   useEffect(() => {
@@ -5149,8 +5235,8 @@ function Viewer({ ctx, docked = false }) {
     if (!rec) return
     // A version's HTML never changes: only Reload fetches it again; opening it again, or the same version
     // shown again, uses the cache. A live type's first paint carries its live state: always fetched.
-    if (reloadAsked.delete(art.id) || LIVE_TYPES.has(art.type)) htmlCache.forEach((_, k) => k.startsWith(`${art.id}:`) && htmlCache.delete(k))
-    fetchHtml(ctx, art.id, fv, { page })
+    if (reloadAsked.delete(art.id) || LIVE_TYPES.has(art.type)) dropHtml(art.id)
+    fetchHtml(ctx, art.id, fv, { page, stamp: htmlStamp(art) })
       .then(u => F.setSrc(rec, u))
       .catch(err => F.setErr(rec, errText(err)))
   }, [key])
@@ -5184,7 +5270,7 @@ function Viewer({ ctx, docked = false }) {
                 : fromMaking === art.id
                   ? jsx(MakingSkeleton, { type: art.type })
                   : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') }),
-              docked ? null : jsx(CommentPopover, { ctx, art }),
+              jsx(CommentPopover, { ctx, art, stageRef: stage }),
               jsx(ConfirmSend, {}),
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
               // the popup layout. Under the header and its bands (it lives in the stage), never mounted closed.
