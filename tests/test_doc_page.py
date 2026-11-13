@@ -215,7 +215,7 @@ const EN = 'pickLang({\n    en: {', HU = '\n    hu: {';
 const e0 = src.indexOf(EN), h0 = src.indexOf(HU, e0), z0 = src.indexOf('\n  }, L);', h0);
 const en = e0 >= 0 ? keysIn(src.slice(e0 + EN.length, h0)) : [], hu = h0 >= 0 ? keysIn(src.slice(h0 + HU.length, z0)) : [];
 out.strings = { found: e0 >= 0 && h0 > e0 && z0 > h0, en: en.length, onlyEn: en.filter((k) => hu.indexOf(k) < 0), onlyHu: hu.filter((k) => en.indexOf(k) < 0),
-  has: ['conflict', 'keptGone', 'keptNew', 'retrying'].filter((k) => en.indexOf(k) >= 0 && hu.indexOf(k) >= 0) };
+  has: ['conflict', 'keptGone', 'retrying'].filter((k) => en.indexOf(k) >= 0 && hu.indexOf(k) >= 0) };
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -414,7 +414,7 @@ class DocPageTests(unittest.TestCase):
         self.assertTrue(s["found"])
         self.assertGreater(s["en"], 100)
         self.assertEqual((s["onlyEn"], s["onlyHu"]), ([], []))
-        self.assertEqual(s["has"], ["conflict", "keptGone", "keptNew", "retrying"])
+        self.assertEqual(s["has"], ["conflict", "keptGone", "retrying"])
 
 
 if __name__ == "__main__":

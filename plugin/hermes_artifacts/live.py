@@ -25,7 +25,6 @@ import functools
 import hashlib
 import itertools
 import math
-import os
 import json
 import re
 import sys
@@ -664,16 +663,6 @@ def _is_sql(s: str) -> bool:
         if w and _key(w[1]) in ("select", "with"):
             return True
     return _sqlish(s) is not None
-
-
-def sql_kind(s: str) -> Optional[str]:
-    """"read" for one read-only SELECT/WITH statement, "other" for any other SQL, None for text."""
-    try:
-        if not _is_sql(s):
-            return None
-        return "other" if _sql_violation(s) else "read"
-    except LiveError:
-        return "other"
 
 
 def _guard_text(v: str, tpl: Any) -> None:

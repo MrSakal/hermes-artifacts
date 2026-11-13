@@ -99,7 +99,7 @@ class CalcTests(unittest.TestCase):
     def test_dump_shows_computed_values(self):
         time.sleep(0.01)
         sheets.apply(self.aid, [{"op": "set", "range": "C2", "values": [[10]]}], by="hermes", base_rev=1)
-        one = json.loads(sheets.dump(self.aid))["sheets"][0]
+        one = sheets.snapshot(self.aid)["sheets"][0]
         self.assertEqual(one["values"]["D2"], 12000)
 
     def test_same_shape_as_the_page_posts(self):
@@ -130,7 +130,7 @@ class CalcTests(unittest.TestCase):
             r = sheets.read(self.aid, agent=True)
             self.assertTrue(r["stale"])
             self.assertEqual(r["values"], {})
-            self.assertNotIn("values", json.loads(sheets.dump(self.aid))["sheets"][0])
+            self.assertNotIn("values", sheets.snapshot(self.aid)["sheets"][0])
         r = sheets.read(self.aid, agent=True)  # node is back: a missing node is not held against the workbook
         self.assertFalse(r["stale"])
         self.assertEqual(r["values"]["D2"], 3600)

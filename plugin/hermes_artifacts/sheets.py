@@ -841,7 +841,7 @@ def _inside(m: dict, r1: int, c1: int, r2: int, c2: int) -> dict:
 
 
 def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool, extent: Optional[tuple] = None) -> dict:
-    if agent and _stale(st, sh):  # a caller without the artifact's id (dump): computed, saved with the next save
+    if agent and _stale(st, sh):  # a caller without the artifact's id (snapshot): computed, saved with the next save
         with _LOCK:
             calc.refresh(st, value=_value, parse_key=parse_key, is_formula=_is_formula, limit=MAX_ROWS * MAX_COLS)
     nr, nc = extent or used(sh)
@@ -934,11 +934,6 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
     mine = next(o for o in out["sheets"] if o["id"] == sh["id"])  # used(sh), counted for the overview
     out.update(_view(st, sh, range, agent, not agent, (mine["rows"], mine["cols"])))
     return out
-
-
-def dump(aid: str) -> str:
-    """The live workbook as compact JSON: each sheet as capped rows (snapshot, as text)."""
-    return json.dumps(snapshot(aid), ensure_ascii=False, separators=(",", ":"))
 
 
 def snapshot(aid: str) -> dict:
@@ -1208,7 +1203,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
 
 def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
     kind = o.get("op")
-    cells, fmt, vals = sh["cells"], sh["fmt"], sh["vals"]
+    cells, vals = sh["cells"], sh["vals"]
     if kind == "set":
         r0, c0 = parse_range(o.get("range"))[:2]
         if "values" not in o:

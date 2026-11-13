@@ -750,7 +750,7 @@ class ReadTests(unittest.TestCase):
         self.assertIn("320", r["more"])
 
     def test_dump(self):
-        d = json.loads(boards.dump(self.aid))
+        d = json.loads(json.dumps(boards.snapshot(self.aid)))
         self.assertEqual((d["title"], len(d["items"]), d["items"][3]["svg"]), ("Read", 8, SVG))
         self.assertEqual(boards.from_spec(d)["items"], d["items"])  # a dump is a board.json again
 

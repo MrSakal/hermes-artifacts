@@ -317,11 +317,6 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
         return False
 
 
-def flush_all() -> None:
-    for aid in list(_PENDING):
-        flush(aid)
-
-
 def record(aid: str, op: dict, meta: Optional[dict] = None, now: Optional[float] = None) -> bool:
     """Keep one parsed report (``parse_diag``/``parse_shown``). Written now when this artifact's file was
     not written within WRITE_EVERY_S, else with the next write (at most WRITE_EVERY_S from now). Nothing is

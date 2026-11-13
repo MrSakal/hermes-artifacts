@@ -1360,11 +1360,6 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
     return out
 
 
-def dump(aid: str) -> str:
-    """The live board as board.json text (snapshot, as text)."""
-    return json.dumps(snapshot(aid), ensure_ascii=False, separators=(",", ":"))
-
-
 def snapshot(aid: str) -> dict:
     """The live board as board.json (ha_read without a path)."""
     st = load(aid)

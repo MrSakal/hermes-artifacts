@@ -1934,10 +1934,6 @@ def version_dir(aid: str, n: Optional[int] = None) -> Path:
     return p
 
 
-def read_html(aid: str, n: Optional[int] = None) -> str:
-    return (version_dir(aid, n) / "index.html").read_text(encoding="utf-8", errors="replace")
-
-
 # --- per-artifact KV (window.hermes.storage) --------------------------------
 
 def _kv_path(aid: str) -> Path:

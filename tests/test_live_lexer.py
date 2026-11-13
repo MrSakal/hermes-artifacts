@@ -2,7 +2,6 @@
 (N1, N3), auto-approval only for calls whose filters vary data (N2), scalar hole values (N4), plain-decimal
 numbers (N5), the false positives the old regex guard had, and invisible characters in the dialog."""
 
-import importlib
 import json
 import os
 import shutil
@@ -124,8 +123,10 @@ class HashHeadTests(unittest.TestCase):
 
     def test_hash_head_is_still_sql(self):
         self.assertEqual(live._hole_sql(self.TPL["sql"]), ["raw"])  # # makes the template not simple
-        self.assertEqual(live.sql_kind("#c\nSELECT 1; DELETE FROM t"), "other")
-        self.assertEqual(live.sql_kind("#c\nSELECT 1"), "read")
+        self.assertTrue(live._is_sql("#c\nSELECT 1; DELETE FROM t"))
+        self.assertIsNotNone(live._sql_violation("#c\nSELECT 1; DELETE FROM t"))
+        self.assertTrue(live._is_sql("#c\nSELECT 1"))
+        self.assertIsNone(live._sql_violation("#c\nSELECT 1"))
 
     def test_hostile_value_after_a_hash_head_is_refused(self):
         rules = {"r": {"pattern": "[^\\n]{1,80}"}}

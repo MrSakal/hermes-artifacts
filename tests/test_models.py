@@ -102,7 +102,7 @@ class ContractTests(unittest.TestCase):
 
 class ExpressionTests(unittest.TestCase):
     def test_values(self):
-        e = models.eval_expr
+        e = lambda text, values=None: models._eval(models.parse_expr(text), values or {})
         self.assertEqual(e("(w-40)/2", {"w": 1240}), 600)
         self.assertEqual(e("-2^2"), -4)
         self.assertEqual(e("2^3^2"), 512)
@@ -112,7 +112,6 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(e("min(3, 1, 2) + max(4, 5) + abs(-1) + round(2.5) + floor(1.9) + ceil(1.1) + sqrt(9)"), 1 + 5 + 1 + 3 + 1 + 2 + 3)
         self.assertEqual(e(" 1.5e2 + .5 "), 150.5)
         self.assertEqual(e("12"), 12)
-        self.assertEqual(e(7), 7)
 
     def test_syntax(self):
         for bad in ("", "1 +", "(1", "1)", "2 ** 3", "w w", "foo(1)", "sin", "sin(1, 2)", "1 % 2", "a.b", "x" * 201,
