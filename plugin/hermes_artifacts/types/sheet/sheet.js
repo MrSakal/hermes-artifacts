@@ -2571,7 +2571,7 @@
     if (!X || !X.write) return kit.toast(T.noXlsx);
     busy(true);
     lib("fflate.umd.js", "fflate").then(function () {
-      var bytes = X.write({ sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze, merges: s.merges, rules: s.rules }; }) });
+      var bytes = X.write({ sheets: book.map(function (s) { return { name: s.name, cells: s.cells, fmt: s.fmt, vals: computedVals(s), cols: s.cols, freeze: s.freeze, merges: s.merges, rules: s.rules, charts: s.charts }; }) });
       var type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       kit.download(kit.slug(bookTitle()) + ".xlsx", new Blob([bytes], { type: type }), type);
     }).catch(function (e) { kit.toast(String(e && e.message || e)); }).then(function () { busy(false); });

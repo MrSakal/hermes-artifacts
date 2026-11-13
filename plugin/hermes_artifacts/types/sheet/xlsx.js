@@ -371,6 +371,90 @@
   function numText(n) { return String(n); }
   function errCode(e) { return ERRORS.indexOf(e) >= 0 ? e : "#VALUE!"; }
 
+  // ---- charts: a sheet's charts as DrawingML charts in the file, on the same ranges (Excel recomputes them)
+  // As the page reads a range (chartData): the first column the labels when there are several, a first row of
+  // words over the numbers the series' names; cached values so a viewer that does not compute shows them too.
+  var NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+  var NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  var NS_XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+  var CHART_W = 380, CHART_H = 240, EMU = 9525; // the page's chart card, in px
+  function chartXml(sh, ch, sheetName) {
+    var b = parseBox(ch.range);
+    if (!b) return null;
+    b.r2 = Math.min(b.r2, b.r1 + 200); b.c2 = Math.min(b.c2, b.c1 + 8);
+    var cells = sh.cells || {}, vals = sh.vals || {};
+    function at(r, c) { var k = colName(c) + (r + 1), v = cells[k]; return isFormula(v) ? (own(vals, k) ? vals[k] : null) : v; }
+    var labelCol = b.c2 > b.c1, head = false;
+    if (b.r2 > b.r1) {
+      if (labelCol) { for (var c0 = b.c1 + 1; c0 <= b.c2; c0++) { var hv = at(b.r1, c0); if (typeof hv === "string" && hv !== "" && isoToSerial(hv) === null) head = true; } }
+      else head = typeof at(b.r1, b.c1) === "string" && typeof at(b.r1 + 1, b.c1) === "number";
+    }
+    var r0 = head ? b.r1 + 1 : b.r1, nPts = b.r2 - r0 + 1;
+    if (nPts < 1) return null;
+    var q = "'" + String(sheetName).replace(/'/g, "''") + "'!";
+    function ref(r1, c1, r2, c2) { return q + "$" + colName(c1) + "$" + (r1 + 1) + (r2 > r1 || c2 > c1 ? ":$" + colName(c2) + "$" + (r2 + 1) : ""); }
+    function strCache(list) {
+      var o = '<c:strCache><c:ptCount val="' + list.length + '"/>';
+      list.forEach(function (s, i) { o += '<c:pt idx="' + i + '"><c:v>' + esc(s) + "</c:v></c:pt>"; });
+      return o + "</c:strCache>";
+    }
+    var type = ch.type === "line" || ch.type === "pie" ? ch.type : "bar", ser = "", si = 0;
+    var labels = [];
+    for (var r = r0; r <= b.r2; r++) { var lv = labelCol ? at(r, b.c1) : null; labels.push(labelCol ? (lv == null ? "" : String(lv)) : String(r - r0 + 1)); }
+    for (var c = labelCol ? b.c1 + 1 : b.c1; c <= b.c2; c++) {
+      if (type === "pie" && si > 0) break; // a pie shows its first series, as the page does
+      var name = head && at(b.r1, c) != null ? String(at(b.r1, c)) : "Series " + (si + 1);
+      var num = '<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="' + nPts + '"/>';
+      for (var r2 = r0; r2 <= b.r2; r2++) { var v = at(r2, c); if (typeof v === "number" && isFinite(v)) num += '<c:pt idx="' + (r2 - r0) + '"><c:v>' + numText(v) + "</c:v></c:pt>"; }
+      num += "</c:numCache>";
+      ser += '<c:ser><c:idx val="' + si + '"/><c:order val="' + si + '"/>' +
+        '<c:tx>' + (head ? '<c:strRef><c:f>' + esc(ref(b.r1, c, b.r1, c)) + "</c:f>" + strCache([name]) + "</c:strRef>" : "<c:v>" + esc(name) + "</c:v>") + "</c:tx>" +
+        (type === "line" ? '<c:marker><c:symbol val="none"/></c:marker>' : type === "bar" ? '<c:invertIfNegative val="0"/>' : "") +
+        (labelCol ? '<c:cat><c:strRef><c:f>' + esc(ref(r0, b.c1, b.r2, b.c1)) + "</c:f>" + strCache(labels) + "</c:strRef></c:cat>" : "") +
+        '<c:val><c:numRef><c:f>' + esc(ref(r0, c, b.r2, c)) + "</c:f>" + num + "</c:numRef></c:val>" +
+        (type === "line" ? '<c:smooth val="0"/>' : "") + "</c:ser>";
+      si++;
+    }
+    if (!ser) return null;
+    var axes = '<c:axId val="5001"/><c:axId val="5002"/>';
+    var plot = type === "pie" ? '<c:pieChart><c:varyColors val="1"/>' + ser + '<c:firstSliceAng val="0"/></c:pieChart>' :
+      (type === "line" ? '<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>' + ser + '<c:marker val="1"/>' + axes + "</c:lineChart>" :
+        '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>' + ser + '<c:gapWidth val="80"/>' + axes + "</c:barChart>") +
+      '<c:catAx><c:axId val="5001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/>' +
+      '<c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="5002"/><c:crosses val="autoZero"/>' +
+      '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>' +
+      '<c:valAx><c:axId val="5002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:majorGridlines/>' +
+      '<c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>' +
+      '<c:crossAx val="5001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>';
+    var title = ch.title ? '<c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>' + esc(ch.title) + "</a:t></a:r></a:p></c:rich></c:tx>" +
+      '<c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>' : '<c:autoTitleDeleted val="1"/>';
+    var legend = type === "pie" || si > 1 ? '<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>' : "";
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<c:chartSpace xmlns:c="' + NS_C + '" xmlns:a="' + NS_A + '" xmlns:r="' + NS_R + '">' +
+      '<c:roundedCorners val="0"/><c:chart>' + title + "<c:plotArea><c:layout/>" + plot + "</c:plotArea>" + legend +
+      '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>';
+  }
+  /** One sheet's charts: {drawing, rels, charts: [xml]} with chart numbers from `first` on, or null. */
+  function drawingOf(sh, sheetName, first) {
+    var list = [], anchors = "", rels = "";
+    (sh.charts || []).forEach(function (ch) {
+      var x = ch && chartXml(sh, ch, sheetName);
+      if (!x) return;
+      var p = parseCell(String(ch.at || "").replace(/\$/g, "")) || {r: 0, c: 0}, k = list.length + 1;
+      list.push(x);
+      anchors += '<xdr:oneCellAnchor><xdr:from><xdr:col>' + p.c + '</xdr:col><xdr:colOff>' + 4 * EMU + '</xdr:colOff><xdr:row>' + p.r +
+        '</xdr:row><xdr:rowOff>' + 4 * EMU + '</xdr:rowOff></xdr:from><xdr:ext cx="' + CHART_W * EMU + '" cy="' + CHART_H * EMU + '"/>' +
+        '<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="' + (k + 1) + '" name="Chart ' + k + '"' + (ch.title ? ' descr="' + esc(ch.title) + '"' : "") + "/>" +
+        '<xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>' +
+        '<a:graphic><a:graphicData uri="' + NS_C + '"><c:chart xmlns:c="' + NS_C + '" xmlns:r="' + NS_R + '" r:id="rId' + k + '"/></a:graphicData></a:graphic>' +
+        "</xdr:graphicFrame><xdr:clientData/></xdr:oneCellAnchor>";
+      rels += '<Relationship Id="rId' + k + '" Type="' + NS_R + '/chart" Target="../charts/chart' + (first + k - 1) + '.xml"/>';
+    });
+    if (!list.length) return null;
+    var head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+    return { charts: list, drawing: head + '<xdr:wsDr xmlns:xdr="' + NS_XDR + '" xmlns:a="' + NS_A + '">' + anchors + "</xdr:wsDr>",
+      rels: head + '<Relationships xmlns="' + NS_PKG + '">' + rels + "</Relationships>" };
+  }
+
   function write(book) {
     var F = ff();
     var src = book && book.sheets && book.sheets.length ? book.sheets : [{name: "Sheet1", cells: {}}];
@@ -390,7 +474,7 @@
       c = String(c);
       return ERRORS.indexOf(c) >= 0 ? {t: "e", v: c} : {t: "str", v: esc(c)};
     }
-    function sheetXml(sh, idx) {
+    function sheetXml(sh, idx, drawn) {
       var cells = sh.cells || {}, fmt = sh.fmt || {}, vals = sh.vals || {}, rows = {}, rowKeys = [], k, p;
       var minR = Infinity, minC = Infinity, maxR = -1, maxC = -1;
       function add(key, isFmt) {
@@ -455,18 +539,26 @@
       return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="' + NS_MAIN + '" xmlns:r="' + NS_R + '">' +
         '<dimension ref="' + dim + '"/><sheetViews>' + view + "</sheetViews>" + '<sheetFormatPr defaultColWidth="13" defaultRowHeight="15"/>' +
         (colsXml ? "<cols>" + colsXml + "</cols>" : "") + (data ? "<sheetData>" + data + "</sheetData>" : "<sheetData/>") +
-        mergesXml(sh.merges) + rulesXml(sh.rules, st) + validations(fmt) + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>';
+        mergesXml(sh.merges) + rulesXml(sh.rules, st) + validations(fmt) + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>' +
+        (drawn ? '<drawing r:id="rId1"/>' : "") + "</worksheet>";
     }
 
     var files = {}, sheetsXml = "", relsXml = "", ctXml = "", n = src.length;
-    var parts = [];
-    for (var i = 0; i < n; i++) parts.push(sheetXml(src[i] || {}, i));
+    var parts = [], draws = [], chartNo = 1;
+    for (var i = 0; i < n; i++) {
+      var dr = drawingOf(src[i] || {}, names[i], chartNo);
+      if (dr) chartNo += dr.charts.length;
+      draws.push(dr);
+      parts.push(sheetXml(src[i] || {}, i, !!dr));
+    }
     var head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
     for (i = 0; i < n; i++) {
       sheetsXml += '<sheet name="' + esc(names[i]) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
       relsXml += '<Relationship Id="rId' + (i + 1) + '" Type="' + NS_R + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
       ctXml += '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="' + CT + 'worksheet+xml"/>';
+      if (draws[i]) ctXml += '<Override PartName="/xl/drawings/drawing' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>';
     }
+    for (i = 1; i < chartNo; i++) ctXml += '<Override PartName="/xl/charts/chart' + i + '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>';
     relsXml += '<Relationship Id="rId' + (n + 1) + '" Type="' + NS_R + '/styles" Target="styles.xml"/>' +
       '<Relationship Id="rId' + (n + 2) + '" Type="' + NS_R + '/sharedStrings" Target="sharedStrings.xml"/>';
     var sstXml = "";
@@ -490,6 +582,16 @@
     files["xl/styles.xml"] = u8(st.xml());
     files["xl/sharedStrings.xml"] = u8(head + '<sst xmlns="' + NS_MAIN + '" count="' + sstRefs + '" uniqueCount="' + sst.length + '">' + sstXml + "</sst>");
     for (i = 0; i < n; i++) files["xl/worksheets/sheet" + (i + 1) + ".xml"] = u8(parts[i]);
+    var cn = 1;
+    for (i = 0; i < n; i++) {
+      var d = draws[i];
+      if (!d) continue;
+      files["xl/worksheets/_rels/sheet" + (i + 1) + ".xml.rels"] = u8(head + '<Relationships xmlns="' + NS_PKG + '"><Relationship Id="rId1" Type="' + NS_R +
+        '/drawing" Target="../drawings/drawing' + (i + 1) + '.xml"/></Relationships>');
+      files["xl/drawings/drawing" + (i + 1) + ".xml"] = u8(d.drawing);
+      files["xl/drawings/_rels/drawing" + (i + 1) + ".xml.rels"] = u8(d.rels);
+      d.charts.forEach(function (x) { files["xl/charts/chart" + (cn++) + ".xml"] = u8(x); });
+    }
     return F.zipSync(files, {level: 6});
   }
 

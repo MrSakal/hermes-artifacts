@@ -166,6 +166,54 @@ class XlsxTests(unittest.TestCase):
         self.assertIn('<t xml:space="preserve">  leading space</t>', xml["xl/sharedStrings.xml"])
         self.assertIn("Wall &lt;panels&gt; &amp; &quot;co&quot;", xml["xl/sharedStrings.xml"])
 
+    def test_charts_go_into_the_file(self):
+        """A sheet's charts are DrawingML charts on the same ranges (the export used to drop them)."""
+        sheet = {"name": "Budget's", "cells": {"A1": "Item", "B1": "Cost", "C1": "Qty", "A2": "Panels", "B2": 182, "C2": "=B2*2",
+                                               "A3": "Rails", "B3": 24, "C3": 48},
+                 "vals": {"C2": 364},
+                 "charts": [{"id": "c1", "type": "bar", "range": "A1:C3", "title": "Costs & qty", "at": "E2"},
+                            {"id": "c2", "type": "pie", "range": "A1:B3", "title": "", "at": "E20"},
+                            {"id": "c3", "type": "line", "range": "B2:B3", "title": "Trend", "at": "M2"}]}
+        w = node("write", {"sheets": [{"name": "Empty", "cells": {"A1": 1}}, sheet]})
+        xml, parts = w["xml"], w["parts"]
+        trees = {p: ET.fromstring(x.encode("utf-8")) for p, x in xml.items()}  # every part parses
+        for p in ("xl/drawings/drawing2.xml", "xl/drawings/_rels/drawing2.xml.rels", "xl/worksheets/_rels/sheet2.xml.rels",
+                  "xl/charts/chart1.xml", "xl/charts/chart2.xml", "xl/charts/chart3.xml"):
+            self.assertIn(p, parts)
+        self.assertNotIn("xl/worksheets/_rels/sheet1.xml.rels", parts)  # a sheet without charts has no drawing
+        ct = {o.get("PartName"): o.get("ContentType") for o in trees["[Content_Types].xml"]}
+        self.assertEqual(ct["/xl/drawings/drawing2.xml"], "application/vnd.openxmlformats-officedocument.drawing+xml")
+        self.assertEqual(ct["/xl/charts/chart1.xml"], "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
+        # sheet -> drawing -> charts: every relationship's target is a part of the file
+        R = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+        for rels, base in (("xl/worksheets/_rels/sheet2.xml.rels", "xl/worksheets/"), ("xl/drawings/_rels/drawing2.xml.rels", "xl/drawings/")):
+            for rel in trees[rels].iter(R + "Relationship"):
+                target = (Path(base) / rel.get("Target")).as_posix()
+                while "/../" in target:
+                    a, b = target.split("/../", 1)
+                    target = a.rsplit("/", 1)[0] + "/" + b
+                self.assertIn(target, parts)
+        sh = trees["xl/worksheets/sheet2.xml"]
+        self.assertEqual(list(sh)[-1].tag, M + "drawing")  # after pageMargins, last
+        C = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
+        bar = trees["xl/charts/chart1.xml"]
+        self.assertIsNotNone(bar.find(f".//{C}barChart"))
+        refs = [f.text for f in bar.iter(C + "f")]
+        self.assertEqual(refs, ["'Budget''s'!$B$1", "'Budget''s'!$A$2:$A$3", "'Budget''s'!$B$2:$B$3",
+                                "'Budget''s'!$C$1", "'Budget''s'!$A$2:$A$3", "'Budget''s'!$C$2:$C$3"])
+        self.assertEqual([v.text for v in bar.iter(C + "v")][:4], ["Cost", "Panels", "Rails", "182"])
+        self.assertIn("364", [v.text for v in bar.iter(C + "v")])  # a formula's computed value is cached
+        self.assertEqual("".join(t.text for t in bar.iter("{http://schemas.openxmlformats.org/drawingml/2006/main}t")), "Costs & qty")
+        self.assertEqual(len(trees["xl/charts/chart2.xml"].findall(f".//{C}ser")), 1)  # a pie: its first series
+        line = trees["xl/charts/chart3.xml"]
+        self.assertIsNotNone(line.find(f".//{C}lineChart"))
+        self.assertIsNone(line.find(f".//{C}cat"))  # one column: no labels
+        X = "{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}"
+        anchors = trees["xl/drawings/drawing2.xml"].findall(X + "oneCellAnchor")
+        self.assertEqual([(a.find(f"{X}from/{X}col").text, a.find(f"{X}from/{X}row").text) for a in anchors], [("4", "1"), ("4", "19"), ("12", "1")])
+        # the reader still reads the workbook (it does not read charts back)
+        self.assertEqual(w["back"]["sheets"][1]["cells"]["B2"], 182)
+
     def test_reads_a_hand_built_workbook(self):
         sst = ('<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
                '<si><r><t>Hel</t></r><r><rPr><b/></rPr><t>lo</t></r><rPh><t>X</t></rPh></si>'
