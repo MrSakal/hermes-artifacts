@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import math
 import re
 import threading
@@ -1167,12 +1168,16 @@ def load(aid: str) -> dict:
     with _LOCK:
         p = _state_path(aid)
         st = None
-        if p.is_file():
+        try:
             s = p.stat()
-            stamp = (s.st_mtime_ns, s.st_size)
+        except FileNotFoundError:
+            s = None
+        if s is not None:
+            stamp = (s.st_mtime_ns, s.st_size, s.st_ino)
             hit = _CACHE.get(aid)
-            st = hit[1] if hit and hit[0] == stamp else json.loads(p.read_text(encoding="utf-8"))
-            _CACHE[aid] = (stamp, st)
+            st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
+            if st is not None:
+                _CACHE[aid] = (stamp, st)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -1183,11 +1188,8 @@ def _save(aid: str, st: dict) -> None:
     p = _state_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    tmp.replace(p)
-    s = p.stat()
-    _CACHE[aid] = ((s.st_mtime_ns, s.st_size), st)
+    s = store.write_atomic(p, json.dumps(st, ensure_ascii=False, separators=(",", ":")), backup=True)
+    _CACHE[aid] = ((s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def outline(aid: str) -> dict:
@@ -1222,15 +1224,21 @@ def _ints(v):
     return v
 
 
+_GEOMETRY = ("x", "y", "w", "h")
+
+
 def compact(it: dict, full: bool = False) -> dict:
     """An item for the agent: defaults left out, numbers whole, and the bulky fields (svg, html, pen
-    points, a data: image, a long embed state) as their length unless ``full``."""
+    points, a data: image, a long embed state) as their length, and no place or size (x, y, w, h: the server
+    lays items out, an edit moves by dx/dy), unless ``full`` (ha_live_read range=<ids>)."""
     dflt = DEFAULTS.get(it["type"], {})
     out = {}
     for k, v in it.items():
         if k in dflt and dflt[k] == v:
             continue
         if not full:
+            if k in _GEOMETRY:
+                continue
             if k in _BLOBS:
                 v = len(v)
             elif k == "src" and v.startswith("data:"):
@@ -1310,9 +1318,14 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
 
 
 def dump(aid: str) -> str:
+    """The live board as board.json text (snapshot, as text)."""
+    return json.dumps(snapshot(aid), ensure_ascii=False, separators=(",", ":"))
+
+
+def snapshot(aid: str) -> dict:
     """The live board as board.json (ha_read without a path)."""
     st = load(aid)
-    return json.dumps({"title": st["title"], "items": st["items"]}, ensure_ascii=False, separators=(",", ":"))
+    return {"title": st["title"], "items": st["items"]}
 
 
 # ----------------------------------------------------------------------------- editing
@@ -1704,6 +1717,15 @@ SNAP_GAP = 120              # seconds: edits by the same author closer than this
 _HIST_CACHE: dict = {}
 
 
+def _forget(aid: str, d: Path) -> None:
+    _CACHE.pop(aid, None)
+    for k in [k for k in _HIST_CACHE if str(k).startswith(str(d) + os.sep)]:
+        _HIST_CACHE.pop(k, None)
+
+
+store.on_forget(_forget)
+
+
 def _hist_path(aid: str) -> Path:
     return store._dir(aid) / "board" / "history.json"
 
@@ -1722,11 +1744,9 @@ def _hist_save(aid: str, version: int, snaps: list) -> None:
         snaps.pop(0)
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
     h = {"version": version, "snaps": snaps}
-    tmp.write_text(json.dumps(h, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    s = tmp.stat()
-    tmp.replace(p)
+    # Not fsynced (it holds every snapshot: megabytes); written whole and moved, an unreadable one reads as no history.
+    s = store.write_atomic(p, json.dumps(h, ensure_ascii=False, separators=(",", ":")), durable=False)
     store.json_remember(p, _HIST_CACHE, h, s, 8)
 
 

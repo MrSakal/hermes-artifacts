@@ -695,8 +695,10 @@ class ReadTests(unittest.TestCase):
         r = boards.read(self.aid, agent=True)
         self.assertEqual((r["rev"], r["title"], r["count"]), (1, "Read", 8))
         by = {it["id"]: it for it in r["items"]}
-        self.assertEqual(by["a"], {"id": "a", "type": "box", "text": "Alpha", "x": 0, "y": 11, "w": 180, "h": 60})  # defaults out, whole numbers
-        self.assertEqual(by["b"], {"id": "b", "type": "note", "text": "Beta budget", "x": 300, "y": 0, "w": 180, "h": 60})
+        self.assertEqual(by["a"], {"id": "a", "type": "box", "text": "Alpha"})  # defaults out, no place or size
+        self.assertEqual(by["b"], {"id": "b", "type": "note", "text": "Beta budget"})
+        full = boards.read(self.aid, "a,b", agent=True)["items"]  # range: the items in full, place and size too
+        self.assertEqual([(it["x"], it["y"], it["w"], it["h"]) for it in full], [(0.4, 10.6, 180, 60), (300, 0, 180, 60)])
         self.assertEqual(by["r"], {"id": "r", "type": "arrow", "from": "a", "to": "b", "label": "feeds"})
         self.assertEqual((by["d"]["svg"], by["e"]["html"], by["p"]["points"], by["i"]["src"]), (len(SVG), 12, 6, len(PNG)))
         self.assertEqual(by["e"]["state"], {"n": 1})
@@ -888,7 +890,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.call("ha_live_read", id=aid, at_rev=1)["rev"], 1)
         r = self.call("ha_read", id=aid)
         self.assertEqual((r["type"], r["path"], r["note"]), ("board", "board.json", self.p.BOARD_NOTE))
-        self.assertEqual(len(json.loads(r["content"])["items"]), 10)
+        self.assertEqual(len(r["content"]["items"]), 10)  # an object, not JSON in a string
         g = self.call("ha_guide", type="board")
         self.assertTrue(g["ok"])
         self.assertIn("board.json", g["guide"])

@@ -411,7 +411,7 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(json.loads(p._doc_read({"id": aid, "at_rev": 1}))["rows"][1][1], 1200)
         live = json.loads(p._read({"id": aid}))
         self.assertEqual(live["type"], "sheet")
-        self.assertEqual(json.loads(live["content"])["sheets"][0]["rows"][1][1:3], [1300, 5])
+        self.assertEqual(live["content"]["sheets"][0]["rows"][1][1:3], [1300, 5])  # an object, not JSON in a string
         self.assertIn("1200", json.loads(p._read({"id": aid, "path": "sheet.json"}))["content"])
         again = json.loads(p._publish({"id": aid, "type": "sheet", "files": {"sheet.json": BOOK}, "open": False}))
         self.assertFalse(again["ok"])

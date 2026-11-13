@@ -276,9 +276,19 @@ def _load(aid: str) -> dict:
 
 
 def _write_file(p: Path, data: dict) -> None:
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, p)
+    store.write_atomic(p, json.dumps(data, ensure_ascii=False, separators=(",", ":")), durable=False)
+
+
+def _forget(aid: str, d: Path) -> None:
+    with _MLOCK:
+        t = _TIMERS.pop(aid, None)
+        _PENDING.pop(aid, None)
+        _LAST.pop(aid, None)
+    if t is not None:
+        t.cancel()
+
+
+store.on_forget(_forget)
 
 
 def flush(aid: str, now: Optional[float] = None) -> bool:
@@ -358,6 +368,14 @@ def read(aid: str, now: Optional[float] = None) -> dict:
 
 def version_record(aid: str, n: int, now: Optional[float] = None) -> Optional[dict]:
     return read(aid, now).get(f"v{int(n)}")
+
+
+def written_at(aid: str) -> float:
+    """When the artifact's record was last written to disk (by any process), 0 when never."""
+    try:
+        return os.stat(_path(aid)).st_mtime
+    except (OSError, ValueError):
+        return 0.0
 
 
 # ----------------------------------------------------------------------------- for the agent

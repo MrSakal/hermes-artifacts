@@ -189,6 +189,7 @@ Set under `plugins.entries.hermes-artifacts.settings` in Hermes' `config.yaml`. 
 | `content_port` | int | `8798` | Loopback port the browser viewer serves artifact HTML from (a separate, sandboxed origin). |
 | `require_approval` | bool | `false` | Off: a live dashboard query runs without asking when Hermes ran exactly that call in the chat before publishing it; any other query (one it did not run, one you edit or test in Sources) asks first, in Hermes Desktop's own dialog. On: every new or changed query asks. |
 | `page_diagnostics` | bool | `true` | On: an artifact open in Hermes Desktop or the browser viewer records its page's errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host, for `ha_check`. Off: nothing is recorded, and `ha_check` says so. |
+| `max_versions` | int | `30` | The newest this many versions of each artifact are kept (the latest, and any an open comment was made on, always); older ones go at the next publish, their numbers never reused. `0` keeps all. |
 | `bridge_tools` | str | `""` | Comma-separated tool names an artifact may call through `window.hermes.callTool` in the browser viewer. Empty means none. |
 | `frame_ancestors` | str | `'self'` | Space-separated CSP sources that may show the browser viewer in a frame (its `frame-ancestors`). The default lets no other site frame it. Artifact content always lets the viewer frame it, plus these sources. |
 
