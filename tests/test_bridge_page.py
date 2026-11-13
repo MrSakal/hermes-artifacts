@@ -213,7 +213,7 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   await P.tick(1100); out.firstCall = res.first
   P.run('hermes.storage.get("b")').then(null, e => { res.second = P.now })
   const t0 = P.now; await P.tick(0); out.secondFast = res.second === t0
-  out.notice = P.doc.toasts.map(t => t.textContent)
+  out.notice = P.doc.toasts.map(t => t.textContent || t.children.map(c => c.textContent).join('')) // the words sit beside the toast's mark
   // a page that does not catch it: the bridge's own "unavailable" is not the page's error
   let offErr; P.run('hermes.ask("x")').catch(e => { offErr = e }); await P.tick(10)
   P.sb._fire('unhandledrejection', { reason: offErr }); P.sb.console.error(offErr)

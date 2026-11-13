@@ -346,7 +346,7 @@
   // ------------------------------------------------------------------ the canvas: a world layer under pan and zoom, a screen layer for handles
   var ro = !live;                              // no bridge, a thumbnail, a history preview: view only
   function canEdit() { return live && !preview; }
-  var view = h("div", { "class": "bd-view", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
+  var view = h("div", { "class": "bd-view kit-surface", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
   var world = h("div", { "class": "bd-world" }), ui = h("div", { "class": "bd-ui" });
   var draftSvg = svgEl("svg", { "class": "bd-draft", "aria-hidden": "true" });  // in board units: a line being drawn, snapping guides
   var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", role: "toolbar", "aria-label": T.more, hidden: true });

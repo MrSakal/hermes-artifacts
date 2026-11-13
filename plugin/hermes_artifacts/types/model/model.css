@@ -12,7 +12,6 @@ body { overflow: hidden; }
 #md-view { position: relative; flex: 1; min-width: 0; overflow: hidden; user-select: none; -webkit-user-select: none;
   background: radial-gradient(ellipse 80% 70% at 50% 40%, var(--md-glow), var(--md-canvas)); }
 .md-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
-.md-canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
 .md-labels { position: absolute; left: 0; top: 0; pointer-events: none; overflow: hidden; }
 .md-labels > * { pointer-events: none; }
 #md-view.is-measure .md-canvas { cursor: crosshair; }

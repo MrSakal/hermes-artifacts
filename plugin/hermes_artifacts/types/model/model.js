@@ -803,7 +803,7 @@
     renderer.localClippingEnabled = true;
     renderer.toneMapping = THREE.NeutralToneMapping != null ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
     canvas = renderer.domElement;
-    canvas.className = "md-canvas"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
+    canvas.className = "md-canvas kit-surface"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
     viewEl.insertBefore(canvas, viewEl.firstChild);
     scene = new THREE.Scene();
     scene.environment = makeEnv();

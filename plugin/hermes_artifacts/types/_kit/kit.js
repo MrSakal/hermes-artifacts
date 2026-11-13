@@ -4,6 +4,13 @@
   var content = { files: {}, title: "", type: "", version: 0, thumb: false };
   try { if (el) content = JSON.parse(el.textContent); } catch (e) { console.error("artifact content unreadable", e); }
   if (content.thumb) document.documentElement.setAttribute("data-thumb", "");
+  // The app's language (the host renders the page with it): the page's lang, and the one dates are written in.
+  // No red spelling marks: the browser checks with the system's dictionary whatever the words' language (a
+  // Hungarian Windows underlined every word of an English doc), so a page asks for no checking at all.
+  var LANG = /^[a-z]{2}(-[A-Za-z]{2})?$/.test(content.lang || "") ? content.lang : "";
+  if (LANG) document.documentElement.setAttribute("lang", LANG);
+  document.documentElement.setAttribute("spellcheck", "false");
+  var T0 = LANG.slice(0, 2) === "hu" ? { close: "Bezárás" } : { close: "Close" };
 
   var ICONS = {
     refresh: "M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7",
@@ -125,11 +132,32 @@
   }
 
   var toastTimer = null;
-  function toast(msg, ms) {
-    var t = document.querySelector(".kit-toast") || document.body.appendChild(h("div", { "class": "kit-toast" }));
-    t.textContent = msg;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.remove(); }, ms > 0 ? ms : 2600);
+  /** A short note to the person. Hosted, Hermes shows it as its own toast (hermes.notify); a host that does not
+   *  know that op, or none at all (the browser viewer, a page opened on its own), gets the page's own, drawn
+   *  like Hermes' one. kind: "info" (default), "success" or "error". Never on a card. */
+  function toast(msg, ms, kind) {
+    var text = String(msg == null ? "" : msg);
+    if (!text || content.thumb) return;
+    kind = kind === "error" || kind === "success" ? kind : "info";
+    var hm = window.hermes;
+    if (hm && typeof hm.notify === "function") {
+      hm.notify(text, kind, ms > 0 ? ms : null).then(function (r) { if (!(r && r.ok)) own(); }, own);
+    } else own();
+    function own() {
+      if (!document.body) return;
+      var old = document.querySelector(".kit-toast");
+      if (old) old.remove();
+      var t = h("div", { "class": "kit-toast" + (kind === "error" ? " is-error" : ""), role: kind === "error" ? "alert" : "status",
+        html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          (kind === "error" ? '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/>' : '<circle cx="12" cy="12" r="9"/><path d="M8 12.2l2.8 2.8L16 9.6"/>') + "</svg>" });
+      t.appendChild(h("span", { text: text }));
+      var x = h("button", { type: "button", "aria-label": T0.close, title: T0.close, html: icon("close") });
+      x.addEventListener("click", function () { clearTimeout(toastTimer); t.remove(); });
+      t.appendChild(x);
+      document.body.appendChild(t);
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { t.remove(); }, ms > 0 ? ms : kind === "error" ? 8000 : 2600);
+    }
   }
 
   // No host (the bridge's "offline": no port within its timeout, or the page opened on its own): the page
@@ -411,6 +439,9 @@
     };
   }
 
-  window.kit = { textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** Dates and numbers in the app's language (not the system's): Intl's locale for this page. */
+  function locale() { return LANG || (/^hu\b/i.test(navigator.language || "") ? "hu" : "en"); }
+
+  window.kit = { locale: locale, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();
