@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -14,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
+logger = logging.getLogger(__name__)
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _LOCK = threading.RLock()
 MAX_HTML_BYTES = 16 * 1024 * 1024
@@ -239,15 +241,170 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
     return (base or root()) / aid
 
 
-def _write_json(p: Path, data) -> None:
-    tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, p)
+# --- durable writes -------------------------------------------------------------------------------
+# Every file the plugin keeps is written whole to a temporary file beside it and moved over it (a reader in
+# another process sees the old file or the new one, never half of one). A durable write also flushes the
+# temporary file to the disk before the move (and, on POSIX, the folder after it), so a power cut leaves the
+# old or the new file, not an empty or cut-off one; ``backup`` also writes the same bytes as <name>.bak (its
+# own file, at most every BACKUP_EVERY seconds), which a read falls back to when the file is unreadable all
+# the same (written by older code that did not flush, a disk that lied). fsync costs ~1.5 ms here: meta.json,
+# comments, the live states and the doc history take it; caches and logs do not.
+
+BACKUP_EVERY = 30.0  # seconds: a file written more often (typing) refreshes its .bak at most this often
+_BAK_AT: dict = {}  # path -> when this process last refreshed its .bak
+
+
+def _fsync_dir(d: Path) -> None:
+    if os.name == "nt":  # NTFS journals the rename itself; a folder cannot be opened for fsync there
+        return
+    try:
+        fd = os.open(str(d), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+    """Write ``data`` (str as UTF-8, or bytes) to ``p`` as described above. Returns the stat of the file as
+    written (a rename keeps it: json_remember can stamp the cache with it)."""
+    p = Path(p)
+    raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
+    tmp = p.with_name(f"{p.name}.{os.getpid()}-{threading.get_ident()}.tmp")  # writers never share one
+    try:
+        with open(tmp, "wb") as f:
+            f.write(raw)
+            if durable:
+                f.flush()
+                os.fsync(f.fileno())
+        st = os.stat(tmp)
+        os.replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    if durable:
+        _fsync_dir(p.parent)
+    if backup:
+        now = time.monotonic()
+        key = str(p)
+        if now - _BAK_AT.get(key, -BACKUP_EVERY) >= BACKUP_EVERY:
+            _BAK_AT[key] = now
+            try:
+                write_atomic(p.with_name(p.name + ".bak"), raw, durable=durable)
+            except OSError:
+                logger.debug("could not refresh the copy of %s", p, exc_info=True)
+    return st
+
+
+def _json_text(data, compact: bool = False) -> str:
+    return json.dumps(data, ensure_ascii=False, **({"separators": (",", ":")} if compact else {"indent": 2}))
+
+
+def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+    return write_atomic(p, _json_text(data), durable=durable, backup=backup)
+
+
+def read_json(p: Path, text: Optional[str] = None) -> Any:
+    """The JSON in ``p`` (``text``: its content, already read). Unreadable (empty, cut short): the last good
+    copy (<name>.bak, else a temporary file a writer left complete), with a warning in the log; when none
+    parses, the first error (ValueError). FileNotFoundError when ``p`` is missing."""
+    if text is None:
+        text = p.read_text(encoding="utf-8")
+    try:
+        return json.loads(text)
+    except ValueError as e:
+        first = e
+    cands = [p.with_name(p.name + ".bak")]
+    try:
+        cands += sorted((c for c in p.parent.iterdir() if c.name.startswith(p.name + ".") and c.name.endswith(".tmp")),
+                        key=lambda c: c.stat().st_mtime, reverse=True)
+    except OSError:
+        pass
+    for c in cands:
+        try:
+            value = json.loads(c.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        logger.warning("%s is unreadable (empty or cut short): using its last good copy %s", p, c.name)
+        return value
+    raise first
+
+
+def load_state(p: Path) -> Any:
+    """A live state file (a doc's, sheet's or board's): its JSON (unreadable: its last good copy, see
+    read_json), or None when it is missing, or unreadable with no good copy: then it is kept aside as
+    <name>.corrupt-<time> for whoever wants to salvage it, a warning is logged, and the caller starts the
+    state again from the published version (as for a new version) rather than failing on every open."""
+    try:
+        return read_json(p)
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        aside = p.with_name(f"{p.name}.corrupt-{int(time.time())}")
+        try:
+            os.replace(p, aside)
+        except OSError:
+            pass
+        logger.warning("%s is unreadable and has no good copy: kept as %s, started again from the published version",
+                       p, aside.name)
+        return None
+
+
+def _rebuilt_meta(d: Path) -> Optional[dict]:
+    """A meta.json made again from the version folders, when neither it nor a copy of it can be read: the
+    artifact stays listed (title: its id; versions: the folders there, as Hermes'), its type from its files."""
+    try:
+        ns = sorted(int(e.name[1:]) for e in os.scandir(d) if e.is_dir() and re.fullmatch(r"v[0-9]{1,9}", e.name))
+    except OSError:
+        return None
+    if not ns:
+        return None
+    versions = []
+    for n in ns:
+        vdir = d / f"v{n}"
+        try:
+            size = sum(e.stat().st_size for _, e in walk_files(vdir))
+            at = vdir.stat().st_mtime
+        except OSError:
+            continue
+        versions.append({"n": n, "published": at, "bytes": size, "by": "hermes"})
+    if not versions:
+        return None
+    try:
+        kind = next((k for k, entry in TYPE_ENTRY.items() if k != "page" and (d / f"v{ns[-1]}" / entry).is_file()), "page")
+    except OSError:
+        kind = "page"
+    logger.warning("%s/meta.json is unreadable and has no good copy: rebuilt from its %d version folders", d, len(versions))
+    return {"id": d.name, "title": d.name, "created": versions[0]["published"], "updated": versions[-1]["published"],
+            "versions": versions, "type": kind}
+
+
+def _read_meta(p: Path, text: Optional[str] = None) -> dict:
+    try:
+        return read_json(p, text)
+    except ValueError:
+        m = _rebuilt_meta(p.parent)
+        if m is None:
+            raise
+        return m
 
 
 def get_meta(aid: str) -> Optional[dict]:
     p = _dir(aid) / "meta.json"
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except IsADirectoryError:
+        return None
+    return _read_meta(p, text)
 
 
 def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
@@ -869,7 +1026,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             entry["derived"] = made
         meta["versions"].append(entry)
         meta["updated"] = time.time()
-        _write_json(d / "meta.json", meta)
+        _write_json(d / "meta.json", meta, backup=True)
         note = " ".join(x for x in (note, shape_note) if x)
         return {**meta, "note": note} if note else meta  # the note is the caller's, not stored
 
@@ -954,7 +1111,7 @@ def update_meta(aid: str, **fields) -> dict:
                 meta[k] = str(v)
             else:
                 meta[k] = bool(v) if k == "pinned" else str(v)[:300]
-        _write_json(_dir(aid) / "meta.json", meta)
+        _write_json(_dir(aid) / "meta.json", meta, backup=True)
         return meta
 
 
@@ -1230,16 +1387,17 @@ def introduced(aid: str, rel: str, n: int, back: int = 500) -> Optional[int]:
     return k
 
 
-def json_cached(p: Path, cache: dict, keep: int = 0, *, st: Optional[os.stat_result] = None) -> Any:
+def json_cached(p: Path, cache: dict, keep: int = 0, *, st: Optional[os.stat_result] = None, loader=None) -> Any:
     """The JSON in ``p``, parsed again only when the file changed (every write here replaces the file:
     a new inode, mtime or size). The value is shared with later calls: never change it. ``keep``: the most
-    entries ``cache`` holds (0: no limit). FileNotFoundError when ``p`` is missing, ValueError when bad."""
+    entries ``cache`` holds (0: no limit). ``loader(p)``: how to read it (default read_json: an unreadable
+    file falls back to its last good copy). FileNotFoundError when ``p`` is missing, ValueError when bad."""
     st = st or p.stat()
     stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
     hit = cache.get(p)
     if hit and hit[0] == stamp:
         return hit[1]
-    value = json.loads(p.read_text(encoding="utf-8"))
+    value = (loader or read_json)(p)
     _cache_put(cache, keep, p, stamp, value)
     return value
 
@@ -1273,7 +1431,7 @@ def list_all() -> list[dict]:
         if not stat.S_ISREG(st.st_mode):
             continue
         try:
-            out.append(dict(json_cached(m, _METAS, st=st)))
+            out.append(dict(json_cached(m, _METAS, st=st, loader=_read_meta)))
         except ValueError:
             continue
         seen.add(m)
@@ -1336,8 +1494,10 @@ def settings_set(key: str, value: Any) -> None:
 
 
 def kv_all(aid: str) -> dict:
-    p = _kv_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    try:
+        return read_json(_kv_path(aid))
+    except FileNotFoundError:
+        return {}
 
 
 def kv_set(aid: str, key: str, value) -> None:
@@ -1353,7 +1513,7 @@ def kv_set(aid: str, key: str, value) -> None:
             data[key] = value
         if len(json.dumps(data).encode()) > MAX_KV_BYTES:
             raise ValueError("storage exceeds 256 KB")
-        _write_json(_kv_path(aid), data)
+        _write_json(_kv_path(aid), data, backup=True)
 
 
 # --- inbox (window.hermes.send -> agent) ------------------------------------
@@ -1387,9 +1547,7 @@ def inbox_ack(ids: list[str]) -> int:
         for i in items:
             if i["id"] in ids and not i["acked"]:
                 i["acked"], n = True, n + 1
-        tmp = _inbox_path().with_suffix(".tmp")
-        tmp.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items), encoding="utf-8")
-        os.replace(tmp, _inbox_path())
+        write_atomic(_inbox_path(), "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items))
         return n
 
 
@@ -1432,8 +1590,10 @@ def _comments_path(aid: str) -> Path:
 
 
 def comments_list(aid: str, include_resolved: bool = True) -> list[dict]:
-    p = _comments_path(aid)
-    items = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
+    try:
+        items = read_json(_comments_path(aid))
+    except FileNotFoundError:
+        items = []
     return [c for c in items if include_resolved or not c.get("resolved")]
 
 
@@ -1480,7 +1640,7 @@ def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[d
         items.append(c)
         if len(items) > 2000:
             raise ValueError("too many comments")
-        _write_json(_comments_path(aid), items)
+        _write_json(_comments_path(aid), items, backup=True)
         return c
 
 
@@ -1490,7 +1650,7 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
         for c in items:
             if c["id"] == cid:
                 c["resolved"] = bool(resolved)
-                _write_json(_comments_path(aid), items)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise NotFound(f"no comment {cid!r}", next=f"ha_comments id={aid} lists them")
 
@@ -1513,7 +1673,7 @@ def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
                 else:
                     people.append(who)
                 c["reactions"] = {k: v for k, v in r.items() if v}
-                _write_json(_comments_path(aid), items)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise FileNotFoundError(cid)
 
@@ -1525,8 +1685,10 @@ def _approvals_path(aid: str) -> Path:
 
 
 def approvals(aid: str) -> dict:
-    p = _approvals_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    try:
+        return read_json(_approvals_path(aid))
+    except FileNotFoundError:
+        return {}
 
 
 def approved(aid: str, call_id: str) -> bool:
@@ -1539,7 +1701,7 @@ def set_approval(aid: str, call_id: str, tool: str, allowed: bool) -> dict:
     with _LOCK:
         data = approvals(aid)
         data[call_id] = {"tool": str(tool)[:200], "allowed": bool(allowed), "ts": time.time()}
-        _write_json(_approvals_path(aid), data)
+        _write_json(_approvals_path(aid), data, backup=True)
         return data[call_id]
 
 
@@ -1566,7 +1728,7 @@ def report_set(aid: str, kind: str, data: dict) -> None:
         p = _reports_path(aid)
         allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
         allr[kind] = {**json.loads(blob), "received": time.time()}
-        _write_json(p, allr)
+        _write_json(p, allr, durable=False)  # the page sends it again
 
 
 def reports(aid: str) -> dict:
@@ -1692,7 +1854,7 @@ def view_set(session: str, aid: Optional[str], context: Optional[dict]) -> None:
                 raise ValueError("view context too large")
             data[session] = {"artifact": aid, "title": meta.get("title", aid), "type": meta.get("type", "page"),
                              "version": meta["versions"][-1]["n"], "context": json.loads(blob), "at": now}
-        _write_json(p, data)
+        _write_json(p, data, durable=False)  # lives ten minutes
 
 
 def view_get(session: str) -> Optional[dict]:
@@ -1746,7 +1908,7 @@ def making_set(session: str, kind: str, phase: str, **fields) -> dict:
         state = {"type": kind, "phase": str(phase)[:40], "started": started, "at": now,
                  **{k: str(v)[:200] for k, v in fields.items() if v not in (None, "")}}
         data[session] = state
-        _write_json(_making_path(), data)
+        _write_json(_making_path(), data, durable=False)  # lives twenty minutes
         return {"session": session, **state}
 
 
@@ -1772,7 +1934,7 @@ def making_clear(session: str) -> Optional[dict]:
         if session not in data:
             return None
         prev = data.pop(session)
-        _write_json(_making_path(), _making_live(data, time.time()))
+        _write_json(_making_path(), _making_live(data, time.time()), durable=False)
         if not isinstance(prev, dict) or time.time() - prev.get("at", 0) > MAKING_TTL_S:
             return None
         return {"session": session, **prev}

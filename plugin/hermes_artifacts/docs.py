@@ -214,7 +214,7 @@ def load(aid: str) -> dict:
         raise DocError("absent", "not a doc")
     with _LOCK:
         p = _state_path(aid)
-        st = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+        st = store.load_state(p)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -227,9 +227,7 @@ def _save(aid: str, st: dict) -> None:
     p = _state_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(p)
+    store.write_atomic(p, json.dumps(st, ensure_ascii=False), backup=True)
 
 
 def _tab(st: dict, tab: Optional[str]) -> dict:
