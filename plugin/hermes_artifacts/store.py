@@ -253,14 +253,13 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
 # another process sees the old file or the new one, never half of one). A durable write also flushes the
 # temporary file to the disk before the move (and, on POSIX, the folder after it), so a power cut leaves the
 # old or the new file, not an empty or cut-off one; ``backup`` also writes the same bytes as <name>.bak (its
-# own file, at most every BACKUP_EVERY seconds; meta.json and comments.json, written seldom, at every write),
-# which a read falls back to when the file is unreadable all the same (written by older code that did not
-# flush, a disk that lied). fsync costs ~1.5 ms here: meta.json, comments, the live states and the doc history
-# take it; caches and logs do not. A target another program holds open (Windows) is tried again for a moment;
-# then the write fails with the old file as it was and no temporary file left.
+# own file, at every write: a copy is never older than the last write, so a fallback read never hands a
+# caller content older than what it then writes back; ~3-5 ms more for a 900 KB doc state, a 20k-cell sheet
+# or a 300-item board), which a read falls back to when the file is unreadable all the same (written by older
+# code that did not flush, a disk that lied). fsync costs ~1.5 ms here: meta.json, comments, the live states
+# and the doc history take it; caches and logs do not. A target another program holds open (Windows) is tried
+# again for a moment; then the write fails with the old file as it was and no temporary file left.
 
-BACKUP_EVERY = 30.0  # seconds: a file written more often (typing) refreshes its .bak at most this often
-_BAK_AT: dict = {}  # path -> when this process last refreshed its .bak
 REPLACE_TRIES = 6  # os.replace onto a file held open: tried again after 10, 20, 40, 80, 160 ms
 
 
@@ -291,8 +290,7 @@ def _replace(tmp: Path, p: Path) -> None:
             time.sleep(0.01 * (2 ** i))
 
 
-def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False,
-                 backup_every: float = BACKUP_EVERY) -> os.stat_result:
+def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
     """Write ``data`` (str as UTF-8, or bytes) to ``p`` as described above. Returns the stat of the file as
     written (a rename keeps it: json_remember can stamp the cache with it)."""
     p = Path(p)
@@ -315,14 +313,10 @@ def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False,
     if durable:
         _fsync_dir(p.parent)
     if backup:
-        now = time.monotonic()
-        key = str(p)
-        if not backup_every or now - _BAK_AT.get(key, -backup_every) >= backup_every:
-            _BAK_AT[key] = now
-            try:
-                write_atomic(p.with_name(p.name + ".bak"), raw, durable=durable)
-            except OSError:
-                logger.debug("could not refresh the copy of %s", p, exc_info=True)
+        try:
+            write_atomic(p.with_name(p.name + ".bak"), raw, durable=durable)
+        except OSError:  # the file itself is written; its copy stays one write behind until the next one
+            logger.warning("could not refresh the copy of %s", p, exc_info=True)
     return st
 
 
@@ -330,14 +324,13 @@ def _json_text(data) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False,
-                backup_every: float = BACKUP_EVERY) -> os.stat_result:
-    return write_atomic(p, _json_text(data), durable=durable, backup=backup, backup_every=backup_every)
+def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+    return write_atomic(p, _json_text(data), durable=durable, backup=backup)
 
 
 def _write_meta(d: Path, meta: dict) -> os.stat_result:
-    """meta.json, its .bak refreshed at every write: a fallback read never names fewer versions than there are."""
-    return _write_json(d / "meta.json", meta, backup=True, backup_every=0)
+    """meta.json with its .bak: a fallback read never names fewer versions than there are."""
+    return _write_json(d / "meta.json", meta, backup=True)
 
 
 def read_json(p: Path, text: Optional[str] = None) -> Any:
@@ -1496,7 +1489,7 @@ def forget(aid: str) -> None:
                 settings_set("design_system_for", {k: v for k, v in per.items() if v != aid} or None)
         d = root() / aid
         prefix = str(d)
-        for cache in (_METAS, _CARDS, _OPEN_COUNTS, _BAK_AT):
+        for cache in (_METAS, _CARDS, _OPEN_COUNTS):
             for k in [k for k in cache if str(k) == prefix or str(k).startswith(prefix + os.sep)]:
                 cache.pop(k, None)
         for fn in list(_FORGET.values()):
@@ -2306,7 +2299,7 @@ def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[d
         items.append(c)
         if len(items) > 2000:
             raise ValueError("too many comments")
-        _write_json(_comments_path(aid), items, backup=True, backup_every=0)
+        _write_json(_comments_path(aid), items, backup=True)
         return c
 
 
@@ -2316,7 +2309,7 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
         for c in items:
             if c["id"] == cid:
                 c["resolved"] = bool(resolved)
-                _write_json(_comments_path(aid), items, backup=True, backup_every=0)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise NotFound(f"no comment {cid!r}", next=f"ha_comments id={aid} lists them")
 
@@ -2339,7 +2332,7 @@ def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
                 else:
                     people.append(who)
                 c["reactions"] = {k: v for k, v in r.items() if v}
-                _write_json(_comments_path(aid), items, backup=True, backup_every=0)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise FileNotFoundError(cid)
 

@@ -97,29 +97,38 @@ class WriteTests(unittest.TestCase):
 
     def test_read_json_says_when_it_read_a_copy(self):
         p = self.d / "c.json"
-        store.write_atomic(p, '{"n": 1}', backup=True, backup_every=0)
+        store.write_atomic(p, '{"n": 1}', backup=True)
         self.assertEqual(store.read_json_from(p), ({"n": 1}, False))
         cut(p, 3)
         with self.assertLogs(store.logger, "WARNING"):
             self.assertEqual(store.read_json_from(p), ({"n": 1}, True))
 
-    def test_backup_is_the_copy_last_written_and_refreshed_at_most_every_few_seconds(self):
+    def test_backup_is_refreshed_at_every_write(self):
         p = self.d / "y.json"
-        store._BAK_AT.pop(str(p), None)
-        store.write_atomic(p, '{"n": 1}', backup=True)
         bak = self.d / "y.json.bak"
-        self.assertEqual(json.loads(bak.read_text("utf-8")), {"n": 1})
-        store.write_atomic(p, '{"n": 2}', backup=True)  # within BACKUP_EVERY: the copy stays
-        self.assertEqual(json.loads(bak.read_text("utf-8")), {"n": 1})
-        store._BAK_AT[str(p)] -= store.BACKUP_EVERY
-        store.write_atomic(p, '{"n": 3}', backup=True)
+        for n in (1, 2, 3):  # in quick succession, as typing writes
+            store.write_atomic(p, json.dumps({"n": n}), backup=True)
+            self.assertEqual(json.loads(bak.read_text("utf-8")), {"n": n})
+        store.write_atomic(p, '{"n": 4}')  # a write without backup: the copy keeps what it had
         self.assertEqual(json.loads(bak.read_text("utf-8")), {"n": 3})
-        store.write_atomic(p, '{"n": 4}')  # the next write replaces the file: the copy keeps what it had
-        self.assertEqual(json.loads(bak.read_text("utf-8")), {"n": 3})
+
+    def test_a_copy_that_could_not_be_refreshed_is_said(self):
+        p = self.d / "w.json"
+        store.write_atomic(p, '{"n": 1}', backup=True)
+        real = store.write_atomic
+
+        def no_copy(q, data, **kw):
+            if Path(q).name.endswith(".bak"):
+                raise PermissionError(13, "held open")
+            return real(q, data, **kw)
+        with mock.patch.object(store, "write_atomic", side_effect=no_copy), \
+                self.assertLogs(store.logger, "WARNING") as logs:
+            real(p, '{"n": 2}', backup=True)
+        self.assertIn("w.json", logs.output[0])
+        self.assertEqual(json.loads(p.read_text("utf-8")), {"n": 2})
 
     def test_read_json_falls_back_and_warns(self):
         p = self.d / "z.json"
-        store._BAK_AT.pop(str(p), None)
         store.write_atomic(p, '{"good": true}', backup=True)
         cut(p, 4)
         with self.assertLogs(store.logger, "WARNING") as logs:
@@ -136,7 +145,6 @@ class WriteTests(unittest.TestCase):
 class MetaTests(unittest.TestCase):
     def test_a_cut_meta_reads_its_last_good_copy_and_stays_listed(self):
         aid = store.publish(html="<p>a</p>", title="Kept")["id"]
-        store._BAK_AT.clear()
         store.update_meta(aid, title="Renamed")
         p = store._dir(aid) / "meta.json"
         for keep in (0, 30):
@@ -169,7 +177,6 @@ class MetaTests(unittest.TestCase):
 class CommentTests(unittest.TestCase):
     def test_cut_comments_read_the_last_good_copy(self):
         aid = store.publish(html="<p>a</p>", title="C")["id"]
-        store._BAK_AT.clear()
         store.comment_add(aid, "first")
         cut(store._comments_path(aid), 10)
         with self.assertLogs(store.logger, "WARNING"):
@@ -180,8 +187,8 @@ class LiveStateTests(unittest.TestCase):
     def test_a_cut_doc_state_reads_its_last_good_copy(self):
         aid = store.publish(type="doc", title="D", files={"doc.md": "# T\n\none"})["id"]
         r = docs.read(aid)
-        store._BAK_AT.clear()
-        docs.apply(aid, [{"op": "replace", "block": r["blocks"][1]["id"], "md": "typed"}], by="user")
+        docs.apply(aid, [{"op": "replace", "block": r["blocks"][1]["id"], "md": "typ"}], by="user")
+        docs.apply(aid, [{"op": "replace", "block": r["blocks"][1]["id"], "md": "typed"}], by="user")  # a moment later
         p = docs._state_path(aid)
         cut(p, 50)
         with self.assertLogs(store.logger, "WARNING"):
@@ -203,9 +210,9 @@ class LiveStateTests(unittest.TestCase):
         sid = store.publish(type="sheet", title="S", files={"sheet.json": {"sheets": [{"name": "A", "rows": [[1, 2]]}]}})["id"]
         bid = store.publish(type="board", title="B", files={"board.json": {"items": [{"id": "a", "type": "box", "text": "x"}]}})["id"]
         sheets.load(sid), boards.load(bid)
-        store._BAK_AT.clear()
-        sheets.apply(sid, [{"op": "set", "range": "A1", "values": [[7]]}], by="user")
-        boards.apply(bid, [{"op": "set", "id": "a", "text": "kept"}], by="user")
+        for v, t in ((6, "kep"), (7, "kept")):  # the second write a moment after the first: its copy is the last
+            sheets.apply(sid, [{"op": "set", "range": "A1", "values": [[v]]}], by="user")
+            boards.apply(bid, [{"op": "set", "id": "a", "text": t}], by="user")
         cut(sheets._state_path(sid), 20)
         cut(boards._state_path(bid), 20)
         with self.assertLogs(store.logger, "WARNING"):

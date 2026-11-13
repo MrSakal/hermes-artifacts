@@ -190,7 +190,6 @@ class SweepTests(unittest.TestCase):
         lone.write_text("{}", "utf-8")
         age(lone)
         store.comment_add(self.aid, "x")
-        store._BAK_AT.clear()
         store.comment_add(self.aid, "y")
         kept_bak = self.d / "comments.json.bak"
         age(kept_bak)
