@@ -1427,26 +1427,79 @@ def _cache_put(cache: dict, keep: int, p: Path, stamp: tuple, value: Any) -> Non
 
 _METAS: dict = {}  # meta.json path -> (stamp, meta): the gallery parses only the ones that changed
 
+# The listing reads one folder: root(). An artifact folder's own stamp (mtime, ctime, inode) changes whenever a
+# file directly in it is created, renamed or removed, and every write that matters to a card goes so: meta.json
+# and comments.json are replaced (write_atomic), and preview_set touches the folder after writing into
+# previews/. A file rewritten in place would not move it (no code here does that). On Windows the folder list
+# carries each entry's times, so an unchanged artifact costs no system call at all (on POSIX one stat, where a
+# stat is cheap); only a changed one is looked into (meta.json, comments, preview). A folder changed less than
+# RACY_S before it was looked into is looked into again (two changes within one tick of the file system's
+# clock look alike). Correct across processes: the stamp is the file system's, not this process's.
+RACY_S = 2.0
+_CARDS: dict = {}  # folder path -> (stamp, when looked into, meta, open comments, has a preview)
+
+
+def _card(e: os.DirEntry, base: Path, now: float) -> Optional[tuple]:
+    """(meta, open user comments, preview of the latest version) of the artifact folder ``e``, or None."""
+    try:
+        if not e.is_dir():
+            return None
+        s = e.stat()
+    except OSError:
+        return None
+    stamp = (s.st_mtime_ns, s.st_ctime_ns, s.st_ino)
+    hit = _CARDS.get(e.path)
+    if hit and hit[0] == stamp and hit[1] - s.st_mtime_ns / 1e9 > RACY_S:
+        return hit[2:]
+    m = Path(e.path) / "meta.json"
+    try:
+        st = m.stat()
+    except OSError:
+        _CARDS.pop(e.path, None)
+        return None
+    if not stat.S_ISREG(st.st_mode):
+        return None
+    try:
+        meta = json_cached(m, _METAS, st=st, loader=_read_meta)
+    except ValueError:
+        return None
+    aid = e.name
+    try:
+        comments = open_user_comments(aid, base)
+        vs = meta.get("versions") or []
+        preview = bool(vs) and preview_path(aid, vs[-1]["n"], base).is_file()
+    except (ValueError, KeyError, TypeError, OSError):  # a folder whose name is no id: no card extras
+        comments, preview = 0, False
+    _CARDS[e.path] = (stamp, now, meta, comments, preview)
+    return meta, comments, preview
+
+
+def cards() -> list[tuple]:
+    """Every artifact as (meta, open user comments, has a preview), newest first. The metas are shared: read
+    them only (list_all hands out copies)."""
+    base = root()
+    now = time.time()
+    out, seen = [], set()
+    with os.scandir(base) as it:
+        for e in it:
+            if e.name.startswith("."):  # .trash, .run: never an artifact
+                continue
+            c = _card(e, base, now)
+            if c is not None:
+                out.append(c)
+                seen.add(e.path)
+    for gone in [k for k in _CARDS if k not in seen]:  # deleted artifacts (or another root, in tests)
+        _CARDS.pop(gone, None)
+    if len(_METAS) > len(seen) + 64:  # metas of deleted artifacts (or another root, in tests)
+        keep = {Path(k) / "meta.json" for k in seen}
+        for gone in [k for k in _METAS if Path(k) not in keep]:
+            _METAS.pop(gone, None)
+    return sorted(out, key=lambda c: c[0].get("updated", 0), reverse=True)
+
 
 def list_all() -> list[dict]:
     """Every artifact's meta, newest first (each a fresh dict; the nested lists are shared: read them only)."""
-    out, seen = [], set()
-    for d in root().iterdir():
-        m = d / "meta.json"
-        try:
-            st = m.stat()
-        except OSError:
-            continue
-        if not stat.S_ISREG(st.st_mode):
-            continue
-        try:
-            out.append(dict(json_cached(m, _METAS, st=st, loader=_read_meta)))
-        except ValueError:
-            continue
-        seen.add(m)
-    for gone in [k for k in _METAS if k not in seen]:  # deleted artifacts (or another root, in tests)
-        _METAS.pop(gone, None)
-    return sorted(out, key=lambda m: m.get("updated", 0), reverse=True)
+    return [dict(c[0]) for c in cards()]
 
 
 def version_dir(aid: str, n: Optional[int] = None) -> Path:
@@ -1777,13 +1830,15 @@ def preview_set(aid: str, data_url: str, version: Optional[int] = None) -> Optio
         d = _dir(aid) / "previews"
         d.mkdir(exist_ok=True)
         p = d / f"v{latest}.png"
-        tmp = p.with_suffix(".tmp")
-        tmp.write_bytes(raw)
-        os.replace(tmp, p)
+        write_atomic(p, raw, durable=False)
         keep = {f"v{v['n']}.png" for v in meta["versions"][-PREVIEWS_KEPT:]}
         for f in d.iterdir():
             if f.name not in keep:
                 f.unlink(missing_ok=True)
+        try:
+            os.utime(_dir(aid))  # the gallery's listing notices a card's change by its folder's stamp (cards)
+        except OSError:
+            pass
         return latest
 
 

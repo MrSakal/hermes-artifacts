@@ -7,6 +7,7 @@ fixed and this module reloadable makes a plugin update take effect without resta
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from typing import Any, Optional
@@ -21,14 +22,16 @@ class ApiError(Exception):
         self.status, self.detail = status, detail
 
 
-def _view(m: dict, base=None) -> dict:
+def _view(m: dict, base=None, extras: Optional[tuple] = None) -> dict:
+    """A gallery card. ``extras``: (open user comments, has a preview) when the caller has them (store.cards)."""
+    comments, preview = extras if extras is not None else (
+        store.open_user_comments(m["id"], base), store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file())
     return {"id": m["id"], "title": m["title"], "type": m.get("type", "page"),
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
             "session": m.get("session"), "folder": m.get("folder") or None, "opened": m.get("opened"),
-            "comments": store.open_user_comments(m["id"], base),
-            **({"preview": True} if store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file() else {})}
+            "comments": comments, **({"preview": True} if preview else {})}
 
 
 def chat_status(session: Optional[str]) -> dict:
@@ -368,17 +371,24 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             # The gallery polls this while it is open: it also purges the trash, at most once a day.
             store.purge_trash_due()
             base = store.root()
-            arts = [_view(m, base) for m in store.list_all()]
+            arts = [_view(m, base, (n, pv)) for m, n, pv in store.cards()]
             settings = store.settings()
             folders = list(settings.get("folders") or [])
             folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
-            return {"artifacts": arts, "folders": folders,
-                    "default_design_system": settings.get("default_design_system"),
-                    "design_system_for": settings.get("design_system_for") or {},
-                    "making": store.making_all(),
-                    # Host only (a page reaches nothing but /op): the code the server's processes run
-                    # against the installed files; the gallery says when a restart or an update is due.
-                    "server": running.status(base)}
+            out = {"artifacts": arts, "folders": folders,
+                   "default_design_system": settings.get("default_design_system"),
+                   "design_system_for": settings.get("design_system_for") or {},
+                   "making": store.making_all(),
+                   # Host only (a page reaches nothing but /op): the code the server's processes run
+                   # against the installed files; the gallery says when a restart or an update is due.
+                   "server": running.status(base)}
+            # etag: a digest of this whole answer. The gallery sends the one it holds (?etag=...): the same
+            # answer comes back as {"unchanged": true, "etag"} alone (no 266 KB of cards at 1000 artifacts).
+            etag = hashlib.sha1(json.dumps(out, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()[:20]
+            if str(query.get("etag") or "") == etag:
+                return {"unchanged": True, "etag": etag}
+            out["etag"] = etag
+            return out
         if parts == ["making"] and method == "GET":
             # What a chat is making now (Hermes read a guide, has not published): after a reload or a chat switch.
             session = str(query.get("session") or "")
