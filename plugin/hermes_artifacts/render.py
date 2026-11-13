@@ -152,14 +152,28 @@ def _page_map(vdir: Path, entry: str, html: str) -> str:
 
 
 def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:
+    """The document: a page's own (bundled), or the type's runtime with the content tag before </head>."""
     kind = meta.get("type", "page")
     if kind == "page":
-        entry = store.safe_rel(page) if page else "index.html"
-        if not (vdir / entry).is_file():
-            raise FileNotFoundError(entry)
-        html = bundle.bundle(vdir, entry)
-        # A card's picture reports no errors: no map for it.
-        return html if thumb else html + _page_map(vdir, entry, html)
+        return _page(vdir, page, thumb)
+    tag = content_tag(meta, vdir, thumb, lang)
+    html = runtime(kind)
+    i = html.lower().find("</head>")
+    return html[:i] + tag + html[i:] if i != -1 else tag + html
+
+
+def _page(vdir: Path, page: Optional[str], thumb: bool) -> str:
+    entry = store.safe_rel(page) if page else "index.html"
+    if not (vdir / entry).is_file():
+        raise FileNotFoundError(entry)
+    html = bundle.bundle(vdir, entry)
+    # A card's picture reports no errors: no map for it.
+    return html if thumb else html + _page_map(vdir, entry, html)
+
+
+def content_tag(meta: dict, vdir: Path, thumb: bool = False, lang: str = "") -> str:
+    """A typed artifact's own part of its document: the content its runtime reads, as one script tag."""
+    kind = meta.get("type", "page")
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
             "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",  # the app's language, for the page's own words
             # A model's card draws no 3D: it needs model.json (its title), not the meshes.
@@ -211,7 +225,4 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             pass
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
-    tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'
-    html = runtime(kind)
-    i = html.lower().find("</head>")
-    return html[:i] + tag + html[i:] if i != -1 else tag + html
+    return f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'

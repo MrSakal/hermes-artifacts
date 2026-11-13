@@ -34,6 +34,36 @@ def _view(m: dict, base=None, extras: Optional[tuple] = None) -> dict:
             "comments": comments, **({"preview": True} if preview else {})}
 
 
+# A typed artifact's document is its type's runtime (250-560 KB, the same for every artifact of the type) with
+# one content tag before </head>. The host may cache the runtime part ("shell", the bridge already in it) by its
+# hash and fetch only the content: GET artifacts/<id>/html?split=1 -> {id, version, type, shell: <hash>,
+# content: <tag>} (a page, or a runtime without </head>: {html} as without split); GET shells/<hash> ->
+# {hash, head, tail} (404 once this process no longer knows it: ask again without split). The document is
+# head + content + tail, byte for byte what GET artifacts/<id>/html answers.
+_SHELLS: dict = {}  # hash -> (head, tail)
+_SHELL_OF: dict = {}  # kind -> (runtime html, bridge tag, hash): made again when either changes
+
+
+def _shell(kind: str) -> Optional[str]:
+    from .server import _bridge_tag
+    html, tag = render.runtime(kind), _bridge_tag()
+    hit = _SHELL_OF.get(kind)
+    if hit and hit[0] is html and hit[1] is tag:
+        return hit[2]
+    i = html.lower().find("</head>")
+    if i == -1:
+        return None
+    head = inject_bridge(html[:i].encode("utf-8")).decode("utf-8")
+    tail = html[i:]
+    h = hashlib.sha256((head + "\0" + tail).encode("utf-8")).hexdigest()[:32]
+    old = hit[2] if hit else None
+    if old and old != h:
+        _SHELLS.pop(old, None)
+    _SHELLS[h] = (head, tail)
+    _SHELL_OF[kind] = (html, tag, h)
+    return h
+
+
 def chat_status(session: Optional[str]) -> dict:
     """The artifact's chat, as Claude's Chat button decides: open it while it exists and is not
     archived, else start a new chat that refers to the artifact. ``known`` is false when Hermes'
@@ -452,6 +482,11 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 raise ApiError(404, str(e))
             except (FileExistsError, ValueError) as e:
                 raise ApiError(409, str(e))
+        if len(parts) == 2 and parts[0] == "shells" and method == "GET":
+            got = _SHELLS.get(parts[1])
+            if got is None:
+                raise ApiError(404, "unknown shell: GET the html without split")
+            return {"hash": parts[1], "head": got[0], "tail": got[1]}
         if len(parts) == 2 and parts[0] == "vendor" and method == "GET":
             p = (_VENDOR / parts[1]).resolve()
             if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
@@ -471,6 +506,17 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     return {"ok": True}
             elif rest == ["html"] and method == "GET":
                 m = _meta(aid)
+                kind = m.get("type", "page")
+                if str(query.get("split", "")).lower() in ("1", "true", "yes") and kind != "page":
+                    shell = _shell(kind)
+                    if shell:
+                        try:
+                            tag = render.content_tag(m, store.version_dir(aid, _int(query.get("v"))),
+                                                     thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
+                                                     lang=str(query.get("lang") or "")[:8])
+                        except FileNotFoundError:
+                            raise ApiError(404, "unknown version or page")
+                        return {"id": aid, "version": _int(query.get("v")), "type": kind, "shell": shell, "content": tag}
                 try:
                     html = render.render(m, store.version_dir(aid, _int(query.get("v"))), page=query.get("page") or None,
                                          thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
