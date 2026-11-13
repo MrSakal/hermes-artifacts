@@ -457,7 +457,7 @@
   }
   function onPick(e) {
     if (!picking) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault(); e.stopImmediatePropagation();
     var el = e.target, r = el.getBoundingClientRect();
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
     emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(),
@@ -469,6 +469,18 @@
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }
   }
+  // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
+  // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
+  // still comes (onPick; a page that picks on its own, like motion, takes it on window first).
+  function swallow(e) {
+    if (!picking) return;
+    var t = e.target;
+    if (t && t.closest && t.closest("[data-hermes-ui]")) return;
+    if (e.cancelable) e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "dblclick", "auxclick", "contextmenu", "touchstart", "dragstart", "selectstart"]
+    .forEach(function (t) { window.addEventListener(t, swallow, { capture: true, passive: false }); });
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onPick, true);
   on("comment-mode", function (d) { setPicking(d && d.on); });

@@ -765,6 +765,7 @@
     var n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
     return n && n.closest ? n.closest(".doc-blk[data-block]") : null;
   }
+  function drawnMd(b) { return isWidget(b.md) ? null : mdOf(drawBlock(b, h("div"))); } // the block as drawn, read back
   function mdOf(el) {
     var src = el.querySelector("textarea.doc-src");
     if (src) return src.fenced ? src.fenced(src.value) : src.value;
@@ -797,6 +798,10 @@
     if (!el) return Promise.resolve();
     var now = mdOf(el);
     if (now === f.saved) return Promise.resolve();
+    // Words that read back as the block's Markdown drawn again are no edit: a focus, a click, a pick for a
+    // comment never write (a Markdown spelling the editor writes differently stays as the server has it).
+    var b0 = blockOf(f.id);
+    if (b0 && b0.md === f.saved && now === drawnMd(b0)) return Promise.resolve();
     f.saved = now; // in the outbox now: kept and sent until the server takes it (a block Hermes removed comes back: repairOps)
     var p = writeBlock(f.id, now, f.sug ? { sug: true } : { base: f.base });
     if (final) redrawOne(f.id);
