@@ -211,19 +211,26 @@ main().catch(e => { process.stdout.write(JSON.stringify({ err: String(e && e.sta
 
 def drive(script: str, timeout: int = 180) -> dict:
     """Run `script` (the body of an async function of `api`) in headless Chrome; its return value is "out"."""
-    with tempfile.TemporaryDirectory(prefix="ha-chrome-") as d:
-        dp = Path(d)
+    dp = Path(tempfile.mkdtemp(prefix="ha-chrome-"))
+    try:
         (dp / "drv.js").write_text(DRIVER, encoding="utf-8")
         (dp / "script.js").write_text(script, encoding="utf-8")
         prof = dp / "prof"
         prof.mkdir()
         r = subprocess.run([NODE, str(dp / "drv.js"), CHROME, str(dp / "script.js"), str(prof)],
                            capture_output=True, text=True, encoding="utf-8", timeout=timeout)
-        time.sleep(0.5)  # chrome lets go of its profile
         try:
             return json.loads(r.stdout)
         except ValueError:
             raise AssertionError("driver failed:\n" + r.stdout[-2000:] + r.stderr[-2000:])
+    finally:
+        # Chrome's last processes let go of the profile a moment after it closed (longer on a busy machine):
+        # retried for up to 15 s, so no folder is left behind.
+        for _ in range(60):
+            shutil.rmtree(dp, ignore_errors=True)
+            if not dp.exists():
+                break
+            time.sleep(0.25)
 
 
 def snapshot(aid: str) -> dict:
