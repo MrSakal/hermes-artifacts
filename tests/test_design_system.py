@@ -507,5 +507,46 @@ class CompileTests(unittest.TestCase):
         self.assertNotIn("--self", css)
 
 
+class NarrowTests(unittest.TestCase):
+    """Round 4: at 400 px the token tables ran past the frame's edge (the dark column, its inputs, the row's More and
+    comment buttons), "shadow-raised" broke inside the word, a blank band sat between the tabs and a short section's
+    heading, and the Markdown editor's Save was below the fold. Rows stack, the editor's buttons stay in view."""
+
+    def test_every_tab_fits_and_the_editor_keeps_its_buttons(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(path=str(EXAMPLE), title="Kiln", type="design-system")["id"]
+            r = B.drive(f"await api.size(400, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(1500)\n" + """
+              const out = {}
+              const n = await api.frame('document.querySelectorAll(".ds-nav-i").length')
+              for (let i = 0; i < n; i++) {
+                await api.frame('document.querySelectorAll(".ds-nav-i")[' + i + '].click()'); await api.sleep(400)
+                out[i] = await api.frame(`(() => {
+                  const vw = innerWidth, bad = []
+                  for (const el of document.querySelectorAll(".ds-page button, .ds-page input, .ds-page select, .ds-page td, .ds-page code")) {
+                    const r = el.getBoundingClientRect(); if (!r.width) continue
+                    if (r.right > vw + 0.5) bad.push("past the edge: " + (el.getAttribute("aria-label") || el.textContent).trim().slice(0, 30))
+                  }
+                  for (const c of document.querySelectorAll(".ds-tname code")) if (c.getClientRects().length > 1) bad.push("name broken: " + c.textContent)
+                  const nav = document.getElementById("ds-nav").getBoundingClientRect(), first = document.querySelector(".ds-page").firstElementChild
+                  if (first && first.getBoundingClientRect().top - nav.bottom > 60) bad.push("band above the section")
+                  return bad })()`)
+              }
+              await api.frame('document.querySelectorAll(".ds-nav-i")[0].click()'); await api.sleep(300)
+              await api.frame('[...document.querySelectorAll(".ds-head .ds-btn")].pop().click()'); await api.sleep(500)
+              out.save = await api.frame('(() => { const b = document.querySelector(".ds-md-bar .ds-primary").getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight })()')
+              return out
+            """)
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        self.assertTrue(r["out"].pop("save"), "Save is out of sight")
+        self.assertEqual({k: v for k, v in r["out"].items() if v}, {})
+
+
 if __name__ == "__main__":
     unittest.main()

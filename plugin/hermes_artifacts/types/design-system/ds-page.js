@@ -254,7 +254,7 @@
   // The theme the page previews in, picked where themes show (Colors, Shadows, Components).
   function themeSelect() {
     if (!multiTheme()) return null;
-    var sel = h("select", { "class": "ds-in ds-theme-sel", "aria-label": T.theme, title: T.theme },
+    var sel = h("select", { "class": "ds-in ds-theme-sel kit-select", "aria-label": T.theme, title: T.theme },
       S.m.themes.map(function (t) { return h("option", { value: t.id, text: t.name }); }));
     sel.value = state.theme;
     sel.addEventListener("change", function () { state.chosenTheme = true; setTheme(sel.value); });
@@ -386,13 +386,14 @@
   function mdEditor(path, text, onDone, toFile) {
     var ta = h("textarea", { "class": "ds-md-edit", spellcheck: "false" });
     ta.value = text || "";
-    var wrap = h("div", { "class": "ds-editor" }, [ta, h("div", { "class": "ds-row-btns" }, [
-      btn(T.save, "primary", function () {
-        var v = ta.value.replace(/\r\n?/g, "\n"), files = {}; files[path] = toFile ? toFile(v) : v;
-        saveFiles(files, "edited " + path).then(function (ok) { if (ok) { state.editing = null; render(); } });
-      }),
-      btn(T.cancel, "", function () { state.editing = null; onDone ? onDone() : render(); })
-    ])]);
+    // Save and Cancel in a bar that stays at the frame's foot while the text runs past it, kit buttons
+    var save = kit.button(T.save, "check", function () {
+      var v = ta.value.replace(/\r\n?/g, "\n"), files = {}; files[path] = toFile ? toFile(v) : v;
+      saveFiles(files, "edited " + path).then(function (ok) { if (ok) { state.editing = null; render(); } });
+    });
+    kit.labelled(save, T.save).classList.add("ds-primary");
+    var cancel = kit.labelled(kit.button(T.cancel, "close", function () { state.editing = null; onDone ? onDone() : render(); }), T.cancel);
+    var wrap = h("div", { "class": "ds-editor ds-md-editor" }, [ta, h("div", { "class": "ds-md-bar" }, [save, cancel])]);
     // at its first line: setting the value put the caret at the end, and the focus scrolled the start out of sight
     setTimeout(function () { ta.style.height = Math.min(640, Math.max(220, ta.scrollHeight + 4)) + "px"; ta.setSelectionRange(0, 0); ta.focus({ preventScroll: true }); ta.scrollTop = 0; }, 0);
     return wrap;
@@ -1287,7 +1288,7 @@
       inp.value = val == null ? "" : String(val); f[k] = inp;
       return h("label", { "class": "ds-field" }, [h("span", { text: label }), inp]);
     }
-    var famSel = h("select", { "class": "ds-in", "aria-label": X.family }, [h("option", { value: "", text: "—" })].concat(S.m.type.familyKeys.map(function (k) {
+    var famSel = h("select", { "class": "ds-in kit-select", "aria-label": X.family }, [h("option", { value: "", text: "—" })].concat(S.m.type.familyKeys.map(function (k) {
       return h("option", { value: k, text: familyLabel(k) + " (" + k + ")" });
     })));
     famSel.value = raw.family ? String(raw.family).toLowerCase() : "";
@@ -1609,6 +1610,18 @@
   function fontFamOf(p) { var f = S.m.type.fonts.filter(function (x) { return x.file === p; })[0]; return f ? f.family : "inherit"; }
 
   // ------------------------------------------------------------------ render
+  // A narrow frame stacks a table's rows (ds.css): each value cell then says which column it is.
+  function labelCells(root) {
+    root.querySelectorAll("table.ds-table").forEach(function (t) {
+      var ths = t.querySelectorAll("thead th");
+      t.querySelectorAll("tr.ds-row").forEach(function (tr) {
+        Array.prototype.forEach.call(tr.children, function (td, i) {
+          var th = ths[i], label = th && th.textContent.trim();
+          if (label && !td.classList.contains("ds-cname")) td.setAttribute("data-th", label);
+        });
+      });
+    });
+  }
   function render() {
     frames = {}; closePop();
     drawNav();
@@ -1622,6 +1635,7 @@
     else if (s === "assets") kids = assetView();
     else kids = filesView();
     main.replaceChildren(h("div", { "class": "ds-page" }, kids.filter(Boolean)));
+    labelCells(main);
     Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); });
     sendView();
   }
