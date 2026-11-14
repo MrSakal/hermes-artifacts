@@ -76,5 +76,45 @@ class SplitTests(unittest.TestCase):
         json.dumps(r)
 
 
+class ExportTests(unittest.TestCase):
+    """GET artifacts/<id>/html?export=1: a page's Export is its own document (bundled: its files inlined), standalone:
+    no host bridge and no line map (round 1: 44.8 kB of host runtime around a 1.8 kB page)."""
+
+    PAGE = ('<!doctype html><html><head><meta charset="utf-8"><title>Plan</title><link rel="stylesheet" href="s.css"></head>'
+            '<body><h1 id="t">Plan</h1><script src="app.js"></script></body></html>')
+
+    def publish(self):
+        return store.publish(title="Plan", files={"index.html": self.PAGE, "s.css": "h1 { color: rgb(1, 2, 3) }",
+                                                  "app.js": "document.getElementById('t').dataset.ran = '1'"})["id"]
+
+    def test_a_page_exports_its_own_document(self):
+        aid = self.publish()
+        shown, out = get(f"artifacts/{aid}/html")["html"], get(f"artifacts/{aid}/html", export=1)["html"]
+        self.assertIn("window.hermes", shown)  # the viewer's document carries the bridge and the line map
+        self.assertIn('id="hermes-lines"', shown)
+        for host in ("window.hermes", "Injected into every artifact page", "hermes-lines", "__hermes_bridge"):
+            self.assertNotIn(host, out)
+        self.assertIn("rgb(1, 2, 3)", out)  # its files inlined: it works on its own
+        self.assertIn("dataset.ran", out)
+        self.assertLess(len(out), len(self.PAGE) + 400)
+
+    def test_a_typed_artifact_exports_from_its_own_page(self):
+        aid = store.publish(type="doc", title="d", files={"doc.md": "# D"})["id"]
+        with self.assertRaises(api.ApiError) as cm:
+            get(f"artifacts/{aid}/html", export=1)
+        self.assertEqual(cm.exception.status, 400)
+
+    def test_the_export_opens_standalone(self):
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        out = get(f"artifacts/{self.publish()}/html", export=1)["html"]
+        url = "data:text/html;base64," + __import__("base64").b64encode(out.encode()).decode()
+        r = B.drive("await api.go(%s, 800); return await api.top('({ ran: document.getElementById(\"t\").dataset.ran, color: getComputedStyle(document.getElementById(\"t\")).color, hermes: typeof window.hermes })')" % json.dumps(url))
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["logs"], [])
+        self.assertEqual(r["out"], {"ran": "1", "color": "rgb(1, 2, 3)", "hermes": "undefined"})
+
+
 if __name__ == "__main__":
     unittest.main()

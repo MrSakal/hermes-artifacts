@@ -99,6 +99,28 @@ class BuildTests(unittest.TestCase):
         with self.assertRaises(api.ApiError):
             api.handle("POST", "folders", {}, {"name": "  "})
 
+    def test_a_folder_is_renamed_and_deleted_with_what_is_in_it(self):
+        # Round 1: an empty folder stayed for good (the gallery could neither rename nor delete it).
+        from hermes_artifacts import api
+        a = store.publish(title="R1", html="<p>x</p>")["id"]
+        b = store.publish(title="R2", html="<p>y</p>")["id"]
+        for name in ("Alpha", "Beta", "Gamma"):
+            api.handle("POST", "folders", {}, {"name": name})
+        api.handle("POST", f"artifacts/{a}/meta", {}, {"folder": "Beta"})
+        api.handle("POST", f"artifacts/{b}/meta", {}, {"folder": "Beta"})
+        out = api.handle("POST", "folders", {}, {"name": "Beta", "rename": "  Beta   two "})
+        self.assertEqual([f for f in out["folders"] if f in ("Alpha", "Beta", "Beta two", "Gamma")], ["Alpha", "Beta two", "Gamma"])  # in its place
+        self.assertEqual({store.get_meta(x).get("folder") for x in (a, b)}, {"Beta two"})
+        api.handle("POST", "folders", {}, {"name": "Gamma", "rename": "Alpha"})  # into a folder there is: one entry
+        self.assertEqual(api.handle("GET", "artifacts", {}, None)["folders"].count("Alpha"), 1)
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", "folders", {}, {"name": "Alpha", "rename": " "})
+        api.handle("POST", "folders", {}, {"name": "Beta two", "delete": True})  # what was in it: No folder
+        self.assertEqual({store.get_meta(x).get("folder") for x in (a, b)}, {None})
+        self.assertNotIn("Beta two", api.handle("GET", "artifacts", {}, None)["folders"])
+        api.handle("POST", "folders", {}, {"name": "Alpha", "delete": True})
+        self.assertNotIn("Alpha", api.handle("GET", "artifacts", {}, None)["folders"])
+
     def test_a_stylesheet_of_their_own_stays(self):
         m = store.publish(title="Own", type="design-system", files={
             "design-system.json": {"v": 3, "title": "Own"}, "tokens.json": TOKENS, "README.md": "Use it.",

@@ -160,24 +160,26 @@ def _page_map(vdir: Path, entry: str, html: str) -> str:
     return hit
 
 
-def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:
-    """The document: a page's own (bundled), or the type's runtime with the content tag before </head>."""
+def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "",
+           lines: bool = True) -> str:
+    """The document: a page's own (bundled), or the type's runtime with the content tag before </head>.
+    ``lines``: a page's document carries its line map (#hermes-lines, for the bridge; not on a card's picture
+    nor in an export)."""
     kind = meta.get("type", "page")
     if kind == "page":
-        return _page(vdir, page, thumb)
+        return _page(vdir, page, lines and not thumb)
     tag = content_tag(meta, vdir, thumb, lang)
     html = runtime(kind)
     i = html.lower().find("</head>")
     return html[:i] + tag + html[i:] if i != -1 else tag + html
 
 
-def _page(vdir: Path, page: Optional[str], thumb: bool) -> str:
+def _page(vdir: Path, page: Optional[str], lines: bool) -> str:
     entry = store.safe_rel(page) if page else "index.html"
     if not (vdir / entry).is_file():
         raise FileNotFoundError(entry)
     html = bundle.bundle(vdir, entry)
-    # A card's picture reports no errors: no map for it.
-    return html if thumb else html + _page_map(vdir, entry, html)
+    return html + _page_map(vdir, entry, html) if lines else html
 
 
 def content_tag(meta: dict, vdir: Path, thumb: bool = False, lang: str = "") -> str:

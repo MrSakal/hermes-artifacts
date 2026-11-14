@@ -453,12 +453,25 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             store.settings_set("design_system_for", per or None)
             return {"design_system_for": per}
         if parts == ["folders"] and method == "POST":
-            # A gallery folder (Claude's New › Folder, Move to › create).
+            # A gallery folder (Claude's New › Folder, Move to › create; its chip's Rename and Delete folder).
             name = " ".join(str(body.get("name") or "").split())[:60]
             if not name:
                 raise ApiError(400, "a folder needs a name")
             have = list(store.settings().get("folders") or [])
-            if body.get("delete"):
+            if "rename" in body:
+                # In its place in the list; what is in it moves along (into a folder of that name, if one is there).
+                new = " ".join(str(body.get("rename") or "").split())[:60]
+                if not new:
+                    raise ApiError(400, "a folder needs a name")
+                out: list = []
+                for f in (new if f == name else f for f in have):
+                    if f not in out:
+                        out.append(f)
+                store.settings_set("folders", out)
+                for m in store.list_all():
+                    if m.get("folder") == name:
+                        store.update_meta(m["id"], folder=new)
+            elif body.get("delete"):
                 store.settings_set("folders", [f for f in have if f != name])
                 for m in store.list_all():
                     if m.get("folder") == name:
@@ -527,6 +540,16 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 except FileNotFoundError:
                     raise ApiError(404, "unknown version or page")
                 shown = int(vdir.name[1:])  # the version answered (the latest when v is left out)
+                if str(query.get("export", "")).lower() in ("1", "true", "yes"):
+                    # A page's Export: its own document, bundled, standalone: no host bridge, no line map. A
+                    # typed artifact exports from its own page (its Export menu), not from here.
+                    if kind != "page":
+                        raise ApiError(400, "a typed artifact exports from its own page")
+                    try:
+                        html = render.render(m, vdir, page=query.get("page") or None, lines=False)
+                    except FileNotFoundError:
+                        raise ApiError(404, "unknown version or page")
+                    return {"id": aid, "version": shown, "type": kind, "html": html}
                 if str(query.get("split", "")).lower() in ("1", "true", "yes") and kind != "page":
                     shell = _shell(kind)
                     if shell:
