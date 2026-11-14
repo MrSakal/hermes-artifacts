@@ -305,7 +305,7 @@ const STRINGS = {
     prompt_doc: 'Write a doc artifact (type doc): ',
     prompt_sheet: 'Make a sheet artifact (type sheet): ',
     prompt_board: 'Make a whiteboard artifact (type board) of: ',
-    // Into the chat (toChat): {text, ref}. text is the person's sentence, the bubble; ref is what it is about
+    // Into the chat (toChat): text and ref. text is the person's sentence, the bubble; ref is what it is about
     // (ids), for the model only (the plugin's pre_llm_call hook adds it to that turn): the tools' own
     // descriptions say what to do with them.
     commentMsg: (title, aid, cid, where, text) => ({ text: `Comment on "${title}"${where ? ` (${where})` : ''}: ${text}`, ref: REF.comment(aid, cid, null, where) }),
