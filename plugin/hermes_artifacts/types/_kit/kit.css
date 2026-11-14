@@ -23,8 +23,9 @@
   --chart-1: #0d9488; --chart-2: #4f46e5; --chart-3: #f59e0b; --chart-4: #e11d48;
   --chart-5: #0284c7; --chart-6: #65a30d; --chart-7: #9333ea; --chart-8: #64748b;
   --chart-muted: #cbd5e1;
-  --chart-grid: #edf1f6;
-  --chart-axis: #94a3b8;
+  /* gridlines and the axis: the theme's own line colours (Hermes' when hosted), light and dark alike */
+  --chart-grid: var(--color-border-line);
+  --chart-axis: var(--color-border-strong);
   --chart-reference: #64748b;
 
   --size-caption: 12px; --size-body: 14px; --size-heading: 15px; --size-title: 26px; --size-display: 38px;
@@ -45,7 +46,7 @@
     --color-hover: rgba(230, 237, 245, 0.06);
     --chart-1: #2dd4bf; --chart-2: #818cf8; --chart-3: #fbbf24; --chart-4: #fb7185;
     --chart-5: #38bdf8; --chart-6: #a3e635; --chart-7: #c084fc; --chart-8: #94a3b8;
-    --chart-muted: #314052; --chart-grid: #1c2632; --chart-axis: #475569; --chart-reference: #94a3b8;
+    --chart-muted: #314052; --chart-reference: #94a3b8;
     --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
     --shadow-popover: 0 10px 30px rgba(0, 0, 0, 0.55);
   }
@@ -58,7 +59,7 @@
   --color-hover: rgba(230, 237, 245, 0.06);
   --chart-1: #2dd4bf; --chart-2: #818cf8; --chart-3: #fbbf24; --chart-4: #fb7185;
   --chart-5: #38bdf8; --chart-6: #a3e635; --chart-7: #c084fc; --chart-8: #94a3b8;
-  --chart-muted: #314052; --chart-grid: #1c2632; --chart-axis: #475569; --chart-reference: #94a3b8;
+  --chart-muted: #314052; --chart-reference: #94a3b8;
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
   --shadow-popover: 0 10px 30px rgba(0, 0, 0, 0.55);
 }
