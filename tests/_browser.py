@@ -89,6 +89,12 @@ class Host:
                 self.end_headers()
                 self.wfile.write(b)
 
+            def _api(self, method, path, q, body):
+                try:
+                    return self._send(200, host.api.handle(method, path, q, body))
+                except Exception as e:  # noqa: BLE001 - the answer a page gets from Hermes on an error
+                    return self._send(getattr(e, "status", 500), {"detail": getattr(e, "detail", None) or str(e)})
+
             def do_GET(self):
                 u = urlparse(self.path)
                 q = dict(parse_qsl(u.query))
@@ -105,6 +111,8 @@ class Host:
                     return self._send(200, host.api.handle("GET", "/vendor/" + parts[1], {}, None))
                 if parts[0] == "hook" and parts[1] in host.hooks:  # a test's own step (e.g. Hermes' edit), from the driver
                     return self._send(200, host.hooks[parts[1]]())
+                if parts[0] == "api":  # the plugin's own REST routes, as Desktop's ctx.rest reaches them
+                    return self._api("GET", "/".join(parts[1:]), q, None)
                 if parts[0] == "dom" and parts[1] in host.files:  # a test's own top page and modules (same origin as /op)
                     ctype = "text/javascript" if parts[1].endswith(".mjs") else "text/html; charset=utf-8"
                     return self._send(200, host.files[parts[1]].encode("utf-8"), ctype)
@@ -115,6 +123,8 @@ class Host:
                 parts = u.path.strip("/").split("/")
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n) or b"{}")
+                if parts[0] == "api":
+                    return self._api("POST", "/".join(parts[1:]), dict(parse_qsl(u.query)), body)
                 if parts[0] == "op":
                     if body.get("op") == "vendor":
                         try:

@@ -598,8 +598,10 @@ const $layout = atom('grid') // grid | list
 const $panel = atom(false) // comments panel open (remembered: it opens again by itself only where it can dock)
 // The person opened the comments here, in this view: a stage too narrow to dock the list shows it only then.
 const $panelHere = atom(false)
-const $panelShown = atom(false) // the list is on screen now (docked, or the whole narrow stage)
-const openPanel = () => { $panel.set(true); $panelHere.set(true) }
+const $panelShown = atom(false) // the list is on screen now (docked, or the whole narrow stage; not while it steps aside)
+// Opening the list ends picking: a narrow stage's list steps aside while an element is picked (panelMode), so a
+// list opened then would not be seen.
+const openPanel = () => { $picking.set(false); $panel.set(true); $panelHere.set(true) }
 const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
@@ -5119,6 +5121,9 @@ function Header({ ctx, art, v, portRef, docked }) {
   const row = useRef(null)
   const w = useWidth(row)
   const iconOnly = w > 0 && w < HEADER_ICONS
+  // Too narrow to dock the list (panelMode): the Comment button (with its count) opens and closes the list, the
+  // whole stage, where Comment starts picking; picking from here would show nothing but the page.
+  const narrow = w > 0 && panelMode(w, false).full
   return jsxs('div', {
     ref: row,
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
@@ -5138,10 +5143,12 @@ function Header({ ctx, art, v, portRef, docked }) {
             icon: 'comment',
             title: t('comment'),
             count: open,
-            active: picking,
+            active: narrow ? panel : picking,
             onClick: () => {
               $draft.set(null)
-              $picking.set(!picking)
+              if (!narrow) return $picking.set(!picking)
+              if (panel) $panelHere.set(false)
+              else openPanel()
             }
           }),
           jsx(IconButton, { icon: 'chevron', title: t('moreComment'), active: cmenu, onClick: () => setCmenu(!cmenu) }),
@@ -5674,7 +5681,7 @@ function CommentsPanel({ ctx, art, portRef }) {
   }, [])
   // Floating, it covers the stage's right: the new comment's pin and box keep out of it. Closed or gone: nothing.
   useLayoutEffect(() => { $panelCover.set(mode.cover) }, [mode.cover])
-  useLayoutEffect(() => { $panelShown.set(!mode.off) }, [mode.off])
+  useLayoutEffect(() => { $panelShown.set(!mode.hidden) }, [mode.hidden])
   useLayoutEffect(() => () => ($panelCover.set(0), $panelShown.set(false)), [])
   // A picked element's comment whose box has no room left of the floating list is written here.
   const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)

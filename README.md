@@ -102,7 +102,8 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   opens one for that artifact). The popup chat over the expanded artifact stays open or closed as it was last
   left there, also after a restart.
 - The comments list docks beside the artifact where the stage has room (700 px); narrower it opens only when
-  asked and then fills the whole stage, with a back arrow to the artifact.
+  asked (the Comment button, *All comments*, a thread's mark) and then fills the whole stage, with a back arrow
+  to the artifact and Comment to pick an element.
 - The UI follows the app's language (English or Hungarian); what Hermes reads stays English, and what an
   artifact says is in the language the user works in.
 

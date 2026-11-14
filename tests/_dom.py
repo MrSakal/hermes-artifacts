@@ -192,3 +192,40 @@ class Page:
         self.httpd.shutdown()
         self.httpd.server_close()
         shutil.rmtree(self.dir, ignore_errors=True)
+
+
+# The whole viewer as Hermes Desktop runs it, on a test host (_browser.Host) that serves the plugin's REST routes:
+# plugin.js on the React above, SandboxedFrame a plain iframe (unsandboxed: the driver reaches only frames in the
+# page's own process), ctx.rest a fetch to /api (api.handle), Hermes' toasts kept in window.__notes.
+VIEWER_TOP = """<!doctype html><html><head><meta charset="utf-8"><style>
+:root { --background:#1f1f1e; --foreground:#ecebe6; --ui-text-secondary:#c3c2bb; --ui-text-tertiary:#9a9993;
+ --ui-stroke-secondary:#3a3936; --chrome-action-hover:rgba(255,255,255,.07); --font-sans: system-ui, "Segoe UI", sans-serif; }
+html, body { margin: 0; height: 100%; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+#root { position: relative; height: 100%; }</style></head><body><div id="root"></div><script type="module">
+import * as M from './plugin.mjs'
+import * as R from './react.mjs'
+window.__STRINGS = M.STRINGS.en
+const store = new Map()
+const ctx = { storage: { get: k => store.get(k) ?? null, set: (k, v) => store.set(k, v) }, register: () => () => {},
+  rest: async (url, o = {}) => {
+    const init = { method: o.method || (o.body ? 'POST' : 'GET') }
+    if (o.body) { init.headers = { 'Content-Type': 'application/json' }; init.body = JSON.stringify(o.body) }
+    const r = await fetch('/api' + url, init), j = await r.json()
+    if (!r.ok) throw new Error(j.detail || String(r.status))
+    return j
+  } }
+window.H = { M, R, jsx: R.jsx, ctx }
+window.__ready = true
+</script></body></html>"""
+
+
+def viewer_files(exports: str) -> dict:
+    """The files a _browser.Host serves under /dom/ for VIEWER_TOP (``exports`` appended to plugin.js)."""
+    src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+    src = (src.replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
+              .replace("from 'react/jsx-runtime'", "from './react.mjs'").replace("from 'react'", "from './react.mjs'"))
+    sdk = (SDK.replace("import { useState, useEffect } from './react.mjs'", "import { useState, useEffect, jsx } from './react.mjs'")
+              .replace("export const SandboxedFrame = () => null",
+                       "export const SandboxedFrame = p => jsx('iframe', { ref: p.ref, src: p.src, title: p.title, style: p.style })")
+              .replace("composer: {", "notify: n => (window.__notes = window.__notes || []).push(n.message), composer: {"))
+    return {"plugin.mjs": src + exports, "react.mjs": REACT, "sdk.mjs": sdk, "index.html": VIEWER_TOP}

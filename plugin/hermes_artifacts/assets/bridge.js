@@ -86,16 +86,21 @@
   }
   function send(msg) { try { if (port) port.postMessage(msg); } catch (_) {} }
   // An event that comes before anyone listens (the port can arrive while the page is still loading)
-  // is kept, and the first listener for it gets the last one.
-  var early = {};
+  // is kept, and the first listener for it gets the last one. A state the host sends once and again only
+  // when it changes (STICKY: the comment threads) goes to every listener that comes later too: this bridge
+  // listens to "pins" itself from the start, so a page's own listener (a doc's margin) would never get
+  // threads sent before its script ran.
+  var early = {}, last = {}, STICKY = { pins: 1 };
   function on(name, fn) {
     (listeners[name] = listeners[name] || []).push(fn);
-    if (Object.prototype.hasOwnProperty.call(early, name)) {
-      var d = early[name]; delete early[name];
+    var has = Object.prototype.hasOwnProperty;
+    if (has.call(early, name) || has.call(last, name)) {
+      var d = has.call(early, name) ? early[name] : last[name]; delete early[name];
       setTimeout(function () { try { fn(d); } catch (_) {} }, 0);
     }
   }
   function fire(name, detail) {
+    if (STICKY[name]) last[name] = detail;
     var ls = listeners[name];
     if (!ls || !ls.length) { early[name] = detail; return; }
     ls.forEach(function (fn) { try { fn(detail); } catch (_) {} });
