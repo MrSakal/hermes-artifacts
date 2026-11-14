@@ -120,5 +120,57 @@ class EtagTests(unittest.TestCase):
         self.assertEqual(api.handle("GET", "artifacts", {"etag": "something-else"}, None)["etag"], again["etag"])
 
 
+class LastEditedTests(unittest.TestCase):
+    """A live type's content edit (the user's or Hermes') moves its card's "updated" (Last edited), at most once
+    every store.EDITED_EVERY: the card, the etag and the sort follow, and a keystroke's save writes no meta."""
+
+    def make(self):
+        from hermes_artifacts import boards, docs, sheets
+        old, rows = {}, iter(range(2, 99))
+        d = store.publish(title="LE doc", type="doc", files={"doc.md": "# Doc\n\nWords"})["id"]
+        s = store.publish(title="LE sheet", type="sheet", files={"sheet.json": {"sheets": [{"name": "A", "cells": {"A1": 1}}]}})["id"]
+        b = store.publish(title="LE board", type="board", files={"board.json": {"title": "B", "items": [
+            {"id": "a", "type": "note", "text": "A"}]}})["id"]
+        edits = {
+            d: lambda: docs.apply(d, [{"op": "replace", "block": docs.read(d)["blocks"][1]["id"], "md": "Other words"}], by="user"),
+            s: lambda: sheets.apply(s, [{"op": "set", "range": f"A{next(rows)}", "values": [["x"]]}], by="hermes"),
+            b: lambda: boards.apply(b, [{"op": "set", "id": "a", "text": "AA"}], by="user"),
+        }
+        for aid in edits:  # published a day ago
+            m = store.get_meta(aid)
+            m["updated"] = old[aid] = m["updated"] - 86400
+            store._write_meta(store._dir(aid), m)
+        return edits, old
+
+    def test_an_edit_moves_last_edited_the_etag_and_the_sort(self):
+        edits, old = self.make()
+        newer = store.publish(html="<p>n</p>", title="LE page", type="page")["id"]
+        with Trusting():
+            for aid, edit in edits.items():
+                tag = api.handle("GET", "artifacts", {}, None)["etag"]
+                ids = [a["id"] for a in api.handle("GET", "artifacts", {}, None)["artifacts"]]
+                self.assertLess(ids.index(newer), ids.index(aid))
+                self.assertAlmostEqual(card(aid)["updated"], old[aid], places=3)
+                edit()
+                self.assertGreater(card(aid)["updated"], old[aid] + 86000)
+                again = api.handle("GET", "artifacts", {"etag": tag}, None)
+                self.assertIn("artifacts", again)  # not {"unchanged"}: the poll picks it up
+                ids = [a["id"] for a in again["artifacts"]]
+                self.assertLess(ids.index(aid), ids.index(newer))  # Sort: Last edited follows
+
+    def test_a_keystroke_s_save_writes_no_meta(self):
+        edits, _ = self.make()
+        with mock.patch.object(store, "_write_meta", wraps=store._write_meta) as w:
+            for edit in edits.values():
+                edit()
+                edit()
+                edit()
+            self.assertEqual(w.call_count, 3)  # once each, not once per save
+            now = store.peek_meta(next(iter(edits)))["updated"]
+            self.assertFalse(store.edited(next(iter(edits)), now + store.EDITED_EVERY - 1))
+            self.assertTrue(store.edited(next(iter(edits)), now + store.EDITED_EVERY))
+            self.assertEqual(w.call_count, 4)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1602,6 +1602,7 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
             _CACHE.pop(aid, None)
             raise
         if not ctx["state_only"]:
+            store.edited(aid)  # the gallery's Last edited
             _record(aid, st, by, before)
         if retitled and st["title"].strip():
             try:
@@ -1905,5 +1906,6 @@ def restore(aid: str, rev: int) -> dict:
         except BaseException:
             _CACHE.pop(aid, None)
             raise
+        store.edited(aid)
         _record(aid, st, "restore", before)
         return {"ok": True, "rev": st["rev"], "restored": x["rev"]}

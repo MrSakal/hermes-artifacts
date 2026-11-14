@@ -287,6 +287,7 @@ def _op(aid: str, op: str, a: dict) -> dict:
         store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})
         return {"ok": True}
     if op == "doc.read":
+        store.typing_expire()  # (a page's poll: the typing marks' file goes once its last mark expired)
         return docs.read(aid, a.get("tab") or None, since_rev=_int(a.get("since_rev")))
     if op == "doc.history":
         return docs.history(aid, a.get("tab") or None)
@@ -351,6 +352,7 @@ def _sheet_op(aid: str, op: str, a: dict) -> dict:
     sheet = a.get("sheet") or None
     try:
         if op == "sheet.read":
+            store.typing_expire()
             return sheets.with_lists(aid, sheets.read(aid, sheet, a.get("range") or None, since_rev=_int(a.get("since_rev"))))
         if op == "sheet.edit":
             try:
@@ -385,6 +387,7 @@ def _board_op(aid: str, op: str, a: dict) -> dict:
     """The board page's own ops (the user editing). Hermes edits through ha_live_edit."""
     try:
         if op == "board.read":
+            store.typing_expire()
             return boards.read(aid, since_rev=_int(a.get("since_rev")))
         if op == "board.edit":
             try:
@@ -420,6 +423,7 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
         if parts == ["artifacts"] and method == "GET":
             # The gallery polls this while it is open: it also purges the trash, at most once a day.
             store.purge_trash_due()
+            store.typing_expire()
             base = store.root()
             arts = [_view(m, base, (n, pv)) for m, n, pv in store.cards()]
             settings = store.settings()

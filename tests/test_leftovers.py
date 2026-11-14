@@ -194,6 +194,22 @@ class TypingAndChatNoteTests(unittest.TestCase):
         store.typing_set(self.a, [])
         self.assertFalse(self.typing.exists())  # an empty mark leaves no file
 
+    def test_the_typing_file_goes_when_its_last_mark_expires_at_the_next_poll(self):
+        doc = store.publish(title="td", type="doc", files={"doc.md": "# T\n\nWords"})["id"]
+        store.typing_set(doc, ["b-1"])  # the user typed, then stopped: no more pings, nothing rewrites it
+        self.assertFalse(store.typing_expire())  # still live
+        self.assertTrue(self.typing.exists())
+        later = time.time() + store.TYPING_TTL_S + 1
+        for poll in (lambda: api.handle("GET", "artifacts", {}, None),  # the gallery's poll
+                     lambda: op(doc, "doc.read"),  # the doc page's poll
+                     lambda: store.typing_hits(doc, ["b-1"])):  # Hermes' edit check
+            store.typing_set(doc, ["b-1"])
+            with mock.patch.object(store.time, "time", return_value=later):
+                poll()
+            self.assertFalse(self.typing.exists())
+        with mock.patch.object(store.time, "time", return_value=later):
+            self.assertFalse(store.typing_expire())  # none: one stat, nothing else
+
     def test_no_marks_for_an_artifact_that_is_not_there(self):
         with self.assertRaises(FileNotFoundError):
             store.typing_set("no-such-thing-0a0a0a", ["k"])

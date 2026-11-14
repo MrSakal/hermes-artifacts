@@ -1227,6 +1227,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
     st["log"].append(entry)
     st["log"] = st["log"][-MAX_LOG:]
     _save(aid, st)
+    store.edited(aid)  # the gallery's Last edited
     if not ctx["deleted"]:
         _record(aid, st, sh, by, before)
     out = {"ok": True, "sheet": sh["id"], "rev": sh["rev"], "changed": changed[:MAX_LOG_CELLS]}
@@ -1682,5 +1683,6 @@ def restore(aid: str, sheet: Optional[str], rev: int) -> dict:
         except BaseException:
             _CACHE.pop(aid, None)
             raise
+        store.edited(aid)
         _record(aid, st, sh, "restore", before)
         return {"ok": True, "sheet": sh["id"], "rev": sh["rev"], "restored": x["rev"]}

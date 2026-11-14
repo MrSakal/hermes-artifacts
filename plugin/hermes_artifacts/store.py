@@ -1175,6 +1175,33 @@ def update_meta(aid: str, **fields) -> dict:
         return meta
 
 
+EDITED_EVERY = 60.0  # a live type's edits move its meta's "updated" at most this often (seconds)
+
+
+def edited(aid: str, now: Optional[float] = None) -> bool:
+    """A doc's, sheet's or board's content changed (the user's edit or Hermes'): its "Last edited" (meta's
+    updated, the gallery's card, its sort and the viewer's "Updated") moves to now, at most once every
+    EDITED_EVERY. meta.json is replaced then, which changes the artifact folder's stamp: the gallery's poll sees
+    it as it sees every card change, at no cost of its own. A keystroke's save costs one stat (peek_meta), not a
+    meta write. Never fails the edit it follows (a meta.json held by another program: the next edit moves it).
+    True when it moved."""
+    now = time.time() if now is None else now
+    try:
+        m = peek_meta(aid)
+        if not m or now - float(m.get("updated") or 0) < EDITED_EVERY:
+            return False
+        with _LOCK:
+            meta = get_meta(aid)
+            if meta is None or now - float(meta.get("updated") or 0) < EDITED_EVERY:
+                return False
+            meta["updated"] = now
+            _write_meta(_dir(aid), meta)
+            return True
+    except (OSError, ValueError, TypeError):
+        logger.debug("%s: Last edited not moved", aid, exc_info=True)
+        return False
+
+
 TRASH_MARK = ".deleted.json"
 TRASH_DAYS = 30  # a trashed artifact is deleted for good this many days after its own deletion
 
@@ -2044,8 +2071,29 @@ def typing_set(aid: str, keys) -> None:
             p.unlink(missing_ok=True)
 
 
+def typing_expire(now: Optional[float] = None) -> bool:
+    """typing.json removed once its last mark has expired: every mark is at most as new as the file's last
+    write, so a file untouched for TYPING_TTL_S holds none still live. One stat when there is nothing to do.
+    Called on the paths that poll anyway (the gallery's list, a live page's read, Hermes' edit check), so the
+    file does not outlive the typing by more than a poll. True when it went."""
+    p = _typing_path()
+    now = time.time() if now is None else now
+    try:
+        if now - p.stat().st_mtime <= TYPING_TTL_S:
+            return False
+        with _LOCK:
+            if now - p.stat().st_mtime <= TYPING_TTL_S:  # written again meanwhile
+                return False
+            p.unlink()
+            return True
+    except OSError:  # none (the usual case), or held by another program: the next call tries again
+        return False
+
+
 def typing_hits(aid: str, keys) -> list:
     """Of ``keys``, those the user is typing in now (sorted)."""
+    if typing_expire():
+        return []
     p = _typing_path()
     if not p.is_file():
         return []

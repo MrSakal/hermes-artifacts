@@ -799,6 +799,7 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
         _remember(st, cid, by, t["id"], out)
         _seq_note(st, cid, by, [o.get("block") for i, o in enumerate(ops) if o.get("op") in ("replace", "delete") and i not in skip])
         _save(aid, st)
+        store.edited(aid)  # the gallery's Last edited
         if any(x["id"] == t["id"] for x in st["tabs"]):  # a deleted tab keeps no history
             _record(aid, st, t, by, before)
         out = dict(out)
@@ -874,6 +875,7 @@ def suggest(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None) ->
         out = {"ok": True, "tab": t["id"], "rev": t["rev"], "suggestions": made}
         _remember(st, cid, by, t["id"], out)
         _save(aid, st)
+        store.edited(aid)
         return out
 
 
@@ -1245,6 +1247,7 @@ def restore(aid: str, tab: Optional[str], rev: int) -> dict:
         st["log"] = st["log"][-MAX_LOG:]
         _note(st, last, [b["id"] for b in t["blocks"]], t["rev"], "user", t["id"])
         _save(aid, st)
+        store.edited(aid)
         _record(aid, st, t, "restore", before)
         return {"ok": True, "tab": t["id"], "rev": t["rev"], "restored": x["rev"]}
 
