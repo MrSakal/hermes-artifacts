@@ -25,7 +25,7 @@ The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.m
 
 | Type | What it is | Export |
 |---|---|---|
-| **Page** (`page`) | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML |
+| **Page** (`page`) | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML (the page alone, its files inlined) |
 | **Dashboard** (`dashboard`) | Numbers, charts and tables drawn from datasets: live MCP queries (loaders with `read.bigquery` / `governed` / `snowflake` / `databricks`), CSV/TSV/JSON files or inline rows. Sources shows where each figure comes from; History, looks (Clay, Ocean, Meadow, a design system), Edit the page, drafts in other formats (Scrollyteller, Visual analysis, Visual short), full screen. Hermes checks it with `ha_check`. | CSV per source, HTML snapshot, JSON |
 | **Slides** (`slides`) | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `ha_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
@@ -47,9 +47,10 @@ const { text } = await hermes.ask('Which region?') // waits for Hermes' answer (
 
 Messages into the chat (`send`, `ask`, comments) are submitted only when they come from a user gesture,
 such as a click in the page or a press on Save; otherwise they only fill the composer draft, so a page
-cannot talk in your name. A page's own edits (slides, docs) are saved as a new version, and only on a
-click or key press. A typed artifact's short notes (saved, copied, an error) show as Hermes' own toast,
-prefixed with the artifact's title, at most five a minute and one a second, the same note not twice in a
+cannot talk in your name. The chat shows such a message as its sentence alone; the ids it is about
+(artifact, block, comment, request) reach Hermes with that turn only. A page's own edits (slides,
+designs) are saved as a new version, and only on a click or key press. A typed artifact's short notes
+(saved, copied, an error) show as Hermes' own toast, prefixed with the artifact's title, at most five a minute and one a second, the same note not twice in a
 row; a plain page shows its own.
 
 ### Agent tools
@@ -61,7 +62,7 @@ Toolset `artifacts`, 14 tools:
 | `ha_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board. Refuses a publish that would replace a file someone else (the user, another chat) changed since this chat last saw it, handing back that file's text to merge onto; what it hands back counts as seen, so the next publish goes through. Files a `base=true` publish leaves alone are never its concern, and files this chat wrote itself count as seen even after a restart. Refuses a new artifact of a type whose `ha_guide` the chat has not read, handing back that guide (a new page gets its short guide with the result instead); an update is never refused for it, but a format error in one brings the guide. |
 | `ha_guide` | The file format, API and design rules of a type. Read it before the first artifact of that type. |
 | `ha_check` | What an artifact's open page went through, any type: its errors (uncaught errors, console errors, failed loads) and whether the version showed. A dashboard also reports its own check (NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
-| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now. |
+| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now; one over a part the user is typing in right now (words not saved yet) is refused with nothing changed. |
 | `ha_list` / `ha_read` | List artifacts, or read one's file list and any file (any version), plus its stored data. |
 | `ha_open` | Show it in Hermes Desktop, or in a browser on the Hermes machine. |
 | `ha_comments` | The user's comments: list, reply, resolve, and add a thread of Hermes' own. |
@@ -84,6 +85,10 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   holds chats. Unpinning removes only the pins the plugin made: a chat you pinned yourself stays pinned.
 - *Duplicate* names the copy "X (copy)", then "X (copy 2)", "X (copy 3)"; a copy of a copy counts on from
   the original.
+- Gallery cards load three at a time, only those in or near the window. A card is a picture: a page's
+  timers stop 3 s after it loads, and its calls to the bridge (no host behind a card) stay out of the log.
+- Folders: *New › Folder* or *Move to*; a folder's chip renames it (what is in it moves along) or deletes it
+  (what is in it moves to *No folder*; no artifact is deleted).
 - A new version loads out of sight: the previous one stays on screen until the new page has loaded. One
   that had an error while starting still replaces it, with a quiet line under the header saying so. One
   that showed nothing, or has not loaded after 10 s, is not swapped in; the line says so, with *Show vN*.
@@ -97,7 +102,8 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   as it was last left, separately over the expanded artifact and over the full page, also after a restart.
 - The comments list docks beside the artifact where the stage has room (700 px); narrower it opens only when
   asked and then fills the whole stage, with a back arrow to the artifact.
-- UI strings ship in English; what an artifact says is in the language the user works in.
+- The UI follows the app's language (English or Hungarian); what Hermes reads stays English, and what an
+  artifact says is in the language the user works in.
 
 ### CLI
 
@@ -270,15 +276,18 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   machine the Hermes backend runs on. What grows is bounded: the newest `max_versions` versions of each
   artifact; a live doc's history at most 120 snapshots and 12 MB (one file per snapshot, the newest two
   always); a sheet's 60 snapshots and 200,000 cells; a board's 40 snapshots and 8 MB; live-query answers
-  24 hours. A sweep, riding the trash purge (at most 2 s per call, going on where it stopped), removes
-  what nothing will read again and is older than an hour: temp files of writes that died, version
-  folders no version names, pictures of older versions, history files no index names, empty folders,
-  and an unfinished version folder (a publish that died mid-copy) once nothing in it changed for 7 days.
+  24 hours; the marks of what you are typing in now (`typing.json`, 4 s) and the ids waiting for a
+  message's turn (`chat-notes.json`, at most 50, 10 minutes). A sweep, riding the trash purge (at most
+  2 s per call, going on where it stopped), removes typing marks and chat notes past their time, and what
+  nothing will read again and is older than an hour: temp files of writes that died, version folders no
+  version names, pictures of older versions, history files no index names, empty folders, and an
+  unfinished version folder (a publish that died mid-copy) once nothing in it changed for 7 days.
   It touches only names the plugin itself makes (other things in a folder `HERMES_ARTIFACTS_DIR` points
   at stay), and skips rather than deletes when in doubt: a lost `meta.json` comes back from its copy or
   its version folders, and a version folder newer than `meta.json` names is taken back in. That copy,
-  `meta.json.bak` (and the same beside the comments, stored values, approvals and a live doc's, sheet's or
-  board's state), is written again at every write, so it is never older than the file.
+  `meta.json.bak` (and the same beside the comments, stored values, approvals, the settings and a live
+  doc's, sheet's or board's state), is written again at every write, so it is never older than the file;
+  a read finds it when the file is cut short, or held by another program for longer than a moment.
   So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
