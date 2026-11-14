@@ -2075,6 +2075,10 @@
           h("button", { type: "button", "class": "doc-card-no", "data-sid": sg.id, "data-decide": "reject", title: T.reject, "aria-label": T.reject, text: "✕", onclick: function () { decide(sg.id, "reject"); } })]),
         h("div", { "class": "doc-card-text", text: sg.kind === "replace" ? T.sReplace : sg.kind === "insert" ? T.sInsert : T.sDelete })]) });
     });
+    // The commented words are marked while their thread is open: a resolved one's mark goes with its card.
+    var want = {};
+    pins.forEach(function (p) { if (p.quote) want[p.selector + "\n" + p.quote] = true; });
+    page.querySelectorAll("mark.doc-cq").forEach(function (m) { if (!want[m.getAttribute("data-cq")]) unQuote(m); });
     pins.forEach(function (p) {
       var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
       if (!anchor) return;
@@ -2085,7 +2089,7 @@
         h("div", { "class": "doc-card-text", text: p.text }),
         p.replies ? h("div", { "class": "doc-card-rep", text: p.replies + " " + (p.replies === 1 ? T.reply1 : T.replies) }) : null]);
       node.addEventListener("click", function () { hm.openPin && hm.openPin(p.n); });
-      if (p.quote) hiQuote(anchor, p.quote);
+      if (p.quote) hiQuote(anchor, p.quote, p.selector + "\n" + p.quote);
       cards.push({ el: anchor, node: node });
     });
     // Beside the page when there is room; else each card folds to a small mark that opens on a click.
@@ -2111,13 +2115,20 @@
       .sort(function (a, b) { return a.y - b.y; })
       .forEach(function (x) { var top = Math.max(x.y, y0); x.c.node.style.top = top + "px"; y0 = top + (mini ? 26 : x.c.node.offsetHeight + 8); });
   }
-  function hiQuote(el, q) { // the commented words, lightly marked
+  function hiQuote(el, q, key) { // the commented words, lightly marked (still the doc's words: editor.js inlineMd)
     if (el.querySelector("mark.doc-cq") || !q) return;
     var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), t;
     while ((t = w.nextNode())) {
       var i = t.nodeValue.indexOf(q);
-      if (i >= 0) { var r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + q.length); var m = document.createElement("mark"); m.className = "doc-cq"; m.setAttribute("data-ui", ""); try { r.surroundContents(m); } catch (_) {} return; }
+      if (i >= 0) { var r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + q.length); var m = document.createElement("mark"); m.className = "doc-cq"; m.setAttribute("data-cq", key); try { r.surroundContents(m); } catch (_) {} return; }
     }
+  }
+  function unQuote(m) { // the words back as they were
+    var p = m.parentNode;
+    if (!p) return;
+    while (m.firstChild) p.insertBefore(m.firstChild, m);
+    p.removeChild(m);
+    p.normalize();
   }
   if (live && hm.on) hm.on("pins", function (items) { pins = items || []; drawMargin(); });
   var marginRaf = 0; // a resize fires many times a frame; the cards are laid out once

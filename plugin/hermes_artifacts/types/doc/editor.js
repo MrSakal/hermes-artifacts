@@ -37,7 +37,8 @@
         case "B": case "STRONG": out += wrap(inlineMd(n, ctx), "**"); return;
         case "I": case "EM": out += wrap(inlineMd(n, ctx), "*"); return;
         case "S": case "DEL": case "STRIKE": out += wrap(inlineMd(n, ctx), "~~"); return;
-        case "MARK": out += wrap(inlineMd(n, ctx), "=="); return;
+        // A thread's marked words (doc.js hiQuote) are the doc's own words, unmarked: only a highlight is ==.
+        case "MARK": out += n.classList.contains("doc-cq") ? inlineMd(n, ctx) : wrap(inlineMd(n, ctx), "=="); return;
         case "CODE": out += "`" + n.textContent.replace(/`/g, "'") + "`"; return;
         case "U": out += wrap(inlineMd(n, ctx), "[", "]{.underline}"); return;
         case "A":
