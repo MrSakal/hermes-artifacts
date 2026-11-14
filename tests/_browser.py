@@ -185,6 +185,8 @@ async function main() {
     frame: async e => ev(e, await frameCtx()),
     go: async (url, ms) => { await send('Page.navigate', { url }); await sleep(ms || 1500) },
     size: (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }),
+    /** The system's colour scheme the pages see ('light' or 'dark'). */
+    scheme: s => send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: s }] }),
     mouse: async (x, y) => {
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 })

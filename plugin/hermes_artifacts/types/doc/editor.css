@@ -47,7 +47,14 @@ html.doc-suggesting .doc-mode { color: var(--c-green); }
 .doc-blk[data-empty]::before { content: attr(data-empty); position: absolute; left: 10px; color: var(--color-fg-muted); pointer-events: none; }
 .doc-blk pre code[contenteditable] { outline: none; display: block; white-space: pre; }
 .doc-prose li.task { list-style: none; margin-left: -1.4em; }
-.doc-prose li.task > input { accent-color: var(--color-accent); width: 15px; height: 15px; margin: 0 8px 0 0; vertical-align: -2px; cursor: pointer; }
+/* The box in the theme's colours, not the system's native one (a dark system drew an empty box filled dark in a
+   light doc): empty = the page's ground in a strong line; ticked = the accent with a white check. */
+.doc-prose li.task > input { appearance: none; -webkit-appearance: none; box-sizing: border-box; width: 15px; height: 15px; margin: 0 8px 0 0;
+  vertical-align: -2px; cursor: pointer; border: 1.5px solid var(--color-border-strong); border-radius: 4px; background: var(--color-bg) no-repeat center / 11px 11px; }
+.doc-prose li.task > input:checked { border-color: var(--color-accent); background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+.doc-prose li.task > input:disabled { cursor: default; }
+.doc-prose li.task > input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .doc-prose li.task.done { color: var(--color-fg-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--color-fg) 35%, transparent); }
 .doc-prose mark { background: var(--bg-yellow); color: inherit; border-radius: 2px; padding: 0 1px; }
 .doc-prose mark.doc-cq { background: color-mix(in srgb, var(--c-yellow) 20%, transparent); border-bottom: 2px solid color-mix(in srgb, var(--c-yellow) 65%, transparent); padding: 0; }
