@@ -197,6 +197,14 @@ const STRINGS = {
     folderSearch: 'Search or create a folder',
     createFolder: n => `Create “${n}”`,
     noFolder: 'No folder',
+    folderMore: n => `Rename or delete “${n}”`,
+    folderRename: 'New name, then Enter',
+    folderDelete: 'Delete folder',
+    folderDelConfirm: 'Delete the folder?',
+    folderDelConfirmSub: n => (n === 1 ? 'The artifact in it moves to No folder' : `The ${n} artifacts in it move to No folder`),
+    folderDeleted: n => `Folder “${n}” deleted`,
+    searchNote: (n, all, q) => `${n} of ${all} match “${q}”`,
+    clearSearch: 'Clear search',
     movedTo: n => `Moved to ${n}`,
     movedOut: 'Moved out of its folder',
     copyLink: 'Copy link',
@@ -488,6 +496,14 @@ const STRINGS = {
     folderSearch: 'Mappa keresése vagy létrehozása',
     createFolder: n => `„${n}” létrehozása`,
     noFolder: 'Nincs mappa',
+    folderMore: n => `„${n}” átnevezése vagy törlése`,
+    folderRename: 'Új név, aztán Enter',
+    folderDelete: 'Mappa törlése',
+    folderDelConfirm: 'Törlöd a mappát?',
+    folderDelConfirmSub: n => (n === 1 ? 'A benne lévő artifact a Nincs mappa alá kerül' : `A benne lévő ${n} artifact a Nincs mappa alá kerül`),
+    folderDeleted: n => `A(z) „${n}” mappa törölve`,
+    searchNote: (n, all, q) => `„${q}”: ${all} közül ${n} találat`,
+    clearSearch: 'Keresés törlése',
     movedTo: n => `Áthelyezve ide: ${n}`,
     movedOut: 'Kivéve a mappából',
     copyLink: 'Link másolása',
@@ -1706,6 +1722,40 @@ function useFocusWithin() {
   return [f, { onFocus: e => setF(keyboard(e.target)), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) setF(false) } }]
 }
 
+/** The width of the element `ref` holds, kept current (0 before it is laid out): a row that drops or shortens
+ *  what it shows to fit. */
+function useWidth(ref) {
+  const [w, setW] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const measure = () => setW(el.clientWidth)
+    measure()
+    let ro = null
+    try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
+    return () => ro?.disconnect()
+  }, [])
+  return w
+}
+
+/** Where a closed menu or dialog gives the keyboard's focus back: unless the focus went somewhere on its own
+ *  (a click elsewhere, a field that opened), to the control that had it when it opened, else to `back` (the
+ *  card or row it belongs to; the button that opened it can be gone with the hover). */
+function useFocusBack(back = null) {
+  useEffect(() => {
+    let opener = null
+    try { opener = document.activeElement !== document.body ? document.activeElement : null } catch {}
+    return () => {
+      try {
+        const a = document.activeElement
+        if (a && a !== document.body && a.isConnected) return
+        const to = [opener, back?.current].find(el => el && el.isConnected && el.tabIndex >= 0)
+        to?.focus({ preventScroll: true })
+      } catch {}
+    }
+  }, [])
+}
+
 // React.memo where the host's React has it (a stub without it: the component as it is).
 const memo = typeof React.memo === 'function' ? React.memo : c => c
 
@@ -1748,18 +1798,23 @@ function IconButton({ icon, title, onClick, active, label, pressed, data, count,
   })
 }
 
-function Chip({ label, active, onClick }) {
+/** `more` (a title): the chip also opens a menu, marked with a chevron. */
+function Chip({ label, active, onClick, more = null }) {
   const [h, hp] = useHover()
-  return jsx('button', {
+  return jsxs('button', {
     type: 'button',
     onClick,
     'aria-pressed': Boolean(active),
+    ...(more ? { title: more, 'aria-haspopup': 'menu' } : {}),
     ...hp,
     className: TEXT_BTN,
     style: {
       ...font,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
       height: 30,
-      padding: '0 14px',
+      padding: more ? '0 8px 0 14px' : '0 14px',
       border: 0,
       cursor: 'pointer',
       fontSize: 13,
@@ -1767,7 +1822,7 @@ function Chip({ label, active, onClick }) {
       color: active || h ? C.fg : C.text2,
       background: active ? C.accentBg : h ? C.card : 'transparent'
     },
-    children: label
+    children: [label, more ? jsx(Icon, { name: 'chevron', size: 14 }) : null]
   })
 }
 
@@ -2174,7 +2229,7 @@ function cardAction(ctx, art, k, onRename) {
 
 /** A card's ••• menu (also on right click): Pin, Rename, Duplicate, Copy link, Move to, Delete; `start` 'move'
  *  opens it on Move to. Its letter keys (CARD_KEYS) act at once. */
-function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main' }) {
+function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main', back = null }) {
   const t = usePluginI18n(ID)
   const folders = useValue($folders)
   const def = useValue($dsDefault)
@@ -2204,6 +2259,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
     return jsx(PopMenu, {
       onClose,
       align,
+      back,
       width: 280,
       items: [
         { icon: 'back', label: t('moveTo'), onClick: () => setView('main') },
@@ -2219,6 +2275,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
   return jsx(PopMenu, {
     onClose,
     align,
+    back,
     width: 240,
     items: [
       { icon: 'pin', label: art.pinned ? t('unpin') : t('pin'), right: 'P', onClick: run('pin') },
@@ -2248,17 +2305,18 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
 }
 
 /** The title on a card or row; Rename opens Claude's dialog over the gallery. */
-function TitleText({ ctx, art, renaming, setRenaming, style }) {
+function TitleText({ ctx, art, renaming, setRenaming, style, back }) {
   return jsxs(Fragment, { children: [
     jsx('div', { style, children: art.title }),
-    renaming ? jsx(RenameDialog, { ctx, art, onClose: () => setRenaming(false) }) : null
+    renaming ? jsx(RenameDialog, { ctx, art, back, onClose: () => setRenaming(false) }) : null
   ] })
 }
 
-function RenameDialog({ ctx, art, onClose }) {
+function RenameDialog({ ctx, art, onClose, back }) {
   const t = usePluginI18n(ID)
   const [name, setName] = useState(art.title)
   usePopupOpen()
+  useFocusBack(back)
   const changed = name.trim() && name.trim() !== art.title
   const save = () => changed && (onClose(), patchMeta(ctx, art, { title: name.trim() }))
   return jsx('div', {
@@ -2317,6 +2375,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
   const [renaming, setRenaming] = useState(false)
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
+  const self = useRef(null) // where the focus goes back when its menu or Rename closes
   return jsxs('div', {
     ...hp,
     ...fp,
@@ -2324,6 +2383,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
     style: { position: 'relative', display: 'flex' },
     children: [
       jsxs('div', {
+        ref: self,
         role: 'button',
         tabIndex: 0,
         className: FOCUS,
@@ -2345,7 +2405,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
               jsxs('div', {
                 style: { minWidth: 0, flex: 1 },
                 children: [
-                  jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 15, fontWeight: 500, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
+                  jsx(TitleText, { ctx, art, renaming, setRenaming, back: self, style: { fontSize: 15, fontWeight: 500, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
                   jsx('div', {
                     // On the card's own fill (darker while hovered): the secondary ink keeps 4.5:1 on both.
                     style: { fontSize: 12, color: C.text2, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
@@ -2367,7 +2427,7 @@ const Card = memo(function Card({ ctx, art, sort }) {
             children: [
               jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
               jsx(OverlayBtn, { icon: 'pin', title: art.pinned ? t('unpin') : t('pin'), active: art.pinned, onClick: () => patchMeta(ctx, art, { pinned: !art.pinned }) }),
-              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, start: menu, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
+              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, start: menu, back: self, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
             ]
           })
         : null
@@ -2375,12 +2435,23 @@ const Card = memo(function Card({ ctx, art, sort }) {
   })
 })
 
-const ListRow = memo(function ListRow({ ctx, art, sort }) {
+/** Which columns a list row (or a trash row) shows in a list w px wide (0: not measured yet), so its title
+ *  always keeps room: all ('wide'), without the folder ('mid'), or the title, its marks and the time alone,
+ *  closer together ('narrow'). Pure. */
+function listCols(w) {
+  return !w || w >= 720 ? 'wide' : w >= 560 ? 'mid' : 'narrow'
+}
+
+const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false) // as a card's
   const [renaming, setRenaming] = useState(false)
+  const self = useRef(null)
+  const narrow = cols === 'narrow'
+  // Every cell but the title keeps its width (the columns line up row under row); the title takes the rest.
+  const cell = { flexShrink: 0, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
   return jsxs('div', {
     ...hp,
     ...fp,
@@ -2388,21 +2459,22 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
     style: { position: 'relative' },
     children: [
       jsxs('div', {
+        ref: self,
         role: 'button',
         tabIndex: 0,
         className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
         onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }),
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: narrow ? 8 : 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
-          jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
-          jsx(DsBadge, { art }),
-          art.pinned ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex' }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
+          jsx('div', { style: { flex: 1, minWidth: 0 }, children: jsx(TitleText, { ctx, art, renaming, setRenaming, back: self, style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }) }),
+          narrow ? null : jsx(DsBadge, { art }),
+          art.pinned ? jsx('span', { title: t('pinned'), style: { color: C.text3, display: 'flex', flexShrink: 0 }, children: jsx(Icon, { name: 'pin', size: 14 }) }) : null,
           art.comments ? jsx(CommentCount, { n: art.comments }) : null,
-          jsx('span', { style: { width: 110, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.folder || '' }),
-          jsx('span', { style: { width: 90, fontSize: 12, color: C.text3 }, children: t(`type_${art.type}`) || art.type }),
-          jsx('span', { style: { width: 70, fontSize: 12, color: C.text3, textAlign: 'right' }, children: ago(sortTime(art, sort)) }),
+          cols === 'wide' ? jsx('span', { style: { ...cell, width: 110 }, children: art.folder || '' }) : null,
+          narrow ? null : jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${art.type}`) || art.type }),
+          jsx('span', { style: { ...cell, width: narrow ? 44 : 70, textAlign: 'right' }, children: ago(sortTime(art, sort)) }),
           jsx('span', { style: { width: 30, flexShrink: 0 } })
         ]
       }),
@@ -2411,7 +2483,7 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
             style: { position: 'absolute', top: 6, right: 6 },
             children: [
               jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
-              menu ? jsx(CardMenu, { ctx, art, start: menu, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
+              menu ? jsx(CardMenu, { ctx, art, start: menu, back: self, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
             ]
           })
         : null
@@ -2421,29 +2493,32 @@ const ListRow = memo(function ListRow({ ctx, art, sort }) {
 
 /** One deleted artifact in the trash: type, title, when it was deleted, days left, Restore, and a quiet
  *  Delete forever (an icon) behind the gallery's two-line confirm. */
-function TrashRow({ ctx, item }) {
+function TrashRow({ ctx, item, cols = 'wide' }) {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   const [busy, setBusy] = useState(false)
   const [forever, setForever] = useState(false) // the confirm is open
-  const cell = { fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+  const cell = { flexShrink: 0, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+  const narrow = cols === 'narrow'
   return jsxs('div', {
     ...hp,
-    style: { ...font, display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '6px 6px 6px 12px', borderRadius: C.rMd, background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
+    style: { ...font, display: 'flex', alignItems: 'center', gap: narrow ? 8 : 12, width: '100%', padding: '6px 6px 6px 12px', borderRadius: C.rMd, background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
     children: [
       jsx(TypeBadge, { type: item.type, size: 28 }),
-      // A narrow gallery shortens the cells beside it first: the title stays readable.
-      jsx('div', { style: { flex: 1, minWidth: 96, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
-      jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${item.type}`) || item.type }),
-      jsx('span', {
-        title: item.deleted_at ? dateText(item.deleted_at, true) : undefined,
-        style: { ...cell, width: 110 },
-        children: item.deleted_at ? t('deletedAgo', ago(item.deleted_at)) : ''
-      }),
-      jsx('span', { style: { ...cell, width: 90, textAlign: 'right' }, children: item.days_left == null ? '' : t('daysLeft', item.days_left) }),
+      // A narrow gallery drops the cells beside it (listCols): the title stays readable.
+      jsx('div', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
+      narrow ? null : jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${item.type}`) || item.type }),
+      cols === 'wide'
+        ? jsx('span', {
+            title: item.deleted_at ? dateText(item.deleted_at, true) : undefined,
+            style: { ...cell, width: 110 },
+            children: item.deleted_at ? t('deletedAgo', ago(item.deleted_at)) : ''
+          })
+        : null,
+      narrow ? null : jsx('span', { style: { ...cell, width: 90, textAlign: 'right' }, children: item.days_left == null ? '' : t('daysLeft', item.days_left) }),
       jsx(IconButton, {
         icon: 'history',
-        label: t('restore'),
+        label: narrow ? null : t('restore'),
         title: t('restoreTip', item.title),
         onClick: async () => {
           if (busy) return
@@ -2579,6 +2654,74 @@ function NewMenu({ ctx, onClose }) {
     ]
   })
 }
+/** A folder's menu (its chip's chevron, or a right click on it): Rename, and Delete folder, which moves what is
+ *  in it to No folder (asked first when something is). */
+function FolderMenu({ ctx, name, count, onClose }) {
+  const t = usePluginI18n(ID)
+  const [renaming, setRenaming] = useState(false)
+  const [q, setQ] = useState(name)
+  const [confirm, setConfirm] = useState(false)
+  if (renaming)
+    return jsx(PopMenu, {
+      onClose,
+      items: [
+        { input: true, key: 'r', value: q, placeholder: t('folderRename'), onChange: setQ, onEnter: async () => {
+          const n = q.trim()
+          onClose()
+          if (!n || n === name) return
+          try {
+            await ctx.rest('/folders', { method: 'POST', body: { name, rename: n } })
+            await refresh(ctx)
+            showFolder(n)
+          } catch (e) {
+            toast(errText(e), 'error')
+          }
+        } }
+      ]
+    })
+  return jsx(PopMenu, {
+    onClose,
+    width: 260,
+    items: [
+      { icon: 'pencil', label: t('rename'), onClick: () => setRenaming(true) },
+      { sep: true },
+      {
+        icon: 'trash',
+        label: confirm ? t('folderDelConfirm') : t('folderDelete'),
+        sub2: confirm ? t('folderDelConfirmSub', count) : '',
+        danger: true,
+        onClick: async () => {
+          if (count && !confirm) return setConfirm(true)
+          onClose()
+          try {
+            await ctx.rest('/folders', { method: 'POST', body: { name, delete: true } })
+            if ($folder.get() === name) showFolder(null)
+            await refresh(ctx)
+            toast(t('folderDeleted', name))
+          } catch (e) {
+            toast(errText(e), 'error')
+          }
+        }
+      }
+    ]
+  })
+}
+
+/** A folder's chip: shows the folder; the folder shown opens its menu on a press (its chevron says so), any
+ *  folder's on a right click. */
+function FolderChip({ ctx, name, active, count }) {
+  const t = usePluginI18n(ID)
+  const [menu, setMenu] = useState(false)
+  return jsxs('div', {
+    onContextMenu: e => (e.preventDefault(), setMenu(true)),
+    style: { position: 'relative', display: 'flex' },
+    children: [
+      jsx(Chip, { label: name, active, more: active ? t('folderMore', name) : null, onClick: () => (active ? setMenu(!menu) : showFolder(name)) }),
+      menu ? jsx(FolderMenu, { ctx, name, count, onClose: () => setMenu(false) }) : null
+    ]
+  })
+}
+
 const VERSION_RE = /^[0-9A-Za-z.+-]{1,40}$/
 // The roles hermes_artifacts/running.py records, each with its own advice.
 const ROLE_NOTICE = { gateway: 'versionRestartGateway', serve: 'versionRestartServe', 'compute-host': 'versionRestartCompute',
@@ -2631,6 +2774,7 @@ function VersionNotice() {
 }
 
 const NEW_KINDS = ['doc', 'sheet', 'board', 'slides', 'design', 'model', 'dashboard', 'motion', 'design-system', 'page']
+const GALLERY_PAD = 28 // the gallery's side padding
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
@@ -2649,35 +2793,56 @@ function Gallery({ ctx, pageRef }) {
   const inTrash = useValue($trashOpen) && trash.length > 0
   const [searching, setSearching] = useState(Boolean(query))
   const [open, setOpen] = useState(null) // 'filter' | 'new'
+  // The rows' columns follow the list's width (its box less the padding).
+  const content = useRef(null)
+  const cols = listCols(Math.max(0, useWidth(content) - 2 * GALLERY_PAD))
 
   const q = query.trim().toLowerCase()
-  const shown = list
+  const inView = list
     .filter(a => !folder || a.folder === folder)
     .filter(a => !pinnedOnly || a.pinned)
     .filter(a => !types.length || types.includes(TYPE_KEYS.includes(a.type) ? a.type : 'other'))
     .filter(a => inDate(a, date))
+  const shown = inView
     .filter(a => !q || `${a.title} ${a.description || ''} ${a.type} ${a.folder || ''}`.toLowerCase().includes(q))
     .sort((a, b) => sortTime(b, sort) - sortTime(a, sort))
   const filtered = Boolean(types.length || date !== 'any' || pinnedOnly)
 
   const trashShown = trash.filter(x => !q || `${x.title} ${x.type}`.toLowerCase().includes(q))
+  // The search narrows whichever list is shown (the trash too, as Hermes' own search narrows every list under
+  // it): while it hides something, a line says so and clears it.
+  const [seen, all] = inTrash ? [trashShown.length, trash.length] : [shown.length, inView.length]
+  const searchNote = q && seen < all
+    ? jsxs('div', {
+        role: 'status',
+        style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12, fontSize: 13, color: C.text2 },
+        children: [
+          jsx('span', { style: { minWidth: 0, overflowWrap: 'anywhere' }, children: t('searchNote', seen, all, query.trim()) }),
+          jsx(IconButton, { icon: 'close', label: t('clearSearch'), title: t('clearSearch'), onClick: () => ($query.set(''), setSearching(false)) })
+        ]
+      })
+    : null
 
   const body = err
     ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('backendDown', err) })
     : inTrash
       ? jsxs(Fragment, { children: [
           jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('trashNote', trashDays) }),
+          searchNote,
           trashShown.length === 0
-            ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
-            : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: trashShown.map(x => jsx(TrashRow, { ctx, item: x }, x.name)) })
+            ? searchNote ? null : jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
+            : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: trashShown.map(x => jsx(TrashRow, { ctx, item: x, cols }, x.name)) })
         ] })
     : list.length === 0
       ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('empty') })
-      : shown.length === 0
-        ? jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
-        : layout === 'grid'
-          ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a, sort }, a.id)) })
-          : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a, sort }, a.id)) })
+      : jsxs(Fragment, { children: [
+          searchNote,
+          shown.length === 0
+            ? searchNote ? null : jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
+            : layout === 'grid'
+              ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a, sort }, a.id)) })
+              : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a, sort, cols }, a.id)) })
+        ] })
 
   return jsxs('div', {
     style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
@@ -2687,57 +2852,70 @@ function Gallery({ ctx, pageRef }) {
         // shift the page sideways when a scrollbar comes or goes.
         style: { flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable' },
         children: jsxs('div', {
-          style: { maxWidth: 1180, margin: '0 auto', padding: '28px 28px 40px' },
+          ref: content,
+          style: { maxWidth: 1180, margin: '0 auto', padding: `28px ${GALLERY_PAD}px 40px` },
           children: [
             jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, lineHeight: 1.25, fontWeight: 600, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
             jsx(VersionNotice, {}),
+            // The toolbar: the folders on the left, the tools on the right. When both do not fit one row the
+            // tools take the next, whole and right-aligned, and the folders wrap among themselves.
             jsxs('div', {
-              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26, flexWrap: 'wrap' },
+              style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 26 },
               children: [
-                jsx(Chip, { label: t('all'), active: !folder && !inTrash, onClick: () => showFolder(null) }),
-                ...folders.map(f => jsx(Chip, { label: f, active: folder === f && !inTrash, onClick: () => showFolder(f) }, f)),
-                trash.length
-                  ? jsx(Chip, { label: t('trashChip', trash.length), active: inTrash, onClick: () => ($trashOpen.set(true), loadTrash(ctx)) })
-                  : null,
-                // A filter on: says so where the folders are, and takes them all off.
-                filtered && !inTrash
-                  ? jsx(IconButton, { icon: 'close', label: t('clearFilters', filterCount(types, date, pinnedOnly)), title: t('clearFiltersTip'), onClick: clearFilters })
-                  : null,
-                jsx('div', { style: { flex: 1 } }),
-                searching
-                  ? jsx('input', {
-                      autoFocus: true,
-                      value: query,
-                      placeholder: t('searchArtifacts'),
-                      onChange: e => $query.set(e.target.value),
-                      onBlur: () => !query && setSearching(false),
-                      onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                      'aria-label': t('searchArtifacts'),
-                      className: INPUT,
-                      style: { ...font, height: 30, width: 240, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
-                    })
-                  : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                 jsxs('div', {
-                  style: { position: 'relative' },
+                  style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, flex: '0 1 auto', minWidth: 0 },
                   children: [
-                    jsx(IconButton, { icon: 'sort', title: t('filterSort'), active: open === 'filter' || filtered, pressed: filtered, onClick: () => setOpen(open === 'filter' ? null : 'filter') }),
-                    open === 'filter' ? jsx(FilterMenu, { ctx, onClose: () => setOpen(null) }) : null
+                    jsx(Chip, { label: t('all'), active: !folder && !inTrash, onClick: () => showFolder(null) }),
+                    ...folders.map(f => jsx(FolderChip, { ctx, name: f, active: folder === f && !inTrash, count: list.filter(a => a.folder === f).length }, f)),
+                    trash.length
+                      ? jsx(Chip, { label: t('trashChip', trash.length), active: inTrash, onClick: () => ($trashOpen.set(true), loadTrash(ctx)) })
+                      : null,
+                    // A filter on: says so where the folders are, and takes them all off.
+                    filtered && !inTrash
+                      ? jsx(IconButton, { icon: 'close', label: t('clearFilters', filterCount(types, date, pinnedOnly)), title: t('clearFiltersTip'), onClick: clearFilters })
+                      : null
                   ]
                 }),
-                jsx(IconButton, {
-                  icon: layout === 'grid' ? 'list' : 'grid',
-                  title: layout === 'grid' ? t('listView') : t('gridView'),
-                  onClick: () => {
-                    const next = layout === 'grid' ? 'list' : 'grid'
-                    $layout.set(next)
-                    ctx.storage.set('layout', next)
-                  }
-                }),
                 jsxs('div', {
-                  style: { position: 'relative' },
+                  style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: '1 1 auto', minWidth: 0 },
                   children: [
-                    jsx(IconButton, { icon: 'plus', title: t('newMenu'), active: open === 'new', onClick: () => setOpen(open === 'new' ? null : 'new') }),
-                    open === 'new' ? jsx(NewMenu, { ctx, onClose: () => setOpen(null) }) : null
+                    searching
+                      ? jsx('input', {
+                          autoFocus: true,
+                          value: query,
+                          placeholder: t('searchArtifacts'),
+                          onChange: e => $query.set(e.target.value),
+                          onBlur: () => !query && setSearching(false),
+                          onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
+                          'aria-label': t('searchArtifacts'),
+                          className: INPUT,
+                          // 240 px where there is room; it gives way first when the tools' row is narrower.
+                          style: { ...font, boxSizing: 'border-box', height: 30, width: 240, flex: '0 1 240px', minWidth: 0, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
+                        })
+                      : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
+                    jsxs('div', {
+                      style: { position: 'relative' },
+                      children: [
+                        jsx(IconButton, { icon: 'sort', title: t('filterSort'), active: open === 'filter' || filtered, pressed: filtered, onClick: () => setOpen(open === 'filter' ? null : 'filter') }),
+                        open === 'filter' ? jsx(FilterMenu, { ctx, onClose: () => setOpen(null) }) : null
+                      ]
+                    }),
+                    jsx(IconButton, {
+                      icon: layout === 'grid' ? 'list' : 'grid',
+                      title: layout === 'grid' ? t('listView') : t('gridView'),
+                      onClick: () => {
+                        const next = layout === 'grid' ? 'list' : 'grid'
+                        $layout.set(next)
+                        ctx.storage.set('layout', next)
+                      }
+                    }),
+                    jsxs('div', {
+                      style: { position: 'relative' },
+                      children: [
+                        jsx(IconButton, { icon: 'plus', title: t('newMenu'), active: open === 'new', onClick: () => setOpen(open === 'new' ? null : 'new') }),
+                        open === 'new' ? jsx(NewMenu, { ctx, onClose: () => setOpen(null) }) : null
+                      ]
+                    })
                   ]
                 })
               ]
@@ -3658,14 +3836,15 @@ async function waitReply(ctx, aid, rid) {
 const $focusPin = atom(0) // the thread whose pin was clicked on the page (its number)
 
 /** The picked element's rect from the page, checked: {x, y, w, h} (its box) and, from a 0.20 bridge, its first
- *  line (ly, lh, lr: where its words end) and which pin spots are free (fr, fl, fw, fa, fb: pinSpot). null
- *  when malformed. */
+ *  line (ly, lh, lr: where its words end), which pin spots are free (fr, fl, fw, fa, fb: pinSpot), whether any
+ *  of it can be seen (vis) and the band between the page's own bars (vt, vb: commentLayout). null when
+ *  malformed. */
 function pickedRect(r) {
   if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite)) return null
   const out = { x: r.x, y: r.y, w: r.w, h: r.h }
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
-  if (Number.isFinite(r.lr)) out.lr = r.lr
-  for (const k of ['fr', 'fl', 'fw', 'fa', 'fb']) if (typeof r[k] === 'boolean') out[k] = r[k]
+  for (const k of ['lr', 'vt', 'vb']) if (Number.isFinite(r[k])) out[k] = r[k]
+  for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis']) if (typeof r[k] === 'boolean') out[k] = r[k]
   return out
 }
 
@@ -4468,10 +4647,11 @@ function useFit(ref, below, gap = 6) {
   }, [below])
 }
 
-function PopMenu({ items, onClose, align = 'left', width = 260 }) {
+function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
   const ref = useRef(null)
   useFit(ref, 38)
   usePopupOpen()
+  useFocusBack(back)
   useEffect(() => {
     // The button that opened it toggles it: a press there is left to its click, so the menu
     // closes instead of closing on mousedown and reopening on click.
@@ -4578,7 +4758,8 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   const exportItems = exports.length
     ? exports.map(x => ({ key: x.id, label: x.label, onClick: close(() => postToPage(portRef, 'export', { id: x.id })) }))
     : art.type === 'page'
-      ? [{ key: 'html', label: 'HTML', onClick: close(async () => { const r = await ctx.rest(`/artifacts/${enc(art.id)}/html?v=${v}`).catch(() => null); if (r?.html) saveFile(`${art.title}.html`, r.html, 'text/html'); else toast(t('exportFailed'), 'error') }) }]
+      // the page's own document, standalone (export=1: without the host's bridge and line map)
+      ? [{ key: 'html', label: 'HTML', onClick: close(async () => { const r = await ctx.rest(`/artifacts/${enc(art.id)}/html?v=${v}&export=1`).catch(() => null); if (r?.html) saveFile(`${art.title}.html`, r.html, 'text/html'); else toast(t('exportFailed'), 'error') }) }]
       : []
   if (view === 'export') return jsx(PopMenu, { onClose, items: [{ icon: 'back', label: t('exportMenu'), onClick: () => setView('main') }, { sep: true }, ...exportItems] })
   if (view === 'versions')
@@ -4669,10 +4850,11 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
       },
       'aria-label': T('rename'),
       className: INPUT,
-      style: { ...font, height: 30, minWidth: 260, padding: '0 10px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 14 }
+      style: { ...font, boxSizing: 'border-box', height: 30, width: 260, flex: '0 1 260px', minWidth: 0, padding: '0 10px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 14 }
     })
+  // It gives way to the header's buttons: the title is cut with an ellipsis, its version and chevron stay.
   return jsxs('div', {
-    style: { position: 'relative', minWidth: 0 },
+    style: { position: 'relative', display: 'flex', flex: '0 1 auto', minWidth: 0 },
     children: [
       jsxs('button', {
         type: 'button',
@@ -4680,11 +4862,12 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
         ...hp,
         'aria-haspopup': 'menu',
         'aria-expanded': open,
+        title: art.title,
         className: TEXT_BTN,
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
         children: [
-          jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
-          v !== art.version ? jsx('span', { style: { fontSize: 12, color: C.text3 }, children: `v${v}` }) : null,
+          jsx('span', { style: { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
+          v !== art.version ? jsx('span', { style: { flexShrink: 0, fontSize: 12, color: C.text3 }, children: `v${v}` }) : null,
           jsx(Icon, { name: 'chevron', size: 14 })
         ]
       }),
@@ -4708,7 +4891,7 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
 /** The chat layouts as one switch, in the header's own buttons: `beside` ({icon, label, onClick}: the chat
  *  with the artifact beside it) and Pop out chat (pressed while the chat floats over the artifact). Beside
  *  the chat only Pop out chat: the chat is already there. */
-function ChatSwitch({ t, beside = null, popup, onPopup }) {
+function ChatSwitch({ t, beside = null, popup, onPopup, iconOnly = false }) {
   const pop = jsx(IconButton, { icon: 'popout', title: t('popOut'), active: popup, pressed: popup, data: { [POPOUT_CONTROL]: '' }, onClick: onPopup })
   return jsxs('div', {
     role: 'group',
@@ -4716,7 +4899,7 @@ function ChatSwitch({ t, beside = null, popup, onPopup }) {
     // The same corners as the icon buttons in it (Hermes' 4px).
     className: 'rounded-[4px]',
     style: { display: 'flex', alignItems: 'center', background: beside ? C.hover : 'transparent' },
-    children: [beside ? jsx(IconButton, { icon: beside.icon, label: beside.label, title: beside.label, onClick: beside.onClick }) : null, pop]
+    children: [beside ? jsx(IconButton, { icon: beside.icon, label: iconOnly ? null : beside.label, title: beside.label, onClick: beside.onClick }) : null, pop]
   })
 }
 
@@ -4730,18 +4913,25 @@ function Header({ ctx, art, v, portRef, docked }) {
   const expanded = useValue($dockPos) === 'center'
   const dockFloat = useValue($dockFloat)
   const open = comments.filter(c => !c.parent && !c.resolved).length
+  // A narrow header (a narrow window, the pane beside a chat) shows its labelled buttons as icons (their
+  // tooltips keep the words), so the title keeps room.
+  const row = useRef(null)
+  const w = useWidth(row)
+  const iconOnly = w > 0 && w < HEADER_ICONS
   return jsxs('div', {
+    ref: row,
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
     children: [
       jsx(TitleButton, { ctx, art, v, portRef, docked }, art.id),
-      jsx('div', { style: { flex: 1 } }),
+      // At least 8 px (with the gaps) between the title and the buttons.
+      jsx('div', { style: { flex: '1 0 0', minWidth: 0 } }),
       // The two chat layouts as one switch: Chat (its chat with the artifact beside it) | Pop out chat.
       docked
         ? null
         : jsx(ChatSwitch, { t, beside: { icon: chat === 'float' ? 'collapse' : 'sparkle', label: t('chat'), onClick: () => pageDocked(ctx, art) },
-            popup: chat === 'float', onPopup: () => pagePopup() }),
+            popup: chat === 'float', onPopup: () => pagePopup(), iconOnly }),
       jsxs('div', {
-        style: { position: 'relative', display: 'flex', alignItems: 'center', marginLeft: 6 },
+        style: { position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 6 },
         children: [
           jsx(IconButton, {
             icon: 'comment',
@@ -4771,7 +4961,7 @@ function Header({ ctx, art, v, portRef, docked }) {
       // floating over the tile). Beside the chat: Pop out chat (that layout) and ⤢ (the tile alone over the chat).
       docked
         ? expanded
-          ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx) })
+          ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx), iconOnly })
           : jsxs(Fragment, { children: [
               jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }),
               jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) })
@@ -4783,6 +4973,8 @@ function Header({ ctx, art, v, portRef, docked }) {
     ]
   })
 }
+
+const HEADER_ICONS = 560 // a header narrower than this shows its labelled buttons as icons
 
 const PIN = 26 // the new comment's pin
 const COMMENT_W = 320 // its box
@@ -4814,32 +5006,46 @@ function pinSpot(rect, bw, bh) {
   return { x: clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE) }
 }
 
+const BOX_M = 8 // the least room between the new comment's box and the stage's edge
+const BOX_GAP = 8 // between the box and the element (or its pin)
+const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep clear of its element
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
  *  h in stage px, its first line and free sides: pickedRect) and the box's height `h`: the pin beside the
- *  element (pinSpot), the box beside the pin, never over it. Tried in turn: right of the pin, under it, left
- *  of it, over it; pin and box always inside the stage. None fits whole (a narrow stage, the pin half way
- *  down): under or over the pin, wherever there is more room, cut to that room (box.maxH; it scrolls).
- *  Pure: tested without a DOM. */
+ *  element (pinSpot); the box clear of the element's whole box and of the pin, inside the stage. Tried in
+ *  turn: under the element, over it, right of it, left of it (under and over from its left edge, beside it
+ *  level with its top); none fits whole: under or over it, wherever there is more room, cut to that room
+ *  (box.maxH; it scrolls). Only when neither leaves BOX_MIN_H (the element fills the stage) it goes over the
+ *  element, at the stage's bottom edge. box.maxH is always set: the most it may be. Pure: tested without a DOM. */
 function placeCommentBox(rect, bw, bh, h) {
-  const M = 8, GAP = 8, MIN_H = 100
+  const M = BOX_M, GAP = BOX_GAP, W = COMMENT_W
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
   const pin = pinSpot(rect, bw, bh)
-  const top = clamp(rect.y, M, Math.max(M, bh - h - M))
-  const left = clamp(pin.x + PIN - COMMENT_W, M, Math.max(M, bw - COMMENT_W - M))
-  const tries = [
-    { x: pin.x + PIN + GAP, y: top },
-    { x: left, y: pin.y + PIN + GAP },
-    { x: pin.x - GAP - COMMENT_W, y: top },
-    { x: left, y: pin.y - GAP - h }
-  ]
-  const fits = b => b.x >= M && b.x + COMMENT_W <= bw - M && b.y >= M && b.y + h <= bh - M
-  const whole = tries.find(fits)
-  if (whole) return { pin, box: whole }
-  const below = bh - M - (pin.y + PIN + GAP), above = pin.y - GAP - M
-  if (Math.max(below, above) >= MIN_H) {
-    return { pin, box: below >= above ? { x: left, y: pin.y + PIN + GAP, maxH: below } : { x: left, y: M, maxH: above } }
+  const cut = (a, ah, bx, by, bw2, bh2) => a.x < bx + bw2 && bx < a.x + W && a.y < by + bh2 && by < a.y + ah
+  const onPin = (b, bh2) => cut(b, bh2, pin.x, pin.y, PIN, PIN)
+  const x0 = clamp(rect.x, M, Math.max(M, bw - W - M))
+  // Under and over: past the element, and past its pin where the pin is in the way.
+  let yb = rect.y + rect.h + GAP
+  if (onPin({ x: x0, y: yb }, h)) yb = Math.max(yb, pin.y + PIN + GAP)
+  let ya = rect.y - GAP - h
+  if (onPin({ x: x0, y: ya }, h)) ya = Math.min(ya, pin.y - GAP - h)
+  const yy = clamp(rect.y, M, Math.max(M, bh - h - M))
+  let xr = rect.x + rect.w + GAP
+  if (onPin({ x: xr, y: yy }, h)) xr = Math.max(xr, pin.x + PIN + GAP)
+  let xl = rect.x - GAP - W
+  if (onPin({ x: xl, y: yy }, h)) xl = Math.min(xl, pin.x - GAP - W)
+  const fits = b => b.x >= M && b.x + W <= bw - M && b.y >= M && b.y + h <= bh - M
+  const whole = [{ x: x0, y: yb }, { x: x0, y: ya }, { x: xr, y: yy }, { x: xl, y: yy }].find(fits)
+  if (whole) return { pin, box: { ...whole, maxH: bh - 2 * M } }
+  const below = bh - M - yb, above = ya + h - M
+  if (Math.max(below, above) >= BOX_MIN_H) {
+    return { pin, box: below >= above ? { x: x0, y: yb, maxH: below } : { x: x0, y: M, maxH: above } }
   }
-  return { pin, box: { x: left, y: clamp(pin.y + PIN + GAP, M, Math.max(M, bh - h - M)) } }
+  // The element fills the stage: over it, at the bottom edge (beside the pin if the pin is there).
+  const hh = Math.min(h, bh - 2 * M)
+  let x = x0
+  const y = Math.max(M, bh - M - hh)
+  if (onPin({ x, y }, hh)) x = pin.x - GAP - W >= M ? pin.x - GAP - W : clamp(pin.x + PIN + GAP, M, Math.max(M, bw - W - M))
+  return { pin, box: { x, y, maxH: bh - 2 * M } }
 }
 
 /** The viewer's row (the stage and the comments list beside it), the stage, a shown frame's box in it and the
@@ -4869,15 +5075,22 @@ function panelStyle(mode) {
 /** Whether the new comment's box goes into the comments list: the list floats over the stage (`cover` px of
  *  its right, a narrow view) and the width left of it does not take the box. */
 const commentDocks = (bw, cover) => cover > 0 && bw - cover < COMMENT_W + 16
+const BAND_MIN = 2 * BOX_M + BOX_MIN_H + 30 // a band between the page's own bars narrower than this is not kept to
 /** The new comment's pin and box in a stage of bw x bh whose right `cover` px the floating comments list
- *  covers: placed in the width left of the list (placeCommentBox), never under it. box null: the box is in
- *  the list (commentDocks). pin null: its element is out of the frame (scrolled away), or the list leaves no
- *  room for it; an element behind the list gets its pin at the list's edge, on its own line. Pure. */
+ *  covers: placed in the width left of the list (placeCommentBox), never under it, and between the page's own
+ *  bars (rect.vt, rect.vb: a type page's sticky toolbar; pickedRect), never over them. box null: the box is in
+ *  the list (commentDocks). pin null: its element cannot be seen (scrolled out of the frame or of its box,
+ *  under the page's bars: rect.vis false), or the list leaves no room for it; an element behind the list gets
+ *  its pin at the list's edge, on its own line. Pure. */
 function commentLayout(rect, bw, bh, h, cover = 0) {
   const free = Math.max(0, bw - cover)
-  const off = rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= 0 || rect.y >= bh
-  const { pin, box } = placeCommentBox(rect, free, bh, h)
-  return { pin: off || free < PIN + 8 ? null : pin, box: commentDocks(bw, cover) ? null : box }
+  let t0 = Number.isFinite(rect.vt) ? Math.max(0, Math.min(bh, rect.vt)) : 0
+  let b0 = Number.isFinite(rect.vb) ? Math.max(t0, Math.min(bh, rect.vb)) : bh
+  if (b0 - t0 < BAND_MIN) [t0, b0] = [0, bh]
+  const off = rect.vis === false || rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
+  const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}) }
+  const { pin, box } = placeCommentBox(inBand, free, b0 - t0, h)
+  return { pin: off || free < PIN + 8 ? null : { x: pin.x, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : { ...box, y: box.y + t0 } }
 }
 
 /** Claude's in-place comment: a box beside the element clicked, "@Hermes" ready, Send to Hermes on. */
@@ -4922,7 +5135,7 @@ function CommentPopover({ ctx, art, stageRef }) {
       box
         ? jsxs('div', {
             ref: boxRef,
-            style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH ?? bh - 16, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
+            style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
             children: [
               label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
               jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
@@ -5176,7 +5389,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       setBusy(false)
     }
   }
-  // Discard (✕ and Esc, the new comment and a reply alike): the words go with the form.
+  // Discard (its button and Esc, the new comment and a reply alike): the words go with the form.
   const discard = () => (setText(''), onDone())
   // It grows with its words up to TEXT_MAX_H, then scrolls: no resize grip.
   const area = useRef(null)
@@ -5215,10 +5428,9 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
         children: [
           jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer', minWidth: 0 }, children: [jsx('input', { type: 'checkbox', className: FOCUS, checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),
-          compact
-            ? jsx('button', { type: 'button', onClick: discard, title: t('discard'), 'aria-label': t('discard'), className: TEXT_BTN, style: { ...font, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, padding: 0, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, cursor: 'pointer', flexShrink: 0 }, children: jsx(Icon, { name: 'close', size: 14 }) })
-            : jsx('button', { type: 'button', onClick: discard, className: TEXT_BTN, style: { ...font, height: 26, padding: '0 10px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('discard') }),
-          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), className: TEXT_BTN, title: compact ? t('save') : undefined, 'aria-label': compact ? t('save') : undefined, style: { ...font, height: 26, padding: '0 12px', border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: compact ? jsx(Icon, { name: 'enter', size: 14 }) : t('save') })
+          // The new comment's box and a reply: one form, one look (Discard, Save).
+          jsx('button', { type: 'button', onClick: discard, className: TEXT_BTN, style: { ...font, flexShrink: 0, height: 26, padding: '0 10px', border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, fontSize: 12, cursor: 'pointer' }, children: t('discard') }),
+          jsx('button', { type: 'button', onClick: submit, disabled: busy || !text.trim(), className: TEXT_BTN, style: { ...font, flexShrink: 0, height: 26, padding: '0 12px', border: 0, background: C.accent, color: C.onAccent, fontSize: 12, cursor: 'pointer', opacity: busy || !text.trim() ? 0.5 : 1 }, children: t('save') })
         ]
       })
     ]

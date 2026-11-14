@@ -21,10 +21,12 @@ EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errTe
            " copyText, $toast, filterCount, clearFilters, $types, $date, $pinnedOnly, $selected, C, refresh, $list, fetchDocument,"
            " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
            " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, dateText, cardKey, CARD_KEYS,"
-           " askedEdit, editOf, $popups, panelMode, panelStyle, VIEW_ROW, VIEW_FILL, FRAME_FIT, PANEL_W, STAGE_MIN }\n")
+           " askedEdit, editOf, $popups, panelMode, panelStyle, VIEW_ROW, VIEW_FILL, FRAME_FIT, PANEL_W, STAGE_MIN,"
+           " BOX_M, BOX_GAP, BOX_MIN_H, BAND_MIN }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copyWord", "discard", "noOpenComments",
-            "noResolvedComments"]
+            "noResolvedComments", "folderMore", "folderRename", "folderDelete", "folderDelConfirm", "folderDelConfirmSub",
+            "folderDeleted", "searchNote", "clearSearch"]
 
 
 def section(start, end):
@@ -189,11 +191,13 @@ class CommentPinTests(unittest.TestCase):
 
     def test_the_bridge_reports_the_first_line_and_the_free_sides(self):
         body = """
-        console.log(JSON.stringify([m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 2, lh: 20, lr: 3, fr: false, fl: true, fw: true, fa: false, fb: true, z: 1 }),
-          m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 'a', fr: 1 }), m.pickedRect({ x: 1, y: NaN, w: 3, h: 4 })]))
+        console.log(JSON.stringify([m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 2, lh: 20, lr: 3, fr: false, fl: true, fw: true, fa: false, fb: true, z: 1,
+            vt: 44, vb: 700, vis: false }),
+          m.pickedRect({ x: 1, y: 2, w: 3, h: 4, ly: 'a', fr: 1, vt: 'a', vis: 0 }), m.pickedRect({ x: 1, y: NaN, w: 3, h: 4 })]))
         """
         out = run_node(stub_module(EXPORTS), body)
-        self.assertEqual(out, [{"x": 1, "y": 2, "w": 3, "h": 4, "ly": 2, "lh": 20, "lr": 3, "fr": False, "fl": True, "fw": True, "fa": False, "fb": True},
+        self.assertEqual(out, [{"x": 1, "y": 2, "w": 3, "h": 4, "ly": 2, "lh": 20, "lr": 3, "vt": 44, "vb": 700, "fr": False, "fl": True, "fw": True,
+                                "fa": False, "fb": True, "vis": False},
                                {"x": 1, "y": 2, "w": 3, "h": 4}, None])
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertIn("var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;", bridge)  # the host's own numbers
@@ -253,6 +257,71 @@ class CommentPinTests(unittest.TestCase):
           L({ x: -300, y: 100, w: 200, h: 40 }).pin, L({ x: 100, y: -20, w: 200, h: 40 }).pin !== null, L({ x: 100, y: 720, w: 200, h: 40 }).box !== null]))
         """
         self.assertEqual(run_node(stub_module(EXPORTS), body), [None, None, None, True, True])  # partly in view: still pinned
+
+    def test_the_page_bars_are_kept_clear_and_an_element_under_them_has_no_pin(self):
+        # Round 1, docked at 1500: a doc's list item scrolled up under the doc's own sticky toolbar kept its pin,
+        # clamped onto the toolbar's Editing button. The bridge says what band its bars leave (vt, vb) and whether
+        # any of the element is seen (vis): no pin unless it is, and pin and box keep inside that band.
+        body = """
+        const L = r => m.commentLayout(r, 1000, 700, 170, 0)
+        const under = L({ x: 100, y: 6, w: 200, h: 34, vt: 44, vb: 700, vis: false })
+        const below = L({ x: 100, y: 6, w: 200, h: 34, vt: 44, vb: 700 })   // wholly above the band's top
+        const part = L({ x: 100, y: 30, w: 200, h: 40, ly: 30, lh: 20, vt: 44, vb: 700, vis: true })
+        const foot = L({ x: 100, y: 560, w: 600, h: 60, vt: 44, vb: 650, vis: true })
+        const thin = L({ x: 100, y: 300, w: 200, h: 20, vt: 290, vb: 360, vis: true }) // too thin a band: the stage
+        const back = L({ x: 100, y: 300, w: 200, h: 34, vt: 44, vb: 700, vis: true })
+        console.log(JSON.stringify({ under, below, part, foot, thin, back }))
+        """
+        o = run_node(stub_module(EXPORTS), body)
+        self.assertIsNone(o["under"]["pin"])
+        self.assertGreaterEqual(o["under"]["box"]["y"], 44 + 8)  # the form stays, off the toolbar
+        self.assertIsNone(o["below"]["pin"])
+        self.assertGreaterEqual(o["part"]["pin"]["y"], 44 + 4)  # partly seen: pinned, inside the band
+        self.assertGreaterEqual(o["part"]["box"]["y"], 44 + 8)
+        self.assertLessEqual(o["foot"]["box"]["y"] + min(170, o["foot"]["box"]["maxH"]), 650 - 8)  # off a bottom bar too
+        self.assertLessEqual(o["foot"]["box"]["y"] + 170, 560)  # over its element, which leaves room there
+        self.assertIsNotNone(o["thin"]["pin"])
+        self.assertIsNotNone(o["back"]["pin"])  # scrolled back into view: the pin is back
+        self.assertEqual(o["back"]["box"]["y"], 300 + 34 + 8)  # under its element
+
+    def test_the_box_never_covers_its_element_when_there_is_room(self):
+        # Round 1: the box sat on the picked element (a checklist item, a KPI tile, a sheet cell) or right beside
+        # its pin over the next cells. Now under the element, else over it, else beside it, inside the stage; over
+        # the element only when it leaves no room (it fills the stage), then at the bottom edge.
+        body = """
+        const out = [], cut = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+        const M = m.BOX_M, G = m.BOX_GAP, W = m.COMMENT_W
+        for (const [bw, bh] of [[1568, 860], [1150, 860], [760, 640], [700, 520], [420, 700]]) {
+          const rects = [{ x: 640, y: 453, w: 63, h: 42, ly: 462, lh: 24, lr: 672, fr: false, fl: false, fw: true }, { x: 160, y: 355, w: Math.min(775, bw - 170), h: 165 },
+            { x: 207, y: 207, w: 170, h: 105 }, { x: 100, y: bh - 60, w: bw - 200, h: 24 }, { x: 20, y: 10, w: bw - 40, h: 30 },
+            { x: bw - 120, y: bh / 2 - 20, w: 100, h: 40 }, { x: 10, y: bh / 2 - 20, w: 90, h: 40, fl: false }, { x: 0, y: 0, w: bw, h: bh },
+            { x: 20, y: 20, w: bw - 40, h: bh - 60 }, { x: -30, y: -10, w: 80, h: 40 }, { x: 20, y: 300, w: 240, h: 24, fr: false, fb: true }]
+          for (const rect of rects) for (const h0 of [120, 170, 260]) {
+            const { pin, box } = m.placeCommentBox(rect, bw, bh, h0)
+            const h = Math.min(h0, box.maxH), b = { x: box.x, y: box.y, w: W, h }
+            const p = { x: pin.x, y: pin.y, w: m.PIN, h: m.PIN }
+            const right = Math.max(rect.x + rect.w, pin.x >= rect.x + rect.w ? pin.x + m.PIN : 0), left = Math.min(rect.x, pin.x + m.PIN <= rect.x ? pin.x : Infinity)
+            const room = bh - M - (Math.max(rect.y + rect.h, pin.y >= rect.y + rect.h ? pin.y + m.PIN : 0) + G) >= m.BOX_MIN_H ||
+              Math.min(rect.y, pin.y + m.PIN <= rect.y ? pin.y : Infinity) - G - M >= m.BOX_MIN_H ||
+              (h0 <= bh - 2 * M && (bw - M - right - G >= W || left - G - M >= W))
+            out.push({ bw, bh, rect, h0, box, pin, room, overEl: cut(b, rect), overPin: cut(b, p),
+              inside: b.x >= 0 && b.x + W <= bw && b.y >= 0 && b.y + h <= bh })
+          }
+        }
+        console.log(JSON.stringify(out))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        for o in out:
+            self.assertTrue(o["inside"], o)
+            self.assertFalse(o["overPin"], o)
+            if o["room"]:
+                self.assertFalse(o["overEl"], o)  # box ∩ picked rect = ∅
+            else:
+                self.assertEqual(o["box"]["y"] + min(o["h0"], o["box"]["maxH"]), o["bh"] - 8, o)  # at the bottom edge
+        self.assertTrue(any(not o["room"] for o in out))  # the element filling the stage is among them
+        cell = [o for o in out if o["bw"] == 1568 and o["rect"]["w"] == 63 and o["h0"] == 170][0]
+        self.assertEqual(cell["box"]["y"], 453 + 42 + 8)  # the reported sheet cell: under it, from its left
+        self.assertEqual(cell["box"]["x"], 640)
 
     def test_the_page_stops_following_when_the_comment_closes(self):
         viewer = section("function Viewer(", "function Toast(")
@@ -540,7 +609,7 @@ class GalleryPerfTests(unittest.TestCase):
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out, {"same": True, "keptA": True, "newB": True, "list": True})
         self.assertIn("const Card = memo(function Card({ ctx, art, sort })", SRC)
-        self.assertIn("const ListRow = memo(function ListRow({ ctx, art, sort })", SRC)
+        self.assertIn("const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' })", SRC)
         self.assertIn("jsx(Card, { ctx, art: a, sort }, a.id)", SRC)
 
     def test_no_list_poll_while_an_artifact_is_open_on_the_page(self):
@@ -674,8 +743,10 @@ class ClickThroughTests(unittest.TestCase):
         self.assertIn("resize: 'none'", form)
         self.assertNotIn("resize: 'vertical'", form)
         self.assertIn("el.style.height = `${Math.min(full, TEXT_MAX_H)}px`", form)
-        self.assertIn("title: t('discard'), 'aria-label': t('discard')", form)  # the draft's ✕
-        self.assertIn("children: t('discard') })", form)  # the reply's
+        # the new comment's box and a reply: one form, the same text buttons (round 1: icons in the box)
+        self.assertEqual(form.count("children: t('discard') })"), 1)
+        self.assertEqual(form.count("children: t('save') })"), 1)
+        self.assertNotIn("jsx(Icon", form)
         self.assertNotIn("t('cancel')", form)
         self.assertIn("if (e.key === 'Escape') return discard()", form)
 

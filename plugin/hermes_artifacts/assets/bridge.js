@@ -453,7 +453,24 @@
     var el = e.target;
     if (!el || el.hasAttribute("data-hermes-ui")) return;
     hoverBox = hoverBox || box(mark());
+    // What a click there would pick: nothing on the page's blank (no box), else the element.
+    hoverBox.style.display = blank(el, e.clientX, e.clientY) ? "none" : "";
     place2(hoverBox, el);
+  }
+  /** A click on none of the page's own content: the document itself, or a big box that holds blocks (the page,
+   *  its column) where none of them is, with no words of its own (the blank under a doc's last block, the gap
+   *  between a dashboard's tiles). Picks nothing: pick mode stays on. */
+  function blank(el, x, y) {
+    if (!el || el === document.body || el === document.documentElement) return true;
+    if (!el.children.length) return false;
+    for (var i = 0; i < el.childNodes.length; i++) { var n = el.childNodes[i]; if (n.nodeType === 3 && /\S/.test(n.nodeValue)) return false; }
+    for (i = 0; i < el.children.length; i++) {
+      var k = el.children[i].getBoundingClientRect();
+      if (x >= k.left && x <= k.right && y >= k.top && y <= k.bottom) return false;
+    }
+    var r = el.getBoundingClientRect();
+    var seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+    return seen >= 0.4 * innerWidth * innerHeight;
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
   var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;
@@ -510,18 +527,77 @@
     }
     return false;
   }
+  /** The fixed or sticky box n is in (n itself, or one around it), or null. */
+  function stuckBox(n) {
+    for (; n && n.nodeType === 1 && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      var pos = getComputedStyle(n).position;
+      if (pos === "fixed" || pos === "sticky") return n;
+    }
+    return null;
+  }
+  /** The edge of the page's own bar across the line y (a fixed or sticky box along the band's top or bottom,
+   *  most of the window wide, not over a third of it tall: a type page's toolbar), past which the band ends:
+   *  its bottom (top) or its top (!top); null when none is there. el and its own bar do not count. */
+  function barEdge(el, y, top) {
+    var edge = null;
+    for (var i = 1; i <= 5; i++) {
+      var hits = document.elementsFromPoint ? document.elementsFromPoint(innerWidth * i / 6, y) : [];
+      for (var k = 0; k < hits.length; k++) {
+        if (hits[k].closest("[data-hermes-ui]")) continue;
+        var bar = stuckBox(hits[k]);
+        if (!bar || bar.contains(el)) continue;
+        var b = bar.getBoundingClientRect();
+        if (b.width < innerWidth * 0.6 || b.height > innerHeight / 3 || b.top > y || b.bottom < y) continue;
+        edge = top ? Math.max(edge == null ? -Infinity : edge, b.bottom) : Math.min(edge == null ? Infinity : edge, b.top);
+      }
+    }
+    return edge;
+  }
+  /** Where the host keeps the new comment's pin and box (vt, vb): the window, or the page's main box that el
+   *  scrolls in (half the window tall or more: a sheet's grid under its toolbar, not a table's own scroll),
+   *  less the page's own bars at its top and bottom. */
+  function band(el) {
+    var t = 0, b = innerHeight;
+    for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(p).overflowY) && p.scrollHeight > p.clientHeight + 1) {
+        var pr = p.getBoundingClientRect();
+        if (pr.height < innerHeight / 2) continue;
+        t = Math.max(t, pr.top); b = Math.min(b, pr.bottom);
+        break;
+      }
+    }
+    for (var i = 0; i < 3; i++) { var nt = barEdge(el, t + 1, true); if (nt == null || nt <= t) break; t = nt; }
+    for (i = 0; i < 3; i++) { var nb = barEdge(el, b - 1, false); if (nb == null || nb >= b) break; b = nb; }
+    return { t: t, b: Math.max(t, b) };
+  }
+  /** Whether any of el can be seen: a point of its box inside the band shows el (or what is in it), not
+   *  something over it (the page's bar, a pinned header row) nor what it scrolled out of. */
+  function visible(el, r, bd) {
+    var l = Math.max(r.left, 0), rr = Math.min(r.right, innerWidth), t = Math.max(r.top, bd.t), b = Math.min(r.bottom, bd.b);
+    if (rr - l < 1 || b - t < 1 || !document.elementsFromPoint) return rr - l >= 1 && b - t >= 1;
+    for (var i = 1; i <= 3; i++) for (var j = 1; j <= 3; j++) {
+      var hits = document.elementsFromPoint(l + (rr - l) * i / 4, t + (b - t) * j / 4);
+      for (var k = 0; k < hits.length; k++) {
+        if (hits[k].closest("[data-hermes-ui]")) continue;
+        if (hits[k] === el || el.contains(hits[k])) return true;
+        break;
+      }
+    }
+    return false;
+  }
   /** The picked element for the host: its box (x, y, w, h), its first line (ly, lh, and lr where its words
-   *  end) and which of the pin's spots are free (the host's pinSpot tries them in this order): right (fr) and
+   *  end), which of the pin's spots are free (the host's pinSpot tries them in this order): right (fr) and
    *  left (fl) of the box on that line, after the line's words (fw), above (fa) and below (fb) the box's
-   *  right end. A spot is free when no other element's words, picture or control is under it (fw: nor the
+   *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
+   *  vb: band()). A spot is free when no other element's words, picture or control is under it (fw: nor the
    *  element's own words). */
   function pickRect(el) {
-    var r = el.getBoundingClientRect(), line = firstLine(el);
+    var r = el.getBoundingClientRect(), line = firstLine(el), bd = band(el);
     var ly = line ? line.top : r.top, lh = line ? line.height : Math.min(r.height, 24);
-    var t = Math.max(PIN_EDGE, Math.min(window.innerHeight - PIN - PIN_EDGE, ly + lh / 2 - PIN / 2));
+    var t = Math.max(bd.t + PIN_EDGE, Math.min(bd.b - PIN - PIN_EDGE, ly + lh / 2 - PIN / 2));
     var at = function (l, tp) { return { l: l, t: tp, r: l + PIN, b: tp + PIN }; };
     var R = r.right + PIN_GAP, L = r.left - PIN_GAP - PIN, end = r.right - PIN;
-    var out = { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh,
+    var out = { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh, vt: bd.t, vb: bd.b, vis: visible(el, r, bd),
                 fr: !blocked(el, at(R, t)), fl: !blocked(el, at(L, t)),
                 fa: !blocked(el, at(end, r.top - PIN_GAP - PIN)), fb: !blocked(el, at(end, r.bottom + PIN_GAP)) };
     if (line) {
@@ -535,6 +611,7 @@
     if (!picking) return;
     e.preventDefault(); e.stopImmediatePropagation();
     var el = e.target;
+    if (blank(el, e.clientX, e.clientY)) return;
     var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
     emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(), rect: pickRect(el) });
     follow(el);

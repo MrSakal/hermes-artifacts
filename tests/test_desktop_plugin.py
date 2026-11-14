@@ -102,7 +102,7 @@ class GalleryTrashTests(unittest.TestCase):
         src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         gallery = src[src.index("function Gallery("):src.index("// ---------------------------------------------------------------- viewer")]
         self.assertRegex(gallery, r"trash\.length\s*\?\s*jsx\(Chip, \{ label: t\('trashChip', trash\.length\), active: inTrash")
-        self.assertIn("jsx(TrashRow, { ctx, item: x }, x.name)", gallery)
+        self.assertIn("jsx(TrashRow, { ctx, item: x, cols }, x.name)", gallery)
 
     def test_restore_posts_the_entry_name_and_reloads_both_lists(self):
         body = """

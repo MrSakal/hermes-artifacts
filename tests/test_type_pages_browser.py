@@ -413,5 +413,92 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
         self.check(self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"], settle=3000)
 
 
+BAR_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui}.bar{position:sticky;top:0;height:44px;"
+            "background:#333;color:#fff}main{padding:20px;min-height:2400px}p{margin:0 0 12px}.side{position:sticky;top:44px;width:120px}"
+            "</style><div class=bar>Toolbar</div><div class=side>Contents</div><main><p id=a>First paragraph</p><p id=b>Second paragraph</p></main>")
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PickBandTests(unittest.TestCase):
+    """Round 1: a click on the blank under a doc's last block picked the whole doc, and a picked item scrolled up
+    under the doc's sticky toolbar kept its pin there. A click on no content picks nothing (pick mode stays on);
+    the picked rect says whether any of the element is seen (vis) and the band the page's own bars leave (vt, vb)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+        cls.aid = store.publish(title="Bar page", type="page", html=BAR_PAGE)["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_blank_picks_nothing_and_a_hidden_element_says_so(self):
+        r = B.drive(f"await api.go({json.dumps(self.host.url(self.aid))}, 800); {READY}\n" + """
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(200)
+          const picked = () => api.top('window.__events.filter(e => e.event === "picked").map(e => e.detail)')
+          await api.mouse(600, 700); await api.sleep(300)            // the blank of <main>, under its last paragraph
+          const blank = await picked()
+          const hover = await api.frame('[...document.querySelectorAll("[data-hermes-ui]")].map(b => b.style.display)')
+          await api.clickIn('document.getElementById("a")'); await api.sleep(300)
+          const first = (await picked()).pop()
+          await api.top('window.__post("comment-mode", {on: false})')
+          const rect = () => api.top('(() => { const e = window.__events.filter(e => e.event === "picked-rect").pop(); return e && e.detail.rect })()')
+          // under the sticky bar: its bottom 4 px above the bar's
+          await api.frame('scrollBy(0, document.getElementById("a").getBoundingClientRect().bottom - 40)'); await api.sleep(250)
+          const under = await rect()
+          await api.frame('scrollTo(0, 0)'); await api.sleep(250)
+          const back = await rect()
+          await api.top('window.__post("pick-follow", {on: false})')
+          return { blank, hover, first: first && first.rect, under, back }
+        """)
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual(o["blank"], [])  # nothing picked: pick mode stays on
+        self.assertIn("none", o["hover"])  # and no box drawn over the blank
+        self.assertEqual((o["first"]["vt"], o["first"]["vb"], o["first"]["vis"]), (44, 800, True))  # the side column is no bar
+        self.assertLess(o["under"]["y"] + o["under"]["h"], 44)
+        self.assertGreaterEqual(o["under"]["y"] + o["under"]["h"], 0)
+        self.assertFalse(o["under"]["vis"])
+        self.assertTrue(o["back"]["vis"])
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class DocQuoteMarkTests(unittest.TestCase):
+    """Round 1: list item 1 of a doc kept its thread's highlight after the thread was resolved. A thread's words are
+    marked while it is open and the mark goes with it; marked, they are still the doc's own words."""
+
+    def test_the_mark_goes_with_its_thread_and_keeps_the_words(self):
+        from hermes_artifacts import store
+        host = B.Host()
+        try:
+            aid = store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+            pin = {"selector": ".doc-blk li", "n": 1, "id": "c1", "author": "user", "text": "Shorter", "quote": "A request for a quote arrives", "replies": 0}
+            r = B.drive(f"await api.go({json.dumps(host.url(aid))}, 800); {READY}\n" + """
+              await api.sleep(600)
+              const marks = () => api.frame('[...document.querySelectorAll("mark.doc-cq")].map(m => m.textContent)')
+              const md = () => api.frame('docEdit.toMd(document.querySelector(".doc-blk li").closest(".doc-blk"))')
+              await api.top('window.__post("pins", [' + %s + '])'); await api.sleep(400)
+              const open = await marks(), openMd = await md()
+              await api.top('window.__post("pins", [])'); await api.sleep(400)
+              const resolved = await marks(), resolvedMd = await md()
+              await api.top('window.__post("pins", [' + %s + '])'); await api.sleep(400)
+              const reopened = await marks()
+              return { open, openMd, resolved, resolvedMd, reopened }
+            """ % (json.dumps(json.dumps(pin)), json.dumps(json.dumps(pin))))
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual(o["open"], ["A request for a quote arrives"])
+        self.assertEqual(o["resolved"], [])
+        self.assertEqual(o["reopened"], ["A request for a quote arrives"])
+        self.assertIn("A request for a quote arrives", o["openMd"])  # never dropped from the doc's Markdown
+        self.assertNotIn("==", o["openMd"])  # nor written as a highlight
+        self.assertEqual(o["openMd"], o["resolvedMd"])
+
+
 if __name__ == "__main__":
     unittest.main()
