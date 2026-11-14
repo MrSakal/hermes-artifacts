@@ -81,6 +81,7 @@ const STRINGS = {
     moreComment: 'More comment options',
     showComments: 'All comments',
     backToArtifact: 'Back to the artifact',
+    scrollToBottom: 'Scroll to bottom',
     close: 'Close',
     expand: 'Expand',
     menuBy: type => `${type} by Hermes`,
@@ -344,6 +345,7 @@ const STRINGS = {
     moreComment: 'További komment-lehetőségek',
     showComments: 'Összes komment',
     backToArtifact: 'Vissza az artifacthoz',
+    scrollToBottom: 'Görgetés az aljára',
     close: 'Bezárás',
     expand: 'Kinagyítás',
     menuBy: type => `${type} · Hermes készítette`,
@@ -1699,6 +1701,7 @@ const ICONS = {
   history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2',
   data: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
   check: 'M5 12l5 5 9-10',
+  down: 'M12 5v14M6 13l6 6 6-6',
   enter: 'M19 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4'
 }
 
@@ -4476,6 +4479,9 @@ const POPOUT_CONTROL = 'data-ha-popout'
  *  transcript (session.history) and sends with prompt.submit, so it is the same conversation the chat view
  *  shows. Esc or its x closes it (onClose) and gives the focus back; its other button is the chat beside
  *  the artifact (onDock). */
+const COMPOSER_MAX_PX = 6 * 21 // six lines of 14 px text at line-height 1.5
+const CHAT_END_PX = 48 // this near the foot of the list counts as at the latest message
+
 function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
   const t = usePluginI18n(ID)
   const busyMap = useValue(host.state.busyBySession)
@@ -4556,10 +4562,29 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
       if (Date.now() - sentAt.current > ASK_TIMEOUT_MS) setWaiting(false)
     }, 1500)
   }, [rid, waiting, running])
-  useEffect(() => {
+  // Kept at the latest message while it is in view; scrolled up, a new message leaves the place read and
+  // Scroll to bottom (Hermes' own control) brings it back.
+  const [atEnd, setAtEnd] = useState(true)
+  const onScroll = () => {
+    const el = listRef.current
+    if (el) setAtEnd(el.scrollHeight - el.scrollTop - el.clientHeight < CHAT_END_PX)
+  }
+  const toEnd = () => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [msgs.length, waiting])
+    setAtEnd(true)
+  }
+  useEffect(() => { if (atEnd) toEnd() }, [msgs.length, waiting])
+  // The message box grows with its words up to COMPOSER_MAX_PX (six lines), then scrolls; empty again, it is
+  // back to its two lines.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el?.style) return
+    el.style.height = 'auto'
+    const h = Math.min(el.scrollHeight, COMPOSER_MAX_PX)
+    el.style.height = `${h}px`
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_PX ? 'auto' : 'hidden'
+  }, [text])
   const send = async () => {
     const body = text.trim()
     if (!body) return
@@ -4579,6 +4604,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
     }
     setText('')
     setMsgs(m => [...m, { role: 'user', text: body, pending: true }])
+    setAtEnd(true) // what was just sent is shown
     sentAt.current = Date.now()
     setWaiting(true)
     try {
@@ -4613,16 +4639,35 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
         ]
       }),
       jsxs('div', {
-        ref: listRef,
-        style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px 12px', display: 'flex', flexDirection: 'column', gap: 12 },
+        style: { position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
         children: [
-          !ready ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('loading') }) : null,
-          ready && !rid && (state === 'gone' || state === 'none')
-            ? jsx('div', { style: { margin: 'auto', textAlign: 'center', fontSize: 13, color: C.text3, lineHeight: 1.5 }, children: t(state === 'gone' ? 'chatGone' : 'noChat') })
-            : null,
-          ...msgs.map((m, i) => jsx(ChatMessage, { m }, m.row_id || i)),
-          waiting || running ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('working') }) : null,
-          err ? jsx('div', { style: { fontSize: 12, color: C.danger }, children: err }) : null
+          jsxs('div', {
+            ref: listRef,
+            onScroll,
+            style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 18px 12px', display: 'flex', flexDirection: 'column', gap: 12 },
+            children: [
+              !ready ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('loading') }) : null,
+              ready && !rid && (state === 'gone' || state === 'none')
+                ? jsx('div', { style: { margin: 'auto', textAlign: 'center', fontSize: 13, color: C.text3, lineHeight: 1.5 }, children: t(state === 'gone' ? 'chatGone' : 'noChat') })
+                : null,
+              ...msgs.map((m, i) => jsx(ChatMessage, { m }, m.row_id || i)),
+              waiting || running ? jsx('div', { style: { fontSize: 13, color: C.text3 }, children: t('working') }) : null,
+              err ? jsx('div', { style: { fontSize: 12, color: C.danger }, children: err }) : null
+            ]
+          }),
+          // Hermes' own jump control (its thread-jump-button classes), centred over the list's foot.
+          atEnd
+            ? null
+            : jsxs('button', {
+                type: 'button',
+                'data-state': 'in',
+                'aria-label': t('scrollToBottom'),
+                onClick: toEnd,
+                className: 'thread-jump-button absolute left-1/2 z-20 flex h-8 items-center gap-1.5 rounded-full border bg-(--composer-fill) px-3 text-xs font-medium backdrop-blur-[0.75rem] border-border/65 text-muted-foreground hover:text-foreground',
+                style: { ...font, position: 'absolute', left: '50%', bottom: 8, transform: 'translateX(-50%)', zIndex: 20, height: 32, display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '0 12px', borderRadius: 999, border: `1px solid ${C.line}`, background: C.pop, color: C.text2, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer' },
+                children: [jsx(Icon, { name: 'down', size: 14 }), jsx('span', { children: t('scrollToBottom') })]
+              })
         ]
       }),
       jsx('div', {
@@ -4637,6 +4682,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
               ref: inputRef,
               value: text,
               rows: 2,
+              // its height follows its words (the layout effect above); this is where it starts
               disabled: !ready,
               'aria-label': t('describeChange'),
               placeholder: t('describeChange'),
@@ -4648,7 +4694,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
                 }
               },
               className: 'outline-none',
-              style: { ...font, width: '100%', resize: 'none', border: 0, background: 'transparent', color: C.fg, fontSize: 14, lineHeight: 1.5 }
+              style: { ...font, display: 'block', width: '100%', resize: 'none', border: 0, background: 'transparent', color: C.fg, fontSize: 14, lineHeight: 1.5, maxHeight: COMPOSER_MAX_PX }
             }),
             jsxs('div', {
               style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },

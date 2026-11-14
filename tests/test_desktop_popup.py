@@ -330,6 +330,14 @@ class PopupLayoutTests(unittest.TestCase):
         self.assertIn("width: 'min(440px, calc(100% - 32px))', height: 'min(600px, calc(100% - 72px))'", chat)
         self.assertIn("background: C.bg, boxShadow: C.shadowModal", chat)
         self.assertIn("e.key !== 'Escape'", chat)
+        # Acceptance round 2: the message box stayed 42 px with 126 px of words. It grows to six lines, then
+        # scrolls, and is back to two after a send; scrolled up, Hermes' own Scroll to bottom control shows.
+        self.assertIn("const COMPOSER_MAX_PX = 6 * 21", src)
+        self.assertIn("el.style.height = `${h}px`", chat)
+        self.assertIn("el.style.overflowY = el.scrollHeight > COMPOSER_MAX_PX ? 'auto' : 'hidden'", chat)
+        self.assertIn("}, [text])", chat)
+        self.assertIn("className: 'thread-jump-button absolute left-1/2", chat)
+        self.assertIn("useEffect(() => { if (atEnd) toEnd() }, [msgs.length, waiting])", chat)
         switch = src[src.index("function ChatSwitch("):src.index("function Header(")]
         self.assertNotRegex(switch, r"#[0-9a-fA-F]{3,8}\b|rgba?\(")
 
