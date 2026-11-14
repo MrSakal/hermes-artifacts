@@ -1569,6 +1569,10 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
         if by == "hermes" and base_rev is None and guarded:
             raise BoardError("missing_guard", "changing items that are on the board needs base_rev: the rev you read "
                                               "(ha_live_read)", rev=st["rev"])
+        if by == "hermes" and guarded:  # an item whose text the user is typing, not saved yet
+            busy = store.typing_hits(aid, list(guarded))
+            if busy:
+                raise store.typing_conflict(BoardError, "items", busy, st["rev"], f"ha_live_read id={aid} range=<ids>")
         if base_rev is not None and guarded:
             _guard(st, by, int(base_rev), guarded, aid)
         _check_refs(work["items"])

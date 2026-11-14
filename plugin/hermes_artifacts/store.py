@@ -1945,6 +1945,63 @@ def conflict(err: type, what: str, ids: list, base: int, rev: int, current, read
     return e
 
 
+# --- typing: what the user is typing in right now (a doc's block, a sheet's cell, a board's item) -------
+# A page says so at the first key and every TYPING_PING_S while the words are not saved; Hermes' edit of such
+# a part within TYPING_TTL_S is a conflict (nothing changed, it is told), so words not saved yet are never
+# written over: the page's save follows, and Hermes reads them before it edits again. On disk (one small file
+# for every artifact, like the view context): the tools and the page's API may run in different processes.
+
+TYPING_TTL_S = 4.0
+MAX_TYPING_KEYS = 20
+
+
+def _typing_path() -> Path:
+    return root() / "typing.json"
+
+
+def typing_set(aid: str, keys) -> None:
+    """The user is typing in these parts of ``aid`` now (at most MAX_TYPING_KEYS short ids)."""
+    _dir(aid)  # a valid id
+    ks = [str(k)[:80] for k in (keys if isinstance(keys, list) else [])][:MAX_TYPING_KEYS]
+    with _LOCK:
+        p, now = _typing_path(), time.time()
+        try:
+            data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        except ValueError:
+            data = {}
+        data = {a: {k: t for k, t in v.items() if now - t <= TYPING_TTL_S} for a, v in data.items() if isinstance(v, dict)}
+        if ks:
+            data.setdefault(aid, {}).update({k: now for k in ks})
+        data = {a: v for a, v in data.items() if v}
+        if data or p.is_file():
+            if data:
+                _write_json(p, data, durable=False)
+            else:
+                p.unlink(missing_ok=True)
+
+
+def typing_hits(aid: str, keys) -> list:
+    """Of ``keys``, those the user is typing in now (sorted)."""
+    p = _typing_path()
+    if not p.is_file():
+        return []
+    try:
+        mine = json.loads(p.read_text(encoding="utf-8")).get(aid) or {}
+    except (ValueError, OSError):
+        return []
+    now = time.time()
+    return sorted(k for k in set(map(str, keys)) if now - mine.get(k, 0) <= TYPING_TTL_S)
+
+
+def typing_conflict(err: type, what: str, ids: list, rev: int, read_next: str, **extra) -> Exception:
+    """Hermes' edit of parts the user is typing in: refused, nothing changed."""
+    e = err("conflict", f"the user is typing in {len(ids)} of the {what} you edit; nothing was changed",
+            rev=rev, ids=list(ids), **extra)
+    e.next = f"in a few seconds {read_next}, then redo your ops on what is there with its rev as base_rev"
+    e.dont = CONFLICT_DONT
+    return e
+
+
 def _same_bytes(a: Path, b: Path) -> bool:
     try:
         if os.path.samefile(a, b):  # a version links the files it kept from the one before

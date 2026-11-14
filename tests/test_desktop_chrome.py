@@ -909,8 +909,8 @@ class ServerContractTests(unittest.TestCase):
         self.assertEqual(out["long"], "x" * 39 + "…: Saved")
         self.assertEqual(out["none"], "?: Saved")
         handler = section("if (m.op === 'notify') {", "if (m.op === 'vendor') {")
-        # a plain page has no kit: refused as an error the bridge rejects with (the kit then shows its own)
-        self.assertIn("if ((art.type || 'page') === 'page') return reply({ ok: false, error:", handler)
+        # a plain page has no kit: answered quietly, nothing shown (a refusal threw in the page on every call)
+        self.assertIn("if ((art.type || 'page') === 'page') return reply({ ok: true, value: { ok: false, shown: false } })", handler)
 
 
 

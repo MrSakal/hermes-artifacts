@@ -782,8 +782,19 @@
     return outbox.some(function (e) { return e.ops.some(function (o) { return (realIds[o.block] || o.block) === id || o.tmp === id || realIds[o.tmp] === id; }); });
   }
   function dirty(f, el) { return !!(f.timer || f.sug || composing || pendingFor(f.id) || (el && mdOf(el) !== f.saved)); }
+  // The server is told at once (and every 1.5 s while typing) which block has words not saved yet: Hermes'
+  // edit of it is refused, and Hermes told, until the save (store.typing_set). A race the ping loses is the
+  // save's conflict (conflicted): the words stay, as a suggestion on Hermes' text, and the page says so.
+  var typed = {};
+  function typingPing(id) {
+    var real = realIds[id] || id, now = Date.now();
+    if (!live || !hm.typing || /^tmp-/.test(real) || now - (typed[real] || 0) < 1500) return;
+    typed[real] = now;
+    hm.typing([real]).catch(function () {});
+  }
   function scheduleSave(el) {
     var id = el.getAttribute("data-block");
+    typingPing(id);
     if (!focused || focused.id !== id) focused = track(id, el);
     clearTimeout(focused.timer);
     focused.timer = setTimeout(function () { save(false); }, 700);

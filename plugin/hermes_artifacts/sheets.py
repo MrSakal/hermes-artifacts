@@ -1178,6 +1178,11 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
     if by == "hermes" and base_rev is None and nonempty:
         raise SheetError("missing_guard", "writing over cells that hold values needs base_rev: the rev you read "
                                           "(ha_live_read)", rev=sh["rev"])
+    if by == "hermes" and touched:  # a cell the user is typing in (its editor open), not saved yet
+        busy = store.typing_hits(aid, [f"{sh['id']}!{k}" for k in touched])
+        if busy:
+            raise store.typing_conflict(SheetError, "cells", [b.split("!", 1)[1] for b in busy], sh["rev"],
+                                        f"ha_live_read id={aid} tab=<tab> range=<ids>", tab=sh["id"])
     if base_rev is not None:
         base = int(base_rev)
         cell_ops = any(o.get("op") in _CELL_OPS for o in ops)

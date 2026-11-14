@@ -277,6 +277,10 @@ def _op(aid: str, op: str, a: dict) -> dict:
         store.view_set(str(a.get("session", "")), aid if not a.get("closed") else None,
                        a.get("context") if isinstance(a.get("context"), dict) else {})
         return {"ok": True}
+    if op == "typing":
+        # The parts the user is typing in now (store.typing_set): Hermes' edit of them waits for their save.
+        store.typing_set(aid, a.get("keys"))
+        return {"ok": True}
     if op == "report":
         kind = str(a.get("kind", ""))
         store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})

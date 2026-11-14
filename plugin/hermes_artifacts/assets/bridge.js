@@ -805,6 +805,9 @@
     },
     /** Type runtimes: where the user is in the page (sent along with their next chat message). */
     view: function (context) { return call("view", { context: context || {} }); },
+    /** Live types: the parts the user is typing in now (a doc's block ids, "<sheet>!A1", a board's item ids),
+     *  words not saved yet; Hermes' edit of them is refused until the save (a few seconds). */
+    typing: function (keys) { return call("typing", { keys: (keys || []).slice(0, 20).map(String) }); },
     /** Type runtimes: report what the page found ("check") and how its sources ran ("runs"). */
     report: function (kind, data) { return call("report", { kind: String(kind), data: data || {} }); },
     /** Dashboards: open Hermes' Connectors page at a server, to sign in again or turn it on. */

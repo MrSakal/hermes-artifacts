@@ -73,6 +73,7 @@ class Host:
     def __init__(self):
         from hermes_artifacts import api
         self.api = api
+        self.hooks = {}  # name -> callable answering GET /hook/<name> (JSON)
         host = self
 
         class H(BaseHTTPRequestHandler):
@@ -101,6 +102,8 @@ class Host:
                     return self._send(200, r["html"].encode("utf-8"), "text/html; charset=utf-8")
                 if parts[0] == "vendor":
                     return self._send(200, host.api.handle("GET", "/vendor/" + parts[1], {}, None))
+                if parts[0] == "hook" and parts[1] in host.hooks:  # a test's own step (e.g. Hermes' edit), from the driver
+                    return self._send(200, host.hooks[parts[1]]())
                 self._send(404, {"detail": "nf"})
 
             def do_POST(self):

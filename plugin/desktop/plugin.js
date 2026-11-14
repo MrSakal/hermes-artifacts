@@ -3550,8 +3550,9 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
           }
           if (m.op === 'notify') {
             // The kit's short note (kit.js toast): Hermes' own toast, under the artifact's name and kept to a
-            // few (noteGate). A plain page has no kit: it shows its own. Out of sight it is answered, not shown.
-            if ((art.type || 'page') === 'page') return reply({ ok: false, error: 'notify is for the typed artifacts; a page shows its own note' })
+            // few (noteGate). A plain page has no kit: it shows its own, so its call is answered quietly with
+            // shown:false (a refusal would throw in the page on every call). Out of sight it is answered, not shown.
+            if ((art.type || 'page') === 'page') return reply({ ok: true, value: { ok: false, shown: false } })
             const note = notifyArgs(m.args)
             if (!note) return reply({ ok: false, error: 'notify takes {message: 1-300 characters, kind: info|success|error, ms: null or 1-15000}' })
             if (!F.hidden(rec) && noteGate(rec.notes || (rec.notes = { times: [], msg: '' }), note.message, Date.now())) toast(noteText(art.title, note.message), note.kind, note.ms)

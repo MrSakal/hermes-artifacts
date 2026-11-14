@@ -32,7 +32,7 @@
       exp: "Export", xlsx: "Excel (.xlsx)", csv: "CSV (this sheet)", imp: "Import", impNew: "Import into a new sheet…", impReplace: "Import, replacing this sheet…",
       building: "Building…", noLib: "The export library didn't load (open the sheet in Hermes Desktop)", noXlsx: "Excel files can't be read or written here",
       saving: "Saving…", saved: "Saved", offline: "Read-only: open the latest version in Hermes Desktop to edit",
-      conflict: "Hermes changed these cells meanwhile: they now show Hermes' values", sheetWord: "Sheet", addSheet: "New sheet", rename: "Rename",
+      conflict: "Hermes changed these cells meanwhile: they now show Hermes' values", keptMine: "Hermes changed this cell while you typed: your value is kept (Undo brings Hermes' back)", sheetWord: "Sheet", addSheet: "New sheet", rename: "Rename",
       delSheet: "Delete sheet", delSheetQ: "Delete this sheet and everything on it?", del: "Delete", moveL: "Move left", moveR: "Move right",
       badName: "A sheet name is 1–40 characters, none of [ ] : * ? / \\ ' ! and not used twice",
       sum: "Sum", avg: "Average", count: "Count", working: "Hermes is working…", byHermes: "Hermes", sent: "Sent to Hermes",
@@ -80,7 +80,7 @@
       exp: "Exportálás", xlsx: "Excel (.xlsx)", csv: "CSV (ez a munkalap)", imp: "Importálás", impNew: "Importálás új munkalapra…", impReplace: "Importálás, ennek a munkalapnak a helyére…",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", noXlsx: "Excel fájl itt nem olvasható és nem írható",
       saving: "Mentés…", saved: "Elmentve", offline: "Csak olvasható: a szerkesztéshez nyisd meg a legújabb verziót a Hermes Desktopban",
-      conflict: "Ezeket a cellákat közben a Hermes módosította: most az ő értékei látszanak", sheetWord: "Munkalap", addSheet: "Új munkalap", rename: "Átnevezés",
+      conflict: "Ezeket a cellákat közben a Hermes módosította: most az ő értékei látszanak", keptMine: "A Hermes módosította ezt a cellát, amíg gépeltél: a te értéked maradt (a Visszavonás visszahozza az övét)", sheetWord: "Munkalap", addSheet: "Új munkalap", rename: "Átnevezés",
       delSheet: "Munkalap törlése", delSheetQ: "Törlöd ezt a munkalapot a teljes tartalmával együtt?", del: "Törlés", moveL: "Áthelyezés balra", moveR: "Áthelyezés jobbra",
       badName: "A munkalap neve 1–40 karakter, nem lehet benne [ ] : * ? / \\ ' ! és nem lehet foglalt",
       sum: "Összeg", avg: "Átlag", count: "Darab", working: "A Hermes dolgozik…", byHermes: "Hermes", sent: "Elküldve a Hermesnek",
@@ -898,8 +898,16 @@
     drawOverlay();
     acUpdate();
   }
+  // A cell typed in tells the server so at once and every 1.5 s while its editor is open (store.typing_set):
+  // Hermes' edit of that cell is refused, and Hermes told, until the person's value is saved.
+  var typingTimer = null;
+  function typingCell() {
+    if (!ed) { clearInterval(typingTimer); typingTimer = null; return; }
+    if (live && hm.typing) hm.typing([ed.sid + "!" + key(ed.r, ed.c)]).catch(function () {});
+  }
   function onEdInput(e) {
     if (!ed) { if (e.target === fxTa && !ro()) { var v = fxTa.value; beginEdit(v, "edit", true); } return; }
+    if (!typingTimer) { typingCell(); typingTimer = setInterval(typingCell, 1500); }
     var other = e.target === fxTa ? edTa : fxTa;
     other.value = e.target.value;
     ed.point = null;
@@ -1028,7 +1036,10 @@
       return;
     }
     var f = s.fmt[k];
-    if (!same(s.cells[k], p.value) || p.num && !(f && f.num)) setBlock(s, e.r, e.c, [[p.value]], p.num && !(f && f.num) ? { num: p.num } : null);
+    if (!same(s.cells[k], p.value) || p.num && !(f && f.num)) {
+      setBlock(s, e.r, e.c, [[p.value]], p.num && !(f && f.num) ? { num: p.num } : null);
+      if (e.theirs) kit.toast(T.keptMine); // Hermes changed it while the editor was open: never silently over it
+    }
     if (dr || dc) moveInSel(dr, dc);
   }
   function shift(fx, dr, dc) {
@@ -2758,6 +2769,7 @@
           if (r.rev === s.rev) return;
           keys = applyDelta(s, r);
         }
+        if (ed && ed.sid === s.id && keys.indexOf(key(ed.r, ed.c)) >= 0) ed.theirs = true; // said when it is saved
         invalidate();
         if (s === book[cur]) refresh();
         flashCells(s, keys);

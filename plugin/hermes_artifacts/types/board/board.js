@@ -30,7 +30,7 @@
       hist: "Version history", histNone: "No earlier versions yet", byH: "Hermes", byYou: "you", byRestore: "restored",
       showing: "Showing the board as it was on {t}. View only.", restoreThis: "Restore this version", backNow: "Back to now", restored: "Restored",
       exp: "Export", expPng: "PNG picture", expSvg: "SVG drawing", expFail: "The picture could not be made",
-      working: "Hermes is working…", conflict: "Hermes changed that at the same time. The board was read again.", failed: "That change did not go through. The board was read again.",
+      working: "Hermes is working…", conflict: "Hermes changed that at the same time. The board was read again.", keptMine: "Hermes changed this text while you typed: yours is kept (Undo brings Hermes' back)", failed: "That change did not go through. The board was read again.",
       kind: "Shape", size: "Text size", szSmall: "Small", szBody: "Normal", szLarge: "Large", szTitle: "Title", szHuge: "Huge",
       bold: "Bold", italic: "Italic", link: "Link", linkPh: "https://…", apply: "Apply", list: "List",
       align: "Align text", alLeft: "Left", alCenter: "Centre", alRight: "Right",
@@ -63,7 +63,7 @@
       hist: "Korábbi változatok", histNone: "Még nincs korábbi változat", byH: "Hermes", byYou: "te", byRestore: "visszaállítva",
       showing: "A tábla ekkori állapota: {t}. Csak megtekintés.", restoreThis: "Változat visszaállítása", backNow: "Vissza a mostanihoz", restored: "Visszaállítva",
       exp: "Exportálás", expPng: "PNG kép", expSvg: "SVG rajz", expFail: "A képet nem sikerült elkészíteni",
-      working: "Hermes dolgozik…", conflict: "Hermes ugyanekkor módosította. A tábla újra be lett olvasva.", failed: "A módosítás nem ment át. A tábla újra be lett olvasva.",
+      working: "Hermes dolgozik…", conflict: "Hermes ugyanekkor módosította. A tábla újra be lett olvasva.", keptMine: "A Hermes módosította ezt a szöveget, amíg gépeltél: a tiéd maradt (a Visszavonás visszahozza az övét)", failed: "A módosítás nem ment át. A tábla újra be lett olvasva.",
       kind: "Alakzat", size: "Szövegméret", szSmall: "Kicsi", szBody: "Normál", szLarge: "Nagy", szTitle: "Cím", szHuge: "Óriás",
       bold: "Félkövér", italic: "Dőlt", link: "Hivatkozás", linkPh: "https://…", apply: "Alkalmaz", list: "Lista",
       align: "Szöveg igazítása", alLeft: "Balra", alCenter: "Középre", alRight: "Jobbra",
@@ -846,7 +846,7 @@
     normItems(r.changed).forEach(function (nw) {
       var old = byId[nw.id];
       if (old && ed && ed.id === nw.id) {            // being typed in: the typing stays, the rest follows
-        if (ed.kind === "text") { nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
+        if (ed.kind === "text") { if ((nw.text || "") !== (ed.theirs != null ? ed.theirs : ed.orig)) ed.theirs = nw.text || ""; nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
         else if (ed.kind === "cell") {
           // the cell being typed in stays while the table still has it (the server's copy of a table
           // just placed differs from ours only in what it worked out); the typing is put into its rows
@@ -1977,6 +1977,7 @@
     n.el.classList.add("bd-editing");
     ed = { kind: "text", id: id, ta: ta, orig: it.text || "", h0: it.h, ph: o.ph || null, one: one };
     ta.addEventListener("input", edInput);
+    ta.addEventListener("input", typingOn);
     ta.addEventListener("keydown", function (e) {
       var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
       if (e.key === "Escape") {
@@ -1994,6 +1995,14 @@
     if (o.ch) ta.setRangeText(o.ch, ta.selectionStart, ta.selectionEnd, "end");
     edInput(); drawCtx(); drawUi();
   }
+  // An item typed in tells the server so at once and every 1.5 s while the typing lasts (store.typing_set):
+  // Hermes' edit of it is refused, and Hermes told, until the person's words are saved.
+  var typingTimer = null;
+  function typingItem() {
+    if (!ed) { clearInterval(typingTimer); typingTimer = null; return; }
+    if (live && hm.typing && !fresh[ed.id]) hm.typing([ed.id]).catch(function () {});
+  }
+  function typingOn() { if (!typingTimer) { typingItem(); typingTimer = setInterval(typingItem, 1500); } }
   /** While typing: the text is the item's at once (not yet sent), a block grows taller to hold it. */
   function edInput() {
     if (!ed || ed.kind !== "text") return;
@@ -2024,8 +2033,9 @@
     if (n && n.el) n.el.classList.remove("bd-editing");
     if (!it) return;
     var text = (e.one ? e.ta.value.replace(/\n/g, " ") : e.ta.value).replace(/\s+$/, "").slice(0, 4000), hNew = cancel === true ? e.h0 : it.h;
-    if (cancel === true) text = e.orig;
-    it.text = e.orig;                                   // back to what it was, then one undoable edit
+    var was = e.theirs != null ? e.theirs : e.orig;      // Hermes' text when it changed it meanwhile
+    if (cancel === true) text = was;
+    it.text = was;                                      // back to what it was, then one undoable edit
     if (e.h0 != null) it.h = e.h0;
     inval(it.id);
     if (fresh[it.id]) {                                 // a text that was never sent: it starts existing now, or never did
@@ -2044,6 +2054,7 @@
       return;
     }
     var p = { text: text };
+    if (e.theirs != null && text !== e.theirs) kit.toast(T.keptMine); // Hermes changed it while it was typed in: never silently over it
     if ((it.type === "box" || it.type === "note") && hNew !== e.h0) p.h = hNew;
     if (!patch([it.id], function () { return p; })) afterChange();
   }
@@ -2075,6 +2086,7 @@
     ed = { kind: "cell", id: id, ta: ta, r: r, c: c, orig: ta.value };
     var size = function () { ta.style.height = "0px"; ta.style.height = ta.scrollHeight + "px"; };
     ta.addEventListener("input", size);
+    ta.addEventListener("input", typingOn);
     ta.addEventListener("keydown", function (e) {
       var rows = (it.rows || []).length, cols = n.el.querySelectorAll("col").length, r2 = r, c2 = c;
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); ta.value = ed.orig; endEdit(); view.focus({ preventScroll: true }); return; }
