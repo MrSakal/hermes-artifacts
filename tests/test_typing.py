@@ -126,6 +126,13 @@ class DocPageRace(unittest.TestCase):
             p = store.root() / "typing.json"
             if p.exists():
                 p.unlink()
+        else:
+            # The page's mark goes key -> bridge -> host -> fetch -> server: ~10 ms idle, but under a loaded full
+            # suite it can take longer than the 120 ms the driver waits, and the edit then lands as in the lost race
+            # (the test's other case). This case is about a mark that is there: wait for it (at most 2 s).
+            end = time.monotonic() + 2
+            while not store.typing_hits(self.aid, [self.bid]) and time.monotonic() < end:
+                time.sleep(0.01)
         try:
             docs.apply(self.aid, [{"op": "replace", "block": self.bid, "md": "Agent last. Tail."}], by="hermes", base_rev=self.rev)
             return "applied"
