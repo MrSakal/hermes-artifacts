@@ -2151,11 +2151,11 @@ function NewTile({ ctx, kind }) {
         // Hermes' focus ring around the tile and its name, with room inside it (the padding, given back by the
         // margin, so the tiles do not move): the name never touches the ring.
         className: TEXT_BTN,
-        style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, border: 0, padding: 4, margin: -4, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+        style: { ...font, display: 'flex', flexDirection: 'column', gap: 8, boxSizing: 'border-box', width: 'calc(100% + 8px)', border: 0, padding: 4, margin: -4, background: 'transparent', cursor: 'pointer', textAlign: 'left' },
         children: [
           jsx('div', {
             style: {
-              width: 136,
+              width: '100%',
               height: 96,
               borderRadius: C.rXl,
               display: 'flex',
@@ -2983,7 +2983,9 @@ function Gallery({ ctx, pageRef }) {
             inTrash
               ? null
               : jsx('div', {
-                  style: { display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 34 },
+                  // As the cards under it: the row fills the width (tiles of 136 px and up), so its right edge
+                  // is the toolbar's at every width, not ragged.
+                  style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(136px, 1fr))', gap: 14, marginBottom: 34 },
                   children: NEW_KINDS.map(k => jsx(NewTile, { ctx, kind: k }, k))
                 }),
             body

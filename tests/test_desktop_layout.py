@@ -202,6 +202,29 @@ class LayoutTests(unittest.TestCase):
             if o["searching"]:
                 self.assertGreaterEqual(tools[0]["w"], 160, msg)
 
+    def test_the_new_tiles_end_where_the_toolbar_ends(self):
+        # Round V1 at 400 px: the "Make something new" tiles (136 px each, wrapped) ended at 314 px, the toolbar at 364.
+        out = self.gallery("""
+          const out = []
+          for (let w = 400; w <= 1600; w += 40) {
+            root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            const bar = root.querySelector('h1').nextElementSibling
+            const grid = [...root.querySelectorAll('div')].find(d => d.textContent === 'Make something new').nextElementSibling
+            const tiles = [...grid.children].map(c => box(c.querySelector('button').firstElementChild))
+            out.push({ w, bar: box(bar), tiles })
+          }
+          R.unmount()
+          return out
+        """ % NEXT)
+        for o in out:
+            first = [t for t in o["tiles"] if abs(t["t"] - o["tiles"][0]["t"]) < 1]
+            self.assertGreaterEqual(min(t["w"] for t in o["tiles"]), 136, o["w"])
+            self.assertAlmostEqual(first[0]["l"], o["bar"]["l"], delta=0.5, msg=o["w"])
+            if len(first) < len(o["tiles"]):  # a full first row: its last tile ends with the toolbar
+                self.assertAlmostEqual(first[-1]["r"], o["bar"]["r"], delta=1, msg=o["w"])
+
     def test_a_closed_menu_or_dialog_gives_the_focus_back(self):
         out = self.gallery("""
           root.style.width = '1200px'
