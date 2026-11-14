@@ -64,11 +64,14 @@ const STRINGS = {
     chatModes: 'Where the chat shows',
     popupLabel: 'Chat with Hermes',
     makingTag: 'Being made',
-    makingTab: name => `${name} (being made)`,
+    makingTab: name => (name.length > 10 ? name : `${name}…`), // Hermes' tab clips past ~13 capitals
     makingOpen: name => `Show the ${name.toLowerCase()} being made`,
     makingArtifact: 'Artifact',
     stepGuide: name => `Reading the ${name.toLowerCase()} guide`,
-    stepTool: tool => `Using ${tool}`,
+    stepCheck: 'Checking',
+    stepRead: 'Reading',
+    stepEdit: 'Changing it',
+    stepWork: 'Working',
     stepThink: 'Thinking',
     stepWrite: name => `Writing the ${name.toLowerCase()}`,
     stepPublish: 'Publishing',
@@ -328,11 +331,14 @@ const STRINGS = {
     chatModes: 'Hol látszik a chat',
     popupLabel: 'Chat a Hermesszel',
     makingTag: 'Készül',
-    makingTab: name => `${name} (készül)`,
+    makingTab: name => (name.length > 10 ? name : `${name}…`),
     makingOpen: name => `A készülő ${name.toLowerCase()} megjelenítése`,
     makingArtifact: 'Artifact',
     stepGuide: name => `Útmutató olvasása: ${name.toLowerCase()}`,
-    stepTool: tool => `Eszköz: ${tool}`,
+    stepCheck: 'Ellenőrzés',
+    stepRead: 'Olvasás',
+    stepEdit: 'Módosítás',
+    stepWork: 'Dolgozik',
     stepThink: 'Gondolkodik',
     stepWrite: name => `Írja: ${name.toLowerCase()}`,
     stepPublish: 'Közzététel',
@@ -887,15 +893,10 @@ async function handover(ctx, p) {
   }
 }
 
-/** This plugin's own tools: the step line says them without the `ha_` (another plugin's ha_* stays as it is). */
-const OWN_TOOLS = new Set(['ha_publish', 'ha_guide', 'ha_check', 'ha_live_read', 'ha_live_edit', 'ha_list', 'ha_read', 'ha_open',
-  'ha_inbox', 'ha_delete', 'ha_comments', 'ha_reply', 'ha_design_system_get', 'ha_design_system_export'])
-
-/** A tool name as the step line says it. */
-const toolLabel = name => {
-  const s = String(name || '')
-  return (OWN_TOOLS.has(s) ? s.slice(3) : s).replace(/^mcp__/, '').replace(/__|_/g, ' ').trim()
-}
+/** The step line never names a tool: this plugin's own say what they do, any other is Working. */
+const TOOL_STEP = { ha_check: 'stepCheck', ha_live_read: 'stepRead', ha_read: 'stepRead', ha_list: 'stepRead', ha_comments: 'stepRead',
+  ha_inbox: 'stepRead', ha_design_system_get: 'stepRead', ha_live_edit: 'stepEdit' }
+const toolStep = name => TOOL_STEP[String(name || '')] || 'stepWork'
 
 /** The chat in front's tool events move the placeholder's step line; a publish starting in a chat that
  *  read no guide this turn (an older backend, a guide read earlier) opens a placeholder too. */
@@ -925,16 +926,22 @@ function onTool(ctx, ev) {
     // The bridge is announced before its arguments, so the tool it runs is not known yet ("tool call" says
     // nothing): in a making (the guide read) the long one is the publish being written; tool.start corrects it.
     if (name === 'tool_call') return m && m.step !== 'publish' ? setMaking(sid, { step: 'write' }) : undefined
-    if (m) setMaking(sid, name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) })
+    if (m) setMaking(sid, name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolStep(name) })
   } else if (ev.type === 'tool.start') {
-    if (!m) return
-    // A write to an artifact there is: the making is an edit of it.
-    const edit = !m.edit && (name === 'ha_publish' || name === 'ha_live_edit') && typeof args?.id === 'string' &&
-      $list.get().some(a => a.id === args.id) ? { edit: args.id } : {}
+    // A write to an artifact there is (ha_live_edit, ha_publish with its id): an edit of it.
+    const target = (name === 'ha_publish' || name === 'ha_live_edit') && typeof args?.id === 'string' ? $list.get().find(a => a.id === args.id) : null
+    if (!m) {
+      // No guide was read this turn (an edit never reads one): the edit starts the band in the artifact
+      // ("Editing <title> · <step>"); it ends with the turn (local).
+      if (!target) return
+      return setMaking(sid, { session: sid, type: target.type, started: Date.now(), title: null, local: true, edit: target.id,
+        ...(name === 'ha_publish' ? { step: 'publish' } : { step: 'tool', tool: toolStep(name) }) })
+    }
+    const edit = !m.edit && target ? { edit: target.id } : {}
     if (name === 'ha_publish') {
       const type = typeof args?.type === 'string' && (PLACEHOLDER.has(args.type) || args.type === 'doc') ? args.type : m.type
       setMaking(sid, { step: 'publish', title: (typeof args?.title === 'string' && args.title.trim()) || m.title || null, type, ...edit })
-    } else setMaking(sid, { ...(name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolLabel(name) }), ...edit })
+    } else setMaking(sid, { ...(name === 'ha_guide' ? { step: 'guide' } : { step: 'tool', tool: toolStep(name) }), ...edit })
   } else if (ev.type === 'tool.complete' && m && m.step !== 'publish') setMaking(sid, { step: 'think' })
 }
 
@@ -4938,7 +4945,9 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         : []),
       { icon: 'download', label: t('exportMenu'), sub: true, disabled: !exportItems.length, onClick: () => setView('export') },
       { icon: 'copy', label: t('duplicate'), onClick: close(async () => { const r = await duplicateArt(ctx, art); if (r) openHere(ctx, r.id) }) },
-      { icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(errText(e), 'error') } }) },
+      // Open chat: not where its chat is already on screen (the pane beside it, or over it)
+      ...($chat.get() === 'split' && art.session && onChatRoute(art.session) ? []
+        : [{ icon: 'comment', label: t('openChat'), onClick: close(async () => { try { const c = await ensureChat(art); await host.openSession(c.stored) } catch (e) { toast(errText(e), 'error') } }) }]),
       { sep: true },
       { icon: 'pencil', label: t('rename'), onClick: close(onRename) },
       { sep: true },
@@ -5307,12 +5316,13 @@ function DockView({ ctx }) {
   return jsxs('div', { style: { position: 'relative', height: '100%', minHeight: 0 }, children: [body, jsx(Toast, {})] })
 }
 
+const TOOL_STEP_KEYS = new Set(['stepCheck', 'stepRead', 'stepEdit', 'stepWork'])
 /** The step line: what Hermes is doing now, from the chat's own tool events. */
 function stepText(t, m, name) {
   if (m.step === 'guide') return t('stepGuide', name)
   if (m.step === 'write') return t('stepWrite', name)
   if (m.step === 'publish') return t('stepPublish')
-  if (m.step === 'tool' && m.tool) return t('stepTool', m.tool)
+  if (m.step === 'tool') return t(TOOL_STEP_KEYS.has(m.tool) ? m.tool : 'stepWork')
   return t('stepThink')
 }
 

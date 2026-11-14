@@ -493,10 +493,25 @@ await S('the ha_* tool events move the step line (the deferred bridge, MCP-style
   tool('tool.start', 'ha_check'); await settle(); seen.push(line())
   tool('tool.generating', 'mcp__web_search'); await settle(); seen.push(line())
   tool('tool.start', 'ha_publish', { type: 'board', title: 'Flow' }); await settle(); seen.push(line())
-  const want = ['stepThink', 'stepWrite:type_board', 'stepTool:check', 'stepTool:web search', 'stepPublish'].map(s => `makingBand:type_board · ${s}`)
+  const want = ['stepThink', 'stepWrite:type_board', 'stepCheck', 'stepWork', 'stepPublish'].map(s => `makingBand:type_board · ${s}`)
   if (JSON.stringify(seen) !== JSON.stringify(want)) throw new Error(JSON.stringify(seen))
   making('chatA', 'ended'); await settle()
   if (texts(tileEl()).some(x => x.startsWith('makingBand:'))) throw new Error('the line stayed after the turn')
+}, { split: true, making: null, reopens: 0 })
+await S('an edit of the artifact (no guide read): the band says Editing <title> and its step, never a tool name', async () => {
+  const line = () => texts(tileEl()).find(x => x.startsWith('editingBand:')) || ''
+  // the deferred bridge, as Hermes sends it: tool_call with one call, its arguments an object
+  emit('tool.start', { type: 'tool.start', payload: { tool_id: 't1', name: 'tool_call', context: 'ha_live_edit',
+    args: { calls: [{ name: 'ha_live_edit', arguments: { id: 'a1', base_rev: 9, ops: [] } }] } } }); await settle()
+  if (!/^editingBand:[^·]+ · stepEdit$/.test(line())) throw new Error('band ' + texts(tileEl()).join(' | '))
+  tool('tool.complete', 'tool_call'); await settle()
+  if (!/^editingBand:[^·]+ · stepThink$/.test(line())) throw new Error('after ' + line())
+  tool('tool.generating', 'mcp__describe'); await settle()
+  if (!/^editingBand:[^·]+ · stepWork$/.test(line())) throw new Error('unknown tool ' + line())
+  host.state.busy.set(true); await settle(); host.state.busy.set(false); await settle() // the turn ends
+  if (line()) throw new Error('the band stayed after the turn')
+  tool('tool.start', 'ha_live_read', { id: 'a1' }); await settle() // a read alone is no edit
+  if (line()) throw new Error('a read started the band')
 }, { split: true, making: null, reopens: 0 })
 await S('a doc made in that chat says its step there too', async () => {
   making('chatA', 'guide', { type: 'doc' }); await settle()

@@ -175,7 +175,7 @@ GOOD_CMD = "hermes config set plugins.entries.hermes-artifacts.mcp_allowlist '[b
 class AllowlistDialogTests(unittest.TestCase):
     """A denied MCP server: the host's own dialog shows the server's command, checked again, with Copy."""
 
-    EXPORTS = "\nexport { STRINGS, allowCommand, showAllowHelp, copyCommand, $confirm, $toast, toolLabel }\n"
+    EXPORTS = "\nexport { STRINGS, allowCommand, showAllowHelp, copyCommand, $confirm, $toast, toolStep }\n"
 
     def _copy(self, clipboard: str) -> dict:
         body = f"""
@@ -245,10 +245,30 @@ class AllowlistDialogTests(unittest.TestCase):
         for k in ("deniedTitle:", "deniedBody:", "howAllow:"):
             self.assertEqual(dash.count(k), 2, k)  # en and hu
 
-    def test_the_step_line_says_our_tools_without_the_prefix(self):
-        names = ["ha_check", "ha_live_read", "ha_design_system_export", "ha_inbox", "ha_other", "mcp__db__run_query"]
-        out = run_node(stub_module(self.EXPORTS), f"console.log(JSON.stringify({json.dumps(names)}.map(m.toolLabel)))")
-        self.assertEqual(out, ["check", "live read", "design system export", "inbox", "ha other", "db run query"])
+    def test_the_step_line_never_names_a_tool(self):
+        # Acceptance round 2: "Using tool describe 11s". Our tools say what they do; any other is Working.
+        names = ["ha_check", "ha_live_read", "ha_live_edit", "ha_inbox", "ha_other", "describe", "mcp__db__run_query", None]
+        out = run_node(stub_module(self.EXPORTS), f"console.log(JSON.stringify({{ s: {json.dumps(names)}.map(m.toolStep), en: m.STRINGS.en, hu: m.STRINGS.hu }}))")
+        self.assertEqual(out["s"], ["stepCheck", "stepRead", "stepEdit", "stepRead", "stepWork", "stepWork", "stepWork", "stepWork"])
+        for k in ("stepCheck", "stepRead", "stepEdit", "stepWork"):
+            self.assertTrue(out["en"][k] and out["hu"][k] and out["en"][k] != out["hu"][k], k)
+        self.assertNotIn("stepTool", out["en"])
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        self.assertIn("if (m.step === 'tool') return t(TOOL_STEP_KEYS.has(m.tool) ? m.tool : 'stepWork')", src)
+
+    def test_the_being_made_tab_title_fits_and_open_chat_is_not_offered_beside_its_chat(self):
+        # Round 2: the tab read "PAGE (BEING MA", clipped under its x (Hermes' tab: max-w-48, uppercase, clipped).
+        body = """
+        const out = {}
+        for (const l of ['en', 'hu']) { const S = m.STRINGS[l]; out[l] = Object.keys(S).filter(k => k.startsWith('type_') || k === 'makingArtifact').map(k => S.makingTab(S[k])) }
+        console.log(JSON.stringify(out))
+        """
+        out = run_node(stub_module(self.EXPORTS), body)
+        for l, titles in out.items():
+            self.assertTrue(titles and all(len(x) <= 13 for x in titles), (l, titles))
+        self.assertIn("Page…", out["en"])
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        self.assertIn("...($chat.get() === 'split' && art.session && onChatRoute(art.session) ? []", src)
 
 
 class DownloadTests(unittest.TestCase):
