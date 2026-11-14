@@ -98,8 +98,9 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   viewer does the same in its status line.
 - Where an artifact opens: from a chat (its card, the titlebar button, a publish) beside the chat or over
   it, whichever was used last (*Show chat* / *Pop out chat*, kept across restarts; a window under 836 px
-  opens it over the chat), and from the gallery always as the full page. The popup chat stays open or closed
-  as it was last left, separately over the expanded artifact and over the full page, also after a restart.
+  opens it over the chat), and from the gallery always as the full page, with no chat over it (*Pop out chat*
+  opens one for that artifact). The popup chat over the expanded artifact stays open or closed as it was last
+  left there, also after a restart.
 - The comments list docks beside the artifact where the stage has room (700 px); narrower it opens only when
   asked and then fills the whole stage, with a back arrow to the artifact.
 - The UI follows the app's language (English or Hungarian); what Hermes reads stays English, and what an

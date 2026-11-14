@@ -617,11 +617,12 @@ const $dockPos = atom('right')
 // WHERE AN ARTIFACT OPENS (the README says the same): opened from a chat (its card, the titlebar button,
 // entering the chat, a publish) it opens beside the chat or expanded over it, whichever the person used last,
 // kept across restarts; a window too narrow for the chat and the pane (PANE_ROOM) opens it expanded. The popup
-// chat's open state is remembered apart for each place it floats over (the expanded tile, the full page), also
-// across restarts. Opened from the gallery (a card, a row, a link to the page) it is always the full page.
+// chat over the expanded tile stays open or closed as it was last left there, also across restarts. Opened from
+// the gallery (a card, a row, a link to the page) it is always the full page, with no chat over it: Pop out
+// chat opens one there for that artifact (never carried to the next one, nor from a chat's layout).
 // (The pane's own expand is a zoom for that moment: Show chat, a card, the titlebar put it back beside the chat.)
 const $chatMode = atom('docked') // 'docked' (beside the chat) | 'expanded' (over the chat's area)
-const popOpen = { tile: false, page: false } // the popup chat open over the expanded tile / over the full page
+const popOpen = { tile: false } // the popup chat open over the expanded tile
 function setChatMode(m) { $chatMode.set(m); CTX?.storage?.set('chatMode', m) }
 function setPop(where, on) { popOpen[where] = Boolean(on); CTX?.storage?.set('popOpen', { ...popOpen }) }
 // Chat beside the pane needs the chat's own floor (420 px: what Hermes keeps a popped-out session window to)
@@ -4460,9 +4461,7 @@ function pageDocked(ctx, art) {
   return openSplit(ctx, art, 'right')
 }
 function pagePopup() {
-  const on = $chat.get() !== 'float'
-  setPop('page', on)
-  $chat.set(on ? 'float' : 'off')
+  $chat.set($chat.get() !== 'float' ? 'float' : 'off')
 }
 
 const shownText = m => String(m.text || '').replace(/^\[artifact: [^\]]*\]\s*/, '')
@@ -5836,7 +5835,7 @@ function Viewer({ ctx, docked = false }) {
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
               // the popup layout. Under the header and its bands (it lives in the stage), never mounted closed.
               !docked && chat === 'float'
-                ? jsx(FloatingChat, { ctx, art, onClose: () => (setPop('page', false), $chat.set('off')), onDock: () => pageDocked(ctx, art) }, art.id)
+                ? jsx(FloatingChat, { ctx, art, onClose: () => $chat.set('off'), onDock: () => pageDocked(ctx, art) }, art.id)
                 : docked && expanded && dockFloat
                   ? jsx(FloatingChat, { ctx, art, onClose: () => (setPop('tile', false), $dockFloat.set(false)), onDock: () => chatDocked(ctx) }, art.id)
                   : null
@@ -5889,7 +5888,7 @@ function Page({ ctx }) {
       if (id === undefined) return // leaving the page
       if (id) {
         if (id !== $selected.get()) openArtifact(ctx, id)
-        if ($chat.get() !== 'split') $chat.set(popOpen.page ? 'float' : 'off') // the full page's popup chat, as it was left
+        if ($chat.get() !== 'split') $chat.set('off') // the full page opens with no chat over it
       }
       else if ($selected.get()) {
         closeArtifact()
@@ -5941,7 +5940,6 @@ export default {
     $chatMode.set(ctx.storage.get('chatMode') === 'expanded' ? 'expanded' : 'docked')
     const po = ctx.storage.get('popOpen')
     popOpen.tile = Boolean(po?.tile)
-    popOpen.page = Boolean(po?.page)
     const savedClosed = ctx.storage.get('closedIn')
     if (Array.isArray(savedClosed)) savedClosed.forEach(s => typeof s === 'string' && closedIn.add(s))
     const stopTool = watchChatArtifactTool(ctx)

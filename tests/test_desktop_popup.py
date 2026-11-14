@@ -193,15 +193,15 @@ await S('with the popup layout picked, the page\'s Chat: beside its chat, docked
 }, { split: true, expanded: false, page: false, selected: 'b1', lit: 'chat:chatB' })
 
 // ---------------------------------------------------------------- one rule for every way in, and a restart
-await S('the popup chat over the full page is remembered apart: the page opens with it, the tile does not', async () => {
-  I.setPop('page', false) // closed there last
+await S('from the gallery the full page opens with no chat over it: Pop out chat opens one for that artifact only', async () => {
+  I.setPop('tile', true) // open over the expanded tile last: not carried to the full page
   routerNav(PAGE); await settle(); I.openOnPage(ctx, 'b1'); await settle()
+  want(I.$chat.get() === 'off' && !floating(routeEl()), 'popup from a chat layout: ' + I.$chat.get())
   click(routeEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
-  want(I.popOpen.page === true && storage.get('popOpen').page === true, 'page popup not kept ' + JSON.stringify(storage.get('popOpen')))
+  want(floating(routeEl())?.props.art.id === 'b1' && !('page' in (storage.get('popOpen') || {})), 'popOut ' + JSON.stringify(storage.get('popOpen')))
   routerNav(PAGE); await settle(); I.openOnPage(ctx, 'a1'); await settle() // the gallery again, another artifact
-  want(I.$chat.get() === 'float' && floating(routeEl())?.props.art.id === 'a1', 'page popup not back: ' + I.$chat.get())
-  I.FloatingChat(floating(routeEl()).props).props.onKeyDown({ key: 'Escape', stopPropagation() {}, nativeEvent: {} }); await settle()
-  want(I.popOpen.page === false, 'closing it not kept')
+  want(I.$chat.get() === 'off' && !floating(routeEl()), 'page popup carried over: ' + I.$chat.get())
+  I.setPop('tile', false)
 }, { page: true, selected: 'a1' })
 await S('a chat card with docked picked: beside the chat', async () => {
   I.setChatMode('docked')
@@ -221,9 +221,9 @@ await S('Pop out chat picks expanded: kept', async () => {
 }, { split: true, expanded: true, selected: 'a1' })
 await S('a restart keeps both: expanded, and the popup over the tile open', async () => {
   I.setPop('tile', true)
-  stop(); I.$chatMode.set('docked'); I.popOpen.tile = false; I.popOpen.page = false // what a fresh start has
+  stop(); I.$chatMode.set('docked'); I.popOpen.tile = false // what a fresh start has
   stop = mod.default.register(ctx); await settle()
-  want(I.$chatMode.get() === 'expanded' && I.popOpen.tile === true && I.popOpen.page === false, 'restored ' + mode() + JSON.stringify(I.popOpen))
+  want(I.$chatMode.get() === 'expanded' && I.popOpen.tile === true, 'restored ' + mode() + JSON.stringify(I.popOpen))
   routerNav('/chatB'); await settle()
   want(tilePos() === 'center' && mode() === 'expanded/true', 'chat B ' + tilePos() + ' ' + mode())
 }, { split: true, expanded: true, selected: 'b1', lit: 'chat:chatB' })
