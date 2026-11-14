@@ -144,5 +144,48 @@ class BannerTests(unittest.TestCase):
         self.assertIn(".dash-notice-text { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }", css)
 
 
+KPI4 = {"title": "Orders", "params": {"region": ""},
+        "datasets": {"r": {"title": "Regions", "source": {"kind": "rows", "rows": [{"region": "North", "orders": 41}, {"region": "South", "orders": 17}]}}},
+        "layout": [{"type": "filters", "items": [{"param": "region", "label": "Region", "input": "select", "options": {"source": "r", "field": "region"}}]},
+                   {"type": "kpis", "items": [{"label": "A", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "B", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "C", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "Region selected", "source": "r", "field": "orders", "agg": "sum", "format": "int",
+                                               "note": "orders in {param:region}"}]}]}
+
+
+class DashboardInTheBrowser(unittest.TestCase):
+    """Round 3: Full screen did not end on Esc, a KPI note read "orders in" with the region on All, and four KPIs
+    went 3 + 1 at 1000 px. Esc ends full screen, the note names the "all" choice, four KPIs go 4 or 2 + 2."""
+
+    def test_esc_note_and_balance(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(title="Orders", type="dashboard", files={"dashboard.json": KPI4})["id"]
+            out = {}
+            for w in (560, 760, 1000, 1500):
+                r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+                  const rows = await api.frame('(() => { const t = [...document.querySelectorAll(".c-kpi")].map(e => Math.round(e.getBoundingClientRect().top)); const m = {}; t.forEach(x => m[x] = (m[x] || 0) + 1); return Object.values(m) })()')
+                  const note = await api.frame('[...document.querySelectorAll(".c-kpi-note")].map(e => e.textContent.trim()).filter(Boolean)')
+                  const fb = '[...document.querySelectorAll(".dash-bar .kit-btn")].find(b => b.innerHTML.includes("M14 4h6v6"))'
+                  await api.clickIn(fb); await api.sleep(150)
+                  const on = await api.frame(fb + '.getAttribute("aria-pressed")')
+                  await api.key('Escape', 'Escape', 27); await api.sleep(150)
+                  return { rows, note, on, off: await api.frame(fb + '.getAttribute("aria-pressed")') }
+                """)
+                self.assertIsNone(r.get("err"), r)
+                out[w] = r["out"]
+        finally:
+            host.close()
+        for w, o in out.items():
+            self.assertNotIn(1, o["rows"][-1:] if len(o["rows"]) > 1 else [], (w, o["rows"]))   # no KPI alone on the last row
+            self.assertEqual(o["note"], ["orders in Mind"] if "Mind" in str(o["note"]) else ["orders in All"], w)
+            self.assertEqual((o["on"], o["off"]), ("true", "false"), w)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -137,9 +137,11 @@
 
   // ---------------------------------------------------------------- templates ("{kpi}" / "{param:x}")
   var values = {}, bare = {}, units = {}; // kpi id -> formatted value (with its unit), without it, the unit
+  var allLabels = {};                     // a select filter's param -> the label of its "all" choice
   function fill(text) {
     return String(text || "").replace(/\{(param:)?([A-Za-z_]\w*)\}/g, function (m, isParam, name, at, all) {
-      if (isParam) { var p = window.dash.params()[name]; return p == null ? "" : String(p); }
+      // a filter on its "all" choice reads as that choice's label ("orders in All"), never as nothing ("orders in")
+      if (isParam) { var p = window.dash.params()[name]; return p == null || p === "" ? (allLabels[name] || "") : String(p); }
       if (values[name] == null) return "—";
       // "{area} m²" when the KPI's own unit is m²: the unit is written once.
       var u = units[name], after = all.slice(at + m.length).replace(/^\*+/, "").replace(/^\s+/, "");
@@ -204,6 +206,7 @@
         else ctl.addEventListener("blur", apply);
       } else {
         ctl = h("select", { "aria-label": f.label || f.param });
+        if (f.all !== false) allLabels[f.param] = f.all || w("All", "Mind");
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }
       lab.appendChild(ctl);
@@ -245,6 +248,15 @@
       wrap.appendChild(card);
       cells.push({ k: k, val: val, delta: delta, note: note });
     });
+    // As many to a row as fit (12rem each), but never one left alone on the last row: four go 4 or 2 + 2, not 3 + 1
+    var n = cells.length;
+    if (n > 2 && typeof ResizeObserver === "function") new ResizeObserver(function () {
+      var gap = parseFloat(getComputedStyle(wrap).columnGap) || 0, rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var fit = Math.max(1, Math.floor((wrap.clientWidth + gap) / (12 * rem + gap))), c = Math.min(fit, n);
+      while (c > 2 && n % c === 1) c--;
+      var cols = "repeat(" + c + ", minmax(0, 1fr))";
+      if (wrap.style.gridTemplateColumns !== cols) wrap.style.gridTemplateColumns = cols;
+    }).observe(wrap);
     return { el: wrap, draw: function () {
       cells.forEach(function (c) {
         var k = c.k, r = rowsOf(k);

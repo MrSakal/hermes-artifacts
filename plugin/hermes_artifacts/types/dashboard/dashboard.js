@@ -1074,6 +1074,11 @@
     if (!window.hermes || !window.hermes.history) { histList = []; renderPanel(); return; }
     window.hermes.history.list().then(function (v) { histList = v || []; renderPanel(); }, function () { histList = null; renderPanel(T.hCantRead); });
   }
+  /** "Hermes · Edited the page": who, and what when there is a summary (no dangling separator without one). */
+  function byLine(v) {
+    var s = summaryText(v.summary, histList);
+    return (v.by === "user" ? T.you : "Hermes") + (s ? " · " + s : "");
+  }
   function renderHistory(err) {
     var head = h("div", { "class": "src-head" }, [h("b", { text: T.history }), iconBtn("close", T.close, function () { toggleHistory(false); })]);
     if (err) return [head, h("p", { "class": "src-empty", text: err })];
@@ -1083,7 +1088,7 @@
       return h("button", { "class": "src-li dash-version-row" + (v.n === shownVersion ? " picked" : ""), type: "button", onclick: function () { openVersion(v.n); } }, [
         h("span", { style: "flex:1;min-width:0;display:flex;flex-direction:column;gap:2px" }, [
           h("span", { "class": "src-li-t", text: whenText(v.at) + (v.current ? " · " + T.hCurrent : "") }),
-          h("span", { "class": "src-tool", text: (v.by === "user" ? T.you : "Hermes") + " · " + summaryText(v.summary, histList) })
+          h("span", { "class": "src-tool", text: byLine(v) })
         ])
       ]);
     });
@@ -1103,7 +1108,7 @@
     ]);
     var top = h("div", { "class": "src-top" }, [
       h("b", { "class": "src-title", text: whenText(v.at) }),
-      h("p", { "class": "src-desc", text: (v.by === "user" ? T.you : "Hermes") + " · " + summaryText(v.summary, histList) }),
+      h("p", { "class": "src-desc", text: byLine(v) }),
       v.current ? h("p", { "class": "src-meta", style: "margin:6px 0 0", text: T.hIsNow }) : h("div", { "class": "src-actions" }, [
         kit.labelled(kit.button(T.hRestore, "undo", function () {
           window.hermes.history.restore(n).then(function () { kit.toast(T.hRestoredToast, 0, "success"); window.hermes.history.show(null, "history"); },
@@ -1325,11 +1330,17 @@
   bar.className = "kit-bar dash-bar";
   var histBtn = kit.button("", "history", function () { toggleHistory(); }, T.history);
   var full = false;
-  var fullBtn = kit.button("", "expand", function () {
-    full = !full;
+  function setFull(v) {
+    full = v;
     if (window.hermes && window.hermes.fullscreen) window.hermes.fullscreen(full).catch(function () {});
     fullBtn.setAttribute("aria-pressed", String(full)); fullBtn.title = full ? T.exitFull : T.fullScreen;
-  }, T.fullScreen);
+  }
+  var fullBtn = kit.button("", "expand", function () { setFull(!full); }, T.fullScreen);
+  fullBtn.setAttribute("aria-pressed", "false");
+  // Esc leaves full screen (a menu or a dialog open takes its Esc first)
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && full && !e.defaultPrevented && !document.querySelector(".kit-menu")) { e.preventDefault(); setFull(false); }
+  });
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
   // "Run every live query again": only where there is one (a live query, or a loader that computes data).
   var refreshBtn = kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll);
