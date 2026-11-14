@@ -174,9 +174,11 @@
     if (full > avail) {
       var cut = 0;
       Array.prototype.forEach.call(m.children, function (c) {
-        if (c.tagName === "BUTTON" && c.offsetTop + c.offsetHeight + 5 <= avail) cut = c.offsetTop + c.offsetHeight;
+        if (c.tagName === "BUTTON" && c.offsetTop + c.offsetHeight + 2 <= avail) cut = c.offsetTop + c.offsetHeight;
       });
-      m.style.maxHeight = (cut + 5) + "px";
+      // no bottom padding while cut: the next row's top would show through it (+2: the borders)
+      m.style.paddingBottom = "0px";
+      m.style.maxHeight = (cut + 2) + "px";
       m.style.overflowY = "auto";
     }
     var mh = m.offsetHeight;

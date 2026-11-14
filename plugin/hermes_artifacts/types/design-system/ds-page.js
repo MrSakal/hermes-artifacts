@@ -399,6 +399,9 @@
     return wrap;
   }
   function btn(label, kind, fn, title) {
+    // "+ Add …": the kit's plus icon, not a typed glyph
+    if (/^\+ /.test(label)) return h("button", { type: "button", "class": "ds-btn ds-btn-add" + (kind ? " ds-btn-" + kind : ""), title: title || null, onclick: fn,
+      html: kit.icon("plus") + "<span>" + kit.esc(label.slice(2)) + "</span>" });
     return h("button", { type: "button", "class": "ds-btn" + (kind ? " ds-btn-" + kind : ""), text: label, title: title || null, onclick: fn });
   }
   // A section's title row: the anchor section:<file>, a comment button after the title.

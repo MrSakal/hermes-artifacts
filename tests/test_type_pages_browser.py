@@ -315,7 +315,7 @@ class FocusOnWholeSurfaces(unittest.TestCase):
 
 WIDTHS = (360, 420, 560, 720, 760, 900, 1000, 1500)   # 720, 900: where a board's tools and zoom pills met (0.20.0)
 # Content a page draws (cells, blocks, board items, frames, slides and their filmstrip, cards): its controls may sit anywhere in it.
-CONTENT = "#sl-strip, #sh-grid, .doc-blk, #doc-page, .bd-world, #dc-world, #sl-stage, #stage, #mo-frame, #dash-main, .ds-page, .kit-menu"
+CONTENT = "#sl-strip, #sh-grid, .doc-blk, #doc-page, .bd-world, #dc-world, #sl-stage, #stage, #mo-frame, #dash-main, .ds-page, .kit-menu, .doc-rmenu"
 # At each width: every control of the chrome whole on screen and inside what clips it (or in a strip that
 # scrolls), its words not cut; floating toolbars and pills never on one another; a design frame's name strip on
 # nothing else.
@@ -347,6 +347,12 @@ PROBE = r"""(() => {
   const others = [...document.querySelectorAll('.dc-frame, .dc-note')].map(shown).filter(Boolean)
   strips.forEach((s, i) => { if (strips.some((t, j) => j > i && meet(s, t)) || others.some(o => meet(s, o))) bad.push('frame name strip on something') })
   if (document.documentElement.scrollWidth > vw + 1 && getComputedStyle(document.body).overflowX !== 'hidden') bad.push('page wider than the view')
+  // an open menu: whole in the window; one taller than its box scrolls (never cut with no way to its last rows)
+  for (const m of document.querySelectorAll('.kit-menu, .doc-rmenu')) {
+    const r = shown(m); if (!r) continue
+    if (r.left < -0.5 || r.right > vw + 0.5 || r.top < -0.5 || r.bottom > innerHeight + 0.5) bad.push('menu off screen: ' + name(m))
+    if (m.scrollHeight > m.clientHeight + 1 && !/auto|scroll/.test(getComputedStyle(m).overflowY)) bad.push('menu cut: ' + name(m))
+  }
   return bad
 })()""" % json.dumps(CONTENT)
 
@@ -411,6 +417,80 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
 
     def test_design_canvas(self):
         self.check(self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"], settle=3000)
+
+    # Secondary states (rounds 3 and 4 found their faults only there): each page measured at STATE_WIDTHS with a
+    # panel, a menu, an opened artboard or a selection showing. `setup` runs once (driver context, may click for
+    # real); `again` (frame JS) after each resize, to bring back what a resize closes (a menu) or a width resets.
+    def states(self, aid, cases, settle=1500):
+        body = "const out = {}\n"
+        for name, setup, again in cases:
+            body += setup + "\n"
+            for w in STATE_WIDTHS:
+                body += (f"await api.size({w}, 760); await api.sleep(600);"
+                         + (f" await api.frame({json.dumps(again)}); await api.sleep(500);" if again else "")
+                         + f" out[{json.dumps(name + ' @' + str(w))}] = await api.frame({json.dumps(PROBE)})\n")
+        r = B.drive(f"await api.size({STATE_WIDTHS[0]}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n" + body + "return out", timeout=420)
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual({k: v for k, v in r["out"].items() if v}, {})
+
+    def test_slides_with_properties_open(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        props = ("(() => { const b = [...document.querySelectorAll('button')].find(b => ['Properties','Tulajdonságok'].includes(b.getAttribute('aria-label'))"
+                 " && b.getClientRects().length); if (b && b.getAttribute('aria-pressed') !== 'true') b.click() })()")
+        self.states(aid, [("properties", "", props)])
+
+    def test_design_with_an_artboard_opened_and_an_element_selected(self):
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        self.states(aid, [
+            ("artboard opened", "await api.frame('__design.openFocus(\"Main.dc.html\")'); await api.sleep(1200)", None),
+            ("element selected", "await api.frame('__design.closeFocus ? __design.closeFocus() : document.dispatchEvent(new KeyboardEvent(\"keydown\", {key: \"Escape\", bubbles: true}))'); await api.sleep(900);"
+             " await api.size(1000, 760); await api.sleep(600);"
+             " { const q = await api.frame('(() => { const r = __design.boards[\"Main.dc.html\"].el.querySelector(\"iframe\").getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.35] })()');"
+             " await api.mouse(q[0], q[1]); await api.sleep(900) }", None),
+        ], settle=3000)
+
+    def test_design_system_on_every_tab(self):
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        tabs = ["(() => { const t = document.querySelectorAll('.ds-nav-i')[%d]; if (t) t.click() })()" % i for i in range(10)]
+        self.states(aid, [("tab %d" % i, "", t) for i, t in enumerate(tabs)])
+
+    def test_sheet_with_an_error_its_callout_and_more(self):
+        aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Costs", "rows": [["Item", "Unit price", "Qty", "Total"], ["Wall panels", 2000, 3, "=B2*C2"], ["Rails", 300, 10, "=B3*C3"],
+                                       [None, "=1/0"]], "charts": [{"type": "bar", "range": "A1:D3", "at": "F2"}]}]}})["id"]
+        pick = ('(() => { const c = [...document.querySelectorAll("#sh-grid .sh-c")].find(x => /^#/.test(x.textContent.trim())); if (!c) return;'
+                ' c.scrollIntoView({block: "center", inline: "center"}); const b = c.getBoundingClientRect(), o = {bubbles: true, clientX: b.left + 8, clientY: b.top + b.height / 2, button: 0};'
+                ' c.dispatchEvent(new MouseEvent("mousedown", o)); document.dispatchEvent(new MouseEvent("mouseup", o)) })()')
+        more = '(() => { const b = [...document.querySelectorAll("#sh-bar button")].find(b => /^(More|Továbbiak)$/.test(b.title) && b.offsetParent); if (b) b.click() })()'
+        self.states(aid, [("error callout", "", pick), ("more menu", "", pick[:-4] + "; setTimeout(() => " + more + ", 350) })()")], settle=2500)
+
+    def test_doc_with_each_menu_open(self):
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        btn = lambda d: '[...document.querySelectorAll("#doc-bar .kit-btn")].find(b => b.querySelector(\'path[d^="%s"]\')).click()' % d
+        menus = {
+            "tabs": 'document.querySelector(".doc-tabbtn").click()',
+            "fonts": 'document.querySelectorAll(".doc-tool")[1].click()',
+            "insert": 'document.querySelector(".doc-plus").click()',
+            "history": btn("M3 12a9 9"),
+            "export": btn("M12 4v11"),
+            "mode": 'document.querySelector(".doc-mode").click()',
+            "table menu": '(() => { const c = document.querySelectorAll(".doc-blk table td")[3]; c.scrollIntoView({block: "center"}); const b = c.getBoundingClientRect();'
+                          ' c.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: b.left + 20, clientY: b.top + b.height / 2})) })()',
+        }
+        # the click that opens a menu is a toggle: each width first closes what is open (Esc), then opens it
+        esc = 'document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true})); document.body.dispatchEvent(new MouseEvent("mousedown", {bubbles: true}));'
+        self.states(aid, [(k, "", "(() => { " + esc + " setTimeout(() => { " + v + " }, 120) })()") for k, v in menus.items()])
+
+    def test_board_with_an_item_selected(self):
+        aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Release flow", "items": [
+            {"id": "a", "type": "box", "text": "Draft"}, {"id": "b", "type": "box", "kind": "diamond", "text": "Review ok?"},
+            {"id": "c", "type": "box", "kind": "pill", "text": "Ship", "color": "blue"}, {"type": "arrow", "from": "a", "to": "b"},
+            {"type": "arrow", "from": "b", "to": "c", "label": "yes"}, {"type": "note", "text": "Owner: Anna", "near": "c"}]}})["id"]
+        self.states(aid, [("selected", "await api.clickIn('document.querySelector(\".bd-it[data-id=c]\")'); await api.sleep(500)", None)])
+
+
+STATE_WIDTHS = (400, 560, 760, 1000, 1500)
 
 
 BAR_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui}.bar{position:sticky;top:0;height:44px;"

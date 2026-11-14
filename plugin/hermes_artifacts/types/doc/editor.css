@@ -274,6 +274,8 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-prose .doc-data-grid th .doc-data-x { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
 .doc-data-add, .doc-data-cancel { font: 500 12.5px var(--font-sans); border: 1px solid var(--color-border-line); background: none; color: var(--color-fg-secondary);
   border-radius: var(--doc-r); padding: 4px 10px; cursor: pointer; }
+.doc-data-add { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.doc-data-add svg { width: 13px; height: 13px; flex: none; }
 .doc-data-add:hover, .doc-data-cancel:hover { color: var(--color-fg); border-color: var(--color-border-strong); }
 
 /* Menus and popovers sit on the page colour, so a see-through theme panel never shows what lies under them */

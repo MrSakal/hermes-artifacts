@@ -1681,9 +1681,9 @@
       }
     }
     draw();
-    var addRow = h("button", { type: "button", "class": "doc-data-add", text: "+ " + T.addRow });
+    var addRow = h("button", { type: "button", "class": "doc-data-add", html: kit.icon("plus") + "<span>" + kit.esc(T.addRow) + "</span>" });
     addRow.addEventListener("click", function () { readGrid(); rows.push(head.map(function () { return ""; })); draw(); var last = grid.rows[grid.rows.length - 1].querySelector("input"); if (last) last.focus(); });
-    var addCol = h("button", { type: "button", "class": "doc-data-add", text: "+ " + (spec ? T.addSeries : T.addCol) });
+    var addCol = h("button", { type: "button", "class": "doc-data-add", html: kit.icon("plus") + "<span>" + kit.esc(spec ? T.addSeries : T.addCol) + "</span>" });
     addCol.addEventListener("click", function () { readGrid(); head.push(spec ? T.seriesN + " " + head.length : String.fromCharCode(64 + head.length + 1)); rows.forEach(function (r) { r.push(""); }); draw(); });
     var ok = h("button", { type: "button", "class": "doc-src-done", text: T.done });
     var cancelB = h("button", { type: "button", "class": "doc-data-cancel", text: T.cancel });

@@ -102,6 +102,10 @@ select.kit-select, .kit-select select { appearance: none; -webkit-appearance: no
   background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; }
 :root[data-theme="dark"] select.kit-select, :root[data-theme="dark"] .kit-select select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238796a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) select.kit-select, :root:not([data-theme="light"]) .kit-select select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238796a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+}
 .kit-drawer { position: fixed; top: 44px; right: 0; bottom: 0; z-index: 40; width: min(420px, 100%); overflow: auto;
   background: var(--color-panel); border-left: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 /* A note to the person: Hermes shows its own toast (hermes.notify); this one, for a page with no host, looks like

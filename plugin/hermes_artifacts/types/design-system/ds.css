@@ -43,6 +43,8 @@
 .ds-btn { height: 28px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-panel);
   color: var(--color-fg); font: inherit; font-size: 13px; cursor: pointer; }
 .ds-btn:hover { background: var(--color-hover); }
+.ds-btn-add { display: inline-flex; align-items: center; gap: 6px; padding-left: 9px; white-space: nowrap; }
+.ds-btn-add svg { width: 14px; height: 14px; flex: none; }
 .ds-btn-primary { background: var(--color-fg); border-color: var(--color-fg); color: var(--color-bg); }
 .ds-btn-primary:hover { background: var(--color-fg-secondary); }
 .ds-btn-danger { color: var(--color-bad); margin-left: auto; }

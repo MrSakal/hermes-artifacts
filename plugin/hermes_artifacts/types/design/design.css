@@ -186,8 +186,10 @@ html[data-thumb] .dc-pill { display: none; }
 .dc-pill .dc-status:empty { display: none; }
 /* the view's pill stays over the panel's top; the panel starts below it, its tabs fit its width */
 #dc-panel { padding-top: 58px; overflow-x: hidden; }
-.dc-tabs .kit-btn { flex: 0 1 auto; min-width: 0; padding: 0 6px; overflow: hidden; }
-.dc-tabs .kit-btn:last-child { flex: none; }
+/* tabs keep their whole words (Hungarian's are long): a row too narrow for them all takes a second one */
+.dc-tabs { flex-wrap: wrap; row-gap: 2px; }
+.dc-tabs .kit-btn { flex: none; padding: 0 6px; white-space: nowrap; }
+.dc-tabs .kit-btn:last-child { margin-left: auto; } /* Close stays at the right, on whichever row it lands */
 
 /* The element toolbar's words never wrap; when it would be wider than the canvas they go and the icons stay. */
 .dc-tools .kit-btn { flex: none; white-space: nowrap; }
