@@ -914,6 +914,52 @@ class ServerContractTests(unittest.TestCase):
 
 
 
+@unittest.skipIf(NODE is None, "node not installed")
+class ThemeModeTests(unittest.TestCase):
+    """Acceptance round 3: Hermes' light body computes as color(srgb 0.996 0.996 0.996), which the old reader
+    took as 0-255 numbers, so every frame got data-theme="dark". Each colour form Chromium computes is read."""
+
+    def test_each_colour_form(self):
+        forms = {"rgb(31, 31, 30)": [31, 31, 30, 1], "rgba(250, 249, 245, 0.5)": [250, 249, 245, 0.5],
+                 "rgb(250 249 245 / 50%)": [250, 249, 245, 0.5], "#fff": [255, 255, 255, 1], "#1f1f1e80": [31, 31, 30, 128 / 255],
+                 "color(srgb 0.996 0.996 0.996)": [254, 254, 254, 1], "color(srgb 0.12 0.12 0.118 / 0.5)": [31, 31, 30, 0.5],
+                 "color(srgb-linear 1 1 1)": [255, 255, 255, 1], "color(display-p3 1 1 1)": [255, 255, 255, 1],
+                 "color(display-p3 0.1 0.1 0.1)": [26, 26, 26, 1], "oklab(1 0 0)": [255, 255, 255, 1], "oklab(0% 0 0)": [0, 0, 0, 1],
+                 "oklch(0.98 0 90)": [248, 248, 248, 1], "oklch(0.2 0.01 250)": [19, 22, 26, 1], "lab(97 0 0)": [247, 247, 247, 1],
+                 "lch(12 0 0)": [31, 31, 31, 1], "nonsense": None, "color(rec2020 1 1 1)": None}
+        body = "console.log(JSON.stringify({ got: " + json.dumps(list(forms)) + ".map(m.cssRgb), modes: [[31,31,30],[254,254,254],[120,120,120],[140,140,140]].map(m.modeOf), " \
+               "txt: ['color(srgb 0.996 0.996 0.996)', 'oklch(0.98 0 90 / 0.5)', 'rgb(1, 2, 3)', 'weird(1)'].map(m.rgbText) }))"
+        out = run_node(stub_module("\nexport { cssRgb, modeOf, rgbText }\n"), body)
+        for (form, want), got in zip(forms.items(), out["got"]):
+            if want is None:
+                self.assertIsNone(got, form)
+                continue
+            self.assertTrue(all(abs(g - w) <= 1 for g, w in zip(got[:3], want[:3])), (form, got))
+            self.assertAlmostEqual(got[3], want[3], 2, form)
+        self.assertEqual(out["modes"], ["dark", "light", "dark", "light"])
+        self.assertEqual(out["txt"], ["rgb(254, 254, 254)", "rgba(248, 248, 248, 0.5)", "rgb(1, 2, 3)", "weird(1)"])
+        mode = section("function hostMode()", "function modeOf(")
+        self.assertIn("de.dataset?.hermesMode", mode)  # Hermes' own signal (as its previews read it) first
+        self.assertIn("rgbText(c)", section("function hostTheme()", "function hostMode()"))  # the vars sent as rgb()
+
+    @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+    def test_in_chrome_every_form_tells_light_from_dark(self):
+        fns = "".join(section(a, b) for a, b in (("const toLin =", "let rgbCanvas"), ("function hostMode()", "const toLin =")))
+        fns += section("let rgbCanvas", "/** A colour as rgb(")
+        cases = [("color(srgb 0.996 0.996 0.996)", None, "light"), ("color(srgb 0.11 0.11 0.11)", None, "dark"),
+                 ("oklch(0.98 0.005 90)", None, "light"), ("oklch(0.21 0.01 260)", None, "dark"), ("lab(98 0 0)", None, "light"),
+                 ("color(display-p3 0.99 0.99 0.99)", None, "light"), ("rgb(31, 31, 30)", None, "dark"),
+                 ("rgb(31, 31, 30)", "light", "light"), ("rgb(250, 250, 250)", "dark", "dark")]
+        script = "return await api.top(" + json.dumps("(() => { " + fns + " const out = []; for (const [bg, attr] of " + json.dumps(
+            [[c[0], c[1]] for c in cases]) + ") { document.body.style.background = bg; if (attr) document.documentElement.dataset.hermesMode = attr;"
+            " else delete document.documentElement.dataset.hermesMode; out.push([getComputedStyle(document.body).backgroundColor, hostMode()]) }"
+            " return out })()") + ")"
+        r = B.drive("await api.go('about:blank', 300);\n" + script)
+        self.assertIsNone(r.get("err"), r)
+        for (bg, attr, want), (computed, got) in zip(cases, r["out"]):
+            self.assertEqual(got, want, (bg, attr, computed))
+
+
 class DashboardManifestTests(unittest.TestCase):
     """The web dashboard loads a bundle for every plugin manifest: a hidden tab and a stub entry, no 404."""
 

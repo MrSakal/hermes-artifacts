@@ -3770,7 +3770,7 @@ function hostTheme() {
     probe.style.color = ''
     probe.style.color = `var(${v})`
     const c = getComputedStyle(probe).color
-    return c && c !== 'rgba(0, 0, 0, 0)' ? c : null
+    return c && c !== 'rgba(0, 0, 0, 0)' ? rgbText(c) : null // color(srgb …), oklch(…): as rgb() for every page
   }
   // A radius of Hermes' scale (C.rSm...: calc on --radius-scalar; --radius-sm itself is never on :root).
   const px = v => {
@@ -3809,11 +3809,87 @@ function hostTheme() {
 }
 
 /** Light or dark, from the app's own background. */
+/** Light or dark: Hermes' own signal first (<html data-hermes-mode>, what its previews read), else its body's
+ *  colour read as real RGB (Hermes' light body computes as color(srgb 0.996 …), on a 0-1 scale), else its
+ *  .dark class. */
 function hostMode() {
-  const m = getComputedStyle(document.body).backgroundColor.match(/\d+(\.\d+)?/g)
-  if (!m) return 'dark'
-  const [r, g, b] = m.map(Number)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'dark' : 'light'
+  const de = document.documentElement, m = de.dataset?.hermesMode
+  if (m === 'light' || m === 'dark') return m
+  const c = anyRgb(getComputedStyle(document.body).backgroundColor)
+  if (c && c[3] > 0) return modeOf(c)
+  return de.classList.contains('dark') ? 'dark' : 'light'
+}
+function modeOf([r, g, b]) { return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128 ? 'dark' : 'light' }
+
+const toLin = c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+const toGam = c => c <= 0.0031308 ? 12.92 * c : 1.055 * Math.max(0, c) ** (1 / 2.4) - 0.055
+/** A CSS colour in any form Chromium computes, as [r, g, b (0-255), a (0-1)], without the DOM (the same under
+ *  node): #hex, rgb()/rgba() (legacy or space syntax, numbers or %), color(srgb | srgb-linear | display-p3 …),
+ *  oklab(), oklch(), and lab()/lch() by their lightness (a grey: enough to tell light from dark). null: none of
+ *  these. */
+function cssRgb(text) {
+  const s = String(text || '').trim().toLowerCase()
+  let m = /^#([0-9a-f]{3,8})$/.exec(s)
+  if (m) {
+    let h = m[1]
+    if (h.length === 3 || h.length === 4) h = [...h].map(x => x + x).join('')
+    if (h.length !== 6 && h.length !== 8) return null
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).concat(h.length === 8 ? parseInt(h.slice(6), 16) / 255 : 1)
+  }
+  m = /^([a-z-]+)\(\s*([^)]*)\)$/.exec(s)
+  if (!m) return null
+  const [main, al] = m[2].replace(/,/g, ' ').split('/')
+  const p = main.trim().split(/\s+/).map(x => x === 'none' ? '0' : x)
+  const num = (x, scale) => x == null ? NaN : x.endsWith('%') ? parseFloat(x) / 100 * scale : parseFloat(x)
+  let a = al != null ? num(al.trim(), 1) : 1, rgb = null
+  const fn = m[1]
+  if (fn === 'rgb' || fn === 'rgba') {
+    if (al == null && p.length === 4) a = num(p[3], 1)
+    rgb = p.slice(0, 3).map(x => num(x, 255))
+  } else if (fn === 'color') {
+    const v = p.slice(1, 4).map(x => num(x, 1))
+    if (p[0] === 'srgb') rgb = v.map(x => x * 255)
+    else if (p[0] === 'srgb-linear') rgb = v.map(x => toGam(x) * 255)
+    else if (p[0] === 'display-p3') {
+      const [r, g, b] = v.map(toLin)
+      rgb = [1.2249401 * r - 0.2249404 * g, -0.0420569 * r + 1.0420571 * g, -0.0196376 * r - 0.0786361 * g + 1.0982735 * b].map(x => toGam(x) * 255)
+    }
+  } else if (fn === 'oklab' || fn === 'oklch') {
+    const L = num(p[0], 1)
+    let A = num(p[1], 0.4), B = num(p[2], 0.4)
+    if (fn === 'oklch') { const h = parseFloat(p[2]) * Math.PI / 180; A = num(p[1], 0.4) * Math.cos(h); B = num(p[1], 0.4) * Math.sin(h) }
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, mm = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3, ss = (L - 0.0894841775 * A - 1.291485548 * B) ** 3
+    rgb = [4.0767416621 * l - 3.3077115913 * mm + 0.2309699292 * ss, -1.2684380046 * l + 2.6097574011 * mm - 0.3413193965 * ss,
+      -0.0041960863 * l - 0.7034186147 * mm + 1.707614701 * ss].map(x => toGam(x) * 255)
+  } else if (fn === 'lab' || fn === 'lch') {
+    const L = num(p[0], 100), Y = L > 8 ? ((L + 16) / 116) ** 3 : L / 903.3, g = toGam(Y) * 255
+    rgb = [g, g, g]
+  }
+  if (!rgb || rgb.some(x => !Number.isFinite(x)) || !Number.isFinite(a)) return null
+  return rgb.map(x => Math.round(Math.min(255, Math.max(0, x)))).concat(Math.min(1, Math.max(0, a)))
+}
+let rgbCanvas = null
+/** cssRgb, or what a 1x1 canvas paints for a form it does not know (a later CSS colour syntax). */
+function anyRgb(text) {
+  const c = cssRgb(text)
+  if (c || typeof document === 'undefined') return c
+  try {
+    rgbCanvas = rgbCanvas || document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+    rgbCanvas.clearRect(0, 0, 1, 1)
+    rgbCanvas.fillStyle = 'rgba(0, 0, 0, 0)'
+    rgbCanvas.fillStyle = String(text)
+    rgbCanvas.fillRect(0, 0, 1, 1)
+    const d = rgbCanvas.getImageData(0, 0, 1, 1).data
+    return [d[0], d[1], d[2], d[3] / 255]
+  } catch { return null }
+}
+/** A colour as rgb(r, g, b) / rgba(r, g, b, a), the form every page's own parsing knows; the text as it was
+ *  when it cannot be read. */
+function rgbText(text) {
+  const c = anyRgb(text)
+  if (!c) return text
+  const a = Math.round(c[3] * 1000) / 1000
+  return a < 1 ? `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})` : `rgb(${c[0]}, ${c[1]}, ${c[2]})`
 }
 
 const replyWaiters = new Map() // request id -> () => void (poll now)
