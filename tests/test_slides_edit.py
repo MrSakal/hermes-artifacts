@@ -110,5 +110,91 @@ class RuntimeTests(unittest.TestCase):
             self.assertIn(marker, html)
 
 
+try:
+    import _browser as B
+except ImportError:  # run from elsewhere
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import _browser as B
+
+READY = "await api.sleep(300); for (let i = 0; i < 60; i++) { if (await api.top('window.__events.some(e => e.event === \"ready\")')) break; await api.sleep(150) }"
+# a button of the page by its words (English or Hungarian), shown
+BTN = ("window.BTN = labs => [...document.querySelectorAll('button')].find(b => labs.includes(b.getAttribute('aria-label') || b.title)"
+       " && b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden')")
+PROPS, ALL, ONE, CLOSE = '["Properties", "Tulajdonságok"]', '["All slides", "Összes dia"]', '["One slide", "Egy dia"]', '["Close", "Bezárás"]'
+# every shown control of the chrome inside the window, and no two pills on one another
+FITS = r"""(() => { const bad = [], vw = innerWidth
+  const shown = el => { const r = el.getBoundingClientRect(); if (r.width < 1) return null; for (let e = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return null } return r }
+  document.querySelectorAll('button, select, input').forEach(el => { if (el.closest('#sl-strip, #sl-stage')) return; const r = shown(el); if (r && (r.left < -0.5 || r.right > vw + 0.5)) bad.push('off: ' + (el.getAttribute('aria-label') || el.textContent).trim()) })
+  const pills = [...document.querySelectorAll('.sl-pill')].map(shown).filter(Boolean)
+  for (let i = 0; i < pills.length; i++) for (let j = i + 1; j < pills.length; j++) { const a = pills[i], b = pills[j]; if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) bad.push('pills meet') }
+  return bad })()"""
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PageTests(unittest.TestCase):
+    """Round 4: the properties column went blank after All slides -> One slide; a thumbnail kept its "picked" outline;
+    at 400 px the pills ran off the window and over the properties column."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.aid = store.publish(path=str(ROOT / "examples" / "slides"), title="Deck", type="slides")["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def run_page(self, body, w=1000):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(self.aid))}, 800); {READY}\n"
+                    f"await api.sleep(800); await api.frame({json.dumps(BTN)})\n"
+                    "const click = async labs => { await api.frame('BTN(' + labs + ').click()'); await api.sleep(400) }\n" + body)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_properties_come_back_after_all_slides(self):
+        out = self.run_page(f"""
+          await click({json.dumps(PROPS)})
+          const before = await api.frame('document.getElementById("sl-props").querySelectorAll("select, input").length')
+          await click({json.dumps(ALL)})
+          const grid = await api.frame('[document.getElementById("sl-props").hidden, BTN({PROPS}).disabled]')
+          await click({json.dumps(ONE)})
+          const after = await api.frame('[document.getElementById("sl-props").hidden, document.getElementById("sl-props").querySelectorAll("select, input").length, BTN({PROPS}).getAttribute("aria-pressed")]')
+          return {{ before, grid, after }}
+        """)
+        self.assertGreater(out["before"], 0)
+        self.assertEqual(out["grid"], [True, True])  # all slides: no column, the button off
+        self.assertEqual(out["after"], [False, out["before"], "true"])
+
+    def test_one_current_slide_and_no_stale_pick(self):
+        out = self.run_page("""
+          const thumb = i => 'document.querySelectorAll("#sl-rail .sl-thumb")[' + i + ']'
+          await api.clickIn(thumb(0))
+          await api.frame(thumb(1) + '.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true}))'); await api.sleep(300)
+          await api.key('Escape', 'Escape', 27); await api.sleep(200)
+          await api.clickIn(thumb(2)); await api.sleep(300)
+          return await api.frame('[...document.querySelectorAll("#sl-rail .sl-thumb")].map(b => (b.classList.contains("on") ? "on" : "") + (b.classList.contains("picked") && !b.classList.contains("on") ? "picked" : ""))')
+        """)
+        self.assertEqual(out, ["", "", "on", ""])
+
+    def test_a_narrow_window(self):
+        for w in (360, 400, 560):
+            out = self.run_page(f"""
+              const open = await api.frame({json.dumps(FITS)})
+              await click({json.dumps(PROPS)})
+              const sheet = await api.frame('(() => {{ const p = document.getElementById("sl-props"), r = p.getBoundingClientRect(); return [p.hidden, getComputedStyle(p).position, Math.round(r.right), !!BTN({CLOSE}), [...document.querySelectorAll(".sl-pill")].filter(x => x.getClientRects().length).length] }})()')
+              const inSheet = await api.frame({json.dumps(FITS)})
+              await click({json.dumps(CLOSE)})
+              const closed = await api.frame('[document.getElementById("sl-props").hidden, document.activeElement && document.activeElement.getAttribute("aria-label")]')
+              const first = await api.frame('document.querySelector("#sl-main button").closest(".sl-pill") !== null')
+              return {{ open, sheet, inSheet, closed, first }}
+            """, w=w)
+            self.assertEqual(out["open"], [], w)
+            self.assertEqual(out["sheet"], [False, "absolute", w, True, 0], w)  # a sheet over the stage, its Close; the pills under it step aside
+            self.assertEqual(out["inSheet"], [], w)
+            self.assertTrue(out["closed"][0], w)
+            self.assertIn(out["closed"][1], ("Properties", "Tulajdonságok"))  # the focus back on its button
+            self.assertTrue(out["first"])  # the toolbar first in the tab order
+
+
 if __name__ == "__main__":
     unittest.main()

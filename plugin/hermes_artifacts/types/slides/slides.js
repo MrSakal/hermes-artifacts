@@ -44,7 +44,7 @@
       table: "Table", shapes: "Shapes", rounded: "Rounded rectangle", diamond: "Diamond", arrowR: "Arrow right", arrowL: "Arrow left",
       arrowU: "Arrow up", arrowD: "Arrow down", line: "Line", props: "Properties", zoom: "Zoom", zoomIn: "Zoom in", zoomOut: "Zoom out",
       fitSlide: "Fit the slide", presentNotes: "Present with speaker notes", showNotes: "Speaker notes", showThumbs: "Slide thumbnails",
-      hideThumbs: "Hide thumbnails", oneSlide: "One slide", prev: "Previous slide", nextSlide: "Next slide", more: "More",
+      hideThumbs: "Hide thumbnails", oneSlide: "One slide", prev: "Previous slide", nextSlide: "Next slide", more: "More", close: "Close",
       pSlide: "Slide", pTransition: "Transition", trNone: "None", trFade: "Fade", trPush: "Push", trMagic: "Magic move",
       pAppearance: "Appearance", pBackground: "Background", pSize: "Size", pX: "X", pY: "Y", pWidth: "Width", pHeight: "Height",
       pText: "Text", pStyle: "Text style", pCustom: "Custom", pFontSize: "Size", pWeight: "Weight", pLine: "Line height", pTrack: "Spacing",
@@ -77,7 +77,7 @@
       table: "Táblázat", shapes: "Alakzatok", rounded: "Lekerekített téglalap", diamond: "Rombusz", arrowR: "Nyíl jobbra", arrowL: "Nyíl balra",
       arrowU: "Nyíl fel", arrowD: "Nyíl le", line: "Vonal", props: "Tulajdonságok", zoom: "Nagyítás", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés",
       fitSlide: "Dia illesztése", presentNotes: "Vetítés előadói jegyzetekkel", showNotes: "Előadói jegyzetek", showThumbs: "Diák bélyegképei",
-      hideThumbs: "Bélyegképek elrejtése", oneSlide: "Egy dia", prev: "Előző dia", nextSlide: "Következő dia", more: "Továbbiak",
+      hideThumbs: "Bélyegképek elrejtése", oneSlide: "Egy dia", prev: "Előző dia", nextSlide: "Következő dia", more: "Továbbiak", close: "Bezárás",
       pSlide: "Dia", pTransition: "Áttűnés", trNone: "Nincs", trFade: "Áttűnés", trPush: "Betolás", trMagic: "Varázsmozgás",
       pAppearance: "Megjelenés", pBackground: "Háttér", pSize: "Méret", pX: "X", pY: "Y", pWidth: "Szélesség", pHeight: "Magasság",
       pText: "Szöveg", pStyle: "Szövegstílus", pCustom: "Egyéni", pFontSize: "Méret", pWeight: "Vastagság", pLine: "Sorköz", pTrack: "Betűköz",
@@ -222,8 +222,10 @@
     cur = Math.max(0, Math.min(slides.length - 1, i));
     clip.replaceChildren(canvasFor(slides[cur], 1, true));
     fit();
+    // One current slide; a pick of several lasts only while the current one is in it (no stale "picked" outline).
+    if (picked.indexOf(slides[cur].id) < 0) picked = [];
     var thumbs = rail.querySelectorAll(".sl-thumb");
-    thumbs.forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+    thumbs.forEach(function (b, j) { b.classList.toggle("on", j === cur); b.classList.toggle("picked", picked.length > 1 && picked.indexOf(slides[j].id) >= 0); });
     var on = thumbs[cur];
     if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
     counter.textContent = (cur + 1) + " " + T.of + " " + slides.length;
@@ -304,7 +306,15 @@
     slides.forEach(function (s, i) { var hd = sectionHead(s, i); if (hd) items.push(hd); items.push(thumb(s, i, false)); });
     rail.replaceChildren.apply(rail, items.concat(editable ? [dropLine] : []));
     rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+    railFade();
   }
+  // More slides than the strip shows: its cut edge fades (that side scrolls), never a thumbnail cut clean.
+  function railFade() {
+    rail.classList.toggle("fade-l", rail.scrollLeft > 1);
+    rail.classList.toggle("fade-r", rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 1);
+  }
+  rail.addEventListener("scroll", railFade, { passive: true });
+  new ResizeObserver(railFade).observe(rail);
   var thumbTimer = null;
   function refreshThumb() {
     clearTimeout(thumbTimer);
@@ -356,7 +366,8 @@
     mainEl.appendChild(gridEl);
     drawChrome(); drawProps(); sendView();
   }
-  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; drawChrome(); } }
+  // Back to one slide: the properties column fills again (all slides has none: it hides there).
+  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; drawChrome(); drawProps(); fit(); sendView(); } }
 
   // ------------------------------------------------------------------ view context (with the next chat message)
   function itemIndex(el) { var sec = el.parentElement; return sec ? Array.prototype.indexOf.call(sec.children, el) : -1; }
@@ -1653,7 +1664,7 @@
   var exportList = [{ id: "pdf", label: T.pdf, run: exportPdf }, { id: "pptx", label: T.pptx, run: exportPptx },
     { id: "png", label: T.png, run: exportPng }, { id: "html", label: T.html, run: exportHtml }];
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+    kit.menu(expBtn, exportItems());
   }), T.exp);
   expBtn.hidden = true;
   kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
@@ -1668,38 +1679,72 @@
   function pref(key, fallback) { try { var v = localStorage.getItem("sl-" + key); return v == null ? fallback : v === "1"; } catch (e) { return fallback; } }
   function keep(key, on) { try { localStorage.setItem("sl-" + key, on ? "1" : "0"); } catch (e) {} }
   var stripOn = pref("strip", true), propsOn = pref("props", false);
+  // Under 760 px the properties are a sheet over the stage (with its own Close): open only when asked here,
+  // never by a choice kept from a wide window.
+  var sheetAsked = false;
+  function narrow() { return innerWidth < 760; }
+  function propsShown() { return propsOn && editable && !C.thumb && !gridEl && (!narrow() || sheetAsked); }
   function toggleNotes() { notesEl.hidden = !notesEl.hidden; drawChrome(); fit(); }
   function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); }
-  function setProps(on) { propsOn = on; keep("props", on); drawChrome(); drawProps(); fit(); }
+  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); }
   function setZoom(z) { zoom = z; fit(); }
 
-  var shapesBtn = cbtn(kit.icon("shape") + kit.icon("caretDown"), T.shapes, function () {
-    kit.menu(shapesBtn, [["rect", T.rect], ["rounded", T.rounded], ["ellipse", T.ellipse], ["diamond", T.diamond], ["arrow-right", T.arrowR],
-      ["arrow-left", T.arrowL], ["arrow-up", T.arrowU], ["arrow-down", T.arrowD], ["line", T.line]].map(function (x) {
-      return { label: x[1], onClick: function () { insertShape(x[0]); } };
-    }));
-  }, "sl-caret");
-  var insertPill = h("div", { "class": "sl-pill sl-pill-l", role: "toolbar", "aria-label": T.insert }, [
-    cbtn(kit.icon("text"), T.text, function () { insertText(); }), cbtn(kit.icon("image"), T.image, function () { filePick.click(); }),
-    cbtn(kit.icon("table"), T.table, function () { insertTable(); }), shapesBtn]);
+  kit.addIcons({ slRect: "M4 6h16v12H4z", slRounded: "M8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
+    slDiamond: "M12 3l9 9-9 9-9-9z", slArrowR: "M4 12h15M14 7l5 5-5 5", slArrowL: "M20 12H5M10 7l-5 5 5 5", slArrowU: "M12 20V5M7 10l5-5 5 5",
+    slArrowD: "M12 4v15M7 14l5 5 5-5" });
+  var SHAPES = [["rect", T.rect, "slRect"], ["rounded", T.rounded, "slRounded"], ["ellipse", T.ellipse, "oval"], ["diamond", T.diamond, "slDiamond"],
+    ["arrow-right", T.arrowR, "slArrowR"], ["arrow-left", T.arrowL, "slArrowL"], ["arrow-up", T.arrowU, "slArrowU"], ["arrow-down", T.arrowD, "slArrowD"], ["line", T.line, "lineD"]];
+  function shapeItems() { return SHAPES.map(function (x) { return { icon: x[2], label: x[1], onClick: function () { insertShape(x[0]); } }; }); }
+  var shapesBtn = cbtn(kit.icon("shape") + kit.icon("caretDown"), T.shapes, function () { kit.menu(shapesBtn, shapeItems()); }, "sl-caret");
+  var insertBtns = [cbtn(kit.icon("text"), T.text, function () { insertText(); }), cbtn(kit.icon("image"), T.image, function () { filePick.click(); }),
+    cbtn(kit.icon("table"), T.table, function () { insertTable(); }), shapesBtn];
+  // a narrow window: the four insert tools are one menu
+  var insertMore = cbtn(kit.icon("plus") + kit.icon("caretDown"), T.insert, function () {
+    kit.menu(insertMore, [{ icon: "text", label: T.text, onClick: function () { insertText(); } }, { icon: "image", label: T.image, onClick: function () { filePick.click(); } },
+      { icon: "table", label: T.table, onClick: function () { insertTable(); } }, { sep: true }].concat(shapeItems()));
+  }, "sl-caret sl-narrow-only");
+  var insertPill = h("div", { "class": "sl-pill sl-pill-l", role: "toolbar", "aria-label": T.insert }, insertBtns.concat([insertMore]));
 
-  var dlBtn = cbtn(kit.icon("download"), T.exp, function () {
-    kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
-  });
-  var playBtn = cbtn(kit.icon("play"), T.present, function () {
-    kit.menu(playBtn, [{ label: T.present, onClick: function () { present(false); } }, { label: T.presentNotes, onClick: function () { present(true); } }]);
-  });
-  var propsBtn = cbtn(kit.icon("sliders"), T.props, function () { setProps(!propsOn); });
+  var EXP_ICON = { pdf: "file", pptx: "present", png: "image", html: "code" };
+  function exportItems() { return exportList.map(function (x) { return { icon: EXP_ICON[x.id], label: x.label, onClick: x.run }; }); }
+  function presentItems() { return [{ icon: "play", label: T.present, onClick: function () { present(false); } }, { icon: "notes", label: T.presentNotes, onClick: function () { present(true); } }]; }
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportItems()); });
+  var playBtn = cbtn(kit.icon("play"), T.present, function () { kit.menu(playBtn, presentItems()); });
+  // a narrow window: Export and Present are in More
+  var moreBtn = cbtn(kit.icon("more"), T.more, function () {
+    kit.menu(moreBtn, presentItems().concat([{ sep: true }], exportItems()));
+  }, "sl-narrow-only");
+  var propsBtn = cbtn(kit.icon("sliders"), T.props, function () { setProps(!propsShown()); });
   zoomLabel = h("span");
   var zoomBtn = cbtn("", T.zoom, function () {
     var step = function (f) { setZoom(Math.max(0.1, Math.min(3, SC * f))); };
     kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { step(1.25); } }, { label: T.zoomOut, onClick: function () { step(0.8); } },
-      { label: T.fitSlide, onClick: function () { setZoom(0); } }]
-      .concat([0.5, 0.75, 1, 1.5, 2].map(function (z) { return { label: z * 100 + "%", onClick: function () { setZoom(z); } }; }))
-      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+      { label: T.fitSlide, on: !zoom, onClick: function () { setZoom(0); } }, { sep: true }]
+      .concat([0.5, 0.75, 1, 1.5, 2].map(function (z) { return { label: z * 100 + "%", on: !!zoom && Math.abs(zoom - z) < 0.001, onClick: function () { setZoom(z); } }; }))
+      .concat(editable ? [{ sep: true }, { label: T.undo + "  (Ctrl+Z)", disabled: !undos.length, onClick: undo },
+        { label: T.redo + "  (Ctrl+Shift+Z)", disabled: !redos.length, onClick: redo }] : []));
   }, "sl-zoom");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
-  var viewPill = h("div", { "class": "sl-pill sl-pill-r", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+  insertBtns.concat([dlBtn, playBtn]).forEach(function (b) { b.classList.add("sl-wide-only"); });
+  var viewPill = h("div", { "class": "sl-pill sl-pill-r", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn, moreBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+  /** The two pills never meet nor leave the window: Export and Present fold into More first, then the insert tools into one menu. */
+  function fitPills() {
+    viewPill.classList.remove("is-compact"); insertPill.classList.remove("is-compact");
+    if (viewPill.hidden) return;
+    var clash = function () {
+      var v = viewPill.getBoundingClientRect(), m = mainEl.getBoundingClientRect();
+      if (v.left < m.left + 8) return true;
+      if (insertPill.hidden) return false;
+      return insertPill.getBoundingClientRect().right + 8 > v.left;
+    };
+    if (clash()) viewPill.classList.add("is-compact");
+    if (clash()) insertPill.classList.add("is-compact");
+  }
+  var wasNarrow = narrow();
+  window.addEventListener("resize", function () {
+    if (narrow() === wasNarrow) return fitPills();
+    wasNarrow = narrow(); sheetAsked = false; drawChrome(); drawProps(); fit();
+  });
 
   var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);
   var navPill = h("div", { "class": "sl-pill sl-pill-b", role: "toolbar" }, [
@@ -1710,8 +1755,11 @@
   stripHead.append.apply(stripHead, (editable ? [cbtn(kit.icon("plus"), T.newSlide, function () { layoutMenu(null, cur); })] : []).concat(
     [notesBtn, h("span", { "class": "sl-gap" }), oneBtn, gridBtn, cbtn(kit.icon("chevDown"), T.hideThumbs, function () { setStrip(false); })]));
   mainEl.insertBefore(navPill, notesEl);
-  mainEl.append(insertPill, viewPill);
+  // the pills float over the stage but come first in the tab order (the toolbar, then the slide, then the strip)
+  mainEl.insertBefore(viewPill, mainEl.firstChild);
+  mainEl.insertBefore(insertPill, viewPill);
 
+  function pressed(b, on) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", String(on)); }
   function drawChrome() {
     var thumbOnly = !!C.thumb;
     strip.hidden = thumbOnly || !stripOn;
@@ -1719,10 +1767,14 @@
     viewPill.hidden = thumbOnly;
     insertPill.hidden = thumbOnly || !editable || !!gridEl;
     rail.hidden = !!gridEl;
-    [notesBtn, notesBtn2].forEach(function (b) { b.classList.toggle("is-on", !notesEl.hidden); });
-    oneBtn.classList.toggle("is-on", !gridEl); gridBtn.classList.toggle("is-on", !!gridEl);
-    propsBtn.classList.toggle("is-on", propsOn);
-    propsEl.hidden = thumbOnly || !editable || !propsOn;
+    [notesBtn, notesBtn2].forEach(function (b) { pressed(b, !notesEl.hidden); });
+    pressed(oneBtn, !gridEl); pressed(gridBtn, !!gridEl);
+    var shown = propsShown();
+    pressed(propsBtn, shown);
+    propsBtn.disabled = !!gridEl; // all slides: no one slide's properties
+    propsEl.hidden = !shown;
+    document.body.classList.toggle("sl-sheet-open", shown && narrow());
+    fitPills();
   }
 
   // ------------------------------------------------------------------ properties (Claude's panel at the right)
@@ -1748,7 +1800,7 @@
     return i;
   }
   function ppick(value, options, set) {
-    var sl = h("select", {}, options.map(function (o) { var op = h("option", { value: o[0], text: o[1] }); if (String(o[0]) === String(value)) op.selected = true; return op; }));
+    var sl = h("select", { "class": "kit-select" }, options.map(function (o) { var op = h("option", { value: o[0], text: o[1] }); if (String(o[0]) === String(value)) op.selected = true; return op; }));
     sl.addEventListener("change", function () { panelEdit(function () { set(sl.value); }); });
     return sl;
   }
@@ -1773,8 +1825,15 @@
     if (hasOwnText(el) || /^(UL|OL|TABLE|P|H[1-6])$/.test(el.tagName)) return [el];
     return Array.prototype.filter.call(el.querySelectorAll("*"), function (n) { return hasOwnText(n) && !n.closest("svg"); });
   }
+  // the sheet's head (a narrow window only): its name and Close
+  var sheetHead = h("div", { "class": "sl-phead" }, [h("b", { text: T.props }),
+    cbtn(kit.icon("close"), T.close, function () { setProps(false); propsBtn.focus(); })]);
   function drawProps() {
     if (!propsEl || propsEl.hidden) return;
+    drawPropsBody();
+    propsEl.insertBefore(sheetHead, propsEl.firstChild);
+  }
+  function drawPropsBody() {
     var sec = curSec();
     if (!sec || gridEl) { propsEl.replaceChildren(); return; }
     if (!sel.length) { // nothing selected: the slide itself

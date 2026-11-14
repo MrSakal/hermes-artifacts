@@ -83,7 +83,7 @@ body { overflow: hidden; }
 .dc-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 30px; color: var(--color-fg-secondary); }
 .dc-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-row input[type=text], .dc-row input[type=number], .dc-row select, .dc-row textarea { width: 100%; min-width: 0; height: 26px; padding: 0 6px;
-  border: 1px solid var(--color-border-line); border-radius: 5px; background: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 12px; }
+  border: 1px solid var(--color-border-line); border-radius: 5px; background-color: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 12px; }
 .dc-row textarea { height: auto; padding: 4px 6px; resize: vertical; }
 .dc-row input:disabled, .dc-row select:disabled { opacity: .55; }
 .dc-row input[type=checkbox] { justify-self: start; }
@@ -188,3 +188,21 @@ html[data-thumb] .dc-pill { display: none; }
 #dc-panel { padding-top: 58px; overflow-x: hidden; }
 .dc-tabs .kit-btn { flex: 0 1 auto; min-width: 0; padding: 0 6px; overflow: hidden; }
 .dc-tabs .kit-btn:last-child { flex: none; }
+
+/* The element toolbar's words never wrap; when it would be wider than the canvas they go and the icons stay. */
+.dc-tools .kit-btn { flex: none; white-space: nowrap; }
+.dc-tools.is-compact .kit-btn span { display: none; }
+/* The breadcrumb sits above the drawing tools, never under them. */
+#dc-view:has(.dc-pill-b) .dc-crumbs { bottom: 64px; max-width: calc(100% - 24px); }
+/* The full-window view is above the canvas's pills; its own head row has Back, the title, Previous / Next.
+   The canvas-only chrome (pills, the element toolbar, the breadcrumb) hides while it is open. */
+#dc-focus { z-index: 45; }
+#dc-app.is-focus .dc-pill, #dc-app.is-focus .dc-crumbs, #dc-app.is-focus ~ .dc-tools { display: none; }
+.dc-fhead .kit-btn { flex: none; white-space: nowrap; }
+.dc-fhead .kit-btn:disabled { opacity: .35; }
+/* Under 760 px the panel is a sheet over the canvas (opened by Properties, closed by its Close); while it is open the
+   canvas's tools under it step aside. */
+@media (max-width: 759.98px) {
+  #dc-panel { width: min(320px, 100%); }
+  #dc-app.is-sheet .dc-pill-b, #dc-app.is-sheet .dc-crumbs, #dc-app.is-sheet ~ .dc-tools { display: none; }
+}

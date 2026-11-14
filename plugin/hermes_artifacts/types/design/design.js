@@ -38,7 +38,7 @@
       bad: "canvas.json is missing or not valid JSON.", empty: "This canvas has no artboards yet.", missing: "Missing file",
       error: "Error", noLib: "The export library didn't load (open the canvas in Hermes Desktop)", tooBig: "Images up to 8 MB",
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
-      comment: "Comment", editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties",
+      comment: "Comment", editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
       exp: "Export", png: "This artboard (PNG)", pdf: "This artboard (PDF)", pdfAll: "All artboards (PDF)", html: "This artboard (HTML)",
       dupEl: "Duplicate", group: "Group", ungroup: "Ungroup", forward: "Bring forward", backward: "Send backward",
       text: "Text", color: "Color", size: "Size", weight: "Weight", align: "Align", fill: "Fill", background: "Background",
@@ -60,7 +60,7 @@
       bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
       error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
-      comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok",
+      comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
       fixIt: "Kérd meg a Hermest, hogy javítsa",
       dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
@@ -779,7 +779,11 @@
     if (tools.hidden) return;
     var r = selScreenRect();
     if (!r) { tools.hidden = true; return; }
-    var v = vrect(), top = r.top - tools.offsetHeight - 10;
+    var v = vrect();
+    // never wider than the canvas: Ask Hermes and Comment keep their icons and drop their words when it would be
+    tools.classList.remove("is-compact");
+    if (tools.offsetWidth > v.width - 12) tools.classList.add("is-compact");
+    var top = r.top - tools.offsetHeight - 10;
     if (top < v.top + 4) top = r.bottom + 10;
     tools.style.top = clamp(top, v.top + 4, innerHeight - tools.offsetHeight - 8) + "px";
     tools.style.left = clamp(r.left, v.left + 4, v.right - tools.offsetWidth - 8) + "px";
@@ -954,8 +958,9 @@
   }
 
   // ------------------------------------------------------------------ properties panel
-  var tab = "design", panelHidden = false;
-  function setTab(t) { tab = t; panelHidden = false; renderPanel(); }
+  var tab = "design", panelHidden = false, sheetAsked = false;
+  function narrow() { return innerWidth < 760; }
+  function setTab(t) { tab = t; panelHidden = false; if (narrow()) sheetAsked = true; renderPanel(); drawTools(); }
   function computed(k) { var i = sel.info[sel.tids[0]]; return i && i.computed ? i.computed[k] || "" : ""; }
   function inline(prop) { var n = nodeOf(sel.path, sel.tids[0]); return n ? DC.styleGet(n.getAttribute("style") || "", prop) : ""; }
   function hex(c) {
@@ -995,7 +1000,7 @@
     return wrap;
   }
   function selectField(prop, opts) {
-    var v = inline(prop), s = h("select", {}, [h("option", { value: "", text: "—" })].concat(opts.map(function (o) { return h("option", { value: o, text: o }); })));
+    var v = inline(prop), s = h("select", { "class": "kit-select" }, [h("option", { value: "", text: "—" })].concat(opts.map(function (o) { return h("option", { value: o, text: o }); })));
     if (v && opts.indexOf(v) < 0) s.appendChild(h("option", { value: v, text: v }));
     s.value = v;
     if (boundNote(v)) s.disabled = true;
@@ -1025,12 +1030,19 @@
   function renderPanel() {
     if (!editable) return;
     var bp = sel.path || selBoard;
-    panelEl.hidden = panelHidden || !!focus || (!bp && tab !== "outline");
-    panelBtn.classList.toggle("is-on", !panelHidden);
+    // Under 760 px the panel is a sheet over the canvas: open only when asked (the Properties button), so a pick
+    // leaves the canvas, its element toolbar and breadcrumb in view.
+    var off = narrow() ? !sheetAsked : panelHidden;
+    panelEl.hidden = off || !!focus || (!bp && tab !== "outline");
+    panelBtn.classList.toggle("is-on", !off); panelBtn.setAttribute("aria-pressed", String(!off));
+    app.classList.toggle("is-sheet", narrow() && !panelEl.hidden);
     if (panelEl.hidden) return;
     var tabBtn = function (k, label) { return h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === k), text: label, onclick: function () { setTab(k); } }); };
     var tabs = h("div", { "class": "dc-tabs" }, [tabBtn("design", T.properties), tabBtn("outline", T.outline), tabBtn("code", T.code), tabBtn("tweaks", T.tweaks),
-      h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.panel, "aria-label": T.panel, html: kit.icon("close"), onclick: function () { panelHidden = true; renderPanel(); } })]);
+      h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close"), onclick: function () {
+        if (narrow()) sheetAsked = false; else panelHidden = true;
+        renderPanel(); drawTools(); panelBtn.focus();
+      } })]);
     var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
       : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
     panelEl.replaceChildren(tabs, body);
@@ -1101,7 +1113,7 @@
       var names = [];
       ds.model.type.groups.forEach(function (g) { g.styles.forEach(function (s) { names.push(s.name); }); });
       var cls = (n.getAttribute("class") || "").split(/\s+/).filter(Boolean), curName = cls.filter(function (c) { return names.indexOf(c) >= 0; })[0] || "";
-      var ts = h("select", {}, [h("option", { value: "", text: "—" })].concat(names.map(function (x) { return h("option", { value: x, text: x }); })));
+      var ts = h("select", { "class": "kit-select" }, [h("option", { value: "", text: "—" })].concat(names.map(function (x) { return h("option", { value: x, text: x }); })));
       ts.value = curName;
       ts.addEventListener("change", function () {
         var rest = cls.filter(function (c) { return names.indexOf(c) < 0; });
@@ -1177,7 +1189,7 @@
       ctl.addEventListener("change", function () { setProp(p, k, ctl.checked); });
     } else if (ed === "enum") {
       var os = opts();
-      ctl = h("select", {}, os.map(function (o, i) { return h("option", { value: String(i), text: o.l }); }));
+      ctl = h("select", { "class": "kit-select" }, os.map(function (o, i) { return h("option", { value: String(i), text: o.l }); }));
       ctl.value = String(Math.max(0, os.map(function (o) { return o.v; }).indexOf(val)));
       ctl.addEventListener("change", function () { setProp(p, k, os[+ctl.value].v); });
     } else if (ed === "color") {
@@ -1244,14 +1256,18 @@
     var list = pagePaths().filter(function (x) { return files[x]; }), i = list.indexOf(p);
     var stage = h("div", { "class": "dc-fstage" + (fill ? " is-fill" : "") }), boxEl = h("div", { "class": "dc-fbox" });
     stage.appendChild(boxEl);
+    // Its own head row (Back, the title, Previous / Next): the canvas's pills, tools and breadcrumb are the canvas's and hide.
+    var prevB = kit.button("", "prev", function () { if (i > 0) openFocus(list[i - 1]); }, T.prev);
+    var nextB = kit.button("", "next", function () { if (i < list.length - 1) openFocus(list[i + 1]); }, T.next);
+    prevB.setAttribute("aria-label", T.prev); nextB.setAttribute("aria-label", T.next);
+    prevB.disabled = i <= 0; nextB.disabled = i >= list.length - 1;
     var head = h("div", { "class": "dc-fhead" }, [
       kit.labelled(kit.button(T.back, "prev", function () { closeFocus(); }, T.back), T.back),
-      h("span", { "class": "dc-ftitle", text: titleOf(p) }),
-      kit.button("", "prev", function () { if (i > 0) openFocus(list[i - 1]); }, T.prev),
-      h("span", { "class": "dc-fcount", text: (i + 1) + " / " + list.length }),
-      kit.button("", "next", function () { if (i < list.length - 1) openFocus(list[i + 1]); }, T.next)]);
+      h("span", { "class": "dc-ftitle", text: titleOf(p) }), prevB,
+      h("span", { "class": "dc-fcount", text: (i + 1) + " / " + list.length }), nextB]);
     focusEl.replaceChildren(head, stage);
     focusEl.hidden = false;
+    app.classList.add("is-focus");
     focus = { path: p, fill: fill, g: g, box: boxEl, stage: stage };
     focus.frame = new Frame({ path: p, mode: "play", wheel: "native", parent: boxEl, onMsg: function (m) {
       if (m.t === "link") followLink(p, m.file);
@@ -1273,6 +1289,7 @@
     focus.frame.dispose();
     focus = null;
     focusEl.hidden = true; focusEl.replaceChildren();
+    app.classList.remove("is-focus");
     if (!quiet) { drawTools(); renderPanel(); sendView(); }
   }
 
@@ -1637,10 +1654,11 @@
   var pagesPill = h("div", { "class": "dc-pill dc-pill-l" }, [pagesBtn]);
 
   // the view (top right)
-  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
+  var EXP_ICON = { png: "image", pdf: "file", "pdf-all": "pages", html: "code" };
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportList.map(function (x) { return { icon: EXP_ICON[x.id], label: x.label, onClick: x.run }; })); });
   var themeBtn = cbtn(kit.icon("palette"), T.theme, function () {
-    kit.menu(themeBtn, [{ label: T.defTheme, onClick: function () { setTheme(null); } }].concat(ds.themes.map(function (t) {
-      return { label: t.name, onClick: function () { setTheme(t.id); } };
+    kit.menu(themeBtn, [{ label: T.defTheme, on: !ds.theme, onClick: function () { setTheme(null); } }].concat(ds.themes.map(function (t) {
+      return { label: t.name, on: ds.theme === t.id, onClick: function () { setTheme(t.id); } };
     })));
   });
   themeBtn.hidden = true;
@@ -1649,13 +1667,17 @@
     var item = function (p) { return { label: titleOf(p), onClick: function () { openFocus(p); } }; };
     kit.menu(playBtn, (live.length ? [{ hint: T.prototypes }].concat(live.map(item)) : []).concat(rest.length ? [{ hint: T.statics }].concat(rest.map(item)) : []));
   });
-  var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () { panelHidden = !panelHidden; renderPanel(); });
+  var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () {
+    if (narrow()) sheetAsked = !sheetAsked; else panelHidden = !panelHidden;
+    renderPanel(); drawTools();
+  });
   var zoomLabel = h("span");
   var zoomBtn = cbtn("", T.zoom, function () {
     kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { zoomTo(z * 1.25); } }, { label: T.zoomOut, onClick: function () { zoomTo(z / 1.25); } },
-      { label: T.fit, onClick: fitAll }, { label: T.sel, onClick: zoomSel }]
-      .concat([0.25, 0.5, 0.75, 1, 1.5, 2].map(function (v) { return { label: v * 100 + "%", onClick: function () { zoomTo(v); } }; }))
-      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+      { label: T.fit, onClick: fitAll }, { label: T.sel, disabled: !sel.path && !selBoard, onClick: zoomSel }, { sep: true }]
+      .concat([0.25, 0.5, 0.75, 1, 1.5, 2].map(function (v) { return { label: v * 100 + "%", on: Math.abs(z - v) < 0.001, onClick: function () { zoomTo(v); } }; }))
+      .concat(editable ? [{ sep: true }, { label: T.undo + "  (Ctrl+Z)", disabled: !undos.length, onClick: undo },
+        { label: T.redo + "  (Ctrl+Shift+Z)", disabled: !redos.length, onClick: redo }] : []));
   }, "dc-zoomval");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
   var viewPill = h("div", { "class": "dc-pill dc-pill-r" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
@@ -1670,8 +1692,9 @@
   }
   function tbtn2(key, icon, title) { return (toolBtns[key] = cbtn(kit.icon(icon), title, function () { setTool(key === "shape" ? shapeKind : key); })); }
   var shapeCaret = cbtn(kit.icon("caretDown"), T.shapes, function () {
+    var ic = { rect: "shape", oval: "oval", arrow: "arrowUR", line: "lineD" };
     kit.menu(shapeCaret, [["rect", T.rect], ["oval", T.oval], ["arrow", T.arrow], ["line", T.line]].map(function (x) {
-      return { label: x[1], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(x[0] === "rect" ? "shape" : x[0] === "oval" ? "oval" : x[0] === "arrow" ? "arrowUR" : "lineD"); setTool(x[0]); } };
+      return { icon: ic[x[0]], label: x[1], on: shapeKind === x[0], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(ic[x[0]]); setTool(x[0]); } };
     }));
   }, "dc-caretonly");
   var toolPill = h("div", { "class": "dc-pill dc-pill-b", role: "toolbar", "aria-label": T.tools }, [
@@ -1770,7 +1793,11 @@
   layoutAll();
   fitAll();
   if (launch.view === "focused" && files[launch.file]) openFocus(launch.file);
-  window.addEventListener("resize", function () { apply(); fitFocus(); });
+  var wasNarrow = narrow();
+  window.addEventListener("resize", function () {
+    apply(); fitFocus();
+    if (narrow() !== wasNarrow) { wasNarrow = narrow(); sheetAsked = false; renderPanel(); drawTools(); }
+  });
   new ResizeObserver(function () { placeTools(); fitFocus(); }).observe(viewEl);
   window.addEventListener("beforeunload", function () { if (pending) save(); });
   window.__design = { select: select, selectBoard: selectBoard, boards: boards, files: files, cur: cur, canvas: function () { return canvas; },
