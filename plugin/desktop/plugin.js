@@ -2391,16 +2391,34 @@ function CommentCount({ n }) {
   return jsxs('span', { title: t('openComments', n), style: { color: C.text3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }, children: [jsx(Icon, { name: 'comment', size: 14 }), String(n)] })
 }
 
-/** A focused card's or row's keys: Enter opens it, the card menu's letters (CARD_KEYS) act as in the menu. */
-function cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }) {
-  if (renaming || menu || e.target !== e.currentTarget) return
-  if (e.key === 'Enter') return openOnPage(ctx, art.id)
+/** A card's or row's keys while the focus is on it or on one of its buttons (••• and Pin, where a menu closed
+ *  with Esc gives it back): Enter on the card itself opens it, the card menu's letters (CARD_KEYS) act as in
+ *  the menu. Its open menu and Rename have their own. */
+function cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming, self }) {
+  if (renaming || menu) return
+  if (e.key === 'Enter') return e.target === self.current ? openOnPage(ctx, art.id) : undefined
   const k = cardKey(e)
   if (!k) return
   e.preventDefault()
   if (k === 'move') setMenu('move')
   else cardAction(ctx, art, k, () => setRenaming(true))
 }
+
+/** Right click on a card or row: its menu at the pointer, as Hermes' own rows do (the attribute leaves the
+ *  gesture to the row: Hermes' app-wide menu takes every other one). -> the props for the card's outer box. */
+function cardContext(setMenu, setAt) {
+  return {
+    'data-hermes-context-menu-trigger': '',
+    onContextMenu: e => {
+      e.preventDefault()
+      const r = e.currentTarget.getBoundingClientRect()
+      setAt({ x: e.clientX - r.left, y: e.clientY - r.top })
+      setMenu('main')
+    }
+  }
+}
+/** The card menu where the right click was (PopMenu opens 38 px under its box: the box ends at the pointer). */
+const atPointer = (at, menu) => jsx('div', { style: { position: 'absolute', left: at.x, top: at.y - 38, width: 0, height: 38, zIndex: 40 }, children: menu })
 
 const Card = memo(function Card({ ctx, art, sort }) {
   const t = usePluginI18n(ID)
@@ -2409,10 +2427,13 @@ const Card = memo(function Card({ ctx, art, sort }) {
   const [h, hp] = useHover()
   const [f, fp] = useFocusWithin()
   const self = useRef(null) // where the focus goes back when its menu or Rename closes
+  const [at, setAt] = useState(null) // the right click that opened its menu (null: the ••• button)
+  const menuEl = menu ? jsx(CardMenu, { ctx, art, start: menu, back: self, align: at ? 'left' : 'right', onClose: () => (setMenu(false), setAt(null)), onRename: () => setRenaming(true) }) : null
   return jsxs('div', {
     ...hp,
     ...fp,
-    onContextMenu: e => (e.preventDefault(), setMenu('main')),
+    ...cardContext(setMenu, setAt),
+    onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming, self }),
     style: { position: 'relative', display: 'flex' },
     children: [
       jsxs('div', {
@@ -2421,7 +2442,6 @@ const Card = memo(function Card({ ctx, art, sort }) {
         tabIndex: 0,
         className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
-        onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }),
         style: {
           ...font, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, borderRadius: C.rXl, overflow: 'hidden', padding: 8,
           cursor: 'pointer', textAlign: 'left', background: h ? C.hair : C.card, transition: 'background 140ms ease'
@@ -2458,12 +2478,13 @@ const Card = memo(function Card({ ctx, art, sort }) {
         ? jsxs('div', {
             style: { position: 'absolute', top: 16, right: 16, display: 'flex', gap: 6 },
             children: [
-              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => (setAt(null), setMenu(menu ? false : 'main')) }),
               jsx(OverlayBtn, { icon: 'pin', title: art.pinned ? t('unpin') : t('pin'), active: art.pinned, onClick: () => patchMeta(ctx, art, { pinned: !art.pinned }) }),
-              menu ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: jsx(CardMenu, { ctx, art, start: menu, back: self, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) }) : null
+              menu && !at ? jsx('div', { style: { position: 'absolute', right: 0, top: 0 }, children: menuEl }) : null
             ]
           })
-        : null
+        : null,
+      menu && at ? atPointer(at, menuEl) : null
     ]
   })
 })
@@ -2482,13 +2503,16 @@ const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' }) {
   const [menu, setMenu] = useState(false) // as a card's
   const [renaming, setRenaming] = useState(false)
   const self = useRef(null)
+  const [at, setAt] = useState(null) // as a card's
+  const menuEl = menu ? jsx(CardMenu, { ctx, art, start: menu, back: self, align: at ? 'left' : 'right', onClose: () => (setMenu(false), setAt(null)), onRename: () => setRenaming(true) }) : null
   const narrow = cols === 'narrow'
   // Every cell but the title keeps its width (the columns line up row under row); the title takes the rest.
   const cell = { flexShrink: 0, fontSize: 12, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
   return jsxs('div', {
     ...hp,
     ...fp,
-    onContextMenu: e => (e.preventDefault(), setMenu('main')),
+    ...cardContext(setMenu, setAt),
+    onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming, self }),
     style: { position: 'relative' },
     children: [
       jsxs('div', {
@@ -2497,7 +2521,6 @@ const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' }) {
         tabIndex: 0,
         className: FOCUS,
         onClick: () => !renaming && openOnPage(ctx, art.id),
-        onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming }),
         style: { ...font, display: 'flex', alignItems: 'center', gap: narrow ? 8 : 12, width: '100%', padding: '8px 12px', borderRadius: C.rMd, cursor: 'pointer', background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
         children: [
           jsx(TypeBadge, { type: art.type, size: 28 }),
@@ -2515,11 +2538,12 @@ const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' }) {
         ? jsxs('div', {
             style: { position: 'absolute', top: 6, right: 6 },
             children: [
-              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => setMenu(menu ? false : 'main') }),
-              menu ? jsx(CardMenu, { ctx, art, start: menu, back: self, onClose: () => setMenu(false), onRename: () => setRenaming(true) }) : null
+              jsx(OverlayBtn, { icon: 'more', title: t('moreFor', art.title), active: Boolean(menu), onClick: () => (setAt(null), setMenu(menu ? false : 'main')) }),
+              menu && !at ? menuEl : null
             ]
           })
-        : null
+        : null,
+      menu && at ? atPointer(at, menuEl) : null
     ]
   })
 })

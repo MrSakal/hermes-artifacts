@@ -232,6 +232,46 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(out, {"moveOpen": "INPUT", "afterMove": True, "renameOpen": "INPUT", "afterRename": True,
                                "menuOpen": True, "afterMenu": True})
 
+    def test_card_keys_after_a_mouse_opened_menu_and_the_menu_at_the_pointer(self):
+        out = self.gallery("""
+          root.style.width = '1200px'
+          const rests = []
+          ctx.rest = async (url, o) => (rests.push(url + ' ' + JSON.stringify(o && o.body || null)), {})
+          const out = {}, L = M.$list.get()
+          for (const layout of ['grid', 'list']) {
+            M.$layout.set(layout)
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            const card = () => [...root.querySelectorAll('[role=button][tabindex="0"]')].find(r => r.textContent.includes('Facade budget'))
+            const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }))
+            card().parentElement.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false })); card().parentElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); %s
+            const more = card().parentElement.querySelector('button[title^="More"]') || [...card().parentElement.querySelectorAll('button')].find(b => /More|moreFor/.test(b.title))
+            more.focus(); more.click(); %s
+            const open = [...root.querySelectorAll('button')].some(b => b.textContent.startsWith('Rename'))
+            key(window, 'Escape'); %s
+            const back = document.activeElement === more
+            rests.length = 0
+            key(document.activeElement, 'p'); %s  // P on the ••• button: pin
+            const pinned = rests.some(r => r.includes('"pinned":true'))
+            M.$list.set(L); %s  // the stub's answers emptied the list
+            // a right click: the menu where the pointer is, not at the ••• button
+            const r0 = card().getBoundingClientRect()
+            card().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r0.left + 60, clientY: r0.top + 30 })); %s
+            const rename = [...root.querySelectorAll('button')].find(b => b.textContent.startsWith('Rename'))
+            const m = rename && rename.parentElement.getBoundingClientRect()
+            out[layout] = { open, back, pinned, trigger: card().parentElement.hasAttribute('data-hermes-context-menu-trigger'),
+              at: m ? [Math.round(m.left - r0.left), Math.round(m.top - r0.top)] : null }
+            key(window, 'Escape'); %s
+            R.unmount()
+          }
+          return out
+        """ % ((NEXT,) * 8))
+        for layout in ("grid", "list"):
+            o = out[layout]
+            self.assertEqual((o["open"], o["back"], o["pinned"], o["trigger"]), (True, True, True, True), (layout, o))
+            self.assertLessEqual(abs(o["at"][0] - 60), 8, (layout, o))  # at the pointer (within the menu's fit)
+            self.assertLessEqual(abs(o["at"][1] - 30), 8, (layout, o))
+
 
 class ListColsTests(unittest.TestCase):
     def test_columns_by_width(self):

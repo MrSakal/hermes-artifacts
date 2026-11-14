@@ -842,8 +842,13 @@ class ClickThroughTests(unittest.TestCase):
             self.assertIn(action, menu)
         self.assertEqual(menu.count("right: '"), len(hints))  # a hint only where a key acts
         for name, end in (("const Card = memo(", "const ListRow = memo("), ("const ListRow = memo(", "function TrashRow(")):
-            self.assertIn("onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming })", section(name, end), name)
-        self.assertIn("if (renaming || menu || e.target !== e.currentTarget) return", section("function cardKeyDown(", "const Card = memo("))
+            # on the card's outer box: the card itself and its buttons (where a closed menu gives the focus back)
+            self.assertIn("onKeyDown: e => cardKeyDown(e, ctx, art, { menu, renaming, setMenu, setRenaming, self })", section(name, end), name)
+            self.assertIn("...cardContext(setMenu, setAt)", section(name, end), name)
+        kd = section("function cardKeyDown(", "const Card = memo(")
+        self.assertIn("if (renaming || menu) return", kd)
+        self.assertIn("e.target === self.current ? openOnPage(ctx, art.id) : undefined", kd)  # Enter on a button is its own
+        self.assertIn("'data-hermes-context-menu-trigger': ''", kd)  # Hermes' app-wide menu leaves the gesture to the row
 
 
 @unittest.skipIf(NODE is None, "node not installed")
