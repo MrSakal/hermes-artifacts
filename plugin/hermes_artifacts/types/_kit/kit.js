@@ -136,6 +136,17 @@
   }
   function labelled(btn, label) { var s = btn.querySelector("span"); if (s) s.textContent = label; return btn; }
 
+  // A mouse press on another control while a control holds the focus (Esc from a menu gave it back to its
+  // button, keyboard-shown): that one lets go first, so never two look focused. The one pressed takes the focus
+  // as it always does, or keeps it away (a doc's bar keeps the caret: its mousedown is cancelled), still the only
+  // one marked. For the page's whole life, as the page's own document listeners.
+  var CONTROL = "button, [role=button], [role=menuitem], [role=menuitemcheckbox], [role=tab], select";
+  if (document.addEventListener) document.addEventListener("mousedown", function (e) {
+    var a = document.activeElement, t = e.target && e.target.closest ? e.target.closest(CONTROL) : null;
+    if (!t || !a || a === t || a === document.body || a.contains(t) || t.contains(a) || !a.matches || !a.matches(CONTROL)) return;
+    a.blur();
+  }, true);
+
   var openMenu = null, menuAnchor = null;
   /** A dropdown under anchor. Clicking anchor again closes it (it never closes and reopens);
    *  a scroll or a resize closes it too, so it never drifts away from its button. onClose(): once it is gone,

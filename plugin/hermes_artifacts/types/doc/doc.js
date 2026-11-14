@@ -2161,7 +2161,8 @@
   }
 
   // ------------------------------------------------------------------ the margin: comment cards and suggestion cards
-  var margin = h("div", { "class": "doc-margin", "aria-label": T.comment });
+  // data-flash-keep: a block the host flashes (a thread's Show) stays off its cards and icons (bridge.js keepClear)
+  var margin = h("div", { "class": "doc-margin", "aria-label": T.comment, "data-flash-keep": "" });
   view.appendChild(margin);
   var pins = [];
   function drawMargin() {

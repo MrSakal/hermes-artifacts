@@ -722,13 +722,30 @@
     window.removeEventListener("scroll", pickedMoved, true); window.removeEventListener("resize", pickedMoved);
   }
   on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });
+  // While picking, a crosshair over all of the page (its own cursors, a link's hand or a text's caret, would say
+  // a click does what it always does there); gone with pick mode.
+  var pickStyle = null;
   function setPicking(on) {
     picking = !!on;
     if (picking) unfollow();
     document.documentElement.style.cursor = picking ? "crosshair" : "";
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
+    if (picking && !pickStyle) {
+      pickStyle = document.createElement("style");
+      pickStyle.setAttribute("data-hermes-ui", "");
+      pickStyle.textContent = "html[data-commenting] *{cursor:crosshair!important}";
+      document.documentElement.appendChild(pickStyle);
+    }
+    if (!picking && pickStyle) { pickStyle.remove(); pickStyle = null; }
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }
   }
+  // Esc while picking ends it (the host's band says so): the page's own Esc handlers never see that press.
+  window.addEventListener("keydown", function (e) {
+    if (!picking || e.key !== "Escape") return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    setPicking(false);
+    emit("pick-cancel", {});
+  }, true);
   // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
   // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
   // still comes (onPick; a page that picks on its own, like motion, takes it on window first). A finger's tap
@@ -765,12 +782,30 @@
       document.body.appendChild(b); pins.push(b);
     });
   });
+  /** The flashed box kept off the page's own comment marks (the children of a [data-flash-keep]: a doc's margin
+   *  icons beside its blocks): its side towards a mark it would cover, or come within 4 px of (its 3 px halo
+   *  counted), moves back, so the mark stays seen while its element flashes. */
+  var KEEP_GAP = 4, HALO = 3, EDGE = 2;
+  function keepClear(b, el) {
+    var keep = document.querySelectorAll("[data-flash-keep] > *");
+    if (!keep.length) return;
+    // where place2 put it (its own rect may be mid-transition): el's box and the 2 px border round it
+    var e = el.getBoundingClientRect(), r = { left: e.left - EDGE, right: e.right + EDGE, top: e.top - EDGE, bottom: e.bottom + EDGE };
+    var l = r.left, rt = r.right, pad = KEEP_GAP + HALO;
+    for (var i = 0; i < keep.length; i++) {
+      var q = keep[i].getBoundingClientRect();
+      if (!q.width || !q.height || q.top >= r.bottom + pad || q.bottom <= r.top - pad || q.left >= rt + pad || q.right <= l - pad) continue;
+      if (q.left + q.width / 2 >= (l + rt) / 2) rt = Math.min(rt, q.left - pad); else l = Math.max(l, q.right + pad);
+    }
+    if (rt - l < 2 * EDGE + 8 || (l === r.left && rt === r.right)) return;
+    b.style.left = l + "px"; b.style.width = rt - l - 2 * EDGE + "px";
+  }
   on("flash", function (d) {
     var el; try { el = document.querySelector(d && d.selector); } catch (_) {}
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
-    var b = box(mark()); place2(b, el);
-    setTimeout(function () { place2(b, el); }, 350);
+    var b = box(mark()); place2(b, el); keepClear(b, el);
+    setTimeout(function () { place2(b, el); keepClear(b, el); }, 350);
     setTimeout(function () { b.remove(); }, 1600);
   });
 

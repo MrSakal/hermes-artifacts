@@ -19,12 +19,15 @@ body { overflow: hidden; }
   overflow: hidden; container-type: inline-size; }
 /* a frame narrow on screen keeps its name (cut with an ellipsis) and drops the buttons */
 @container (max-width: 110px) { .dc-strip .dc-sbtn { display: none; } }
-/* too narrow for six letters of a longer name: no name at all (not "A…"; the strip's tooltip and the selection name it) */
-@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name { display: none; } }
 .dc-strip:active { cursor: grabbing; }
 .dc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
-.dc-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dc-play); margin-right: 5px; flex-shrink: 0; }
+/* an interactive frame (it plays): a small play mark before its name, in the play colour; a triangle, never a
+   round dot a comment's pin could be taken for */
+.dc-dot { display: none; width: 6px; height: 8px; background: var(--dc-play); clip-path: polygon(0 0, 100% 50%, 0 100%); margin-right: 5px; flex-shrink: 0; }
 .dc-board.is-interactive .dc-dot { display: inline-block; }
+/* too narrow for six letters of a longer name: nothing at all, its mark neither (not "A…", not a lone mark; the
+   frame's outline is enough, the strip's tooltip and the selection name it) */
+@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name, .dc-board.is-interactive .dc-strip:not([data-short]) .dc-dot { display: none; } }
 .dc-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px;
   background: transparent; color: var(--color-fg-muted); cursor: pointer; flex-shrink: 0; }
 .dc-sbtn:hover { background: var(--color-hover); color: var(--color-fg); }

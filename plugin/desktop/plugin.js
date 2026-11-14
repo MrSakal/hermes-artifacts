@@ -260,7 +260,7 @@ const STRINGS = {
     deletedForever: n => `Deleted ${n} for good`,
     comments: 'Comments',
     addComment: 'Comment',
-    pickHint: 'Click the part of the page you want to comment on.',
+    pickHint: 'Click what you want to comment on · Esc to cancel',
     cancel: 'Cancel',
     discard: 'Discard',
     save: 'Save',
@@ -529,7 +529,7 @@ const STRINGS = {
     deletedForever: n => `Véglegesen törölve: ${n}`,
     comments: 'Kommentek',
     addComment: 'Komment',
-    pickHint: 'Kattints az oldal arra a részére, amihez kommentet írnál.',
+    pickHint: 'Kattints arra, amihez kommentet írnál · Esc: mégse',
     cancel: 'Mégse',
     discard: 'Elvetés',
     save: 'Mentés',
@@ -1204,7 +1204,7 @@ async function loadList(ctx) {
       if (current() && $panel.get()) loadComments(ctx) // a reply changes no card
       return
     }
-    const list = r.artifacts || []
+    const list = withSeen(r.artifacts || [])
     if ((r.default_design_system || null) !== $dsDefault.get()) $dsDefault.set(r.default_design_system || null)
     const dsFor = r.design_system_for || {}
     if (JSON.stringify(dsFor) !== JSON.stringify($tileDs.get())) $tileDs.set(dsFor)
@@ -1234,6 +1234,44 @@ async function loadList(ctx) {
   } catch (err) {
     $error.set(String(err?.message || err))
   }
+}
+
+// The edits this half saw (the person's own in an open doc, sheet or board; Hermes' as its doc/sheet/board
+// events) newer than the list's "updated": id -> epoch s. The server moves "updated" at most once a minute
+// (store.EDITED_EVERY) and nothing polls while an artifact is open, so the open viewer's title menu and the
+// gallery it goes back to would show the time before the edits; with these they show the edit at once. An entry
+// goes when the list catches up (or the artifact leaves it).
+const seenEdits = new Map()
+const SEEN_EVERY_S = 30 // the list itself is patched at most this often per artifact (a keystroke's save is one)
+const EDIT_OPS = new Set(['doc.edit', 'doc.restore', 'doc.decide', 'doc.suggest', 'sheet.edit', 'sheet.restore', 'board.edit', 'board.restore'])
+/** An op the page sent that changed its artifact's content (as store.edited counts one): not a refusal, a
+ *  conflict, nor a board embed saving only what people entered (its ops all "state"). Pure. */
+function editedBy(op, args, value) {
+  if (!EDIT_OPS.has(op) || !value || value.ok === false || value.conflict || value.refused) return false
+  return !(op === 'board.edit' && Array.isArray(args?.ops) && args.ops.length && args.ops.every(o => o?.op === 'state'))
+}
+function sawEdit(id, now = Date.now() / 1000) {
+  if (!id) return
+  seenEdits.set(id, now)
+  const list = $list.get(), a = list.find(x => x.id === id)
+  if (a && now - (a.updated || 0) >= SEEN_EVERY_S) $list.set(withSeen(list, false))
+}
+/** The list with each artifact's "updated" moved to the edit this half saw after it; `list` itself when none
+ *  moves. From the server (`server`), an entry the list has caught up with goes. */
+function withSeen(list, server = true) {
+  if (!seenEdits.size) return list
+  if (server) {
+    const ids = new Set(list.map(a => a.id))
+    for (const id of [...seenEdits.keys()]) if (!ids.has(id) || (list.find(a => a.id === id).updated || 0) >= seenEdits.get(id)) seenEdits.delete(id)
+  }
+  let moved = false
+  const out = list.map(a => {
+    const s = seenEdits.get(a.id)
+    if (!s || (a.updated || 0) >= s) return a
+    moved = true
+    return { ...a, updated: s }
+  })
+  return moved ? out : list
 }
 
 /** `list` with each artifact equal (by JSON) to one in `old` replaced by that object; `old` itself when nothing
@@ -1348,6 +1386,9 @@ function closeOnPage() {
 }
 
 function closeArtifact() {
+  // The gallery it goes back to shows the edits seen meanwhile at once, not the list's time until the next poll.
+  const list = $list.get(), seen = withSeen(list, false)
+  if (seen !== list) $list.set(seen)
   $selected.set(null)
   $picking.set(false)
   $draft.set(null)
@@ -1612,6 +1653,39 @@ function ago(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m`
   if (s < 86400) return `${Math.floor(s / 3600)}h`
   return dateText(ts)
+}
+
+/** One shared clock for the ages shown ("now", "3m", "2h": the gallery's cards and rows, the trash, the
+ *  comments): one timer for all of them, twice a minute, only while one is mounted and the page is in sight
+ *  (paused while hidden, ticking at once when it is back), gone with the last one and on dispose. Each age is
+ *  its own component (Ago), so a memo'd card around it never keeps it from ticking. */
+const AGE_TICK_MS = 30000
+const clock = {
+  subs: new Set(), timer: null, watching: false,
+  tick() { clock.subs.forEach(fn => fn()) },
+  sync() {
+    const any = clock.subs.size > 0, run = any && !document.hidden
+    if (run && !clock.timer) clock.timer = setInterval(clock.tick, AGE_TICK_MS)
+    if (!run && clock.timer) { clearInterval(clock.timer); clock.timer = null }
+    if (any !== clock.watching) {
+      clock.watching = any
+      if (any) document.addEventListener('visibilitychange', clock.seen)
+      else document.removeEventListener('visibilitychange', clock.seen)
+    }
+  },
+  seen() { if (!document.hidden && !clock.timer) clock.tick(); clock.sync() },
+  stop() { clock.subs.clear(); clock.sync() }
+}
+function Ago({ ts, fmt = null }) {
+  const [, setN] = useState(0)
+  useEffect(() => {
+    const fn = () => setN(n => n + 1)
+    clock.subs.add(fn)
+    clock.sync()
+    return () => { clock.subs.delete(fn); clock.sync() }
+  }, [])
+  const s = ago(ts)
+  return s && fmt ? fmt(s) : s
 }
 
 /** A date (epoch seconds) as this whole half writes one: the month's short name and the day, with the time when
@@ -2465,10 +2539,11 @@ const Card = memo(function Card({ ctx, art, sort }) {
                 style: { minWidth: 0, flex: 1 },
                 children: [
                   jsx(TitleText, { ctx, art, renaming, setRenaming, back: self, style: { fontSize: 15, fontWeight: 500, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }),
-                  jsx('div', {
+                  jsxs('div', {
                     // On the card's own fill (darker while hovered): the secondary ink keeps 4.5:1 on both.
                     style: { fontSize: 12, color: C.text2, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-                    children: [t(`type_${art.type}`) || art.type, art.folder, ago(sortTime(art, sort))].filter(Boolean).join(' · ')
+                    children: [[t(`type_${art.type}`) || art.type, art.folder].filter(Boolean).join(' · '),
+                      sortTime(art, sort) ? jsx(Ago, { ts: sortTime(art, sort), fmt: s => ` · ${s}` }) : null]
                   })
                 ]
               }),
@@ -2536,7 +2611,7 @@ const ListRow = memo(function ListRow({ ctx, art, sort, cols = 'wide' }) {
           art.comments ? jsx(CommentCount, { n: art.comments }) : null,
           cols === 'wide' ? jsx('span', { style: { ...cell, width: 110 }, children: art.folder || '' }) : null,
           narrow ? null : jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${art.type}`) || art.type }),
-          jsx('span', { style: { ...cell, width: narrow ? 44 : 70, textAlign: 'right' }, children: ago(sortTime(art, sort)) }),
+          jsx('span', { style: { ...cell, width: narrow ? 44 : 70, textAlign: 'right' }, children: jsx(Ago, { ts: sortTime(art, sort) }) }),
           jsx('span', { style: { width: 30, flexShrink: 0 } })
         ]
       }),
@@ -2575,7 +2650,7 @@ function TrashRow({ ctx, item, cols = 'wide' }) {
         ? jsx('span', {
             title: item.deleted_at ? dateText(item.deleted_at, true) : undefined,
             style: { ...cell, width: 110 },
-            children: item.deleted_at ? t('deletedAgo', ago(item.deleted_at)) : ''
+            children: item.deleted_at ? jsx(Ago, { ts: item.deleted_at, fmt: s => t('deletedAgo', s) }) : ''
           })
         : null,
       narrow ? null : jsx('span', { style: { ...cell, width: 90, textAlign: 'right' }, children: item.days_left == null ? '' : t('daysLeft', item.days_left) }),
@@ -3663,6 +3738,7 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
           // Sources' Test of args not allowed yet: the same host dialog, then the test runs.
           if (m.op === 'dataset.test' && value?.status === 'approval' &&
               await approveQueries(ctx, aid, [{ id: String(m.args?.id ?? ''), args: m.args?.args ?? {} }], null)) value = await op()
+          if (editedBy(m.op, m.args, value)) sawEdit(aid) // its "Updated" and the gallery's card follow the person's edit
           if (m.op === 'history.restore' && value.ok) await refresh(ctx)
           if (m.op === 'preview.set' && value.ok) {
             previewCache.delete(`${aid}:${value.version}`)
@@ -3815,6 +3891,40 @@ function FrameBand({ F }) {
             children: act[0]
           })
         : null
+    ]
+  })
+}
+
+/** Picking an element for a new comment is on: a band under the header (FrameBand's: it covers nothing of the
+ *  page nor of its toolbars) says so and how to leave it, wherever picking started (the header's Comment with the
+ *  list closed, the list's Comment, the pane beside a chat, the whole-stage list that steps aside for it). Esc
+ *  (here, or in the page: bridge.js pick-cancel), its Cancel, or Comment again ends it; the pointer over the
+ *  page is a crosshair meanwhile (bridge.js). */
+function PickBand() {
+  const t = usePluginI18n(ID)
+  const picking = useValue($picking)
+  const [h, hp] = useHover()
+  useEffect(() => {
+    if (!picking) return undefined
+    return listen(CTX, window, 'keydown', e => { if (e.key === 'Escape' && !e.isComposing) $picking.set(false) })
+  }, [picking])
+  if (!picking) return null
+  return jsxs('div', {
+    role: 'status',
+    'aria-live': 'polite',
+    'data-ha-pick-hint': '',
+    style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, padding: '6px 12px', fontSize: 12, color: C.text2, borderBottom: `1px solid ${C.line}` },
+    children: [
+      jsx('span', { style: { display: 'flex', color: C.accent, flexShrink: 0 }, children: jsx(Icon, { name: 'comment', size: 14 }) }),
+      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, lineHeight: '20px' }, title: t('pickHint'), children: t('pickHint') }),
+      jsx('button', {
+        type: 'button',
+        onClick: () => $picking.set(false),
+        ...hp,
+        className: TEXT_BTN,
+        style: { ...font, flexShrink: 0, border: 0, padding: '0 8px', fontSize: 12, lineHeight: '20px', cursor: 'pointer', color: h ? C.fg : C.accent, background: h ? C.hover : 'transparent' },
+        children: t('cancel')
+      })
     ]
   })
 }
@@ -4004,6 +4114,7 @@ function onPageEvent(event, detail) {
     $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null })
     return
   }
+  if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickBand)
   if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
     const d = $draft.get(), r = pickedRect(detail && detail.rect)
     if (d?.rect && r && Object.keys(r).some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: r })
@@ -4957,6 +5068,9 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   useEffect(() => {
     ctx.rest(`/artifacts/${enc(art.id)}`).then(r => setSize(r.size)).catch(() => {})
   }, [art.id, art.version])
+  // Nothing polls while an artifact is open: the list is asked once as the menu opens (its etag: a "same" costs
+  // nothing), so "Updated" is the server's, or the edit seen here since (sawEdit), never the time it was opened.
+  useEffect(() => { refresh(ctx) }, [])
   const date = art.updated ? dateText(art.updated, true) : ''
   const close = fn => () => {
     onClose()
@@ -5533,7 +5647,7 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
         children: [
           n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 9, background: C.accentBg, color: C.accent, fontSize: 11, fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
           who(c),
-          jsx('span', { style: { fontSize: 11, color: C.text3 }, children: ago(c.ts) }),
+          jsx('span', { style: { fontSize: 11, color: C.text3 }, children: jsx(Ago, { ts: c.ts }) }),
           jsx('div', { style: { flex: 1 } }),
           c.anchor?.selector
             ? jsx('button', { type: 'button', title: t('showInPage'), onClick: e => (e.stopPropagation(), onShow(c)), className: TEXT_BTN,
@@ -5556,7 +5670,7 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
       jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: c.text }),
       jsx(Reactions, { c, ctx, art }),
       ...replies.map(r =>
-        jsxs('div', { style: { marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}` }, children: [jsxs('div', { style: { display: 'flex', gap: 8, marginBottom: 4 }, children: [who(r), jsx('span', { style: { fontSize: 11, color: C.text3 }, children: ago(r.ts) })] }), jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: r.text })] }, r.id)
+        jsxs('div', { style: { marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.line}` }, children: [jsxs('div', { style: { display: 'flex', gap: 8, marginBottom: 4 }, children: [who(r), jsx('span', { style: { fontSize: 11, color: C.text3 }, children: jsx(Ago, { ts: r.ts }) })] }), jsx('div', { style: { fontSize: 13, color: C.fg, whiteSpace: 'pre-wrap' }, children: r.text })] }, r.id)
       ),
       c.resolved
         ? null
@@ -5732,7 +5846,6 @@ function CommentsPanel({ ctx, art, portRef }) {
         ref: listRef,
         style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 },
         children: [
-          picking ? jsx('div', { style: { fontSize: 12, color: C.accent, padding: '4px 2px' }, children: t('pickHint') }) : null,
           draft && (!draft.rect || docked)
             ? jsxs('div', {
                 style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${C.accent}`, background: C.card },
@@ -5879,6 +5992,7 @@ function Viewer({ ctx, docked = false }) {
       jsx(Header, { ctx, art, v: hv, portRef, docked }),
       making ? jsx(MakingLine, { ctx, m: making, band: true }) : null,
       jsx(FrameBand, { F }),
+      jsx(PickBand, {}),
       jsxs('div', {
         style: VIEW_ROW,
         children: [
@@ -6082,9 +6196,10 @@ export default {
     }))
     ctx.onEvent(`plugin.${ID}.reply`, ev => replyWaiters.get(payloadOf(ev).request)?.())
     ctx.onEvent(`plugin.${ID}.comments`, () => loadComments(ctx))
-    ctx.onEvent(`plugin.${ID}.doc`, ev => docListeners.forEach(fn => fn(payloadOf(ev).id)))
-    ctx.onEvent(`plugin.${ID}.sheet`, ev => { const p = payloadOf(ev); sheetListeners.forEach(fn => fn(p.id, { sheet: p.sheet, rev: p.rev })) })
-    ctx.onEvent(`plugin.${ID}.board`, ev => { const p = payloadOf(ev); boardListeners.forEach(fn => fn(p.id, { rev: p.rev })) })
+    // Hermes changed a doc, a sheet or a board: its frame reads it again, its "Updated" follows (sawEdit).
+    ctx.onEvent(`plugin.${ID}.doc`, ev => { const p = payloadOf(ev); sawEdit(p.id); docListeners.forEach(fn => fn(p.id)) })
+    ctx.onEvent(`plugin.${ID}.sheet`, ev => { const p = payloadOf(ev); sawEdit(p.id); sheetListeners.forEach(fn => fn(p.id, { sheet: p.sheet, rev: p.rev })) })
+    ctx.onEvent(`plugin.${ID}.board`, ev => { const p = payloadOf(ev); sawEdit(p.id); boardListeners.forEach(fn => fn(p.id, { rev: p.rev })) })
     ctx.onEvent(`plugin.${ID}.deleted`, () => refresh(ctx))
     // The pinned rows in the sidebar come from the list: load it at start (retrying until the backend
     // answers), not only when the Artifacts page is opened.
@@ -6111,6 +6226,8 @@ export default {
       if (KEY && window[KEY] === redirectCore) delete window[KEY]
       syncBack = () => {}
       clearTimeout(holdTimer)
+      seenEdits.clear()
+      clock.stop() // the gallery's ages (unmounted with it already; a host that keeps it gets none)
       if (CTX === ctx) CTX = null
     }
     if (typeof ctx.onDispose === 'function') ctx.onDispose(dispose)

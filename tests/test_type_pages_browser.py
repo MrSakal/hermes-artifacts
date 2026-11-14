@@ -1028,15 +1028,26 @@ class RoundV3Layout(unittest.TestCase):
         self.assertIn(out["focus"], (-1, 0), out)  # never a ring on the thumbnail the menu was for
 
     def test_a_dashboard_value_stays_readable_across_its_target_line(self):
+        # V3: the dashes ran through "92.4"; V4: its glyphs (and "97.9"'s) still sat on the line, and at 400 px
+        # "104.2" and "97.9" were 1.4 px apart. Each value on its halo, 4 px clear of the line's stroke (or the
+        # line broken behind it) and of its neighbours, at 1500 and at 400.
         aid = self.store.publish(title="Orders", type="dashboard", files={"dashboard.json": MONTHS})["id"]
-        probe = r"""(() => { const ln = document.querySelector('.c-chart line.c-ref'); if (!ln) return null; const lr = ln.getBoundingClientRect()
-          return [...document.querySelectorAll('.c-chart text.c-value')].filter(t => { const r = t.getBoundingClientRect(); return r.top - 1 < lr.top && lr.top < r.bottom + 1 && r.left < lr.right })
-            .map(t => { const cs = getComputedStyle(t); return { v: t.textContent, above: !!(ln.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING),
-              halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } }) })()"""
+        probe = r"""(() => { const segs = [...document.querySelectorAll('.c-chart line.c-ref')].map(l => l.getBoundingClientRect()); if (!segs.length) return null
+          const half = 0.75, ly = segs[0].top + segs[0].height / 2
+          const vals = [...document.querySelectorAll('.c-chart text.c-value')].map(t => { const r = t.getBoundingClientRect(), cs = getComputedStyle(t)
+            return { v: t.textContent, l: r.left, r: r.right, t: r.top, b: r.bottom, halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } })
+          const line = vals.map(v => ({ v: v.v, gap: Math.max(v.t - ly, ly - v.b) - half, under: segs.some(s => s.left < v.r + 3.5 && s.right > v.l - 3.5), halo: v.halo }))
+          const near = vals.slice(1).map((c, i) => { const a = vals[i]; return Math.max(c.l - a.r, a.l - c.r, c.t - a.b, a.t - c.b) })
+          return { line, near, n: vals.length } })()"""
         for w in (1500, 400):
             out = self.drive(aid, f"return await api.frame({json.dumps(probe)})", w=w, settle=2000)
-            self.assertTrue(out, (w, out))  # the line does cross some ("97.9", "92.4")
-            self.assertTrue(all(o["above"] and o["halo"] for o in out), (w, out))
+            self.assertTrue(out and out["n"] >= 4, (w, out))
+            for o in out["line"]:
+                self.assertTrue(o["halo"], (w, o))
+                self.assertTrue(o["gap"] >= 4 - 0.05 or not o["under"], (w, o, out))  # clear of the line, or the line broken there
+            self.assertTrue(all(g >= 4 - 0.05 for g in out["near"]), (w, out))
+            if w == 1500:
+                self.assertEqual(out["n"], 10, out)  # room for every value
 
     def test_a_note_grown_by_its_text_shrinks_back_but_never_below_a_dragged_height(self):
         aid = self.store.publish(title="Notes", type="board", files={"board.json": {"title": "Notes", "items": [
@@ -1084,9 +1095,34 @@ class RoundV3Layout(unittest.TestCase):
 
     def test_a_design_frame_too_narrow_for_its_name_shows_none(self):
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
-        probe = ("[...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length).map(s => { const n = s.querySelector('.dc-name');"
-                 " return { name: s.title, shown: n.getClientRects().length > 0, cut: n.scrollWidth > n.clientWidth + 1, w: n.clientWidth } })")
+        # V4: a frame whose name was hidden still showed its interactive mark, a round 7 px dot read as a comment pin
+        probe = ("[...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length).map(s => { const n = s.querySelector('.dc-name'), d = s.querySelector('.dc-dot'), dc = getComputedStyle(d);"
+                 " return { name: s.title, shown: n.getClientRects().length > 0, cut: n.scrollWidth > n.clientWidth + 1, w: n.clientWidth,"
+                 " mark: d.getClientRects().length > 0, round: parseFloat(dc.borderTopLeftRadius) > 0 || dc.clipPath === 'none',"
+                 " live: s.closest('.dc-board').classList.contains('is-interactive') } })")
         for w in (400, 1000):
             out = self.drive(aid, f"await api.frame('__design.fit ? __design.fit() : 0'); await api.sleep(600); return await api.frame({json.dumps(probe)})", w=w, settle=3000)
             self.assertTrue(out and all(o["name"] for o in out), (w, out))  # each named in its tooltip
             self.assertFalse([o for o in out if o["shown"] and o["cut"] and o["w"] < 40], (w, out))  # never "A…"
+            self.assertFalse([o for o in out if o["mark"] and not o["shown"]], (w, out))  # never a lone mark
+            self.assertFalse([o for o in out if o["mark"] and (o["round"] or not o["live"])], (w, out))  # a play mark, on a frame that plays
+            if w == 400:
+                self.assertTrue([o for o in out if o["live"] and not o["shown"]], (w, out))  # the V4 case is there: an interactive frame, its name hidden
+
+    def test_esc_from_a_menu_then_a_click_on_another_button_leaves_one_focused(self):
+        # V4: Esc gave the focus (and its ring) back to the doc's Fonts button; a click on Editing, whose press keeps
+        # the caret, opened its menu with Fonts still ringed
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        state = ("(() => { const f = document.querySelector('.doc-tt').closest('button'); return { fontsFocused: document.activeElement === f,"
+                 " fontsRing: f.matches(':focus-visible'), rings: document.querySelectorAll(':focus-visible').length, menu: !!document.querySelector('.kit-menu') } })()")
+        out = self.drive(aid, f"""
+          const o = {{}}
+          await api.clickIn('document.querySelectorAll(".doc-blk")[1]'); await api.sleep(300)  // the page has the keyboard (the person was writing)
+          await api.clickIn('document.querySelector(".doc-tt").closest("button")'); await api.sleep(300)
+          await api.key('Escape', 'Escape', 27); await api.sleep(300); o.esc = await api.frame({json.dumps(state)})
+          await api.clickIn('document.querySelector(".doc-mode")'); await api.sleep(300); o.other = await api.frame({json.dumps(state)})
+          return o""", w=1000)
+        self.assertTrue(out["esc"]["fontsFocused"] and not out["esc"]["menu"], out)  # Esc: the focus back on its button
+        self.assertTrue(out["other"]["menu"], out)
+        self.assertFalse(out["other"]["fontsFocused"] or out["other"]["fontsRing"], out)
+        self.assertLessEqual(out["other"]["rings"], 1, out)

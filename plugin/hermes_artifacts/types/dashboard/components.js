@@ -303,6 +303,50 @@
     tip.style.top = (y + 14) + "px";
   }
 
+  /** A bar chart's values, drawn (their boxes measured): each keeps VALUE_GAP px off the dashed reference line at
+   *  ry (null: none) on the side its bar's top is: above when the bar reaches the line, else below it, between the
+   *  line and the bar; one with no room there keeps its place and the line breaks behind it, VALUE_GAP px either
+   *  side. Values closer than VALUE_GAP px to a neighbour: every second one is shown (or third…), the rest are in
+   *  their bars' tooltips. Never a label touching the line or another. */
+  var VALUE_GAP = 4, REF_HALF = 0.75; // the reference line's half stroke (dashboard.css .c-ref)
+  function fitValues(svg, ry, x1, x2) {
+    var items = svg.selectAll("g.c-values text").nodes().map(function (t) {
+      var bb = t.getBBox();
+      return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5 };
+    });
+    if (!items.length) return;
+    var off = VALUE_GAP + REF_HALF; // from the line's middle
+    if (ry != null) items.forEach(function (o) {
+      if (o.y - off >= ry || o.y + o.h + off <= ry) return;
+      var dy = o.bar <= ry ? ry - off - (o.y + o.h) // above the line, its bar up to it or past it
+        : o.bar - 1 - (ry + off) >= o.h ? ry + off - o.y : null; // below it, over its bar
+      if (dy == null) { o.cut = true; return; }
+      o.y += dy;
+      o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
+    });
+    var near = function (a, c) { return Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)) < VALUE_GAP; };
+    var step = 1;
+    for (; step < items.length; step++) {
+      var shown = items.filter(function (o, i) { return i % step === 0; }), ok = true;
+      for (var i = 1; i < shown.length && ok; i++) ok = !near(shown[i - 1], shown[i]);
+      if (ok) break;
+    }
+    items.forEach(function (o, i) { if (i % step) { o.t.remove(); o.gone = true; } });
+    var ln = ry == null ? null : svg.select("line.c-ref").node();
+    var gaps = items.filter(function (o) { return o.cut && !o.gone; }).map(function (o) { return [o.x - VALUE_GAP, o.x + o.w + VALUE_GAP]; });
+    if (!ln || !gaps.length) return;
+    var segs = [], from = x1;
+    gaps.sort(function (a, c) { return a[0] - c[0]; }).forEach(function (g) { if (g[0] > from) segs.push([from, Math.min(g[0], x2)]); from = Math.max(from, g[1]); });
+    if (from < x2) segs.push([from, x2]);
+    var prev = null;
+    segs.forEach(function (s) {
+      var n = prev ? ln.parentNode.insertBefore(ln.cloneNode(false), prev.nextSibling) : ln;
+      n.setAttribute("x1", s[0]); n.setAttribute("x2", s[1]);
+      prev = n;
+    });
+    if (!segs.length) ln.remove();
+  }
+
   builders.chart = function (b) {
     var box = h("div", { "class": "c-chart", "data-source": b.source });
     var card = h("section", { "class": "c-card c-block" + (b.width === "full" ? " c-full" : "") }, [
@@ -424,6 +468,7 @@
         });
       }
       box.replaceChildren(svg.node());
+      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, M.l, W - M.r);
       // a category's name whole when its slot has room for it; cut (the whole name in its tooltip) only when it has not
       var slot = x.step() * every - 6;
       svg.selectAll(".c-axis .tick text").each(function () {

@@ -14,7 +14,7 @@ import _browser as B
 import _dom as D
 from hermes_artifacts import api, docs, store
 
-EXPORTS = "\nexport { Viewer, openArtifact, $list, $panel, $panelHere, $picking, $panelShown, STRINGS }\n"
+EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, $list, $panel, $panelHere, $picking, $panelShown, STRINGS }\n"
 BOOT = """
   await api.go(URL, 400)
   for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
@@ -142,6 +142,100 @@ class ViewerComments(unittest.TestCase):
         self.assertTrue(out["draft"], out)
         self.assertTrue(out["inBlock"], out)
         self.assertEqual(out["after"], ["thread"], out)
+
+    # Live round V4.
+    HINT = ('(() => { const h = document.querySelector("[data-ha-pick-hint]"); if (!h) return null; const r = h.getBoundingClientRect(), f = document.querySelector("iframe").getBoundingClientRect();'
+            ' const over = [...document.querySelectorAll("button, iframe")].filter(b => !h.contains(b)).some(b => { const q = b.getBoundingClientRect(); return q.width && q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom });'
+            ' return { text: h.textContent, over, above: r.bottom <= f.top + 0.5, picking: window.H.M.$picking.get() } })()')
+    CURSOR = 'getComputedStyle(document.querySelector(".doc-blk a, .doc-blk")).cursor'
+
+    def test_picking_says_so_in_a_band_over_nothing_and_esc_or_cancel_ends_it(self):
+        # V4: the header's Comment (the list closed, docked) armed picking with nothing shown but its own highlight
+        for w in (1300, 400):
+            out = self.drive(f"""
+              const o = {{}}, hint = () => api.top({json.dumps(self.HINT)})
+              await btn('Comment')
+              if (await api.top('!window.H.M.$picking.get()')) {{  // narrow: the list first, its own Comment picks
+                const p = await api.top('(() => {{ const b = document.querySelector("aside button[title=Comment]"); const q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2] }})()')
+                await api.mouse(p[0], p[1]); await api.sleep(400)
+              }}
+              o.on = await hint(); o.cursor = await api.frame({json.dumps(self.CURSOR)})
+              await api.key('Escape', 'Escape', 27); await api.sleep(300); o.esc = await hint()
+              o.cursorAfter = await api.frame({json.dumps(self.CURSOR)})
+              await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+              await api.frame('window.dispatchEvent(new KeyboardEvent("keydown", {{key: "Escape", bubbles: true}}))'); await api.sleep(300)
+              o.escInPage = await hint()
+              await api.top('window.H.M.$picking.set(true)'); await api.sleep(300); await btn('Cancel'); o.cancel = await hint()
+              return o""", w)
+            on = out["on"]
+            self.assertTrue(on and on["picking"], (w, out))
+            self.assertIn("Esc", on["text"], (w, out))
+            self.assertFalse(on["over"], (w, out))  # over no button and not over the page
+            self.assertTrue(on["above"], (w, out))
+            self.assertEqual(out["cursor"], "crosshair", (w, out))
+            self.assertNotEqual(out["cursorAfter"], "crosshair", (w, out))
+            for k in ("esc", "escInPage", "cancel"):
+                self.assertIsNone(out[k], (w, k, out))
+
+    def test_updated_follows_an_edit_while_open_and_the_gallery_has_it_at_once(self):
+        # V4: "Updated" in the title menu stayed at the time the doc was opened; the gallery showed the old time
+        m = store.get_meta(self.aid)
+        m["updated"] = m["updated"] - 86400
+        store._write_meta(store._dir(self.aid), m)
+        out = self.drive(f"""
+          const o = {{}}, mine = 'window.H.M.$list.get().find(a => a.id === ' + JSON.stringify(AID) + ').updated', upd = () => api.top(mine)
+          const sub = async () => {{ await btn('Marks'); const s = await api.top('(() => {{ const d = [...document.querySelectorAll("div")].find(x => x.children.length === 0 && /^Updated /.test(x.textContent)); return d ? d.textContent : null }})()'); await api.key('Escape', 'Escape', 27); await api.sleep(200); return s }}
+          o.t0 = Date.now() / 1000; o.before = await upd(); o.menuBefore = await sub()
+          await api.clickIn('document.querySelectorAll(".doc-blk")[1]'); await api.key('End', 'End', 35); await api.type(' typed'); await api.sleep(2500)
+          o.after = await upd()
+          o.menuAfter = await sub()
+          o.closed = await api.top('(() => {{ window.H.M.closeArtifact(); return ' + mine + ' }})()')
+          return o""")
+        self.assertLess(out["before"], out["t0"] - 80000, out)
+        self.assertGreaterEqual(out["after"], out["t0"] - 1, out)  # the edit seen here (sawEdit), no poll
+        self.assertTrue(out["menuBefore"] and out["menuAfter"], out)
+        self.assertNotEqual(out["menuBefore"], out["menuAfter"], out)
+        self.assertGreaterEqual(out["closed"], out["t0"] - 1, out)  # the gallery's list, as it goes back
+
+    def test_ages_tick_on_one_shared_clock_paused_while_hidden_and_released(self):
+        # V4: a card's "1m" stayed at 127, 147 and 201 s while a search kept the list as it was
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"""
+          await api.go({json.dumps(url)}, 400)
+          for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+          const st = () => api.top('(() => {{ const c = window.H.M.clock; return {{ subs: c.subs.size, timer: !!c.timer, watching: c.watching, text: document.getElementById("root").textContent }} }})()')
+          const o = {{}}
+          await api.top(`(() => {{ const {{ M, R, jsx }} = window.H, now = Date.now() / 1000
+            R.mount(() => jsx('div', {{ children: [jsx(M.Ago, {{ ts: now - 59 }}), jsx('span', {{ children: '|' }}), jsx(M.Ago, {{ ts: now - 3599, fmt: s => 'Deleted ' + s }})] }}), document.getElementById('root')) }})()`)
+          await api.sleep(200); o.mounted = await st()
+          await api.sleep(1300); await api.top('window.H.M.clock.tick()'); await api.sleep(200); o.ticked = await st()
+          await api.top('(() => {{ Object.defineProperty(document, "hidden", {{ configurable: true, get: () => true }}); document.dispatchEvent(new Event("visibilitychange")) }})()')
+          o.hidden = await st()
+          await api.top('(() => {{ delete document.hidden; document.dispatchEvent(new Event("visibilitychange")) }})()')
+          o.back = await st()
+          await api.top('window.H.R.unmount()'); await api.sleep(200); o.gone = await st()
+          return o""")
+        self.assertIsNone(r.get("err"), r)
+        out = r["out"]
+        self.assertEqual(out["mounted"]["text"], "now|Deleted 59m", out)
+        self.assertEqual((out["mounted"]["subs"], out["mounted"]["timer"], out["mounted"]["watching"]), (2, True, True), out)
+        self.assertEqual(out["ticked"]["text"], "1m|Deleted 1h", out)
+        self.assertFalse(out["hidden"]["timer"], out)  # paused out of sight
+        self.assertTrue(out["back"]["timer"], out)
+        self.assertEqual((out["gone"]["subs"], out["gone"]["timer"], out["gone"]["watching"]), (0, False, False), out)
+
+    def test_a_flashed_block_keeps_clear_of_its_margin_icon(self):
+        # V4: docked at 1500 the "Show" flash covered the doc's comment icon in the margin for its 1.6 s
+        for w in (1000, 1300, 1500):
+            out = self.drive("""
+              await btn('More comment options'); await btn('All comments')
+              const show = await api.top('(() => { const t = [...document.querySelectorAll("aside div")].find(d => d.textContent.trim() === "note describes").parentElement; const s = [...t.querySelectorAll("button")].find(x => x.textContent === "Show"); const b = s.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()')
+              await api.mouse(show[0], show[1]); await api.sleep(600)
+              return await api.frame(`(() => { const f = [...document.querySelectorAll("div[data-hermes-ui]")].pop(); if (!f) return null; const r = f.getBoundingClientRect()
+                return { box: [r.left, r.right], cards: [...document.querySelectorAll(".doc-margin > *")].filter(c => { const q = c.getBoundingClientRect(); return q.width && q.top < r.bottom + 7 && q.bottom > r.top - 7 })
+                  .map(c => { const q = c.getBoundingClientRect(); return Math.max(q.left - r.right, r.left - q.right) }) } })()`)""", w)
+            self.assertTrue(out and out["cards"], (w, out))  # a card or icon beside the flashed block
+            self.assertTrue(all(g >= 3 + 4 - 0.5 for g in out["cards"]), (w, out))  # its 3 px halo and 4 px clear
 
 
 if __name__ == "__main__":
