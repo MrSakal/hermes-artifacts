@@ -2788,6 +2788,7 @@
   var sep = function () { return h("span", { "class": "doc-sep" }); };
   var tools = live ? [tabBtn, fontBtn, widthBtn, sep(), tableBtn, imageBtn, checkBtn, plusBtn] : [tabBtn, fontBtn, widthBtn];
   bar.append.apply(bar, [titleEl].concat(tools).concat([h("span", { "class": "doc-gap" }), status, histBtn, expBtn]).concat(live ? [modeBtn] : []));
+  kit.status(status); // "Saved" whole, or a dot with it as its tooltip when the bar is tight: never a clipped letter
   setMode(mode);
 
   // The first render, then ready for the host, once: also when the render throws (the bridge then says threw;

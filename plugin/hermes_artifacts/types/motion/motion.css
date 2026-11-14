@@ -62,6 +62,7 @@ html, body { overflow: hidden; }
 .mo-seg-t b { font-weight: 500; }
 .mo-seg-t i { font-style: normal; color: var(--color-fg-muted); }
 .mo-seg.recut .mo-seg-t i { color: var(--color-accent); }
+.mo-seg.nolen .mo-seg-t i { display: none; } /* too narrow for both: the name stays whole, the length goes (motion.js fitSeg) */
 .mo-more { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 22px; margin-right: 6px; padding: 0; border: 0;
   border-radius: var(--kit-r-sm, 6px); background: transparent; color: var(--color-fg-secondary); cursor: pointer; }
 .mo-more svg { width: 16px; height: 16px; stroke-width: 2.6; }

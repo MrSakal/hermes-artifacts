@@ -671,7 +671,8 @@
 
   // ------------------------------------------------------------------ chrome
   function fmtShort(t) { var s = Math.floor(t); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
-  function secLabel(d) { return (Math.round(d * 10) / 10).toLocaleString(L) + " " + T.s; }
+  // numbers in the app's language, one shape everywhere (the chips, the Length field, the speeds): the kit's
+  function secLabel(d) { return kit.num(d, 1) + " " + T.s; }
   // Claude's Motion layout: the stage, one transport row under it, the scene strip under that, and the
   // Tweaks / Style panel beside them (under them on a narrow page). No top bar: the rough-cut badge,
   // Continue, Finalize and the save state float over the picture's top-left corner when they have something to say.
@@ -784,10 +785,21 @@
   }
   /** Cards with pictures, or plain pills when the panel shares a narrow page with the film. */
   function stripMode() {
+    var was = tl.classList.contains("thumbs");
     tl.classList.toggle("thumbs", !custom && timeline.length > 0 && !(tweaksOpen && NARROW.matches));
     tl.style.setProperty("--mo-ar", String(W / H));
+    if (was !== tl.classList.contains("thumbs")) fitSegs();
   }
   window.addEventListener("resize", stripMode);
+  // A pill too narrow for "Name · 4.5 s" (the current one also holds its … button) drops the length first, so the
+  // name stays whole ("The harbor ·…" beside whole pills at 400 px); the length is in its tooltip.
+  function fitSeg(el) {
+    var t = el.querySelector(".mo-seg-t");
+    el.classList.remove("nolen");
+    if (t && !tl.classList.contains("thumbs") && t.scrollWidth > t.clientWidth) el.classList.add("nolen"); // one pixel over already ends in "…"
+  }
+  function fitSegs() { Array.prototype.forEach.call(segsEl.children, fitSeg); }
+  kit.onResize(segsEl, fitSegs);
   function refreshSegs() {
     segsEl.textContent = "";
     var segs = custom ? chapters() : timeline;
@@ -817,6 +829,7 @@
       segsEl.appendChild(el);
     });
     stripMode();
+    fitSegs();
     var anyBad = timeline.some(function (s) { return s.state !== "ok"; });
     var rough = SJ && SJ.stage === "rough";
     roughBadge.hidden = !rough;
@@ -852,7 +865,8 @@
     segs.forEach(function (s, i) {
       var el = custom ? segsEl.children[i] : s.segEl;
       if (!el) return;
-      el.classList.toggle("on", cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1)));
+      var on = cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1));
+      if (on !== el.classList.contains("on")) { el.classList.toggle("on", on); fitSeg(el); } // its … button came or went
     });
     if (range) { rangeEl.hidden = false; rangeEl.style.left = range[0] / total * 100 + "%"; rangeEl.style.width = (range[1] - range[0]) / total * 100 + "%"; }
     else rangeEl.hidden = true;
@@ -910,15 +924,21 @@
   }
   function lenClamp(sc, v) { v = Math.round(v * 100) / 100; return Math.max(sc.dur / 2, Math.min(sc.dur * 3, v)); }
   function sceneLength(sc) {
-    var inp = onEnter(h("input", { type: "number", step: "0.1", min: String(sc.dur / 2), max: String(sc.dur * 3), value: String(Math.round(sc.pdur * 100) / 100), "aria-label": T.length }));
-    inp.addEventListener("change", function () { var v = parseFloat(inp.value); if (v > 0) setRecut(sc.id, { dur: lenClamp(sc, v) }); });
+    // a text field in the app's number shape (a number field showed the system's "4,5" beside the chip's "4.5 s"),
+    // reading either shape back
+    var inp = onEnter(h("input", { type: "text", inputmode: "decimal", value: kit.num(sc.pdur, 2), "aria-label": T.length,
+      title: kit.num(sc.dur / 2, 2) + "–" + kit.num(sc.dur * 3, 2) + " " + T.s }));
+    inp.addEventListener("change", function () {
+      var v = kit.parseNum(inp.value);
+      if (v > 0) setRecut(sc.id, { dur: lenClamp(sc, v) }); else inp.value = kit.num(sc.pdur, 2);
+    });
     return [inp].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : []);
   }
   function sceneSpeed(sc) {
     // The scene's speed against its own length: 0.5× twice as long, 1× as made, 2× half as long; the one it plays at
     // is checked (none when its length was typed to something else).
     var speed = sc.dur / sc.pdur;
-    var opts = [[0.5, "0.5×", T.slower], [1, "1×", T.asMade], [2, "2×", T.faster]].map(function (o) {
+    var opts = [[0.5, kit.num(0.5) + "×", T.slower], [1, "1×", T.asMade], [2, "2×", T.faster]].map(function (o) {
       var on = Math.abs(speed - o[0]) < 0.01;
       return h("button", { "class": "kit-btn" + (on ? " is-on" : ""), type: "button", role: "radio", "aria-checked": String(on), text: o[1], title: o[2],
         onclick: function () { setRecut(sc.id, { dur: o[0] === 1 ? null : lenClamp(sc, sc.dur / o[0]) }); } });
@@ -1665,7 +1685,7 @@
       });
       return h("div", { "class": "mo-drow" }, [h("span", { text: label }), seg]);
     }
-    function mb(bytes) { return (Math.round(bytes / 1e5) / 10).toLocaleString(L) + " MB"; }
+    function mb(bytes) { return kit.num(bytes / 1e6, 1) + " MB"; }
     function draw() {
       dlg.textContent = "";
       dlg.appendChild(h("div", { "class": "mo-dhead" }, [h("b", { text: T.exp }), kit.button("", "close", closeDialog, T.close)]));

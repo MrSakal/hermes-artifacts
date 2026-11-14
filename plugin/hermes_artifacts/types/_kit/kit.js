@@ -138,8 +138,9 @@
 
   var openMenu = null, menuAnchor = null;
   /** A dropdown under anchor. Clicking anchor again closes it (it never closes and reopens);
-   *  a scroll or a resize closes it too, so it never drifts away from its button. */
-  function menu(anchor, items) {
+   *  a scroll or a resize closes it too, so it never drifts away from its button. onClose(): once it is gone,
+   *  however it went (an item, Esc, a click outside). */
+  function menu(anchor, items, onClose) {
     if (openMenu) {
       var same = menuAnchor === anchor;
       openMenu.close();
@@ -188,6 +189,7 @@
       m.remove(); openMenu = null; menuAnchor = null;
       document.removeEventListener("mousedown", out, true); document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close);
+      if (onClose) { var f = onClose; onClose = null; f(); }
     }
     function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
     function out(e) { if (!m.contains(e.target) && !(anchor.contains && anchor.contains(e.target))) close(); }
@@ -528,6 +530,38 @@
     return (dateFmts[k] || (dateFmts[k] = new Intl.DateTimeFormat(locale(), o))).format(new Date(t));
   }
 
+  var numFmts = {};
+  /** A number in the app's language, one shape on every page ("4.5" in English, "4,5" in Hungarian), at most
+   *  `dec` decimals (2 when not given), no thousands separator (a field reads it back as it shows it). */
+  function num(v, dec) {
+    var k = dec == null ? 2 : dec;
+    return (numFmts[k] || (numFmts[k] = new Intl.NumberFormat(locale(), { maximumFractionDigits: k, useGrouping: false }))).format(v);
+  }
+  /** What a person typed as a number, in either language's shape ("4,5", "4.5", " 12 "): the number, NaN when none. */
+  function parseNum(s) {
+    s = String(s == null ? "" : s).replace(/\s+/g, "");
+    return /^[-+]?(\d+([.,]\d*)?|[.,]\d+)$/.test(s) ? parseFloat(s.replace(",", ".")) : NaN;
+  }
+
+  /** A save status in a toolbar ("Saving…", "Saved"): its whole words where the bar has room for them, else a
+   *  dot with the words as its tooltip (as the "Hermes is working" dot), never a clipped letter. The element
+   *  may shrink (flex-shrink, min-width 0); its words and the bar's width are watched. */
+  function status(el) {
+    var ro = null;
+    el.classList.add("kit-status");
+    function fit() {
+      if (!ro && el.parentNode) ro = onResize(el.parentNode, fit);
+      var t = el.textContent;
+      el.classList.remove("is-dot");
+      if (el.title) el.removeAttribute("title");
+      if (!t || !el.getClientRects().length) return;
+      if (el.scrollWidth > el.clientWidth) { el.classList.add("is-dot"); el.title = t; } // a pixel over is already cut
+    }
+    if (window.MutationObserver) new MutationObserver(fit).observe(el, { childList: true, characterData: true, subtree: true });
+    fit();
+    return fit;
+  }
+
   /** fn() once `el`'s size changed, in the next frame: a callback that lays out what it observes (a grid's
    *  columns, a redraw) then changes that size outside the observer's delivery, so it never ends in "ResizeObserver
    *  loop completed with undelivered notifications" (Hermes logs every one). Several changes in a frame: one call. */
@@ -543,6 +577,6 @@
     return ro;
   }
 
-  window.kit = { locale: locale, onResize: onResize, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { locale: locale, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

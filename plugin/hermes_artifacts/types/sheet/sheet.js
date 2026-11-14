@@ -2305,6 +2305,13 @@
   function nice(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
   function short(v) { var a = Math.abs(v); return a >= 1e9 ? +(v / 1e9).toFixed(1) + "G" : a >= 1e6 ? +(v / 1e6).toFixed(1) + "M" : a >= 1e4 ? +(v / 1e3).toFixed(1) + "k" : String(+v.toFixed(2)); }
   function col(i) { return "var(--chart-" + (i % 8 + 1) + ")"; }
+  // A chart label cut to `room` px ("…" at its end) in the charts' 10 px type (.sh-chart text): the cells' 13 px measure, scaled.
+  function fitText(s, room) {
+    var fam = family(), w = function (t) { return textW(t, false, fam) * 10 / 13; };
+    if (w(s) <= room) return s;
+    while (s.length > 1 && w(s + "…") > room) s = s.slice(0, -1);
+    return s.replace(/\s+$/, "") + "…";
+  }
   function chartSvg(type, d, W, H) {
     var out = '<svg class="sh-plot" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img">';
     if (!d || !d.labels.length || !d.series.length) return out + "</svg>";
@@ -2332,10 +2339,12 @@
       out += '<text x="' + (L0 - 5) + '" y="' + gy + '" text-anchor="end" dominant-baseline="middle">' + kit.esc(short(gv)) + "</text>";
     }
     var n = d.labels.length, gw = pw / n, every = Math.max(1, Math.ceil(n * 46 / pw));
+    // a category's name whole when its slot has room for it; cut (the whole name in its tooltip) only when it has not
     d.labels.forEach(function (lb, i) {
       if (i % every) return;
-      var t = String(lb).length > 10 ? String(lb).slice(0, 9) + "…" : String(lb);
-      out += '<text x="' + (L0 + gw * (i + 0.5)).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + kit.esc(t) + "</text>";
+      var full = String(lb), t = fitText(full, gw * every - 6);
+      out += '<text x="' + (L0 + gw * (i + 0.5)).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + kit.esc(t) +
+        (t !== full ? "<title>" + kit.esc(full) + "</title>" : "") + "</text>";
     });
     if (type === "line") {
       d.series.forEach(function (s2, si) {
@@ -3260,18 +3269,29 @@
     var s = S(), k = key(r, c), v = valueOf(s, k);
     if (!isErr(v) || ed || pop || r >= nRows || c >= nCols) return hideErr();
     if (errAt && errAt.s === s && errAt.k === k && !errTip.hidden) { errAt.hover = hover; return; }
-    errAt = { s: s, k: k, code: String(v.error), hover: hover };
+    errAt = { s: s, k: k, r: r, c: c, code: String(v.error), hover: hover };
     errText.textContent = errSentence(s, k, v);
     errBtn.hidden = !canFix();
-    // only by a cell in view (a part of it, past the headers): never pointing at one scrolled away
-    var b = cellBox(r, c), vr = vp.getBoundingClientRect(), x = vr.left + b.x, y = vr.top + b.y + b.h + 4;
-    if (Math.min(b.x + b.w, vpW) - Math.max(b.x, HW) < 8 || Math.min(b.y + b.h, vpH) - Math.max(b.y, HH) < 4) return hideErr();
     errTip.hidden = false;
+    placeErr();
+  }
+  // By its cell, inside the grid's own area (clear of the toolbar above and the sheet tabs below), placed again
+  // whenever the grid's size or place changes (a resize left it where the cell had been, cut at the edge).
+  function placeErr() {
+    if (!errAt || errTip.hidden) return;
+    if (errAt.s !== S()) return hideErr();
+    var r = errAt.r, c = errAt.c;
+    // only by a cell in view (a part of it, past the headers): never pointing at one scrolled away
+    var b = cellBox(r, c), vr = vp.getBoundingClientRect(), x = vr.left + b.x;
+    if (Math.min(b.x + b.w, vpW) - Math.max(b.x, HW) < 8 || Math.min(b.y + b.h, vpH) - Math.max(b.y, HH) < 4) return hideErr();
     // measured where it has the whole width (at the right edge it would be squeezed, then overrun when moved)
     errTip.style.left = "0px"; errTip.style.top = "0px";
-    var w = errTip.offsetWidth, th = errTip.offsetHeight;
-    errTip.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
-    errTip.style.top = (y + th > innerHeight - 8 ? Math.max(8, vr.top + b.y - th - 4) : y) + "px";
+    var w = errTip.offsetWidth, th = errTip.offsetHeight, gr = grid.getBoundingClientRect();
+    var L = Math.max(0, gr.left + grid.clientLeft) + 6, Rt = Math.min(innerWidth, gr.left + grid.clientLeft + grid.clientWidth) - 6;
+    var Tp = Math.max(0, gr.top + grid.clientTop) + 4, Bt = Math.min(innerHeight, gr.top + grid.clientTop + grid.clientHeight) - 4;
+    var below = vr.top + b.y + b.h + 4, above = vr.top + b.y - th - 4;
+    errTip.style.left = Math.max(L, Math.min(x, Rt - w)) + "px";
+    errTip.style.top = (below + th <= Bt ? below : above >= Tp ? above : Math.max(Tp, Bt - th)) + "px";
   }
   function errSync() { if (C.thumb) return; if (!multi() && !ed) showErr(sr, sc, false); else hideErr(); }
   if (!C.thumb) {
@@ -3292,6 +3312,8 @@
     grid.addEventListener("scroll", function () { hideErr(); errTimer = setTimeout(errSync, 200); }, { passive: true });
     grid.addEventListener("dblclick", hideErr, true);
     fxTa.addEventListener("focus", hideErr);
+    kit.onResize(grid, placeErr);
+    window.addEventListener("resize", function () { requestAnimationFrame(placeErr); });
   }
   // How many errors the workbook holds, and the same request for them: a row of its own over the toolbar (the
   // top 56 px the host's popup chat always leaves free), never over a control. It follows the count as the
@@ -3524,6 +3546,7 @@
     });
     moreBtn.setAttribute("aria-haspopup", "true");
     bar.appendChild(moreBtn);
+    kit.status(status); // its whole words, or a dot with them as its tooltip: never a clipped "S"
     if (!live) setStatus(T.offline);
     foot.append(tabsEl);
     if (editable) foot.appendChild(barBtn(T.addSheet, kit.icon("plus"), function () { addSheet(); }, "sh-addtab"));
@@ -3557,7 +3580,8 @@
     onBar.forEach(function (t) { if (!t.el.w) t.el.w = t.el.offsetWidth; });
     if (!moreBtn.w) moreBtn.w = moreBtn.offsetWidth;
     var seps = tools.filter(function (t) { return t.sep; }).length;
-    var room = W - 16 - moreBtn.w - 2 - Math.min(status.scrollWidth, 90) - 6 - seps * 11 - (pill.hidden ? 0 : pill.offsetWidth + 2);
+    // the status keeps at least its dot's room (its words come and go after the bar is laid out)
+    var room = W - 16 - moreBtn.w - 2 - Math.max(18, Math.min(status.scrollWidth, 90)) - 6 - seps * 11 - (pill.hidden ? 0 : pill.offsetWidth + 2);
     var need = 0, byPri = onBar.slice().sort(function (a, b) { return b.pri - a.pri || list.indexOf(b) - list.indexOf(a); });
     onBar.forEach(function (t) { need += t.el.w + 2; });
     barOver = [];

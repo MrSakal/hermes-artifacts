@@ -156,7 +156,8 @@ KPI4 = {"title": "Orders", "params": {"region": ""},
 
 class DashboardInTheBrowser(unittest.TestCase):
     """Round 3: Full screen did not end on Esc, a KPI note read "orders in" with the region on All, and four KPIs
-    went 3 + 1 at 1000 px. Esc ends full screen, the note names the "all" choice, four KPIs go 4 or 2 + 2."""
+    went 3 + 1 at 1000 px. Esc ends full screen, the note names the "all" choice in words ("all regions", not "All"),
+    four KPIs go 4 or 2 + 2."""
 
     def test_esc_note_and_balance(self):
         sys.path.insert(0, str(ROOT / "tests"))
@@ -183,7 +184,8 @@ class DashboardInTheBrowser(unittest.TestCase):
             host.close()
         for w, o in out.items():
             self.assertNotIn(1, o["rows"][-1:] if len(o["rows"]) > 1 else [], (w, o["rows"]))   # no KPI alone on the last row
-            self.assertEqual(o["note"], ["orders in Mind"] if "Mind" in str(o["note"]) else ["orders in All"], w)
+            # the "all" choice in words, from the filter's own label (round V2: "orders in All")
+            self.assertIn(o["note"], (["orders in all regions"], ["orders in minden region"]), w)
             self.assertEqual((o["on"], o["off"]), ("true", "false"), w)
 
 

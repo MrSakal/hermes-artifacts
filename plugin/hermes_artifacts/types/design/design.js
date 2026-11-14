@@ -159,6 +159,11 @@
   }
   var FRAME_CSS = "html.dc-edit,html.dc-edit *{cursor:default!important}html.dc-edit [contenteditable=true],html.dc-edit [contenteditable=true] *{cursor:text!important;outline:none}" +
     "html.dc-canvas{overflow:hidden;scrollbar-width:none}html.dc-canvas::-webkit-scrollbar{display:none}" +
+    // an artboard that scrolls (opened in the full-window view) has the kit's thin bar, no arrow buttons; a grey that
+    // reads on the artboard's own ground, light or dark (an artboard styling its own bar overrides it)
+    "::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-button{display:none;width:0;height:0}" +
+    "::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}" +
+    "::-webkit-scrollbar-thumb{background:rgba(128,128,128,.42);border-radius:9999px}::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,.62)}" +
     "[data-dc-ximport]:empty{display:inline-block!important;min-width:24px;min-height:24px;outline:1px dashed #9aa4b2}";
   var SRCDOC = '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' + FRAME_CSS + "</style><script>" + SRC.kit + "</" + "script><script>" +
     SRC.dc + "</" + "script><script>" + SRC.frame + "</" + "script></head><body></body></html>";
@@ -1796,7 +1801,14 @@
   var wasNarrow = narrow();
   window.addEventListener("resize", function () {
     apply(); fitFocus();
-    if (narrow() !== wasNarrow) { wasNarrow = narrow(); sheetAsked = false; renderPanel(); drawTools(); }
+    // across 760 px an open panel stays open in the other layout (a sheet below, beside the canvas above); it was
+    // closed silently by a resize before
+    if (narrow() !== wasNarrow) {
+      var wasOpen = !panelEl.hidden;
+      wasNarrow = narrow();
+      if (wasNarrow) sheetAsked = wasOpen; else if (wasOpen) panelHidden = false;
+      renderPanel(); drawTools();
+    }
   });
   new ResizeObserver(function () { placeTools(); fitFocus(); }).observe(viewEl);
   window.addEventListener("beforeunload", function () { if (pending) save(); });

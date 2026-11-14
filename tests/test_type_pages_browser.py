@@ -740,3 +740,193 @@ class NoResizeObserverLoop(unittest.TestCase):
                 self.assertEqual(loops, [], ex)
         finally:
             host.close()
+
+
+BUDGET = {"sheet.json": {"title": "Budget", "sheets": [
+    {"name": "Costs", "rows": [["Item", "Unit price", "Qty", "Total"], ["Wall panels", 1200, 3, "=B2*C2"], ["Rails", 300, 10, "=B3*C3"],
+                               [None, "=1/0"]], "charts": [{"type": "bar", "range": "A1:D3", "at": "F2"}]},
+    {"name": "Notes", "rows": [["x"]]}]}}
+# a status element: its whole words, or a dot (kit.status) with them as its tooltip; never words cut inside it
+STATUS = r"""(sel => { const s = document.querySelector(sel); if (!s || !s.getClientRects().length) return null
+  const r = s.getBoundingClientRect(), bar = s.parentElement.getBoundingClientRect(), dot = s.classList.contains('is-dot')
+  return { text: s.textContent, dot, title: s.title, cut: !dot && s.scrollWidth > s.clientWidth, out: r.right > bar.right + 0.5 || r.left < bar.left - 0.5 } })"""
+PROPS = ("(() => { const b = [...document.querySelectorAll('button')].find(b => ['Properties','Tulajdonságok'].includes(b.getAttribute('aria-label'))"
+         " && b.getClientRects().length); if (b && b.getAttribute('aria-pressed') !== 'true') b.click() })()")
+MEET = "const meet = (a, b) => a.left + 1 < b.right && b.left + 1 < a.right && a.top + 1 < b.bottom && b.top + 1 < a.bottom; "
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV2Layout(unittest.TestCase):
+    """Live round V2 (0.20.0): a sheet's "Saving…" squeezed to a lone "S"; its error callout left behind (cut at the
+    frame's edge) by a resize and over the sheet tabs; a chart's "Wall pane…" with room to spare; a design's top
+    pills drawn over its properties sheet at 400 px and a resize closing the panel (slides too); a design system's
+    Files out of reach at 400 px; a motion pill "The harbor ·…" and its Length field in another number shape; a
+    slide's right click making it current."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive(self, aid, body, w=1000, settle=1500, timeout=300):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n" + body, timeout=timeout)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_save_status_is_whole_or_a_dot_at_every_width(self):
+        aid = self.store.publish(title="Budget", type="sheet", files=BUDGET)["id"]
+        # the "Rails" cell picked, its whole text replaced in the formula bar ("Rails360", "Rails420"...), Enter
+        edit = ('(() => { const c = [...document.querySelectorAll("#sh-grid .sh-c")].find(x => /^Rails/.test(x.textContent.trim())); const b = c.getBoundingClientRect(),'
+                ' o = {bubbles: true, clientX: b.left + 8, clientY: b.top + b.height / 2, button: 0}; c.dispatchEvent(new MouseEvent("mousedown", o));'
+                ' document.dispatchEvent(new MouseEvent("mouseup", o)) })()')
+        body, probe = "const out = {}\n", json.dumps(STATUS + '(".sh-status")')
+        for w in WIDTHS:
+            body += (f"await api.size({w}, 760); await api.sleep(500); await api.frame({json.dumps(edit)}); await api.clickIn('document.querySelector(\".sh-fx\")');"
+                     f" await api.frame('document.querySelector(\".sh-fx\").select()'); await api.type('Rails{w}'); await api.key('Enter', 'Enter', 13); await api.sleep(20);"
+                     f" out['{w} saving'] = await api.frame({probe}); await api.sleep(450);"
+                     f" out['{w} saved'] = await api.frame({probe}); await api.sleep(1700)\n")
+        out = self.drive(aid, body + "return out", w=WIDTHS[0], settle=2500)
+        for k, s in out.items():
+            self.assertTrue(s is None or (not s["cut"] and not s["out"]), (k, s))
+            if s and s["dot"]:
+                self.assertTrue(s["title"] and s["text"] == s["title"], (k, s))  # the dot says it in its tooltip
+        self.assertTrue(any(s and s["text"] for s in out.values()), out)  # the status did show
+        self.assertTrue(any(s and s["text"] and not s["dot"] for s in out.values()), out)  # wide: the words themselves
+        # the doc's status the same way
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        body, probe = "const out = {}\n", json.dumps(STATUS + '(".doc-status")')
+        for w in (360, 420, 560, 1000):
+            body += (f"await api.size({w}, 760); await api.sleep(400); await api.clickIn('document.querySelector(\".doc-blk p\")'); await api.type(' x{w}');"
+                     f" await api.sleep(700); out[{w}] = await api.frame({probe}); await api.sleep(1600)\n")
+        for k, s in self.drive(aid, body + "return out", w=360).items():
+            self.assertTrue(s is None or (not s["cut"] and not s["out"]), (k, s))
+
+    def test_the_error_callout_follows_a_resize_and_stays_in_the_grid(self):
+        aid = self.store.publish(title="Budget", type="sheet", files=BUDGET)["id"]
+        pick = ('(() => { const c = [...document.querySelectorAll("#sh-grid .sh-c")].find(x => /^#/.test(x.textContent.trim())); c.scrollIntoView({block: "center", inline: "center"});'
+                ' const b = c.getBoundingClientRect(), o = {bubbles: true, clientX: b.left + 8, clientY: b.top + b.height / 2, button: 0};'
+                ' c.dispatchEvent(new MouseEvent("mousedown", o)); document.dispatchEvent(new MouseEvent("mouseup", o)) })()')
+        where = ("(() => { " + MEET + "const t = document.querySelector('.sh-errtip'); if (!t || t.hidden) return null; const r = t.getBoundingClientRect(), g = document.getElementById('sh-grid'),"
+                 " gr = g.getBoundingClientRect(), c = [...document.querySelectorAll('#sh-grid .sh-active')].find(x => !x.hidden && x.getClientRects().length), cr = c && c.getBoundingClientRect();"
+                 " return { inGrid: r.left >= gr.left - 0.5 && r.right <= gr.left + g.clientLeft + g.clientWidth + 0.5 && r.top >= gr.top - 0.5 && r.bottom <= gr.top + g.clientTop + g.clientHeight + 0.5,"
+                 " onTabs: meet(r, document.getElementById('sh-foot').getBoundingClientRect()), onBar: meet(r, document.getElementById('sh-bar').getBoundingClientRect()),"
+                 " near: !cr || Math.min(Math.abs(r.top - cr.bottom), Math.abs(cr.top - r.bottom)) < 40 || meet(r, cr) } })()")
+        body = "const out = {}\n"
+        for a, b in ((1000, 400), (400, 1000), (1500, 560), (560, 360)):
+            body += (f"await api.size({a}, 760); await api.sleep(500); await api.frame({json.dumps(pick)}); await api.sleep(500);"
+                     f" out['{a}'] = await api.frame({json.dumps(where)}); await api.size({b}, 700); await api.sleep(700);"
+                     f" out['{a}>{b}'] = await api.frame({json.dumps(where)})\n")
+        out = self.drive(aid, body + "return out", settle=2500)
+        for k, o in out.items():
+            self.assertIsNotNone(o, (k, out))
+            self.assertEqual((o["inGrid"], o["onTabs"], o["onBar"], o["near"]), (True, False, False, True), (k, o))
+
+    def test_a_chart_label_is_whole_where_it_fits(self):
+        aid = self.store.publish(title="Budget", type="sheet", files=BUDGET)["id"]
+        out = self.drive(aid, "return await api.frame('[...document.querySelectorAll(\".sh-chart text\")].map(t => t.firstChild && t.firstChild.textContent)')",
+                         w=1500, settle=2000)
+        self.assertIn("Wall panels", out)
+
+    def test_design_properties_sheet_is_above_the_canvas_tools_and_survives_a_resize(self):
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        probe = ("(() => { " + MEET + "const p = document.getElementById('dc-panel'); if (!p || p.hidden || !p.getClientRects().length) return 'closed';"
+                 " const pr = p.getBoundingClientRect(), under = [...document.querySelectorAll('.dc-pill')].filter(x => x.getClientRects().length && meet(x.getBoundingClientRect(), pr));"
+                 " const close = p.querySelector('.dc-tabs .kit-btn:last-child').getBoundingClientRect(), at = document.elementFromPoint(close.left + close.width / 2, close.top + close.height / 2);"
+                 " return { under: under.map(x => x.className), close: !!at && !!at.closest('#dc-panel') } })()")
+        out = self.drive(aid, """
+          const q = await api.frame('(() => { const r = __design.boards["Main.dc.html"].el.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.35] })()')
+          await api.mouse(q[0], q[1]); await api.sleep(900)
+          const out = {}
+          out.wide = await api.frame(%(p)s)
+          await api.size(400, 760); await api.sleep(900); out.narrow = await api.frame(%(p)s)
+          await api.frame(%(props)s); await api.sleep(600); out.asked = await api.frame(%(p)s)
+          await api.size(1000, 760); await api.sleep(900); out.wideAgain = await api.frame(%(p)s)
+          await api.size(400, 760); await api.sleep(900); out.narrowAgain = await api.frame(%(p)s)
+          return out""" % {"p": json.dumps(probe), "props": json.dumps(PROPS)}, settle=3000)
+        self.assertNotEqual(out["wide"], "closed", out)
+        for k in ("narrow", "asked", "wideAgain", "narrowAgain"):  # open before a resize: open after it
+            self.assertNotEqual(out[k], "closed", (k, out))
+            self.assertEqual((out[k]["under"], out[k]["close"]), ([], True), (k, out))
+
+    def test_slides_properties_survive_a_resize(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        probe = ("(() => { " + MEET + "const p = document.getElementById('sl-props'); if (!p || p.hidden) return 'closed'; const pr = p.getBoundingClientRect();"
+                 " return { under: [...document.querySelectorAll('.sl-pill')].filter(x => x.getClientRects().length && meet(x.getBoundingClientRect(), pr)).length } })()")
+        out = self.drive(aid, f"""
+          await api.frame({json.dumps(PROPS)}); await api.sleep(600)
+          const out = {{ wide: await api.frame({json.dumps(probe)}) }}
+          await api.size(400, 760); await api.sleep(800); out.narrow = await api.frame({json.dumps(probe)})
+          await api.size(1000, 760); await api.sleep(800); out.wideAgain = await api.frame({json.dumps(probe)})
+          return out""")
+        for k, v in out.items():
+            self.assertEqual(v, {"under": 0}, (k, out))
+
+    def test_every_design_system_section_is_reachable_at_400(self):
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        out = self.drive(aid, """return await api.frame(`(() => [...document.querySelectorAll('.ds-nav-i')].filter(b => b.getClientRects().length).map(b => {
+            const r = b.getBoundingClientRect(), at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+            return { t: b.querySelector('.ds-nav-t').textContent, reach: !!at && b.contains(at) && r.right <= innerWidth + 0.5 } }))()`)""", w=400)
+        names = [o["t"] for o in out]
+        self.assertTrue({"Files", "Fájlok"} & set(names), names)
+        self.assertTrue(all(o["reach"] for o in out), out)
+        spec = self.drive(aid, """
+          await api.frame('[...document.querySelectorAll(".ds-nav-i")].find(b => /Typography|Tipográfia/.test(b.textContent)).click()'); await api.sleep(600)
+          return await api.frame('[...document.querySelectorAll(".ds-type-sample")].map(s => [getComputedStyle(s).textOverflow, s.scrollWidth <= s.clientWidth + 1])')""", w=400)
+        self.assertTrue(spec and all(t != "ellipsis" and fits for t, fits in spec), spec)  # specimens wrap, never cut
+
+    def test_motion_pills_keep_their_names_and_one_number_shape(self):
+        aid = self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"]
+        out = self.drive(aid, """
+          await api.frame('[...document.querySelectorAll("button")].find(b => /^(Tweaks|Hangolás)$/.test(b.title) && b.getClientRects().length).click()'); await api.sleep(900)
+          return await api.frame(`(() => ({
+            segs: [...document.querySelectorAll('.mo-seg')].map(s => { const t = s.querySelector('.mo-seg-t'); return { name: t.querySelector('b').textContent, whole: t.scrollWidth <= t.clientWidth, len: s.querySelector('.mo-seg-t i').getClientRects().length > 0 } }),
+            chip: document.querySelector('.mo-seg.on .mo-seg-t i').textContent, field: (document.querySelector('.mo-panel input[aria-label="Length"], .mo-panel input[aria-label="Hossz"]') || {}).value }))()`)""",
+                         w=400, settle=2500)
+        self.assertTrue(out["segs"] and all(s["whole"] for s in out["segs"]), out)
+        self.assertTrue(out["chip"].startswith(out["field"]), out)  # "4.5 s" and "4.5": one shape
+        out = self.drive(aid, "return await api.frame('[...document.querySelectorAll(\".mo-seg .mo-seg-t i\")].map(i => i.getClientRects().length > 0)')", w=1500, settle=2500)
+        self.assertTrue(all(out), out)  # with room, every length shows
+
+    def test_a_slide_right_click_does_not_change_the_current_slide(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        state = "(() => { const t = [...document.querySelectorAll('#sl-rail .sl-thumb')]; return { on: t.findIndex(x => x.classList.contains('on')), ctx: t.findIndex(x => x.classList.contains('is-ctx')), menu: !!document.querySelector('.kit-menu') } })()"
+        out = self.drive(aid, f"""
+          const out = {{}}
+          await api.frame('(() => {{ const b = document.querySelectorAll("#sl-rail .sl-thumb")[1], r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent("contextmenu", {{bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 20}})) }})()')
+          await api.sleep(300); out.open = await api.frame({json.dumps(state)})
+          await api.frame('document.dispatchEvent(new KeyboardEvent("keydown", {{key: "Escape", bubbles: true}}))'); await api.sleep(300)
+          out.esc = await api.frame({json.dumps(state)})
+          return out""")
+        self.assertEqual(out["open"], {"on": 0, "ctx": 1, "menu": True}, out)
+        self.assertEqual(out["esc"], {"on": 0, "ctx": -1, "menu": False}, out)
+
+    def test_a_narrow_doc_adds_a_block_from_the_grip(self):
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        out = self.drive(aid, """
+          const n = () => api.frame('document.querySelectorAll(".doc-blk[data-block]").length')
+          const before = await n()
+          await api.frame('(() => { const b = document.querySelectorAll(".doc-blk[data-block]")[2], r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent("mousemove", {bubbles: true, clientX: r.left + 30, clientY: r.top + 8})) })()')
+          await api.sleep(300)
+          const grip = await api.frame('(() => { const g = document.querySelector(".doc-g-grip"); if (!g || !g.getClientRects().length) return null; const r = g.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+          if (!grip) return { grip }
+          await api.mouse(grip[0], grip[1]); await api.sleep(300)
+          const items = await api.frame('[...document.querySelectorAll(".doc-rmenu button, .kit-menu button")].map(b => b.textContent.trim())')
+          await api.frame('[...document.querySelectorAll(".doc-rmenu button, .kit-menu button")].find(b => /Add a block below|Új blokk alá/.test(b.textContent)).click()'); await api.sleep(500)
+          return { grip, items, added: (await n()) - before }""", w=400)
+        self.assertTrue(out.get("grip"), out)
+        self.assertTrue({"Add a block below", "Új blokk alá"} & set(out["items"]), out)
+        self.assertEqual(out["added"], 1, out)
+
+    def test_model_more_button_is_as_strong_as_its_neighbours(self):
+        from test_models import PANEL
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        out = self.drive(aid, "return await api.frame('[...document.querySelectorAll(\".md-pill-r .kit-btn\")].filter(b => b.getClientRects().length).map(b => [b.getAttribute(\"aria-label\") || b.title, getComputedStyle(b).color, getComputedStyle(b).opacity])')",
+                         w=400, settle=3000)
+        self.assertGreater(len(out), 2, out)
+        self.assertEqual(len({(c, o) for _, c, o in out}), 1, out)

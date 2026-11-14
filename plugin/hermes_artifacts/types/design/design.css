@@ -203,8 +203,11 @@ html[data-thumb] .dc-pill { display: none; }
 .dc-fhead .kit-btn { flex: none; white-space: nowrap; }
 .dc-fhead .kit-btn:disabled { opacity: .35; }
 /* Under 760 px the panel is a sheet over the canvas (opened by Properties, closed by its Close); while it is open the
-   canvas's tools under it step aside. */
+   canvas's tools step aside, the top pills too (Export, Play, Properties and Zoom were drawn over the sheet's tabs at
+   400 px): the sheet is above all canvas chrome and starts at the top. */
 @media (max-width: 759.98px) {
   #dc-panel { width: min(320px, 100%); }
-  #dc-app.is-sheet .dc-pill-b, #dc-app.is-sheet .dc-crumbs, #dc-app.is-sheet ~ .dc-tools { display: none; }
+  #dc-app.is-sheet .dc-pill-b, #dc-app.is-sheet .dc-crumbs, #dc-app.is-sheet ~ .dc-tools,
+  #dc-app.is-sheet .dc-pill-l, #dc-app.is-sheet .dc-pill-r { display: none; }
+  #dc-app.is-sheet #dc-panel { z-index: 40; padding-top: 10px; }
 }

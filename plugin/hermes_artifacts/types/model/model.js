@@ -300,7 +300,7 @@
       btn("fitAll", T.fit, function () { fitAll(true); }), btn("fitSel", T.fitSel, function () { focusSel(); }, "md-wide-only")].filter(Boolean));
     pillL.querySelectorAll("button").forEach(function (b) { if (!glOK) b.disabled = true; });
     // file and panel (top right)
-    var expBtn = btn("download", T.exp, function () { kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
+    var expBtn = btn("download", T.exp, function () { kit.menu(expBtn, exportItems()); });
     var moreBtn = btn("more", T.more, function () { kit.menu(moreBtn, moreItems()); }, "md-narrow-only md-morebtn");
     var panelBtn = btn("panel", T.panel, function () { togglePanel(); }, panelShown() ? "is-on" : "");
     pillR.replaceChildren(statusEl, saveBtn, moreBtn, expBtn, panelBtn);
@@ -348,9 +348,12 @@
   function addItems() {
     return ["box", "cyl", "sphere", "cone", "prism", "extrude", "lathe"].map(function (k) { return { label: T.addKinds[k], onClick: function () { addPart(k); } }; });
   }
+  // the Export menu's items with their icons, as More's have theirs (one look per page)
+  var EXP_ICON = { glb: "md-cube", stl: "md-cube", obj: "md-cube", ply: "md-cube", png: "image", csv: "table" };
+  function exportItems() { return exportList.map(function (x) { return { icon: EXP_ICON[x.id] || "file", label: x.label, onClick: x.run }; }); }
   function moreItems() {
     var ed = editable(), out = [];
-    if (!glOK) return exportList.map(function (x) { return { label: x.label, onClick: x.run }; });
+    if (!glOK) return exportItems();
     // Grouped as the bottom toolbar is: the tools (the one in use checked), adding, the view's aids, undo and redo;
     // every item with its icon
     if (ed) out.push({ hint: T.tools }, { on: tool === "select" && gizmoMode == null, icon: "cursor", label: T.select, onClick: function () { setGizmo(null); } },

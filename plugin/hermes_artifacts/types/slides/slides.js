@@ -272,7 +272,13 @@
       b.draggable = true;
       b.addEventListener("dragstart", function (e) { dragFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "slide " + i); });
       b.addEventListener("dragend", function () { dragFrom = null; dropLine.hidden = true; });
-      b.addEventListener("contextmenu", function (e) { e.preventDefault(); if (i !== cur) show(i); slideMenu(b, i); });
+      // the menu acts on this slide without making it the current one: marked only while the menu is open (Esc
+      // leaves the current slide and the pick as they were; an action shows what it did)
+      b.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        b.classList.add("is-ctx");
+        slideMenu(b, i, function () { b.classList.remove("is-ctx"); });
+      });
     }
     queueThumb(box, function (w) { return canvasFor(s, (w || 160) / W, false); });
     return b;
@@ -538,7 +544,7 @@
     slides.splice(to, 0, slides.splice(from, 1)[0]);
     buildRail(); show(to); changed();
   }
-  function slideMenu(anchor, i) {
+  function slideMenu(anchor, i, onClose) {
     kit.menu(anchor, [
       { label: T.dupSlide, onClick: function () { dupSlide(i); } },
       { label: isHidden(slides[i]) ? T.unskip : T.skip, onClick: function () { toggleHidden(i); } },
@@ -548,7 +554,7 @@
       { label: T.moveLeft, onClick: function () { moveSlide(i, i - 1); } },
       { label: T.moveRight, onClick: function () { moveSlide(i, i + 2); } },
       { label: T.delSlide, onClick: function () { delSlide(i); } }
-    ]);
+    ], onClose);
   }
   function toggleHidden(i) {
     checkpoint();
@@ -1743,7 +1749,10 @@
   var wasNarrow = narrow();
   window.addEventListener("resize", function () {
     if (narrow() === wasNarrow) return fitPills();
-    wasNarrow = narrow(); sheetAsked = false; drawChrome(); drawProps(); fit();
+    // across 760 px open properties stay open in the other layout (a sheet below, the panel above); a resize
+    // closed them silently before
+    var wasOpen = !propsEl.hidden;
+    wasNarrow = narrow(); sheetAsked = wasOpen && wasNarrow; drawChrome(); drawProps(); fit();
   });
 
   var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);

@@ -137,7 +137,9 @@ class MotionInTheBrowser(unittest.TestCase):
         o = r["out"]
         self.assertTrue(o["open"])
         self.assertTrue(o["back"], "the focus did not go back to Export")
-        self.assertEqual(o["speed"], [["0.5×", "false"], ["1×", "true"], ["2×", "false"]])
+        # the half speed in the app's number shape (round V2: one shape on the chips, the field and the speeds)
+        half = "0,5×" if o["speed"] and o["speed"][0][0] == "0,5×" else "0.5×"
+        self.assertEqual(o["speed"], [[half, "false"], ["1×", "true"], ["2×", "false"]])
         src = (PLUGIN / "hermes_artifacts" / "types" / "motion" / "motion.js").read_text("utf-8")
         self.assertIn('if (i > 0 && p.slice(0, cols.length).join().toLowerCase() === palList[0].join().toLowerCase()) return;', src)
 

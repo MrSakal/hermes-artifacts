@@ -142,8 +142,12 @@ html[data-ds-thumb] body { overflow: hidden; }
   /* the tabs wrap onto as many rows as they need: none is ever cut at the edge */
   #ds-nav { position: static; height: auto; flex-direction: row; flex-wrap: wrap; overflow: visible; padding: 6px 8px; border-right: 0;
     border-bottom: 1px solid var(--color-border-line); }
-  .ds-nav-foot { display: none; }
+  /* Files is a tab like the others here (every section reachable at every width); the foot's meta line goes */
+  .ds-nav-foot { display: contents; }
+  .ds-nav-meta { display: none; }
   .ds-nav-i { width: auto; flex: none; }
+  /* a stacked row's number sits under its column's name, not right-aligned mid-column */
+  .ds-table tr.ds-row .ds-num { text-align: left; width: 72px; }
   .ds-page { padding: 16px 16px 48px; }
   .ds-vis { width: 48px; }
   .ds-token-editor { margin-left: 0; }
@@ -232,7 +236,8 @@ html[data-ds-thumb] body { overflow: hidden; }
 
 /* Typography */
 .ds-tprev { overflow: hidden; max-width: 0; width: 70%; }
-.ds-tprev .ds-type-sample { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+/* the specimen wraps, never cut with an ellipsis ("Thrown, trim…") */
+.ds-tprev .ds-type-sample { white-space: normal; overflow-wrap: anywhere; margin-bottom: 3px; }
 .ds-chip-t { display: inline-block; font: 11px var(--font-mono); color: var(--color-fg-muted); padding: 1px 6px; border-radius: 4px; background: var(--color-hover); }
 .ds-grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 

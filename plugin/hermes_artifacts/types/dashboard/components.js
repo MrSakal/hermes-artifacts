@@ -137,10 +137,18 @@
 
   // ---------------------------------------------------------------- templates ("{kpi}" / "{param:x}")
   var values = {}, bare = {}, units = {}; // kpi id -> formatted value (with its unit), without it, the unit
-  var allLabels = {};                     // a select filter's param -> the label of its "all" choice
+  var allLabels = {};                     // a select filter's param -> its "all" choice in a sentence
+  // The default "All" choice of a filter named "Region", in a sentence: "all regions" ("minden régió").
+  function allOf(noun) {
+    noun = String(noun || "").trim().toLowerCase();
+    if (!noun) return w("all", "mind");
+    if (HU) return "minden " + noun;
+    return "all " + (/[^aeiou]y$/.test(noun) ? noun.slice(0, -1) + "ies" : /(s|x|z|ch|sh)$/.test(noun) ? noun + "es" : noun + "s");
+  }
   function fill(text) {
     return String(text || "").replace(/\{(param:)?([A-Za-z_]\w*)\}/g, function (m, isParam, name, at, all) {
-      // a filter on its "all" choice reads as that choice's label ("orders in All"), never as nothing ("orders in")
+      // a filter on its "all" choice reads as that choice in words ("orders in all regions"; the author's own label
+      // for it when it has one), never as nothing ("orders in") nor as the bare "All"
       if (isParam) { var p = window.dash.params()[name]; return p == null || p === "" ? (allLabels[name] || "") : String(p); }
       if (values[name] == null) return "—";
       // "{area} m²" when the KPI's own unit is m²: the unit is written once.
@@ -206,7 +214,7 @@
         else ctl.addEventListener("blur", apply);
       } else {
         ctl = h("select", { "class": "kit-select", "aria-label": f.label || f.param });
-        if (f.all !== false) allLabels[f.param] = f.all || w("All", "Mind");
+        if (f.all !== false) allLabels[f.param] = f.all || allOf(f.label || f.param);
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }
       lab.appendChild(ctl);
@@ -415,6 +423,14 @@
         });
       }
       box.replaceChildren(svg.node());
+      // a category's name whole when its slot has room for it; cut (the whole name in its tooltip) only when it has not
+      var slot = x.step() * every - 6;
+      svg.selectAll(".c-axis .tick text").each(function () {
+        var full = this.textContent, t = full;
+        if (!full || this.getComputedTextLength() <= slot) return;
+        while (t.length > 1) { t = t.slice(0, -1); this.textContent = t.replace(/\s+$/, "") + "…"; if (this.getComputedTextLength() <= slot) break; }
+        d3.select(this).append("title").text(full);
+      });
     } };
   };
 
