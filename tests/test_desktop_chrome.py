@@ -213,9 +213,8 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("zIndex: 27, width: COMMENT_W", pop)
 
     def test_with_the_list_floating_over_a_narrow_view_nothing_goes_under_it(self):
-        # Under 700 px (PANEL_W + STAGE_MIN) the comments list floats over the stage's right (min(340px, 92%), z 30,
-        # over the pin's 28 and the box's 27): the pin and the box keep to the width left of it, or the box goes
-        # into the list.
+        # Under 700 px (PANEL_W + STAGE_MIN) the comments list, open, is the whole stage (z 30, over the pin's 28
+        # and the box's 27): no pin, and the new comment's box goes into the list.
         body = """
         const out = []
         for (const bw of [360, 400, 440, 520, 600, 675, 676, 699]) {
@@ -240,12 +239,12 @@ class CommentPinTests(unittest.TestCase):
         """
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out["out"], [])
-        self.assertEqual(out["docked"], [True, True, True, False, False, False])  # 676 px: the 336 left of the list take the box
+        self.assertEqual(out["docked"], [True, True, True, True, True, False])  # the whole stage: the box is in the list
         panel = section("function CommentsPanel(", "function Viewer(")
         self.assertIn("draft && (!draft.rect || docked)", panel)  # the docked box is written in the list
         self.assertIn("$panelCover.set(mode.cover)", panel)
         self.assertIn("$panelCover.set(0)", panel)  # closed or gone: nothing covered
-        self.assertIn("width: `min(${PANEL_W}px, 92%)`", section("function panelStyle(", "/** Whether the new comment's box"))  # the width the placement keeps out of
+        self.assertIn("top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, background: C.bg", section("function panelStyle(", "/** Whether the new comment's box"))  # opaque, all of it
         self.assertIn("commentLayout(draft.rect, bw, bh, boxH, cover)", section("function CommentPopover(", "function DockView("))
         # in the pane beside a chat too (it had no box at all: the stage there has no id)
         self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage })", section("function Viewer(", "function Toast("))
@@ -344,8 +343,10 @@ class CommentPinTests(unittest.TestCase):
 class CommentsPanelLayoutTests(unittest.TestCase):
     """0.20 live: at a ~986 px window the comments list covered the sheet's right (its note, "Ask Herm…") while
     the page kept laying out for the whole row. Docked, the list takes its width from the stage: the frame
-    ends where the list begins and the page inside lays out for what is seen. Floating (a row under 700 px),
-    it steps aside while an element is picked."""
+    ends where the list begins and the page inside lays out for what is seen. Acceptance round 2: in a row under
+    700 px (the pane beside a chat, a 400 px window) the floating list covered 40-70 % of the page and opened by
+    itself. There it never opens by itself, and open it is the whole stage, opaque, with Back to the artifact;
+    it steps aside while an element is picked. Nothing of the page is ever half covered."""
 
     def styles(self):
         body = """
@@ -353,7 +354,8 @@ class CommentsPanelLayoutTests(unittest.TestCase):
         for (let w = 400; w <= 1600; w += 10) ws.push(w)
         console.log(JSON.stringify({ row: m.VIEW_ROW, fill: m.VIEW_FILL, frame: m.FRAME_FIT, min: m.PANEL_W + m.STAGE_MIN,
           at: ws.map(w => ({ w, mode: m.panelMode(w, false), style: m.panelStyle(m.panelMode(w, false)),
-            picking: m.panelMode(w, true), pickStyle: m.panelStyle(m.panelMode(w, true)) })) }))
+            picking: m.panelMode(w, true), pickStyle: m.panelStyle(m.panelMode(w, true)),
+            notHere: m.panelMode(w, false, false), notHereStyle: m.panelStyle(m.panelMode(w, false, false)) })) }))
         """
         return run_node(stub_module(EXPORTS), body)
 
@@ -361,13 +363,19 @@ class CommentsPanelLayoutTests(unittest.TestCase):
         s = self.styles()
         self.assertEqual(s["min"], 700)
         for a in s["at"]:
-            floats = a["w"] < 700
-            self.assertEqual(a["mode"]["floats"], floats, a["w"])
-            self.assertEqual(a["mode"]["cover"], min(340, a["w"] * 0.92) if floats else 0, a["w"])
-            self.assertFalse(a["mode"]["hidden"])
-            # picking: a floating list steps aside and covers nothing; a docked one stays as it is
-            self.assertEqual(a["picking"], {"floats": floats, "hidden": floats, "cover": 0})
-            self.assertEqual(a["pickStyle"]["display"], "none" if floats else "flex")
+            full = a["w"] < 700
+            # opened here: the whole stage (cover: all of it) or docked beside it (cover: none), never a part
+            self.assertEqual(a["mode"], {"full": full, "off": False, "hidden": False, "cover": a["w"] if full else 0}, a["w"])
+            # picking: the whole-stage list steps aside and covers nothing; a docked one stays as it is
+            self.assertEqual(a["picking"], {"full": full, "off": False, "hidden": full, "cover": 0})
+            self.assertEqual(a["pickStyle"]["display"], "none" if full else "flex")
+            # remembered open, not opened in this view: only where it docks
+            self.assertEqual(a["notHere"], {"full": full, "off": full, "hidden": full, "cover": 0})
+            self.assertEqual(a["notHereStyle"]["display"], "none" if full else "flex")
+            self.assertIn(a["mode"]["cover"], (0, a["w"]))
+        panel = section("function CommentsPanel(", "function Viewer(")
+        self.assertIn("mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact')", panel)
+        self.assertIn("useEffect(() => { $panelHere.set(false) }, [art?.id, docked])", section("function Viewer(", "function Toast("))
 
     @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
     def test_a_docked_list_never_covers_the_frame(self):
@@ -389,11 +397,11 @@ class CommentsPanelLayoutTests(unittest.TestCase):
           wrap.append(frame); stage.append(wrap); row.append(stage, aside); outer.append(row); document.body.append(outer)
           await new Promise(r => frame.onload = r)
           const out = []
-          for (const a of S.at) for (const [mode, style] of [[a.mode, a.style], [a.picking, a.pickStyle]]) {
+          for (const a of S.at) for (const [mode, style] of [[a.mode, a.style], [a.picking, a.pickStyle], [a.notHere, a.notHereStyle]]) {
             outer.style.width = a.w + 'px'
             aside.removeAttribute('style'); put(aside, style)
             const f = frame.getBoundingClientRect(), p = aside.getBoundingClientRect(), r = row.getBoundingClientRect()
-            out.push({ w: a.w, floats: mode.floats, hidden: mode.hidden, cover: mode.cover, row: r.width, fl: f.left, fr: f.right, pl: p.left, pr: p.right, pw: p.width,
+            out.push({ w: a.w, floats: mode.full, hidden: mode.hidden, cover: mode.cover, row: r.width, fl: f.left, fr: f.right, pl: p.left, pr: p.right, pw: p.width,
               inner: frame.contentDocument.documentElement.clientWidth })
           }
           return out
@@ -402,7 +410,7 @@ class CommentsPanelLayoutTests(unittest.TestCase):
         r = B.drive(script)
         self.assertIsNone(r.get("err"), r.get("err"))
         out = r["out"]
-        self.assertEqual(len(out), 2 * len(s["at"]))
+        self.assertEqual(len(out), 3 * len(s["at"]))
         for o in out:
             self.assertEqual(o["row"], o["w"], o)  # nothing pushes the row past its width
             if not o["floats"]:
@@ -416,9 +424,10 @@ class CommentsPanelLayoutTests(unittest.TestCase):
                 self.assertEqual(o["pw"], 0, o)  # picking: nothing over the page
                 self.assertEqual(o["fr"] - o["fl"], o["w"], o)
             else:
-                # floating: over the frame's right by exactly the cover the comment placement keeps out of
+                # the whole stage: all of the frame under it, none of it beside it (never half covered)
                 self.assertEqual(o["fr"] - o["fl"], o["w"], o)
-                self.assertAlmostEqual(o["fr"] - o["pl"], o["cover"], delta=1, msg=o)
+                self.assertEqual((o["pl"], o["pw"]), (o["fl"], o["w"]), o)
+                self.assertEqual(o["cover"], o["w"], o)
 
 
 @unittest.skipIf(NODE is None, "node not installed")

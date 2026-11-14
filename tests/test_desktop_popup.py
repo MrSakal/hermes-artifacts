@@ -4,12 +4,15 @@ over the chat's area, the chat floating over it), from inside the chat as on the
 The fake Hermes Desktop of test_desktop_states (the same invariants after every step) plays: Pop out chat
 beside the chat moves the tile over the chat with its chat floating over it, on the chat's own route; the
 expanded header switches Show chat | Pop out chat (pressed while it floats), the toggle and Esc close only the
-floating chat; the layout picked is remembered for the window (the titlebar close and reopen, another
-artifact by its card, another chat, a being-made placeholder and its publish open in it), Show chat and the
-floating chat's own button go back to docked; the full page's Chat | Pop out chat set it too; an artifact
-with no chat gets the floating chat that starts one; the switch is there for every type, beside the chat and
-on the page. Then the strings in English and Hungarian and where the floating chat sits. Skipped without
-node.
+floating chat; the layout picked (docked or expanded) is remembered, across a restart too (the titlebar close
+and reopen, another artifact by its card, another chat, a being-made placeholder and its publish open in it),
+Show chat and the floating chat's own button go back to docked; the popup chat's open state is remembered
+apart over the expanded tile and over the full page; the full page's Chat sets docked, its Pop out chat only
+its own popup; the gallery always opens the full page; a window too narrow for the chat and the pane opens
+the artifact expanded, a docked pane expands when the window shrinks and comes back when it grows; an
+artifact with no chat gets the floating chat that starts one; the switch is there for every type, beside the
+chat and on the page. Then the strings in English and Hungarian and where the floating chat sits. Skipped
+without node.
 """
 
 import json
@@ -69,7 +72,7 @@ await S('beside the chat: Pop out chat and expand, no Show chat', () => {
 
 await S('Pop out chat beside the chat: the artifact over the chat, its chat floating over it', () => click(tileEl(), b => b.props.title === 'popOut', 'popOut'), { ...POP, selected: 'a1' })
 await S('the popup follows the artifact and its chat', () => {
-  want(mode() === 'popup/true', 'mode ' + mode())
+  want(mode() === 'expanded/true', 'mode ' + mode())
   const f = floating()
   want(f && f.props.art?.id === 'a1' && f.props.art.session === 'chatA' && !f.props.sid, 'floating ' + JSON.stringify(f?.props?.art))
 }, POP)
@@ -81,11 +84,11 @@ await S('its header: Show chat | Pop out chat (pressed) as one switch, no expand
 }, POP)
 await S('Pop out chat again closes only the floating chat', async () => {
   click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
-  want(mode() === 'popup/false' && !floating() && pop(tileEl()).props['aria-pressed'] === false, 'mode ' + mode())
+  want(mode() === 'expanded/false' && !floating() && pop(tileEl()).props['aria-pressed'] === false, 'mode ' + mode())
 }, POP)
 await S('and opens it again', async () => {
   click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
-  want(mode() === 'popup/true' && floating(), 'mode ' + mode())
+  want(mode() === 'expanded/true' && floating(), 'mode ' + mode())
 }, POP)
 await S('Esc in the floating chat closes it; the layout stays', async () => {
   const el = I.FloatingChat(floating().props)
@@ -96,30 +99,31 @@ await S('Esc in the floating chat closes it; the layout stays', async () => {
   want(I.$dockFloat.get(), 'another key closed it')
   let stopped = false
   el.props.onKeyDown({ key: 'Escape', stopPropagation() { stopped = true }, nativeEvent: {} }); await settle()
-  want(mode() === 'popup/false' && stopped, 'mode ' + mode())
+  want(mode() === 'expanded/false' && stopped, 'mode ' + mode())
 }, POP)
 await S('its x the same', async () => {
   click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
   click(I.FloatingChat(floating().props), b => b.props.title === 'close', 'close'); await settle()
-  want(mode() === 'popup/false', 'mode ' + mode())
+  want(mode() === 'expanded/false', 'mode ' + mode())
 }, POP)
-await S('closed with the titlebar and opened again: the popup layout, remembered', async () => {
+await S('closed with the titlebar and opened again: expanded, its popup chat as it was left (open)', async () => {
+  click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle() // open again: that is what is remembered
   click(titlebar().render(), () => true, 'titlebar'); await settle()
   want(I.$chat.get() === 'off', 'not closed')
   click(titlebar().render(), () => true, 'titlebar'); await settle()
-  want(mode() === 'popup/true' && floating()?.props.art.id === 'a1', 'mode ' + mode())
+  want(mode() === 'expanded/true' && floating()?.props.art.id === 'a1', 'mode ' + mode())
 }, { ...POP, selected: 'a1' })
 await S('another artifact of the chat by its card: the same layout, the popup on that one', async () => {
   click(card('a2'), () => true, 'card'); await settle()
-  want(mode() === 'popup/true' && floating()?.props.art.id === 'a2', 'floating ' + floating()?.props.art.id)
+  want(mode() === 'expanded/true' && floating()?.props.art.id === 'a2', 'floating ' + floating()?.props.art.id)
 }, { ...POP, selected: 'a2' })
 await S('the card of the one shown: still over the chat with its chat', async () => {
   I.$dockFloat.set(false)
   click(card('a2'), () => true, 'card'); await settle()
-  want(mode() === 'popup/true', 'mode ' + mode())
+  want(mode() === 'expanded/true', 'mode ' + mode())
 }, { ...POP, selected: 'a2' })
 await S('another chat in front: its artifact in the popup layout, the popup on its own chat', () => routerNav('/chatB'), { split: true, expanded: true, selected: 'b1', lit: 'chat:chatB', route: '#/chatB' })
-await S('that popup is chat B\'s', () => want(floating()?.props.art.session === 'chatB' && mode() === 'popup/true', 'floating ' + JSON.stringify(floating()?.props.art)), { split: true, expanded: true })
+await S('that popup is chat B\'s', () => want(floating()?.props.art.session === 'chatB' && mode() === 'expanded/true', 'floating ' + JSON.stringify(floating()?.props.art)), { split: true, expanded: true })
 await S('a new chat making a dashboard: the placeholder over the chat, the popup on that chat', async () => {
   routerNav('/chatL'); await settle()
   making('chatL', 'guide', { type: 'dashboard' })
@@ -127,7 +131,7 @@ await S('a new chat making a dashboard: the placeholder over the chat, the popup
 await S('the placeholder\'s header has the same switch, its popup the chat being made in', () => {
   want(JSON.stringify(groupTitles(tileEl())) === '["showChat","popOut"]', 'switch ' + groupTitles(tileEl()))
   const f = floating()
-  want(f && f.props.sid === 'chatL' && !f.props.art && mode() === 'popup/true', 'floating ' + JSON.stringify(f?.props?.sid))
+  want(f && f.props.sid === 'chatL' && !f.props.art && mode() === 'expanded/true', 'floating ' + JSON.stringify(f?.props?.sid))
 }, { split: true, making: 'chatL', expanded: true })
 const L1 = { id: 'l1', title: 'Board', type: 'dashboard', session: 'chatL', updated: 9, version: 1 }
 await S('published: the same tile, still over the chat, the popup on the artifact', async () => {
@@ -150,12 +154,12 @@ await S('a placeholder beside the chat offers Pop out chat too, and it moves ove
   making('chatM', 'guide', { type: 'slides' }); await settle()
   want(JSON.stringify(groupTitles(tileEl())) === '["popOut"]', 'switch ' + groupTitles(tileEl()))
   click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
-  want(mode() === 'popup/true' && floating()?.props.sid === 'chatM', 'mode ' + mode())
+  want(mode() === 'expanded/true' && floating()?.props.sid === 'chatM', 'mode ' + mode())
 }, { split: true, making: 'chatM', expanded: true, lit: 'chat:chatM' })
 await S('the floating chat\'s own beside button: docked again', async () => {
   making('chatM', 'ended'); await settle()
   routerNav('/chatA'); await settle()
-  want(mode() === 'popup/true', 'mode ' + mode())
+  want(mode() === 'expanded/true', 'mode ' + mode())
   floating().props.onDock(); await settle()
   want(mode() === 'docked/false', 'mode ' + mode())
 }, { split: true, expanded: false, lit: 'chat:chatA', selected: 'a1' })
@@ -168,7 +172,7 @@ await S('gallery, then an artifact: Chat | Pop out chat as one switch', async ()
 }, { page: true, selected: 'b1', split: false })
 await S('Pop out chat on the page: its chat floating over it, the popup layout picked', async () => {
   click(routeEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
-  want(I.$chat.get() === 'float' && I.$chatMode.get() === 'popup', 'chat ' + I.$chat.get())
+  want(I.$chat.get() === 'float' && I.$chatMode.get() === 'docked', 'chat ' + I.$chat.get())
   want(floating(routeEl())?.props.art.id === 'b1' && pop(routeEl()).props['aria-pressed'] === true, 'floating on the page')
 }, { page: true, selected: 'b1', split: false })
 await S('Esc closes it there too', async () => {
@@ -182,11 +186,67 @@ await S('an artifact made in no chat: the floating chat opens and will start one
   I.$chat.set('off')
 }, { page: true, selected: 'n1' })
 await S('with the popup layout picked, the page\'s Chat: beside its chat, docked picked', async () => {
-  I.$chatMode.set('popup')
+  I.$chatMode.set('expanded')
   I.openOnPage(ctx, 'b1'); await settle()
   click(routeEl(), b => b.props.title === 'chat', 'Chat'); await settle()
   want(mode() === 'docked/false', 'mode ' + mode())
 }, { split: true, expanded: false, page: false, selected: 'b1', lit: 'chat:chatB' })
+
+// ---------------------------------------------------------------- one rule for every way in, and a restart
+await S('the popup chat over the full page is remembered apart: the page opens with it, the tile does not', async () => {
+  I.setPop('page', false) // closed there last
+  routerNav(PAGE); await settle(); I.openOnPage(ctx, 'b1'); await settle()
+  click(routeEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
+  want(I.popOpen.page === true && storage.get('popOpen').page === true, 'page popup not kept ' + JSON.stringify(storage.get('popOpen')))
+  routerNav(PAGE); await settle(); I.openOnPage(ctx, 'a1'); await settle() // the gallery again, another artifact
+  want(I.$chat.get() === 'float' && floating(routeEl())?.props.art.id === 'a1', 'page popup not back: ' + I.$chat.get())
+  I.FloatingChat(floating(routeEl()).props).props.onKeyDown({ key: 'Escape', stopPropagation() {}, nativeEvent: {} }); await settle()
+  want(I.popOpen.page === false, 'closing it not kept')
+}, { page: true, selected: 'a1' })
+await S('a chat card with docked picked: beside the chat', async () => {
+  I.setChatMode('docked')
+  routerNav('/chatA'); await settle()
+  click(card('a1'), () => true, 'card'); await settle()
+  want(tilePos() === 'right' && storage.get('chatMode') === 'docked', 'pos ' + tilePos())
+}, { split: true, expanded: false, selected: 'a1', lit: 'chat:chatA' })
+await S('the expand of the pane is a zoom, not the layout: the titlebar reopens it beside the chat', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle()
+  want(I.$chatMode.get() === 'docked' && storage.get('chatMode') === 'docked', 'mode ' + mode())
+  click(titlebar().render(), () => true, 'titlebar'); await settle()
+  click(titlebar().render(), () => true, 'titlebar'); await settle()
+}, { split: true, expanded: false, selected: 'a1' })
+await S('Pop out chat picks expanded: kept', async () => {
+  click(tileEl(), b => b.props.title === 'popOut', 'popOut'); await settle()
+  want(storage.get('chatMode') === 'expanded' && mode() === 'expanded/true', 'mode ' + mode())
+}, { split: true, expanded: true, selected: 'a1' })
+await S('a restart keeps both: expanded, and the popup over the tile open', async () => {
+  I.setPop('tile', true)
+  stop(); I.$chatMode.set('docked'); I.popOpen.tile = false; I.popOpen.page = false // what a fresh start has
+  stop = mod.default.register(ctx); await settle()
+  want(I.$chatMode.get() === 'expanded' && I.popOpen.tile === true && I.popOpen.page === false, 'restored ' + mode() + JSON.stringify(I.popOpen))
+  routerNav('/chatB'); await settle()
+  want(tilePos() === 'center' && mode() === 'expanded/true', 'chat B ' + tilePos() + ' ' + mode())
+}, { split: true, expanded: true, selected: 'b1', lit: 'chat:chatB' })
+await S('the gallery, a card or a row: always the full page, whatever the chat layout', async () => {
+  routerNav(PAGE); await settle(); I.openOnPage(ctx, 'b1'); await settle()
+  want(tiles.size === 0 && I.$chat.get() === 'off', 'not the full page: ' + I.$chat.get())
+}, { page: true, selected: 'b1', split: false })
+await S('a window too narrow for the chat and the pane: a chat card opens it expanded, no popup over it', async () => {
+  I.setChatMode('docked'); I.setPop('tile', true)
+  window.innerWidth = 400
+  routerNav('/chatA'); await settle()
+  click(card('a1'), () => true, 'card'); await settle()
+  want(tilePos() === 'center' && mode() === 'docked/false' && I.$chatMode.get() === 'docked', 'narrow ' + tilePos() + ' ' + mode())
+}, { split: true, expanded: true, selected: 'a1', lit: 'chat:chatA' })
+await S('it grows: back beside the chat; it shrinks: over the chat again (the layout picked unchanged)', async () => {
+  window.innerWidth = 1500; window.dispatchEvent(new Event('resize')); await settle()
+  want(tilePos() === 'right', 'grown ' + tilePos())
+  window.innerWidth = 820; window.dispatchEvent(new Event('resize')); await settle()
+  want(tilePos() === 'center' && I.$chatMode.get() === 'docked', 'shrunk ' + tilePos())
+  window.innerWidth = 836; window.dispatchEvent(new Event('resize')); await settle()
+  want(tilePos() === 'right', 'at 836 ' + tilePos())
+  delete window.innerWidth
+}, { split: true, expanded: false, selected: 'a1' })
 
 // ---------------------------------------------------------------- every type, every way in
 const TYPES = ['page', 'doc', 'sheet', 'board', 'dashboard', 'slides', 'design', 'model', 'motion', 'design-system']
@@ -215,7 +275,7 @@ process.exit(0)
 
 EXPORTS = ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh, toast, $toast, Toast,"
            " saveFile, copyCommand, themePorts, $makings, $dockMaking, $dockPos, ChatArtifactCard, $chatMode, $dockFloat,"
-           " FloatingChat, chatState }\n")
+           " FloatingChat, chatState, popOpen, setPop, setChatMode }\n")
 
 
 def module() -> Path:

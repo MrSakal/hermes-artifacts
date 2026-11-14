@@ -91,9 +91,12 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   about 11 s (they share one browser process, which only then ends the stuck page) and loads the page
   again; if that does not bring it back after three tries, the line says to restart Hermes. The browser
   viewer does the same in its status line.
-- An artifact opened from its chat shows beside the chat, or with *Pop out chat* over the chat's area
-  with the chat floating over it (Esc closes it, *Show chat* goes back); the next artifact opens in the
-  layout picked last in that window. On the Artifacts page, *Chat* and *Pop out chat* do the same.
+- Where an artifact opens: from a chat (its card, the titlebar button, a publish) beside the chat or over
+  it, whichever was used last (*Show chat* / *Pop out chat*, kept across restarts; a window under 836 px
+  opens it over the chat), and from the gallery always as the full page. The popup chat stays open or closed
+  as it was last left, separately over the expanded artifact and over the full page, also after a restart.
+- The comments list docks beside the artifact where the stage has room (700 px); narrower it opens only when
+  asked and then fills the whole stage, with a back arrow to the artifact.
 - UI strings ship in English; what an artifact says is in the language the user works in.
 
 ### CLI

@@ -80,6 +80,7 @@ const STRINGS = {
     comment: 'Comment',
     moreComment: 'More comment options',
     showComments: 'All comments',
+    backToArtifact: 'Back to the artifact',
     close: 'Close',
     expand: 'Expand',
     menuBy: type => `${type} by Hermes`,
@@ -342,6 +343,7 @@ const STRINGS = {
     comment: 'Komment',
     moreComment: 'További komment-lehetőségek',
     showComments: 'Összes komment',
+    backToArtifact: 'Vissza az artifacthoz',
     close: 'Bezárás',
     expand: 'Kinagyítás',
     menuBy: type => `${type} · Hermes készítette`,
@@ -585,7 +587,11 @@ const $trashOpen = atom(false) // the gallery shows the trash instead of the art
 const $server = atom(null) // GET /artifacts' server: {loaded, disk, stale} (hermes_artifacts/running.py)
 const $versionClosed = atom(null) // the version notice closed in this run of the app (its id)
 const $layout = atom('grid') // grid | list
-const $panel = atom(false) // comments panel open
+const $panel = atom(false) // comments panel open (remembered: it opens again by itself only where it can dock)
+// The person opened the comments here, in this view: a stage too narrow to dock the list shows it only then.
+const $panelHere = atom(false)
+const $panelShown = atom(false) // the list is on screen now (docked, or the whole narrow stage)
+const openPanel = () => { $panel.set(true); $panelHere.set(true) }
 const $comments = atom([])
 const $picking = atom(false)
 const $draft = atom(null) // {anchor} while writing a new comment
@@ -600,10 +606,23 @@ const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat 
 // chat's sidebar row lit and the Artifacts row unlit (sidebar/index.tsx: a session row is active while the
 // view is the chat's, a nav row only at its own pathname). "Show chat" puts it back at 'right'.
 const $dockPos = atom('right')
-// The chat layout the person picked last in this window (kept until the app restarts): 'docked' (the chat
-// with the artifact beside it) or 'popup' (the artifact over the chat's area, the chat floating over it). The
-// next artifact a chat opens takes it.
-const $chatMode = atom('docked')
+// WHERE AN ARTIFACT OPENS (the README says the same): opened from a chat (its card, the titlebar button,
+// entering the chat, a publish) it opens beside the chat or expanded over it, whichever the person used last,
+// kept across restarts; a window too narrow for the chat and the pane (PANE_ROOM) opens it expanded. The popup
+// chat's open state is remembered apart for each place it floats over (the expanded tile, the full page), also
+// across restarts. Opened from the gallery (a card, a row, a link to the page) it is always the full page.
+// (The pane's own expand is a zoom for that moment: Show chat, a card, the titlebar put it back beside the chat.)
+const $chatMode = atom('docked') // 'docked' (beside the chat) | 'expanded' (over the chat's area)
+const popOpen = { tile: false, page: false } // the popup chat open over the expanded tile / over the full page
+function setChatMode(m) { $chatMode.set(m); CTX?.storage?.set('chatMode', m) }
+function setPop(where, on) { popOpen[where] = Boolean(on); CTX?.storage?.set('popOpen', { ...popOpen }) }
+// Chat beside the pane needs the chat's own floor (420 px: what Hermes keeps a popped-out session window to)
+// and the pane's (26rem, 416 px). A narrower window opens the artifact expanded; a docked pane expands when the
+// window shrinks under it and comes back beside the chat when it grows again (only when it was this that
+// expanded it: autoExpanded).
+const PANE_ROOM = 836
+const roomBeside = () => { const w = window.innerWidth; return !(w > 0) || w >= PANE_ROOM }
+let autoExpanded = false
 const $dockFloat = atom(false) // the floating chat over the expanded tile is open
 // What chats are making now (Hermes read a type's guide, has not published): stored chat id -> {session,
 // type (null: not known yet), started (ms, this desktop's clock), title, step, tool, local}. From the
@@ -3918,14 +3937,14 @@ function pickedRect(r) {
 function onPageEvent(event, detail) {
   if (event === 'pinOpen') {
     $picking.set(false)
-    $panel.set(true)
+    openPanel()
     $focusPin.set(Number(detail?.n) || 0)
     return
   }
   if (event === 'comment') {
     // A doc's "Comment" on selected text: open the comment form anchored there.
     $picking.set(false)
-    $panel.set(true)
+    openPanel()
     $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null })
     return
   }
@@ -3938,7 +3957,7 @@ function onPageEvent(event, detail) {
     $picking.set(false)
     const anchor = detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40) } : null
     const rect = pickedRect(detail && detail.rect)
-    if (!rect) $panel.set(true)
+    if (!rect) openPanel()
     $draft.set({ anchor, rect })
   }
 }
@@ -4002,8 +4021,9 @@ function dock(ctx, art, pos) {
   openTile(ctx, art.title)
 }
 
-/** Where the tile opens in the layout the person picked ($chatMode): beside the chat, or over it. */
-const prefPos = () => ($chatMode.get() === 'popup' ? 'center' : 'right')
+/** Where the tile opens in the layout the person picked ($chatMode): beside the chat, or over it (also where
+ *  the window has no room beside the chat). */
+const prefPos = () => ($chatMode.get() === 'expanded' || !roomBeside() ? 'center' : 'right')
 
 /** Where a tile about to open sits: `pos` when the move names it (expand, Show chat, Pop out chat); a tile
  *  already there stays where it is (a publish, a rename refresh it in place); a new one opens in the person's
@@ -4011,10 +4031,21 @@ const prefPos = () => ($chatMode.get() === 'popup' ? 'center' : 'right')
  *  hint only places a tile not yet in the layout. */
 function placeTile(pos) {
   const fresh = !dockClose
-  const want = pos || (fresh ? prefPos() : $dockPos.get())
+  let want = pos || (fresh ? prefPos() : $dockPos.get())
+  if (want === 'right' && !roomBeside()) want = 'center' // no room beside the chat: over it
   if (!fresh && $dockPos.get() !== want) closeDock()
   $dockPos.set(want)
-  if (!pos && fresh) $dockFloat.set(want === 'center')
+  autoExpanded = want === 'center' && $chatMode.get() !== 'expanded' && !roomBeside()
+  // The popup chat as it was left over the expanded tile (not where it would cover a narrow window's artifact).
+  if (!pos && fresh) $dockFloat.set(want === 'center' && popOpen.tile && !autoExpanded)
+}
+
+/** The window was resized: a pane beside the chat that no longer fits goes over the chat; one that went over
+ *  it for that comes back beside it when the window has room again. */
+function fitDock(ctx) {
+  if (!dockClose || $chat.get() !== 'split') return
+  if ($dockPos.get() === 'right' && !roomBeside()) expandDock(ctx, false)
+  else if ($dockPos.get() === 'center' && autoExpanded && roomBeside()) collapseDock(ctx)
 }
 
 /** The one workspace tile beside the chat, or over it when expanded (an artifact or a being-made
@@ -4336,14 +4367,15 @@ async function openSplit(ctx, art, pos) {
   }
   give()
   // In the other layout than the one asked for (expanded over the chat, Chat means beside it again): moved.
-  const want = pos || prefPos()
+  // No room beside the chat: over it.
+  const want = (pos || prefPos()) === 'right' && !roomBeside() ? 'center' : pos || prefPos()
   if (dockClose && $dockPos.get() !== want) closeDock()
   // Entering the chat may have docked another of its artifacts (its newest): this one is asked for.
   if ($selected.get() !== art.id) openArtifact(ctx, art.id)
   // Entering the chat may have docked it already (the route change runs enter()): one tile either way.
   if (!(dockClose && $chat.get() === 'split' && $selected.get() === art.id && !$dockMaking.get())) dock(ctx, art, want)
-  // Opened in the popup layout: with its chat floating over it (also when it was closed before).
-  if (want === 'center') $dockFloat.set(true)
+  // Expanded: its popup chat as the person left it there (see placeTile).
+  if (want === 'center') $dockFloat.set(popOpen.tile && !autoExpanded)
 }
 
 /** ⤢ in the docked pane: the same tile over its chat (a tab in the chat's zone that takes the whole chat
@@ -4374,7 +4406,11 @@ function collapseDock(ctx) {
 // The two chat layouts, as the person picks them (remembered in $chatMode for the next artifact):
 /** The chat with the artifact beside it ("Show chat" on the expanded tile, the floating chat's own button). */
 function chatDocked(ctx) {
-  $chatMode.set('docked')
+  setChatMode('docked')
+  if (!roomBeside() && $dockPos.get() === 'center') { // no room beside: the chat floats over it instead
+    autoExpanded = true
+    return $dockFloat.set(true)
+  }
   $dockFloat.set(false)
   collapseDock(ctx)
 }
@@ -4383,23 +4419,25 @@ function chatDocked(ctx) {
  *  expanded tile it opens or closes the floating chat, closing it keeps the layout). */
 function chatPopup(ctx) {
   if ($dockPos.get() === 'center' && dockClose) {
-    if ($dockFloat.get()) return $dockFloat.set(false)
-    $chatMode.set('popup')
+    if ($dockFloat.get()) return (setPop('tile', false), $dockFloat.set(false))
+    if (!autoExpanded) setChatMode('expanded')
+    setPop('tile', true)
     return $dockFloat.set(true)
   }
-  $chatMode.set('popup')
+  setChatMode('expanded')
+  setPop('tile', true)
   expandDock(ctx, true)
 }
 
 /** The full page's two: Chat (its chat with the artifact beside it) and Pop out chat (floating over the page). */
 function pageDocked(ctx, art) {
-  $chatMode.set('docked')
+  setChatMode('docked')
   return openSplit(ctx, art, 'right')
 }
 function pagePopup() {
-  if ($chat.get() === 'float') return $chat.set('off')
-  $chatMode.set('popup')
-  $chat.set('float')
+  const on = $chat.get() !== 'float'
+  setPop('page', on)
+  $chat.set(on ? 'float' : 'off')
 }
 
 const shownText = m => String(m.text || '').replace(/^\[artifact: [^\]]*\]\s*/, '')
@@ -4975,7 +5013,7 @@ function Header({ ctx, art, v, portRef, docked }) {
   const t = usePluginI18n(ID)
   const chat = useValue($chat)
   const picking = useValue($picking)
-  const panel = useValue($panel)
+  const panel = useValue($panelShown)
   const comments = useValue($comments)
   const [cmenu, setCmenu] = useState(false)
   const expanded = useValue($dockPos) === 'center'
@@ -5019,7 +5057,7 @@ function Header({ ctx, art, v, portRef, docked }) {
                 onClose: () => setCmenu(false),
                 items: [
                   { icon: 'comment', label: t('comment'), onClick: () => (setCmenu(false), $draft.set(null), $picking.set(true)) },
-                  { icon: 'list', label: t('showComments'), right: open ? String(open) : '', checked: panel, onClick: () => (setCmenu(false), $panel.set(!panel)) }
+                  { icon: 'list', label: t('showComments'), right: open ? String(open) : '', checked: panel, onClick: () => (setCmenu(false), panel ? ($panel.set(false), $panelHere.set(false)) : openPanel()) }
                 ]
               })
             : null
@@ -5123,21 +5161,21 @@ const VIEW_FILL = { position: 'relative', flex: 1, minWidth: 0, display: 'flex' 
 const FRAME_FIT = { flex: 1, minWidth: 0, height: '100%', border: 0 }
 const PANEL_W = 340
 const STAGE_MIN = 360 // the narrowest width the type pages are laid out and tested for (test_type_pages_browser)
-/** The comments list in a viewer row w px wide. Docked beside the stage while that leaves the stage
- *  STAGE_MIN: the stage, and the page in it, narrow by PANEL_W, so no part of the page is ever under a
- *  docked list. Narrower, it floats over the stage's right (cover px, min(340, 92%)) and the page keeps the
- *  row's width: what is under it comes back with its ✕; the new comment's pin and box keep out of it
- *  (commentLayout), and while an element is being picked it steps aside (hidden), so every part of the page
- *  can be commented on. Pure. */
-function panelMode(w, picking) {
-  const floats = w < PANEL_W + STAGE_MIN
-  return { floats, hidden: floats && picking, cover: floats && !picking ? Math.min(PANEL_W, w * 0.92) : 0 }
+/** The comments list in a viewer row w px wide (here: the person opened it in this view). Docked beside the
+ *  stage while that leaves the stage STAGE_MIN: the stage, and the page in it, narrow by PANEL_W, so no part
+ *  of the page is ever under a docked list. Narrower (the pane beside a chat, a small window) it never opens by
+ *  itself (off until `here`), and open it is the WHOLE stage, opaque (full; cover = w), with Back to the
+ *  artifact: never a part of the page half covered. While an element is being picked it steps aside (hidden);
+ *  the new comment's form is then in it (commentDocks). Pure. */
+function panelMode(w, picking, here = true) {
+  const full = w < PANEL_W + STAGE_MIN
+  return { full, off: full && !here, hidden: full && (picking || !here), cover: full && here && !picking ? w : 0 }
 }
 function panelStyle(mode) {
-  const col = { display: mode.hidden ? 'none' : 'flex', flexDirection: 'column', minHeight: 0, borderLeft: `1px solid ${C.line}` }
-  return mode.floats
-    ? { ...col, position: 'absolute', top: 0, right: 0, bottom: 0, zIndex: 30, width: `min(${PANEL_W}px, 92%)`, background: C.pop, boxShadow: C.shadowModal }
-    : { ...col, width: PANEL_W, flexShrink: 0, background: C.bg }
+  const col = { display: mode.hidden ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }
+  return mode.full
+    ? { ...col, position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, background: C.bg }
+    : { ...col, width: PANEL_W, flexShrink: 0, background: C.bg, borderLeft: `1px solid ${C.line}` }
 }
 
 /** Whether the new comment's box goes into the comments list: the list floats over the stage (`cover` px of
@@ -5271,7 +5309,7 @@ function MakingView({ ctx, m }) {
           jsx(MakingSkeleton, { type: m.type }),
           // Popup layout: the chat it is being made in, floating over the outline.
           expanded && dockFloat
-            ? jsx(FloatingChat, { ctx, sid: m.session, onClose: () => $dockFloat.set(false), onDock: () => chatDocked(ctx) }, m.session)
+            ? jsx(FloatingChat, { ctx, sid: m.session, onClose: () => (setPop('tile', false), $dockFloat.set(false)), onDock: () => chatDocked(ctx) }, m.session)
             : null
         ]
       })
@@ -5523,7 +5561,8 @@ function CommentsPanel({ ctx, art, portRef }) {
   const box = useRef(null)
   const [rowW, setRowW] = useState(0)
   const cover = useValue($panelCover)
-  const mode = panelMode(rowW, picking)
+  const here = useValue($panelHere)
+  const mode = panelMode(rowW, picking, here)
   useLayoutEffect(() => {
     const host = box.current?.parentElement
     if (!host) return undefined
@@ -5535,7 +5574,8 @@ function CommentsPanel({ ctx, art, portRef }) {
   }, [])
   // Floating, it covers the stage's right: the new comment's pin and box keep out of it. Closed or gone: nothing.
   useLayoutEffect(() => { $panelCover.set(mode.cover) }, [mode.cover])
-  useLayoutEffect(() => () => $panelCover.set(0), [])
+  useLayoutEffect(() => { $panelShown.set(!mode.off) }, [mode.off])
+  useLayoutEffect(() => () => ($panelCover.set(0), $panelShown.set(false)), [])
   // A picked element's comment whose box has no room left of the floating list is written here.
   const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)
   useEffect(() => { if (docked) setText('@Hermes ') }, [docked && draft?.anchor])
@@ -5546,9 +5586,11 @@ function CommentsPanel({ ctx, art, portRef }) {
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 8px 0 14px', borderBottom: `1px solid ${C.line}` },
         children: [
-          jsx('span', { style: { flex: 1, fontSize: 13, fontWeight: 600, color: C.fg }, children: t('comments') }),
+          // The whole stage: Back to the artifact (it closes here only; docked again it opens by itself).
+          mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), $draft.set(null)) }) : null,
+          jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: t('comments') }),
           jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, title: t('addComment'), onClick: () => ($draft.set(null), $picking.set(!picking)) }),
-          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $picking.set(false)) })
+          mode.full ? null : jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $panelHere.set(false), $picking.set(false)) })
         ]
       }),
       jsxs('div', {
@@ -5600,6 +5642,8 @@ function Viewer({ ctx, docked = false }) {
   const makings = useValue($makings)
   const [, setTick] = useState(0)
   const art = current()
+  // Another artifact, or this one in another place: the comments are not opened here yet (panelMode).
+  useEffect(() => { $panelHere.set(false) }, [art?.id, docked])
   // The frames this viewer holds (makeFrames): the one shown, and a new version loading out of sight.
   const fr = useRef(null)
   if (!fr.current) {
@@ -5719,9 +5763,9 @@ function Viewer({ ctx, docked = false }) {
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
               // the popup layout. Under the header and its bands (it lives in the stage), never mounted closed.
               !docked && chat === 'float'
-                ? jsx(FloatingChat, { ctx, art, onClose: () => $chat.set('off'), onDock: () => pageDocked(ctx, art) }, art.id)
+                ? jsx(FloatingChat, { ctx, art, onClose: () => (setPop('page', false), $chat.set('off')), onDock: () => pageDocked(ctx, art) }, art.id)
                 : docked && expanded && dockFloat
-                  ? jsx(FloatingChat, { ctx, art, onClose: () => $dockFloat.set(false), onDock: () => chatDocked(ctx) }, art.id)
+                  ? jsx(FloatingChat, { ctx, art, onClose: () => (setPop('tile', false), $dockFloat.set(false)), onDock: () => chatDocked(ctx) }, art.id)
                   : null
             ]
           }),
@@ -5770,7 +5814,10 @@ function Page({ ctx }) {
     const fromRoute = () => {
       const id = routeArtifact()
       if (id === undefined) return // leaving the page
-      if (id) { if (id !== $selected.get()) openArtifact(ctx, id) }
+      if (id) {
+        if (id !== $selected.get()) openArtifact(ctx, id)
+        if ($chat.get() !== 'split') $chat.set(popOpen.page ? 'float' : 'off') // the full page's popup chat, as it was left
+      }
       else if ($selected.get()) {
         closeArtifact()
         refresh(ctx) // the list does not poll while an artifact is open: the gallery gets it fresh
@@ -5818,6 +5865,10 @@ export default {
       data: { hide: ['artifacts'], order: ['new-session', 'capabilities', 'messaging', `${ID}:nav`, 'cron'] }
     })
     closedIn.clear()
+    $chatMode.set(ctx.storage.get('chatMode') === 'expanded' ? 'expanded' : 'docked')
+    const po = ctx.storage.get('popOpen')
+    popOpen.tile = Boolean(po?.tile)
+    popOpen.page = Boolean(po?.page)
     const savedClosed = ctx.storage.get('closedIn')
     if (Array.isArray(savedClosed)) savedClosed.forEach(s => typeof s === 'string' && closedIn.add(s))
     const stopTool = watchChatArtifactTool(ctx)
@@ -5862,7 +5913,7 @@ export default {
       window.removeEventListener('hashchange', prev)
     }
     if (KEY) window[KEY] = redirectCore
-    const offs = [listen(ctx, window, 'hashchange', redirectCore)]
+    const offs = [listen(ctx, window, 'hashchange', redirectCore), listen(ctx, window, 'resize', () => fitDock(ctx))]
     offs.push(nav?.addEventListener ? listen(ctx, nav, 'currententrychange', redirectCore) : every(ctx, redirectCore, 250))
     redirectCore()
 
