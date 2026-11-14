@@ -4672,7 +4672,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
                 onClick: toEnd,
                 className: 'thread-jump-button absolute left-1/2 z-20 flex h-8 items-center gap-1.5 rounded-full border bg-(--composer-fill) px-3 text-xs font-medium backdrop-blur-[0.75rem] border-border/65 text-muted-foreground hover:text-foreground',
                 style: { ...font, position: 'absolute', left: '50%', bottom: 8, transform: 'translateX(-50%)', zIndex: 20, height: 32, display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '0 12px', borderRadius: 999, border: `1px solid ${C.line}`, background: C.pop, color: C.text2, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer' },
+                  padding: '0 12px', borderRadius: 999, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop, color: C.text2, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer' },
                 children: [jsx(Icon, { name: 'down', size: 14 }), jsx('span', { children: t('scrollToBottom') })]
               })
         ]
