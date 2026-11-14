@@ -441,7 +441,8 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             return out
         if parts == ["chat-note"] and method == "POST":
             # What a message Hermes Desktop puts into the chat is about (ids), for the model only (store.chat_note_add).
-            store.chat_note_add(str(body.get("text", "")), str(body.get("ref", "")))
+            # session: the chat it goes into (stored session id), when Desktop knows it.
+            store.chat_note_add(str(body.get("text", "")), str(body.get("ref", "")), str(body.get("session") or ""))
             return {"ok": True}
         if parts == ["making"] and method == "GET":
             # What a chat is making now (Hermes read a guide, has not published): after a reload or a chat switch.

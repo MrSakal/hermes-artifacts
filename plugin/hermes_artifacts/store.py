@@ -2662,8 +2662,12 @@ def view_get(session: str) -> Optional[dict]:
 # Hermes Desktop puts a comment or an ask into the chat as the person's plain sentence; the ids it is about
 # (artifact, block, comment, request) wait here under that sentence, and the plugin's pre_llm_call hook adds
 # them to that turn's model input, so the bubble never shows them. Taken once; gone after CHAT_NOTE_TTL_S.
+# A note is bound to its chat (the stored session id Desktop submits into, the session_id the hook gets): the
+# same sentence sent in another chat never takes it. A note whose chat Desktop did not know yet (a composer
+# draft) goes to the first chat that sends the sentence, within CHAT_NOTE_LOOSE_TTL_S, and to no other.
 
 CHAT_NOTE_TTL_S = 10 * 60
+CHAT_NOTE_LOOSE_TTL_S = 2 * 60
 MAX_CHAT_NOTES = 50
 
 
@@ -2676,15 +2680,17 @@ def _note_key(text) -> str:
 
 
 def _notes_live(notes, now: float) -> list:
-    """chat-notes.json's notes not past CHAT_NOTE_TTL_S at ``now``."""
+    """chat-notes.json's notes not past their time at ``now`` (a note with no chat: the shorter one)."""
     if not isinstance(notes, list):
         return []
     return [n for n in notes if isinstance(n, dict) and isinstance(n.get("at"), (int, float))
-            and now - n["at"] <= CHAT_NOTE_TTL_S and isinstance(n.get("text"), str) and isinstance(n.get("ref"), str)]
+            and isinstance(n.get("text"), str) and isinstance(n.get("ref"), str) and isinstance(n.get("session", ""), str)
+            and now - n["at"] <= (CHAT_NOTE_TTL_S if n.get("session") else min(CHAT_NOTE_TTL_S, CHAT_NOTE_LOOSE_TTL_S))]
 
 
-def chat_note_add(text: str, ref: str) -> None:
-    key, ref = _note_key(text), str(ref or "")[:600]
+def chat_note_add(text: str, ref: str, session: str = "") -> None:
+    """``session``: the chat (stored session id) the message goes into; empty when Desktop does not know it."""
+    key, ref, session = _note_key(text), str(ref or "")[:600], str(session or "")[:200]
     if not key or not ref:
         raise ValueError("a chat note needs text and ref")
     with _LOCK:
@@ -2693,16 +2699,17 @@ def chat_note_add(text: str, ref: str) -> None:
             notes = json.loads(read_text(p))
         except (FileNotFoundError, ValueError):
             notes = []
-        notes = (_notes_live(notes, now) + [{"text": key, "ref": ref, "at": now}])[-MAX_CHAT_NOTES:]
+        notes = (_notes_live(notes, now) + [{"text": key, "ref": ref, "session": session, "at": now}])[-MAX_CHAT_NOTES:]
         _write_json(p, notes, durable=False)
 
 
-def chat_note_take(text) -> Optional[str]:
-    """The reference waiting under this message (the newest), taken: the file goes with the last note."""
+def chat_note_take(text, session=None) -> Optional[str]:
+    """The reference waiting under this message in this chat (the newest; else the newest no chat was known for),
+    taken: the file goes with the last note."""
     p = _chat_notes_path()
     if not isinstance(text, str) or not p.is_file():
         return None
-    key = _note_key(text)
+    key, session = _note_key(text), str(session or "")[:200]
     with _LOCK:
         try:
             notes = json.loads(read_text(p))
@@ -2711,7 +2718,10 @@ def chat_note_take(text) -> Optional[str]:
         except ValueError:
             notes = []
         notes = _notes_live(notes, time.time())
-        hit = next((i for i in range(len(notes) - 1, -1, -1) if notes[i]["text"] == key), None)
+        newest = range(len(notes) - 1, -1, -1)
+        hit = next((i for i in newest if notes[i]["text"] == key and session and notes[i].get("session") == session), None)
+        if hit is None:
+            hit = next((i for i in newest if notes[i]["text"] == key and not notes[i].get("session")), None)
         ref = notes.pop(hit)["ref"] if hit is not None else None
         if notes:
             _write_json(p, notes, durable=False)

@@ -1875,7 +1875,7 @@ def _view_context(**kw):
     try:
         # A comment or an ask Hermes Desktop put into the chat: the bubble is the person's sentence, the ids it
         # is about reach the model only, here (store.chat_note_add).
-        ref = store.chat_note_take(kw.get("user_message"))
+        ref = store.chat_note_take(kw.get("user_message"), kw.get("session_id"))  # this chat's note only
         if ref:
             parts.append(ref)
     except Exception:

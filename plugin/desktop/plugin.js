@@ -1526,40 +1526,47 @@ function pumpThumbs() {
 }
 
 /** A message for the chat: {text, ref} (STRINGS' *Msg) or plain text. Its ref waits on the server under
- *  its text (chatNote) and reaches the model only (the pre_llm_call hook): the bubble is the sentence. */
-async function chatNote(msg) {
+ *  its text (chatNote) and reaches the model only (the pre_llm_call hook): the bubble is the sentence.
+ *  `session`: the chat it goes into (the stored session id, the one the hook gets), so the same sentence in
+ *  another chat does not take it; null when not known yet (a draft: the first chat to send it takes it). */
+async function chatNote(msg, session) {
   const { text, ref } = typeof msg === 'string' ? { text: msg, ref: null } : msg
-  if (ref && CTX) await CTX.rest('/chat-note', { method: 'POST', body: { text, ref } }).catch(() => null)
+  if (ref && CTX) await CTX.rest('/chat-note', { method: 'POST', body: { text, ref, session: session || '' } }).catch(() => null)
   return text
 }
 
 /** Into the chat without leaving this page: gateway prompt.submit (the chat shows it as the user's
  *  message), only on a user gesture; otherwise the composer draft. */
 async function toChat(msg, gesture, art) {
-  const text = await chatNote(msg)
   // The artifact's own chat first (Claude sends a comment into the conversation the artifact is from).
   if (gesture && art && CTX) {
     try {
       const c = await ensureChat(art)
+      const text = await chatNote(msg, c.stored)
       await host.request('prompt.submit', { session_id: c.runtime, text })
       $chatPing.set($chatPing.get() + 1)
       return c.created ? 'submitted-new' : 'submitted'
     } catch {}
   }
   const sid = host.state.focusedSessionId.get() || host.state.activeSessionId.get()
+  // The focused chat's stored id; the active one's is not known here (its note is then the draft's kind).
+  const stored = (host.state.focusedSessionId.get() && host.state.focusedStoredSessionId?.get?.()) || null
   if (gesture && sid) {
     try {
+      const text = await chatNote(msg, stored)
       await host.request('prompt.submit', { session_id: sid, text })
       return 'submitted'
     } catch {}
   }
-  if (await host.composer.setDraft(sid || null, text).catch(() => false)) return 'draft'
+  // A draft's note once the draft is in (none left behind for a draft that did not go in).
+  const plain = typeof msg === 'string' ? msg : msg.text
+  if (await host.composer.setDraft(sid || null, plain).catch(() => false)) return (await chatNote(msg, stored), 'draft')
   if (art?.session) {
     try {
       await host.openSession(art.session)
       for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 150))
-        if (await host.composer.setDraft(art.session, text).catch(() => false)) return 'draft'
+        if (await host.composer.setDraft(art.session, plain).catch(() => false)) return (await chatNote(msg, art.session), 'draft')
       }
     } catch {}
   }
@@ -4157,8 +4164,8 @@ async function ensureChat(art) {
 /** A page's message, as Claude stages it (stage_in_chat): the artifact's chat opens beside it with the
  *  text in its message box, not sent. */
 async function stageInChat(ctx, art, msg) {
-  const text = await chatNote(msg)
   const c = await ensureChat(art)
+  const text = await chatNote(msg, c.stored)
   // The chat's own message box takes it: the chat beside the artifact, whichever layout was picked.
   if ($chat.get() !== 'split' || $dockPos.get() === 'center') await openSplit(ctx, current() || art, 'right')
   for (let i = 0; i < 15; i++) {
@@ -4505,6 +4512,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
   const [waiting, setWaiting] = useState(false)
   const [state, setState] = useState(null)
   const sentAt = useRef(0)
+  const madeChat = useRef(null) // the stored id of a chat this popup made (its note goes to that chat)
   const listRef = useRef(null)
   const boxRef = useRef(null)
   const inputRef = useRef(null)
@@ -4606,6 +4614,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
       try {
         const c = await ensureChat(art)
         id = c.runtime
+        madeChat.current = c.stored
         setRid(id)
         setState('open')
         await load(id).catch(() => {})
@@ -4622,7 +4631,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
     try {
       if (art) askedEdit(art) // words written over the artifact ("Describe the change you want…")
       // A chat with nothing made yet takes the words as they are; an artifact's chat learns which one.
-      await host.request('prompt.submit', { session_id: id, text: art ? await chatNote(t('sendMsg', art.title, art.id, body)) : body })
+      await host.request('prompt.submit', { session_id: id, text: art ? await chatNote(t('sendMsg', art.title, art.id, body), madeChat.current || art.session) : body })
     } catch (e) {
       setErr(errText(e))
       setWaiting(false)
