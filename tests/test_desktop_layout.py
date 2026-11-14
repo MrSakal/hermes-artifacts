@@ -15,7 +15,7 @@ import _browser as B  # noqa: E402
 import _dom as D
 
 EXPORTS = ("\nexport { STRINGS, Header, Gallery, $list, $layout, $folders, $folder, $chat, $dockPos, $query, $trash, $trashOpen,"
-           " listCols, HEADER_ICONS }\n")
+           " listCols, HEADER_ICONS, TILE_MIN }\n")
 LONG = ("A very long artifact title that must truncate with an ellipsis in the viewer header at every width" + "!" * 100)[:100]
 NEXT = "await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); R.flush();"
 
@@ -39,6 +39,23 @@ class LayoutTests(unittest.TestCase):
         self.assertIsNone(r.get("err"), r.get("err"))
         self.assertEqual(r.get("logs") or [], [])
         return r["out"]
+
+    def test_the_tile_is_never_wider_than_the_window(self):
+        # Hermes puts a tile's minWidth on its zone's track (pane-shell track-model): a zone of 1 px share
+        # beside a chat zone, in windows of 400 (expanded) to 1600 px.
+        r = self.page.drive("""
+          const out = []
+          for (const w of [360, 400, 416, 600, 836, 1600]) {
+            await api.size(w, 700)
+            out.push(await api.top(`(() => { const row = document.createElement('div'); row.style.cssText = 'display:flex;width:100vw'
+              const tile = document.createElement('div'); tile.style.cssText = 'flex:1 1 1px;min-width:' + H.M.TILE_MIN
+              row.append(tile); document.body.append(row); const b = tile.getBoundingClientRect().width; row.remove(); return [innerWidth, b] })()`))
+          }
+          return out""")
+        self.assertIsNone(r.get("err"), r)
+        for win, tile in r["out"]:
+            self.assertLessEqual(tile, win, (win, tile))  # expanded at 400 px: the window's width, not 416
+            self.assertGreaterEqual(tile, min(416, win), (win, tile))  # beside a chat: still at least 26rem
 
     def test_the_header_at_every_width(self):
         variants = [

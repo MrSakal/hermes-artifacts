@@ -629,6 +629,7 @@ function setPop(where, on) { popOpen[where] = Boolean(on); CTX?.storage?.set('po
 // window shrinks under it and comes back beside the chat when it grows again (only when it was this that
 // expanded it: autoExpanded).
 const PANE_ROOM = 836
+const TILE_MIN = 'min(26rem, 100vw)' // the tile's floor (openTile)
 const roomBeside = () => { const w = window.innerWidth; return !(w > 0) || w >= PANE_ROOM }
 let autoExpanded = false
 const $dockFloat = atom(false) // the floating chat over the expanded tile is open
@@ -4079,7 +4080,9 @@ function openTile(ctx, title) {
   const close = host.openWorkspace(`${ID}:view`, {
     title,
     dock: { pane: 'workspace', pos: $dockPos.get() === 'center' ? 'center' : 'right' },
-    minWidth: '26rem',
+    // The pane's floor beside a chat, never more than the window: expanded in a window narrower than 26rem
+    // the tile is the window's width, not 416 px with its right edge cut off.
+    minWidth: TILE_MIN,
     render: () => jsx(DockView, { ctx }),
     onClose: () => {
       if (dockClose !== close && dockClose) return // an older tile's close: the current one stays
