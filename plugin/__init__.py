@@ -1872,6 +1872,14 @@ def _view_context(**kw):
     and in code it is files in the project, ha_design_system_export.)"""
     parts = []
     running.touch()  # this process is in use: keep its loaded-version record fresh (at most every 5 min)
+    try:
+        # A comment or an ask Hermes Desktop put into the chat: the bubble is the person's sentence, the ids it
+        # is about reach the model only, here (store.chat_note_add).
+        ref = store.chat_note_take(kw.get("user_message"))
+        if ref:
+            parts.append(ref)
+    except Exception:
+        logger.debug("chat note failed", exc_info=True)
     # A new turn: a making the last one left open is over (a Hermes without on_session_end).
     _making_end(kw.get("session_id"), "ended")
     try:

@@ -2591,6 +2591,60 @@ def view_get(session: str) -> Optional[dict]:
     return v
 
 
+# --- chat notes: the reference a message into the chat carries for the model only ----------------------
+# Hermes Desktop puts a comment or an ask into the chat as the person's plain sentence; the ids it is about
+# (artifact, block, comment, request) wait here under that sentence, and the plugin's pre_llm_call hook adds
+# them to that turn's model input, so the bubble never shows them. Taken once; gone after CHAT_NOTE_TTL_S.
+
+CHAT_NOTE_TTL_S = 10 * 60
+MAX_CHAT_NOTES = 50
+
+
+def _chat_notes_path() -> Path:
+    return root() / "chat-notes.json"
+
+
+def _note_key(text) -> str:
+    return " ".join(str(text or "").split())[:2000]
+
+
+def chat_note_add(text: str, ref: str) -> None:
+    key, ref = _note_key(text), str(ref or "")[:600]
+    if not key or not ref:
+        raise ValueError("a chat note needs text and ref")
+    with _LOCK:
+        p, now = _chat_notes_path(), time.time()
+        try:
+            notes = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
+        except ValueError:
+            notes = []
+        notes = [n for n in notes if isinstance(n, dict) and now - n.get("at", 0) <= CHAT_NOTE_TTL_S]
+        notes = (notes + [{"text": key, "ref": ref, "at": now}])[-MAX_CHAT_NOTES:]
+        _write_json(p, notes, durable=False)
+
+
+def chat_note_take(text) -> Optional[str]:
+    """The reference waiting under this message (the newest), taken: the file goes with the last note."""
+    p = _chat_notes_path()
+    if not isinstance(text, str) or not p.is_file():
+        return None
+    key = _note_key(text)
+    with _LOCK:
+        try:
+            notes = json.loads(p.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            return None
+        now = time.time()
+        notes = [n for n in notes if isinstance(n, dict) and now - n.get("at", 0) <= CHAT_NOTE_TTL_S]
+        hit = next((i for i in range(len(notes) - 1, -1, -1) if notes[i]["text"] == key), None)
+        ref = notes.pop(hit)["ref"] if hit is not None else None
+        if notes:
+            _write_json(p, notes, durable=False)
+        else:
+            p.unlink(missing_ok=True)
+        return ref
+
+
 # --- making: a chat's artifact being made (Hermes read a type's guide; nothing published yet) ----------
 # Kept on disk like the view context: the agent's tools, its hooks and the REST API may run in different
 # module copies or processes. One small file, written only when something starts, moves on or ends.
