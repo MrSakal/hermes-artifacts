@@ -72,8 +72,44 @@
     volume: "M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12",
     volumeOff: "M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6",
     repeat: "M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4",
-    restart: "M6 5v14M19 5l-10 7 10 7z"
+    restart: "M6 5v14M19 5l-10 7 10 7z",
+    upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
+    zoomIn: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8M10.5 7.5v6M7.5 10.5h6",
+    zoomOut: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8M7.5 10.5h6",
+    fit: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
+    sortAsc: "M7 4v16M3.5 16.5L7 20l3.5-3.5M13 6h3M13 11h5M13 16h7",
+    sortDesc: "M7 4v16M3.5 16.5L7 20l3.5-3.5M13 6h7M13 11h5M13 16h3",
+    filter: "M4 5h16l-6 7.5V19l-4-2v-4.5z",
+    eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z",
+    eyeOff: "M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-3 3.6M6.4 7.6A16.6 16.6 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4-1M9.9 9.9a3 3 0 0 0 4.2 4.2",
+    link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+    lock: "M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3",
+    unlock: "M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1.2",
+    chart: "M4 20h16M7 16v-5M12 16V7M17 16v-8",
+    rows: "M4 5h16v14H4zM4 10h16M4 14.5h16",
+    cols: "M4 5h16v14H4zM9.5 5v14M14.5 5v14",
+    rowAdd: "M4 5h16v6H4zM12 15v6M9 18h6",
+    colAdd: "M4 4h6v16H4zM15 12h6M18 9v6",
+    freeze: "M4 4h16v16H4zM4 9h16M9 4v16",
+    merge: "M4 5h16v14H4zM8 12h8M13.5 9.5L16 12l-2.5 2.5M10.5 9.5L8 12l2.5 2.5",
+    hash: "M9 4L7 20M17 4l-2 16M4.5 9h16M3.5 15h16",
+    present: "M3 4h18v12H3zM12 16v4M8 20h8",
+    move: "M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5",
+    heading: "M6 4v16M18 4v16M6 12h12",
+    list: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
+    quote: "M6 17h3l2-4V7H5v6h3zM14 17h3l2-4V7h-6v6h3z",
+    code: "M9 8l-4 4 4 4M15 8l4 4-4 4",
+    divider: "M4 12h16",
+    font: "M4 20l6-16h1l6 16M6.5 14h8",
+    width: "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4",
+    tag: "M3 12V4h8l9 9-8 8zM7.5 8h.01",
+    box3d: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5",
+    ruler: "M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",
+    section: "M3 12h18M12 3v6M12 15v6"
   };
+
+  /** A page's own icons beside the kit's (same 24-unit stroke paths), for its menus and buttons. */
+  function addIcons(map) { for (var k in map || {}) if (!ICONS[k]) ICONS[k] = map[k]; }
 
   function icon(name) {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
@@ -110,23 +146,42 @@
       if (same) return;
     }
     var m = h("div", { "class": "kit-menu", role: "menu" });
-    // on: true/false marks the item picked (a check, as Hermes' menus do). When any item has it, every item
-    // keeps that leading slot, so the labels line up.
-    var slot = items.some(function (it) { return it.on != null; });
+    // As Hermes' menus: an item's icon leads (icon: a kit icon's name; when any item has one, every item keeps
+    // the slot, so the labels line up), the picked one (on: true) ends with a check, sep: true is a divider
+    // (never first, last or twice in a row), disabled: true greys it.
+    items = items.filter(Boolean).filter(function (it, i, a) {
+      if (!it.sep) return true;
+      var prev = a.slice(0, i).filter(function (x) { return !x.hint; }).pop(), next = a.slice(i + 1).filter(function (x) { return !x.hint; })[0];
+      return prev && !prev.sep && next && !next.sep;
+    });
+    var slot = items.some(function (it) { return it.icon; });
     items.forEach(function (it) {
       if (it.hint) return m.appendChild(h("div", { "class": "kit-hint", text: it.hint }));
+      if (it.sep) return m.appendChild(h("div", { "class": "kit-sep", role: "separator" }));
       var b = h("button", { type: "button", role: it.on != null ? "menuitemcheckbox" : "menuitem", "aria-checked": it.on != null ? String(!!it.on) : null,
-        onclick: function () { close(); it.onClick(); } });
-      if (slot) b.appendChild(h("span", { "class": "kit-mi" + (it.on ? " is-on" : ""), html: it.on ? icon("check") : "" }));
-      b.appendChild(h("span", { text: it.label }));
+        disabled: !!it.disabled, onclick: function () { close(); it.onClick(); } });
+      if (slot) b.appendChild(h("span", { "class": "kit-mi", html: it.icon ? icon(it.icon) : "" }));
+      b.appendChild(h("span", { "class": "kit-ml", text: it.label }));
+      if (it.on) b.appendChild(h("span", { "class": "kit-mi is-on", html: icon("check") }));
       m.appendChild(b);
     });
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();
-    // below its opener; above it when there is no room below (a toolbar at the foot of the page)
-    var mh = m.offsetHeight, below = r.bottom + 4 + mh <= innerHeight - 8 || r.top - 4 - mh < 8;
-    m.style.top = (below ? r.bottom + 4 : r.top - 4 - mh) + "px";
-    m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + "px";
+    // Under its opener (above it when there is more room there), as tall as its items within the window; a menu
+    // taller than that scrolls, cut between two rows (never through one, never on a divider).
+    var full = m.offsetHeight, room = innerHeight - 8 - (r.bottom + 4), up = r.top - 4 - 8;
+    var below = full <= room || room >= up, avail = Math.max(80, below ? room : up);
+    if (full > avail) {
+      var cut = 0;
+      Array.prototype.forEach.call(m.children, function (c) {
+        if (c.tagName === "BUTTON" && c.offsetTop + c.offsetHeight + 5 <= avail) cut = c.offsetTop + c.offsetHeight;
+      });
+      m.style.maxHeight = (cut + 5) + "px";
+      m.style.overflowY = "auto";
+    }
+    var mh = m.offsetHeight;
+    m.style.top = Math.max(8, below ? r.bottom + 4 : r.top - 4 - mh) + "px";
+    m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
     function close() {
       m.remove(); openMenu = null; menuAnchor = null;
       document.removeEventListener("mousedown", out, true); document.removeEventListener("keydown", onKey, true);
@@ -138,7 +193,7 @@
     function onKey(e) {
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); if (anchor.focus) anchor.focus(); return; }
       if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-      var bs = Array.prototype.slice.call(m.querySelectorAll("button")), i = bs.indexOf(document.activeElement);
+      var bs = Array.prototype.slice.call(m.querySelectorAll("button:not(:disabled)")), i = bs.indexOf(document.activeElement);
       if (!bs.length) return;
       e.preventDefault();
       bs[i < 0 ? (e.key === "ArrowDown" ? 0 : bs.length - 1) : (i + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % bs.length].focus();
@@ -471,6 +526,6 @@
     return (dateFmts[k] || (dateFmts[k] = new Intl.DateTimeFormat(locale(), o))).format(new Date(t));
   }
 
-  window.kit = { locale: locale, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { locale: locale, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();
