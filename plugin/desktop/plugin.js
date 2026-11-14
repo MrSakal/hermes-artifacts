@@ -64,7 +64,7 @@ const STRINGS = {
     chatModes: 'Where the chat shows',
     popupLabel: 'Chat with Hermes',
     makingTag: 'Being made',
-    makingTab: name => (name.length > 10 ? name : `${name}…`), // Hermes' tab clips past ~13 capitals
+    makingTab: name => (name.length > 10 ? name : `${name}…`), // the tab of Hermes clips past ~13 capitals
     makingOpen: name => `Show the ${name.toLowerCase()} being made`,
     makingArtifact: 'Artifact',
     stepGuide: name => `Reading the ${name.toLowerCase()} guide`,

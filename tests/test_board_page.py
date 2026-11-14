@@ -141,7 +141,8 @@ class BoardPageTests(unittest.TestCase):
         self.assertIn('if (e.key === "Escape") inp.value = ed.orig;', label)
         end = src[src.index("function endEdit(cancel)"):src.index("function dropEdit()")]
         self.assertIn("if (cancel === true) e.ta.value = e.orig;", end)
-        self.assertIn("if (cancel === true) text = e.orig;", end)
+        self.assertIn("if (cancel === true) text = was;", end)  # what it was: Hermes' text if it changed it meanwhile
+        self.assertIn("var was = e.theirs != null ? e.theirs : e.orig;", end)
 
     def test_a_dot_only_clicked_makes_nothing(self):
         fin = self.src[self.src.index("// only a drag past DRAG makes something"):]
