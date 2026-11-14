@@ -73,7 +73,11 @@ RUN = r"""
 
 const PAGE = '/hermes-artifacts'
 const enc = encodeURIComponent
-const tick = () => new Promise(r => setTimeout(r, 0))
+// One turn of the event loop, never a timer: setTimeout(0) waits for the OS timer tick (15.6 ms on Windows, far
+// more when Windows throttles a background process), and settle() takes 20 of them per step: about 2300 in all,
+// 25 s on a good run and past the 120 s limit on a throttled one (the suite's flake). A check-phase turn is
+// microseconds; every invariant holds the same.
+const tick = () => new Promise(r => setImmediate(r))
 const settle = async () => { for (let i = 0; i < 20; i++) await tick() }
 
 // ---------------------------------------------------------------- fake window
@@ -542,7 +546,8 @@ process.exit(0)
 class DesktopStateTests(unittest.TestCase):
     def test_beside_expand_close_sequences(self):
         d = Path(tempfile.mkdtemp(prefix="ha-states-"))
-        src = (PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)  # a failed run leaves no folder behind either
+        src =(PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
                .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
         # The internals the invariants read, exported from the copy only.
         src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh, toast, $toast, Toast,"
@@ -558,7 +563,6 @@ class DesktopStateTests(unittest.TestCase):
         out = json.loads(r.stdout[r.stdout.index("{"):])
         self.assertEqual(out["fails"], [], "\n".join(out["fails"]))
         self.assertEqual(out["log"], [])
-        shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":
