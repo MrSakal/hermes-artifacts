@@ -1627,10 +1627,10 @@
     var meta = null;
     if (spec) {
       var titleIn = h("input", { type: "text", "class": "doc-data-in", value: spec.title || "", placeholder: T.chartTitle, "aria-label": T.chartTitle });
-      var typeSel = h("select", { "class": "doc-data-in", "aria-label": T.chartType }, [["bar", T.cBar], ["line", T.cLine], ["area", T.cArea]].map(function (o) {
+      var typeSel = h("select", { "class": "doc-data-in kit-select", "aria-label": T.chartType }, [["bar", T.cBar], ["line", T.cLine], ["area", T.cArea]].map(function (o) {
         var op = h("option", { value: o[0], text: o[1] }); if ((spec.type || "bar") === o[0]) op.selected = true; return op; }));
       var unitIn = h("input", { type: "text", "class": "doc-data-in doc-data-short", value: spec.unit || "", placeholder: T.chartUnit, "aria-label": T.chartUnit });
-      var hiSel = h("select", { "class": "doc-data-in", "aria-label": T.chartHighlight });
+      var hiSel = h("select", { "class": "doc-data-in kit-select", "aria-label": T.chartHighlight });
       hiSel.addEventListener("change", function () { spec.highlight = hiSel.value || null; });
       var srcIn = h("input", { type: "text", "class": "doc-data-in", value: spec.source || "", placeholder: T.chartSource, "aria-label": T.chartSource });
       meta = h("div", { "class": "doc-data-meta" }, [

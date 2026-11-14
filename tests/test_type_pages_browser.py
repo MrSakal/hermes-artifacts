@@ -580,6 +580,81 @@ class DocQuoteMarkTests(unittest.TestCase):
         self.assertEqual(o["openMd"], o["resolvedMd"])
 
 
+class EverySelectIsTheKits(unittest.TestCase):
+    """No native select arrow in any type's page: every select a runtime makes is the kit's (kit-select)."""
+
+    def test_every_select(self):
+        import re
+        types = ROOT / "plugin" / "hermes_artifacts" / "types"
+        made = 0
+        for f in sorted(types.rglob("*")):
+            if f.suffix not in (".js", ".html") or "vendor" in f.parts:
+                continue
+            src = f.read_text("utf-8")
+            for m in re.finditer(r'h\("select",\s*(\{[^}]*\})', src):
+                made += 1
+                self.assertRegex(m.group(1), r'"class":\s*"[^"]*\bkit-select\b', f"{f.relative_to(types)}: {m.group(0)}")
+            native = re.findall(r"<select\b(?![^>]*kit-select)[^>]*>?|createElement\([\"']select[\"']\)", src)
+            self.assertEqual(native, [], f.relative_to(types))
+        self.assertGreater(made, 15)
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class ThemedControls(unittest.TestCase):
+    """Controls drawn in the theme's colours, not the system's native ones. A doc's checklist box: empty = the
+    ground in a strong line, ticked = the accent, in a light and in a dark doc, also on a dark system (where the
+    native empty box was filled dark in a light doc and looked ticked). A dashboard's filter select: the kit's
+    select (no native arrow, the kit's chevron)."""
+
+    LIGHT = {"mode": "light", "vars": {"bg": "rgb(250, 249, 245)", "fg": "rgb(31, 30, 29)", "accent": "rgb(201, 100, 66)",
+                                       "line": "rgb(230, 228, 220)", "strong": "rgb(176, 174, 165)", "panel": "rgb(255, 255, 255)"}}
+    DARK = {"mode": "dark", "vars": dict(THEME["vars"], strong="rgb(98, 97, 92)")}
+    BOX = """[...document.querySelectorAll('.doc-prose li.task > input')].map(b => { const s = getComputedStyle(b)
+      return { checked: b.checked, appearance: s.appearance, bg: s.backgroundColor, border: s.borderTopColor, image: s.backgroundImage.slice(0, 18) } })"""
+
+    def test_the_doc_checklist_box_in_both_themes(self):
+        from hermes_artifacts import store
+        aid = store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        host = B.Host()
+        try:
+            body = "const out = {}\n"
+            for system in ("dark", "light"):
+                for name, theme in (("light", self.LIGHT), ("dark", self.DARK)):
+                    body += (f"await api.scheme({json.dumps(system)}); await api.go({json.dumps(host.url(aid, theme=theme))}, 800); {READY}\n"
+                             f"await api.sleep(600); out[{json.dumps(name + '-on-' + system)}] = await api.frame({json.dumps(self.BOX)})\n")
+            r = B.drive(body + "return out")
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        for key, boxes in r["out"].items():
+            theme = self.LIGHT if key.startswith("light") else self.DARK
+            empty, ticked = [b for b in boxes if not b["checked"]], [b for b in boxes if b["checked"]]
+            self.assertTrue(empty and ticked, (key, boxes))
+            for b in boxes:
+                self.assertEqual(b["appearance"], "none", key)
+            for b in empty:
+                self.assertEqual((b["bg"], b["border"], b["image"]), (theme["vars"]["bg"], theme["vars"]["strong"], "none"), key)
+            for b in ticked:
+                self.assertEqual((b["bg"], b["border"]), (theme["vars"]["accent"], theme["vars"]["accent"]), key)
+                self.assertTrue(b["image"].startswith('url("data:image/s'), (key, b))
+
+    def test_the_dashboard_filter_is_the_kits_select(self):
+        from hermes_artifacts import store
+        aid = store.publish(path=str(EX / "dashboard-layout"), title="Layout", type="dashboard")["id"]
+        host = B.Host()
+        try:
+            r = B.drive(f"await api.go({json.dumps(host.url(aid, theme=self.DARK))}, 800); {READY}\n await api.sleep(800)\n"
+                        "return await api.frame(\"[...document.querySelectorAll('.c-filter select')].map(s => { const c = getComputedStyle(s);"
+                        " return [s.classList.contains('kit-select'), c.appearance, c.backgroundImage.slice(0, 18), c.backgroundColor] })\")")
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        self.assertTrue(r["out"], r)
+        for kit, appearance, image, bg in r["out"]:
+            self.assertEqual((kit, appearance, image), (True, "none", 'url("data:image/sv'))
+            self.assertEqual(bg, self.DARK["vars"]["bg"])
+
+
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
 class PageScrollbars(unittest.TestCase):
     """A plain page's scrollbars take the host's theme (thin, its muted colour on its background) when the page

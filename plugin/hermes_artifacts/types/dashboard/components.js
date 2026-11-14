@@ -205,7 +205,7 @@
         if (f.input === "date") ctl.addEventListener("change", apply);
         else ctl.addEventListener("blur", apply);
       } else {
-        ctl = h("select", { "aria-label": f.label || f.param });
+        ctl = h("select", { "class": "kit-select", "aria-label": f.label || f.param });
         if (f.all !== false) allLabels[f.param] = f.all || w("All", "Mind");
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }

@@ -156,7 +156,7 @@ textarea.src-arg { height: auto; padding: 8px 12px; font: 12.5px/1.5 var(--font-
   background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--radius); }
 .c-filter { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-fg-muted); }
 .c-filter select, .c-filter input, .c-search { height: 32px; min-width: 160px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--color-border-strong);
-  background: var(--color-bg); color: var(--color-fg); font: 400 13px var(--font-sans); text-transform: none; letter-spacing: 0; }
+  background-color: var(--color-bg); color: var(--color-fg); font: 400 13px var(--font-sans); text-transform: none; letter-spacing: 0; }
 .c-filter select:focus, .c-filter input:focus, .c-search:focus { outline: 2px solid var(--color-accent-soft); border-color: var(--color-accent); }
 .c-search { min-width: 0; width: 200px; height: 28px; }
 .c-btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--color-border-strong); background: transparent;

@@ -2035,7 +2035,7 @@
     function drawConds() {
       condsEl.innerHTML = "";
       conds.forEach(function (cd, i) {
-        var opSel = h("select", { "aria-label": T.fltCond });
+        var opSel = h("select", { "class": "kit-select", "aria-label": T.fltCond });
         var list = FLT_OPS[kind].indexOf(cd.op) < 0 ? [cd.op].concat(FLT_OPS[kind]) : FLT_OPS[kind];
         list.forEach(function (o) { opSel.appendChild(h("option", { value: o, text: T["fo_" + o] || o })); });
         opSel.value = cd.op;
@@ -2483,7 +2483,7 @@
     repRow = h("div", { "class": "sh-find-row sh-rep", hidden: true }, [repIn, one, every]);
     repTog = barBtn(T.repl + " (Ctrl+H)", ico("replace"), function () { showRep(repRow.hidden); if (!repRow.hidden) repIn.focus(); });
     repTog.setAttribute("aria-expanded", "false");
-    var scope = h("select", { "aria-label": T.findScope }, [h("option", { value: "", text: T.findThis }), h("option", { value: "1", text: T.findAll })]);
+    var scope = h("select", { "class": "kit-select", "aria-label": T.findScope }, [h("option", { value: "", text: T.findThis }), h("option", { value: "1", text: T.findAll })]);
     scope.addEventListener("change", function () { findOpt.all = !!scope.value; runFind(); });
     function chk(label, k) {
       var cb = h("input", { type: "checkbox" });
@@ -4081,7 +4081,7 @@
     var del = old ? h("button", { type: "button", "class": "sh-b sh-left", text: T.del, title: T.cfDelete, onclick: function () { setRules(s, s.rules.filter(function (x, j) { return j !== i; })); rpList(); } }) : null;
     function rangeOf() { var R = parseRange(rangeIn.value.trim().toUpperCase()); return R && R.r2 < MAXR && R.c2 < MAXC ? R : null; }
     function opSelect(now, custom, pick) {
-      var sel = h("select", { "aria-label": T.cfWhen });
+      var sel = h("select", { "class": "kit-select", "aria-label": T.cfWhen });
       CF_OPS.concat(custom ? ["custom"] : []).forEach(function (o) { var op = h("option", { value: o, text: T[CF_OPT[o]] }); if (o === now) op.selected = true; sel.appendChild(op); });
       sel.addEventListener("change", function () { pick(sel.value); draw(); });
       return sel;
@@ -4144,7 +4144,7 @@
         fx.addEventListener("input", function () { st.formula = fx.value; });
         part.appendChild(fx);
       } else if (st.and) {
-        var cols = h("select", { "aria-label": T.cfAndCol }), u = used(s), last = Math.max(u.c, R ? R.c2 : 0, st.and.col);
+        var cols = h("select", { "class": "kit-select", "aria-label": T.cfAndCol }), u = used(s), last = Math.max(u.c, R ? R.c2 : 0, st.and.col);
         for (var c = 0; c <= Math.min(last, MAXC - 1); c++) {
           var nm = R ? cfColName(s, c, R) : null, op = h("option", { value: String(c), text: colName(c) + (nm ? " · " + nm : "") });
           if (c === st.and.col) op.selected = true;

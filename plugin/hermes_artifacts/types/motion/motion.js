@@ -1416,7 +1416,7 @@
       var px = h("input", { type: "number", min: "6", max: "600", step: "1", value: String(Math.round(parseFloat(cs.fontSize))) });
       px.addEventListener("change", function () { put("px", Math.round(parseFloat(cs.fontSize)), Math.max(6, Math.min(600, +px.value))); });
       box.appendChild(row(T.size + " (px)", [px]));
-      var wt = h("select", {});
+      var wt = h("select", { "class": "kit-select" });
       [300, 400, 500, 600, 700, 800, 900].forEach(function (w) { wt.appendChild(h("option", { value: String(w), text: String(w) })); });
       wt.value = String(Math.round((parseInt(cs.fontWeight, 10) || 400) / 100) * 100);
       wt.addEventListener("change", function () { put("weight", parseInt(cs.fontWeight, 10) || 400, +wt.value); });

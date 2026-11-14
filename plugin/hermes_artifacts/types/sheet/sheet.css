@@ -302,7 +302,7 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
 .sh-flt-conds:empty { display: none; }
 .sh-flt-cond { display: flex; align-items: center; gap: 4px; }
 .sh-pop select, .sh-flt-cond input { min-width: 0; padding: 4px 6px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-sm, 6px);
-  background: var(--color-panel); color: var(--color-fg); font: 12.5px var(--font-sans); }
+  background-color: var(--color-panel); color: var(--color-fg); font: 12.5px var(--font-sans); }
 .sh-flt-cond select { flex: 0 1 auto; max-width: 58%; }
 .sh-flt-cond input { flex: 1 1 0; width: 0; }
 .sh-flt-cond input[hidden] { display: none; }
@@ -439,7 +439,7 @@ html[data-thumb] .sh-rp { display: none; }
 .sh-rp-rng .sh-q-in { flex: 1 1 0; width: 0; font-variant-numeric: tabular-nums; }
 .sh-rp-rng .sh-b { padding: 4px 8px; font-size: 14px; line-height: 1; }
 .sh-rp-part { display: flex; flex-direction: column; gap: 8px; }
-.sh-rp select { min-width: 0; padding: 5px 6px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-sm, 6px); background: var(--color-panel); color: var(--color-fg);
+.sh-rp select { min-width: 0; padding: 5px 6px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-sm, 6px); background-color: var(--color-panel); color: var(--color-fg);
   font: 12.5px var(--font-sans); }
 .sh-rp-cond { flex-wrap: wrap; }
 .sh-rp-cond select { flex: 1 1 120px; }
