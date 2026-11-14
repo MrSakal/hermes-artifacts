@@ -59,7 +59,7 @@ function page(o) {
     body: Object.assign(el('body'), { innerText: o.text === undefined ? 'Hello' : o.text, getElementsByTagName: () => o.bodyEls || [] }),
     documentElement: Object.assign(el('html'), { style: { setProperty() {} } }),
     getElementById(id) { return this.elements[id] || null },
-    querySelector(s) { return s === '.kit-toast' ? this.toasts[this.toasts.length - 1] && !this.toasts[this.toasts.length - 1].removed ? this.toasts[this.toasts.length - 1] : null : null },
+    querySelector(s) { return s === 'meta[name="hermes-thumb"]' ? (o.thumb ? el('meta') : null) : s === '.kit-toast' ? this.toasts[this.toasts.length - 1] && !this.toasts[this.toasts.length - 1].removed ? this.toasts[this.toasts.length - 1] : null : null },
     querySelectorAll() { return [] },
     createElement(t) { const e = el(t); if (t === 'div') doc.toasts.push(e); return e }
   })
@@ -321,6 +321,28 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   await P.tick(40000)
   out.damperTail = P.events('diag').reduce((a, x) => a + x.detail.entries.reduce((b, e) => b + e.n, 0), 0)
 
+  // --- a gallery card (hermes-thumb meta): its offline rejections stay out of the console; a page's timers
+  // stop 3 s after its load (a type runtime's card, data-thumb, is left alone); the viewer is unchanged ---
+  const rejection = reason => { const ev = { reason, prevented: false, preventDefault() { this.prevented = true } }; return ev }
+  for (const [name, o] of [['card', { thumb: true }], ['kitCard', { thumb: true }], ['viewer', {}]]) {
+    P = page(o)
+    if (name === 'kitCard') P.doc.documentElement.setAttribute('data-thumb', '')
+    P.dcl()
+    let ticks = 0, calls = 0, settled = 0
+    P.sb.__tick = () => { ticks++; calls++; P.sb.hermes.storage.get('k').then(() => settled++, () => settled++) }
+    P.run('setInterval(function () { __tick() }, 100)')
+    P.load(); await P.tick(2900)
+    const before = ticks
+    await P.tick(10000) // the bridge's 10 s without a host: calls fail from here on
+    let offErr; P.run('hermes.ask("x")').catch(e => { offErr = e }); await P.tick(10)
+    const off = rejection(offErr), own = rejection(new Error('a fault of the page'))
+    P.sb._fire('unhandledrejection', off); P.sb._fire('unhandledrejection', own)
+    let late = 0; P.run('setTimeout(function () { __late() }, 10)'); P.sb.__late = () => late++
+    await P.tick(1000)
+    out['thumb_' + name] = { tickingBefore3s: before >= 28, ticksAfter: ticks - before, offPrevented: off.prevented,
+      ownPrevented: own.prevented, lateTimeout: late, hello: P.hello.length }
+  }
+
   console.log(JSON.stringify(out))
 })().catch(e => { console.error(e && e.stack || e); process.exit(1) })
 """
@@ -419,6 +441,20 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual(o["notice"], ["No host"])
         self.assertEqual(o["offlineNotCounted"], [])
         self.assertEqual(o["alone"], {"hello": 0, "rejectedAt": 0})
+
+    def test_a_gallery_card_keeps_the_console_quiet_and_its_timers_stop(self):
+        card, kit, viewer = (self.out[k] for k in ("thumb_card", "thumb_kitCard", "thumb_viewer"))
+        # A page's card: drew for 3 s after its load, then its 100 ms loop and any new timer stop; the bridge's
+        # own offline rejection no longer reaches the console (the page's own errors still do).
+        self.assertTrue(card["tickingBefore3s"])
+        self.assertLessEqual(card["ticksAfter"], 1)
+        self.assertEqual((card["offPrevented"], card["ownPrevented"], card["lateTimeout"]), (True, False, 0))
+        # A type runtime's card is the kit's to finish: timers run; its offline rejections stay quiet too.
+        self.assertGreater(kit["ticksAfter"], 90)
+        self.assertEqual((kit["offPrevented"], kit["ownPrevented"], kit["lateTimeout"]), (True, False, 1))
+        # The real viewer: as before (nothing prevented, nothing stopped).
+        self.assertGreater(viewer["ticksAfter"], 90)
+        self.assertEqual((viewer["offPrevented"], viewer["ownPrevented"], viewer["lateTimeout"]), (False, False, 1))
 
     def test_the_own_toast_marks_its_kind(self):
         info = '<path d="M12 11v5.5M12 7.5h.01"/>'

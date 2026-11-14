@@ -562,6 +562,24 @@ class GalleryPerfTests(unittest.TestCase):
         self.assertIn("loaded.current?.()", thumb)  # its load slot back when it loads or leaves
         self.assertIn("thumbActive < THUMB_LOADS", SRC)
 
+    def test_a_card_document_is_marked_for_the_bridge(self):
+        body = """
+        const html = m.withTheme('<!doctype html><html><head><script>bridge</script></head><body></body></html>', { mode: 'dark', vars: {} })
+        console.log(JSON.stringify(html))
+        """
+        out = run_node(stub_module(EXPORTS + "\nexport { withTheme }\n"), body)
+        head = out.split("<head>", 1)[1]
+        # The meta comes before the bridge (which reads it at start), on the line of <head> (no line moves).
+        self.assertTrue(head.startswith('<meta name="hermes-thumb" content="1"><meta name="hermes-theme"'), head[:80])
+        self.assertLess(head.index("hermes-thumb"), head.index("<script>bridge"))
+        self.assertEqual(out.count("\n"), 0)
+
+    def test_the_default_design_system_item_is_an_action_both_ways(self):
+        out = run_node(stub_module(EXPORTS), "console.log(JSON.stringify([STRINGS.en.dsMake, STRINGS.en.dsUnset, STRINGS.hu.dsMake, STRINGS.hu.dsUnset]))".replace("STRINGS", "m.STRINGS"))
+        self.assertEqual(out, ["Make default design system", "Remove as default",
+                               "Legyen az alapértelmezett design system", "Ne legyen az alapértelmezett"])
+        self.assertEqual(SRC.count("t('dsUnset') : t('dsMake')"), 2)  # the card menu and the title menu
+
     def test_vendor_libraries_are_fetched_once(self):
         body = """
         let n = 0, fail = true

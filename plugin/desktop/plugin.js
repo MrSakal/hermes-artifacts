@@ -221,7 +221,7 @@ const STRINGS = {
     dsManage: 'Manage design systems',
     dsNewFirst: 'Make a new design system first',
     dsMake: 'Make default design system',
-    dsUnset: 'No longer the default',
+    dsUnset: 'Remove as default',
     dsDefault: 'Default',
     dsDefaultTitle: 'New designs, decks, films and dashboards build on this system',
     dsOn: n => `Designs, decks and films now build on ${n}`,
@@ -488,7 +488,7 @@ const STRINGS = {
     dsManage: 'Design systemek kezelése',
     dsNewFirst: 'Előbb új design system',
     dsMake: 'Legyen az alapértelmezett design system',
-    dsUnset: 'Ne legyen alapértelmezett',
+    dsUnset: 'Ne legyen az alapértelmezett',
     dsDefault: 'Alapértelmezett',
     dsDefaultTitle: 'Erre épülnek az új tervek, diasorok, filmek és dashboardok',
     dsOn: n => `Az új tervek, diasorok és filmek mostantól erre épülnek: ${n}`,
@@ -1402,12 +1402,14 @@ function dropHtml(id) {
   htmlCache.forEach((_, k) => k.startsWith(`${id}:`) && htmlCache.delete(k))
 }
 let hostLang = 'en' // set from the plugin's i18n (the app's active language)
-/** A card preview has no bridge, so it gets Hermes' theme written into its page as a meta tag (read by the kit at start). */
+/** A card preview has no host behind its bridge, so it gets Hermes' theme written into its page as a meta tag
+ *  (read by the kit at start), and a hermes-thumb meta the bridge reads (a card: its offline rejections stay out
+ *  of the console, a page's timers stop after its load). Both go right after <head>, before the bridge. */
 function withTheme(html, theme) {
   const json = JSON.stringify(theme).replace(/</g, '\\u003c')
-  // A <meta> the kit reads (no script: the page's own scripts stay the only ones).
+  // <meta>s (no script: the page's own scripts stay the only ones), on the line of <head> (no line moves).
   const attr = json.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-  const tag = `<meta name="hermes-theme" content="${attr}">`
+  const tag = `<meta name="hermes-thumb" content="1"><meta name="hermes-theme" content="${attr}">`
   const at = html.search(/<head[^>]*>/i)
   if (at < 0) return tag + html
   const end = html.indexOf('>', at) + 1
@@ -1498,7 +1500,10 @@ function fetchVendor(ctx, name) {
   return p
 }
 
-// Thumbnails load a few at a time, so opening the gallery never fires dozens of requests at once.
+// Thumbnails load a few at a time (THUMB_LOADS in flight: a slot is the fetch AND its frame's load), so opening
+// the gallery never fires dozens of requests at once. Only cards in or near the window ask at all. A card's
+// data: frame loads in ~50-150 ms, so a cold gallery's first screen still fills quickly: 8 cards took
+// ~460 ms one after another, never more than 3 html requests open (acceptance round 4).
 const thumbQueue = []
 let thumbActive = 0
 function queueThumb(job) {

@@ -107,6 +107,40 @@
     setTimeout(goOffline, 10000);
   } else goOffline(); // opened on its own: there is no host to wait for
 
+  // --- a gallery card (the host's <meta name="hermes-thumb"> before this script) ---------------------------
+  // No host answers a card: its calls fail as above, and a page that calls in a loop would put an "Uncaught
+  // (in promise)" into the console (and Hermes' log) at every call it does not catch. Those rejections are the
+  // bridge's own (the host is absent), so a card keeps them out of the console. A card is a picture: a page's
+  // timers (intervals, timeouts, animation frames) stop THUMB_FREEZE_MS after its load, so a page that redraws
+  // every 100 ms does not run for as long as the gallery is open. Only pages: a type runtime's card (the kit
+  // marks it data-thumb) draws until it says it is ready and is left alone. The real viewer has no such meta.
+  var THUMB = !!document.querySelector('meta[name="hermes-thumb"]'), THUMB_FREEZE_MS = 3000;
+  if (THUMB) {
+    window.addEventListener("unhandledrejection", function (e) {
+      if (e && e.reason && e.reason.__hermesOffline) e.preventDefault();
+    });
+    (function () {
+      var sI = window.setInterval, cI = window.clearInterval, sT = window.setTimeout, rAF = window.requestAnimationFrame;
+      var intervals = new Set(), frozen = false;
+      window.setInterval = function () {
+        if (frozen) return 0;
+        var id = sI.apply(window, arguments);
+        intervals.add(id);
+        return id;
+      };
+      window.clearInterval = function (id) { intervals.delete(id); return cI.call(window, id); };
+      window.setTimeout = function () { return frozen ? 0 : sT.apply(window, arguments); };
+      if (typeof rAF === "function") window.requestAnimationFrame = function (fn) { return frozen ? 0 : rAF.call(window, fn); };
+      function freeze() {
+        if (document.documentElement.hasAttribute("data-thumb")) return; // a type runtime's card
+        frozen = true;
+        intervals.forEach(function (id) { cI.call(window, id); });
+        intervals.clear();
+      }
+      window.addEventListener("load", function () { sT.call(window, freeze, THUMB_FREEZE_MS); });
+    })();
+  }
+
   // --- where an error happened, in the version's own files ------------------------------------
   // "at" is "<file path within the version>:<line>[:<col>]", only when that is true: the browser viewer
   // loads the version's files by URL (/c/<id>/v<N>/<path>); Hermes Desktop shows one document the server
