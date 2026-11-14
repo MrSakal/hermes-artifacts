@@ -687,7 +687,9 @@ def apply(aid: str, ops: list[dict], *, by: str, tab: Optional[str] = None, base
             return dict(out)
         last, since = _last(st, t)
         if by == "hermes":  # words the user is typing there, not saved yet, are never written over
-            busy = store.typing_hits(aid, [o.get("block") for o in ops if o.get("op") in ("replace", "delete") and o.get("block")])
+            # a tab removed takes every block in it along
+            busy = store.typing_hits(aid, [o.get("block") for o in ops if o.get("op") in ("replace", "delete") and o.get("block")]
+                                     + ([b["id"] for b in t["blocks"]] if any(o.get("op") == "delete_tab" for o in ops) else []))
             if busy:
                 raise store.typing_conflict(DocError, "blocks", busy, t["rev"], f"ha_live_read id={aid} blocks=<ids>", tab=t["id"])
         if base_rev is not None:

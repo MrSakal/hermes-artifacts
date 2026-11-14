@@ -850,7 +850,7 @@
     normItems(r.changed).forEach(function (nw) {
       var old = byId[nw.id];
       if (old && ed && ed.id === nw.id) {            // being typed in: the typing stays, the rest follows
-        if (ed.kind === "text") { if ((nw.text || "") !== (ed.theirs != null ? ed.theirs : ed.orig)) ed.theirs = nw.text || ""; nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
+        if (ed.kind === "text") { if ((nw.text || "") !== (ed.theirs != null ? ed.theirs : ed.orig) && !(ed.mine && ed.mine[nw.text || ""])) ed.theirs = nw.text || ""; nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
         else if (ed.kind === "cell") {
           // the cell being typed in stays while the table still has it (the server's copy of a table
           // just placed differs from ours only in what it worked out); the typing is put into its rows
@@ -2035,11 +2035,29 @@
     }
     redrawMany(arrowsAt(it.id));
     drawUi();
+    // Saved while the typing goes on: after a pause (700 ms), and at most 2 s after the first key not saved.
+    // Not a step of undo (the end of the typing is that); not for a block never sent (it starts existing at
+    // the end) nor over Hermes' text (the end keeps both and says so).
+    var now = Date.now();
+    if (!ed.first) ed.first = now;
+    clearTimeout(ed.saveT);
+    ed.saveT = setTimeout(textSave, Math.max(0, Math.min(700, ed.first + 2000 - now)));
+  }
+  function textSave() {
+    var e = ed, it = e && e.kind === "text" && byId[e.id];
+    if (!it) return;
+    e.first = 0;
+    if (fresh[e.id] || e.theirs != null || !canEdit()) return;
+    var text = (e.one ? e.ta.value.replace(/\n/g, " ") : e.ta.value).slice(0, 4000);
+    if (text === (e.last != null ? e.last : e.orig)) return;
+    e.last = text; (e.mine = e.mine || {})[text] = 1; // what comes back from the server is ours, not Hermes'
+    queue([{ op: "set", id: e.id, text: text }]);
   }
   /** The typing ends: kept (clicking away, Tab, Ctrl+Enter) or, with `cancel` (Esc), given up. */
   function endEdit(cancel) {
     if (!ed) return;
     var e = ed, it = byId[e.id];
+    clearTimeout(e.saveT);
     if (cancel === true) e.ta.value = e.orig;
     ed = null;
     if (e.kind === "cell") return commitCell(e, it);
@@ -2074,7 +2092,7 @@
     if (!patch([it.id], function () { return p; })) afterChange();
   }
   /** Typing given up because the item went away. */
-  function dropEdit() { var e = ed; ed = null; if (e && e.kind === "text") { var n = N[e.id]; if (n && n.el) n.el.classList.remove("bd-editing"); } }
+  function dropEdit() { var e = ed; ed = null; if (e) clearTimeout(e.saveT); if (e && e.kind === "text") { var n = N[e.id]; if (n && n.el) n.el.classList.remove("bd-editing"); } }
   /** Esc in a placeholder block nobody typed in: the block and its arrow go, with no trace in undo. */
   function discardPlaceholder() {
     var e = ed, ids = e.ph, last = undoS[undoS.length - 1];
@@ -2829,7 +2847,13 @@
   if (live) {
     hm.on("board", function () { pull(); });
     setInterval(function () { if (!document.hidden && !busy()) pull(); }, 4000);
-    window.addEventListener("pagehide", function () { endEdit(); nudgeEnd(); flush(); });
+    // Going away: what waits is posted in this handler itself (a frame being removed runs no promise callback
+    // after it, so flush's chain would never send it).
+    window.addEventListener("pagehide", function () {
+      endEdit(); nudgeEnd();
+      clearTimeout(flushTimer); flushTimer = null;
+      if (pend.length) { var ops = pend; pend = []; hm.board.edit(ops, rev).catch(function () {}); }
+    });
     document.addEventListener("visibilitychange", function () { if (document.hidden) { nudgeEnd(); flush(); } });
   }
 })();

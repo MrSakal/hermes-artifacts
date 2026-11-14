@@ -784,27 +784,38 @@
     return outbox.some(function (e) { return e.ops.some(function (o) { return (realIds[o.block] || o.block) === id || o.tmp === id || realIds[o.tmp] === id; }); });
   }
   function dirty(f, el) { return !!(f.timer || f.sug || composing || pendingFor(f.id) || (el && mdOf(el) !== f.saved)); }
-  // The server is told at once (and every 1.5 s while typing) which block has words not saved yet: Hermes'
-  // edit of it is refused, and Hermes told, until the save (store.typing_set). A race the ping loses is the
-  // save's conflict (conflicted): the words stay, as a suggestion on Hermes' text, and the page says so.
-  var typed = {};
+  // The server is told at once, and every 1.5 s for as long as the block has words not saved yet (typing,
+  // a save waiting or on its way), which block that is: Hermes' edit of it is refused, and Hermes told, until
+  // the save (store.typing_set, held 4 s). A race the ping loses is the save's conflict (conflicted): the
+  // words stay, as a suggestion on Hermes' text, and the page says so.
+  var typed = {}, typingTimer = null;
   function typingPing(id) {
     var real = realIds[id] || id, now = Date.now();
-    if (!live || !hm.typing || /^tmp-/.test(real) || now - (typed[real] || 0) < 1500) return;
+    if (!live || !hm.typing || /^tmp-/.test(real) || now - (typed[real] || 0) < 1000) return;
     typed[real] = now;
     hm.typing([real]).catch(function () {});
   }
+  function typingTick() {
+    var f = focused, el = f && blockEl(f.id);
+    if (!f || !el || !dirty(f, el)) { clearInterval(typingTimer); typingTimer = null; return; }
+    typingPing(f.id);
+  }
+  // A save waits for a pause in the typing (SAVE_PAUSE), but never longer than SAVE_MAX after the first key
+  // not saved: someone typing on and on is saved every 2 s, not only when they stop.
+  var SAVE_PAUSE = 700, SAVE_MAX = 2000;
   function scheduleSave(el) {
-    var id = el.getAttribute("data-block");
+    var id = el.getAttribute("data-block"), now = Date.now();
     typingPing(id);
+    if (!typingTimer) typingTimer = setInterval(typingTick, 1500);
     if (!focused || focused.id !== id) focused = track(id, el);
+    if (!focused.first) focused.first = now;
     clearTimeout(focused.timer);
-    focused.timer = setTimeout(function () { save(false); }, 700);
+    focused.timer = setTimeout(function () { save(false); }, Math.max(0, Math.min(SAVE_PAUSE, focused.first + SAVE_MAX - now)));
   }
   function save(final) {
     if (!focused) return Promise.resolve();
     var f = focused, el = blockEl(f.id);
-    clearTimeout(f.timer); f.timer = null;
+    clearTimeout(f.timer); f.timer = null; f.first = 0;
     if (!el) return Promise.resolve();
     var now = mdOf(el);
     if (now === f.saved) return Promise.resolve();

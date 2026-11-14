@@ -74,6 +74,7 @@ class Host:
         from hermes_artifacts import api
         self.api = api
         self.hooks = {}  # name -> callable answering GET /hook/<name> (JSON)
+        self.files = {}  # name -> text served at GET /dom/<name> (a test's own top page, e.g. Desktop's plugin.js)
         host = self
 
         class H(BaseHTTPRequestHandler):
@@ -104,6 +105,9 @@ class Host:
                     return self._send(200, host.api.handle("GET", "/vendor/" + parts[1], {}, None))
                 if parts[0] == "hook" and parts[1] in host.hooks:  # a test's own step (e.g. Hermes' edit), from the driver
                     return self._send(200, host.hooks[parts[1]]())
+                if parts[0] == "dom" and parts[1] in host.files:  # a test's own top page and modules (same origin as /op)
+                    ctype = "text/javascript" if parts[1].endswith(".mjs") else "text/html; charset=utf-8"
+                    return self._send(200, host.files[parts[1]].encode("utf-8"), ctype)
                 self._send(404, {"detail": "nf"})
 
             def do_POST(self):

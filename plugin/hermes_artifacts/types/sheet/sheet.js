@@ -4319,7 +4319,17 @@
     hm.on("sheet", function () { pull(); });
     setInterval(function () { if (!document.hidden && !ed && !inflight && !pending()) pull(); }, 4000);
     window.addEventListener("blur", function () { if (ed) return; flush(); });
-    window.addEventListener("pagehide", flush);
+    // A cell's editor is saved when it closes (Enter, Tab, a click away), never half typed while open: Hermes
+    // is held off it for as long as it is open (typingCell). The page going away closes it: what is typed is
+    // kept. What waits is posted in this handler itself: a frame being removed runs no promise callback after it.
+    window.addEventListener("pagehide", function () {
+      if (ed) commitEdit(0, 0);
+      clearTimeout(flushTimer); flushTimer = null;
+      Object.keys(pend).forEach(function (id) {
+        var ops = pend[id], s = byId(id); delete pend[id];
+        if (s && Array.isArray(ops)) hm.sheet.edit(id, ops, s.rev).catch(function () {});
+      });
+    });
     document.addEventListener("visibilitychange", function () { if (document.hidden) flush(); });
     scheduleVals();
   }
