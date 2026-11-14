@@ -44,7 +44,7 @@
       fltSearch: "Search values", fltAll: "Select all", fltBlank: "(Blanks)", fltHide: "Hide filter buttons", fltMore: "{n} more: search to find them",
       csvAll: "CSV (this sheet, all rows)",
       align: "Align", borders: "Borders", merge: "Merge cells", unmerge: "Unmerge cells", rules: "Conditional formatting",
-      decLess: "Fewer decimals", decMore: "More decimals", currency: "Currency", ddOptions: "Options", ckTick: "Tick or untick", ckRemove: "Remove checkbox", dateToday: "Date (today)",
+      decLess: "Fewer decimals", decMore: "More decimals", currency: "Currency", ckTick: "Tick or untick", dateToday: "Date (today)",
       view: "View", zoom: "Zoom", zoomIn: "Zoom in", zoomOut: "Zoom out", zoomReset: "Reset", showFx: "Show formulas", layout: "Layout", layComfy: "Comfortable", layCompact: "Compact",
       theme: "Theme", thAuto: "Automatic", thLight: "Light", thDark: "Dark",
       err_div: "The formula divides by zero or by an empty cell.", err_ref: "The formula refers to a cell or a sheet that does not exist.",
@@ -92,7 +92,7 @@
       fltSearch: "Értékek keresése", fltAll: "Összes kijelölése", fltBlank: "(Üres)", fltHide: "Szűrőgombok elrejtése", fltMore: "Még {n}: kereséssel megtalálod",
       csvAll: "CSV (ez a munkalap, minden sor)",
       align: "Igazítás", borders: "Szegélyek", merge: "Cellák egyesítése", unmerge: "Egyesítés megszüntetése", rules: "Feltételes formázás",
-      decLess: "Kevesebb tizedesjegy", decMore: "Több tizedesjegy", currency: "Pénznem", ddOptions: "Elemek", ckTick: "Bejelölés vagy törlés", ckRemove: "Jelölőnégyzet eltávolítása", dateToday: "Dátum (ma)",
+      decLess: "Kevesebb tizedesjegy", decMore: "Több tizedesjegy", currency: "Pénznem", ckTick: "Bejelölés vagy törlés", dateToday: "Dátum (ma)",
       view: "Nézet", zoom: "Nagyítás", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoomReset: "Alaphelyzet", showFx: "Képletek megjelenítése", layout: "Elrendezés", layComfy: "Kényelmes", layCompact: "Tömör",
       theme: "Téma", thAuto: "Automatikus", thLight: "Világos", thDark: "Sötét",
       err_div: "A képlet nullával vagy üres cellával oszt.", err_ref: "A képlet nem létező cellára vagy munkalapra hivatkozik.",
@@ -685,7 +685,7 @@
   function optIdx(options, v, txt) { return v === null ? -1 : options.indexOf(typeof v === "string" ? v : typeof v === "number" ? String(v) : txt); }
   function renderAll(force) { Q.forEach(function (q) { renderQ(q, force); }); }
   function renderHeaders() { Q.forEach(function (q) { if (q.xm === "h" || q.ym === "h") renderQ(q, true); }); }
-  function refresh() { layout(); renderAll(true); drawOverlay(); drawCharts(); updateFbar(); stats(); drawFlt(); uiSync(); }
+  function refresh() { layout(); renderAll(true); drawOverlay(); drawCharts(); updateFbar(); stats(); drawFlt(); uiSync(); errBarSync(); }
   var rafPending = false;
   function onScroll() {
     if (rafPending) return;
@@ -1334,6 +1334,7 @@
     chain = chain.then(function () {
       var s = byId(id);
       if (!s) return null;
+      if (typeof ops === "function") ops = ops();  // made when they go (an undo step's chart ids)
       return hm.sheet.edit(id, ops, s.rev).then(function (r) {
         if (r && r.conflict) return conflicted(s);
         if (r && r.ok === false) throw new Error(r.error || r.message || "edit failed");
@@ -1464,6 +1465,7 @@
     if (!s) return false;
     var i = book.indexOf(s);
     if (i !== cur) switchTo(i);
+    if (e.st) { flush(); setStatus(T.saving); sendStruct(s, e, ops); return true; }  // the server makes it; the sheet is read back
     ops.forEach(function (op) { applyLocal(s, op); });
     queue(s, ops);
     changed(s);
@@ -1747,7 +1749,7 @@
     list.appendChild(h("div", { "class": "sh-ddsep" }));
     list.appendChild(h("div", { role: "option", "data-i": opts.length, text: T.ddNone }));
     list.appendChild(h("div", { role: "option", "data-i": opts.length + 1, text: T.ddEdit }));
-    list.appendChild(h("div", { role: "option", "data-i": opts.length + 2, text: "+ " + T.ddAdd }));
+    list.appendChild(h("div", { role: "option", "data-i": opts.length + 2, html: plusLabel(T.ddAdd) }));
     list.appendChild(h("div", { role: "option", "data-i": opts.length + 3, text: T.ddPresets }));
     var items = list.querySelectorAll("[data-i]");
     function mark(i) {
@@ -1896,7 +1898,7 @@
   // column, how many rows show, and that all this is the viewer's own.
   var fltBar = h("div", { "class": "sh-fltbar", hidden: true, role: "group", "aria-label": T.filter });
   var fltChips = h("div", { "class": "sh-chips" }), fltText = h("span", { "class": "sh-fltn", "aria-live": "polite" }), fltSig = "";
-  var fltAdd = h("button", { type: "button", "class": "sh-chip-add", title: T.fltAddCol, "aria-label": T.fltAddCol, text: "+" });
+  var fltAdd = h("button", { type: "button", "class": "sh-chip-add", title: T.fltAddCol, "aria-label": T.fltAddCol, html: kit.icon("plus") });
   fltAdd.addEventListener("click", function () {
     var s = S(), hr = hdrRow(s), end = dataEnd(s), items = [];
     if (hr < 0) return;
@@ -1954,7 +1956,8 @@
   function sortCol(c, desc) {
     var s = S(), hr = hdrRow(s), end = dataEnd(s);
     if (ro() || hr < 0 || end.r <= hr + 1) return;
-    structural([{ op: "sort", range: rangeName({ r1: hr + 1, c1: 0, r2: end.r, c2: end.c }), col: colName(c), desc: !!desc }]);
+    var R = { r1: hr + 1, c1: 0, r2: end.r, c2: end.c };
+    structural([{ op: "sort", range: rangeName(R), col: colName(c), desc: !!desc }], s, sortBack(s, R));
   }
   // Start filtering at the active cell's column (row 1 becomes the header when no row is frozen).
   function filterHere() {
@@ -2001,7 +2004,7 @@
     var all = h("input", { type: "checkbox" }), listEl = h("div", { "class": "sh-flt-list" });
     var clr = h("button", { type: "button", "class": "sh-b", text: T.fltClear });
     var condsEl = h("div", { "class": "sh-flt-conds" }), valsHead = h("div", { "class": "sh-flt-h" });
-    var addBtn = h("button", { type: "button", "class": "sh-flt-add", text: "+ " + T.fltAddCond });
+    var addBtn = h("button", { type: "button", "class": "sh-flt-add", html: plusLabel(T.fltAddCond) });
     var name = shown(s, hr, c) || colName(c), dlId = "sh-flt-dl";
     var el = h("div", { "class": "sh-pop sh-flt", role: "dialog", "aria-label": T.filter + ": " + name });
     if (!ro()) el.append(h("div", { "class": "sh-flt-h", text: T.fltSortAll }), h("div", { "class": "sh-flt-row" }, [
@@ -2119,24 +2122,106 @@
   }
 
   // ------------------------------------------------------------------ structure: rows, columns, sort, sheets (the server rewrites references)
-  function structural(ops, s) {
+  /** An edit the server makes (rows, columns, a sort, charts): sent at once, read back. inv: the ops that undo
+   *  it (one undo step, the history kept); null: it cannot be undone (the steps before it no longer fit, so they
+   *  go); false: no undo step and the history stays (a sheet moved); undefined: this sheet's steps go. */
+  function structural(ops, s, inv) {
     commitIfEditing();
     if (ro()) return Promise.resolve();
     s = s || S();
     flush();
-    undoS = undoS.filter(function (e) { return e.id !== s.id; }); redoS = redoS.filter(function (e) { return e.id !== s.id; });
+    var e = inv ? { id: s.id, fwd: ops, inv: inv, st: true, cids: {} } : null;
+    if (e) { undoS.push(e); if (undoS.length > 100) undoS.shift(); redoS = []; }
+    else if (inv !== false) {
+      if (inv === null) kit.toast(T.notUndoable);
+      undoS = undoS.filter(function (x) { return x.id !== s.id; }); redoS = redoS.filter(function (x) { return x.id !== s.id; });
+    }
     drawUndo();
     setStatus(T.saving);
-    return sendOps(s.id, ops, true);
+    return sendStruct(s, e, ops);
   }
-  function insRows(below) { var R = selR(); structural([{ op: "insert_rows", at: (below ? R.r2 + 1 : R.r1) + 1, n: Math.min(R.r2 - R.r1 + 1, 500) }]); }
+  // A chart's id is the server's: a chart added by an undo step (cid: its tag in the step) gets a new one, which
+  // the step's other side then deletes by. Resolved when the ops go, after the steps sent before them.
+  function sendStruct(s, e, ops) {
+    return sendOps(s.id, function () {
+      return ops.map(function (o) {
+        var x = {};
+        for (var k in o) if (k !== "cid") x[k] = o[k];
+        if (e && o.op === "delete_chart" && o.cid && e.cids[o.cid]) x.id = e.cids[o.cid];
+        return x;
+      });
+    }, true).then(function (r) {
+      if (!e) return r;
+      if (!r || r.ok === false || typeof r.rev !== "number") {  // not made: no step for it
+        undoS = undoS.filter(function (x) { return x !== e; }); redoS = redoS.filter(function (x) { return x !== e; }); drawUndo();
+        return r;
+      }
+      var adds = ops.filter(function (o) { return o.op === "add_chart"; });
+      (r.charts || []).forEach(function (c, i) { if (adds[i] && adds[i].cid) e.cids[adds[i].cid] = c.id; });
+      return r;
+    });
+  }
+  /** What deleting rows or columns (bands) takes, as ops that put it back once they are inserted again: the
+   *  cells' values and formats, the merges in them, every formula of the sheet (its references were rewritten)
+   *  and the rules. null when too large to keep. */
+  function bandsBack(s, bands) {
+    var u = used(s), vals = {}, ops = [], n = 0;
+    bands.forEach(function (R) {
+      var V = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, Math.max(u.r, 0)), c2: Math.min(R.c2, Math.max(u.c, 0)) };
+      if (V.r2 >= V.r1 && V.c2 >= V.c1) eachIn(V, function (r, c, k) { if (s.cells[k] != null && s.cells[k] !== "") vals[k] = s.cells[k]; });
+    });
+    for (var k in s.cells) if (isFormula(s.cells[k])) vals[k] = s.cells[k];
+    var ks = Object.keys(vals);
+    if (ks.length) {
+      var B = { r1: MAXR, c1: MAXC, r2: 0, c2: 0 };
+      ks.forEach(function (k) { var p = parseKey(k); if (!p) return; B.r1 = Math.min(B.r1, p.r); B.c1 = Math.min(B.c1, p.c); B.r2 = Math.max(B.r2, p.r); B.c2 = Math.max(B.c2, p.c); });
+      if (area(B) > 200000) return null;
+      var rows = [];
+      for (var r = B.r1; r <= B.r2; r++) { var row = []; for (var c = B.c1; c <= B.c2; c++) { var v = vals[key(r, c)]; row.push(v === undefined ? null : v); } rows.push(row); }
+      ops.push({ op: "set", range: key(B.r1, B.c1), values: rows });
+    }
+    for (var i = 0; i < bands.length; i++) {
+      var F = { r1: bands[i].r1, c1: bands[i].c1, r2: Math.min(bands[i].r2, MAXR - 1), c2: Math.min(bands[i].c2, MAXC - 1) };
+      var any = false;
+      eachIn(F, function (r, c, k2) { if (s.fmt[k2]) any = true; });
+      if (!any) continue;
+      var fi = invFmt(s, F, FMT_KEYS);
+      if (!fi) return null;
+      ops = ops.concat(fi); n += fi.length;
+    }
+    (s.merges || []).forEach(function (m) {
+      var M = parseRange(m);
+      if (M && bands.some(function (R) { return !(M.r2 < R.r1 || M.r1 > R.r2 || M.c2 < R.c1 || M.c1 > R.c2); })) ops.push({ op: "merge", range: m });
+    });
+    if (s.rules && s.rules.length) ops.push({ op: "rules", rules: s.rules });
+    return ops.length + 2 > 500 ? null : ops;
+  }
+  function insRows(below) {
+    var R = selR(), at = (below ? R.r2 + 1 : R.r1) + 1, n = Math.min(R.r2 - R.r1 + 1, 500);
+    structural([{ op: "insert_rows", at: at, n: n }], null, [{ op: "delete_rows", at: at, n: n }]);
+  }
   function delRows() {
     // under a filter the shown rows only, from the bottom up so the row numbers above stay right
-    var R = selR(), runs = visRuns(S(), R.r1, R.r2).reverse();
-    if (runs.length) structural(runs.map(function (x) { return { op: "delete_rows", at: x[0] + 1, n: x[1] - x[0] + 1 }; }));
+    var s = S(), R = selR(), runs = visRuns(s, R.r1, R.r2).reverse(), u = used(s);
+    if (!runs.length) return;
+    var back = bandsBack(s, runs.map(function (x) { return { r1: x[0], c1: 0, r2: x[1], c2: Math.max(u.c, 0) }; }));
+    structural(runs.map(function (x) { return { op: "delete_rows", at: x[0] + 1, n: x[1] - x[0] + 1 }; }), s,
+      back && runs.slice().reverse().map(function (x) { return { op: "insert_rows", at: x[0] + 1, n: x[1] - x[0] + 1 }; }).concat(back));
   }
-  function insCols(right) { var R = selR(); structural([{ op: "insert_cols", at: colName(right ? R.c2 + 1 : R.c1), n: Math.min(R.c2 - R.c1 + 1, 50) }]); }
-  function delCols() { var R = selR(); structural([{ op: "delete_cols", at: colName(R.c1), n: R.c2 - R.c1 + 1 }]); }
+  function insCols(right) {
+    var R = selR(), at = colName(right ? R.c2 + 1 : R.c1), n = Math.min(R.c2 - R.c1 + 1, 50);
+    structural([{ op: "insert_cols", at: at, n: n }], null, [{ op: "delete_cols", at: at, n: n }]);
+  }
+  function delCols() {
+    var s = S(), R = selR(), u = used(s);
+    var back = bandsBack(s, [{ r1: 0, c1: R.c1, r2: Math.max(u.r, 0) + 200, c2: R.c2 }]);
+    structural([{ op: "delete_cols", at: colName(R.c1), n: R.c2 - R.c1 + 1 }], s, back && [{ op: "insert_cols", at: colName(R.c1), n: R.c2 - R.c1 + 1 }].concat(back));
+  }
+  /** Undo ops of a sort over R: its values and formats as they are now. */
+  function sortBack(s, R) {
+    var old = oldMatrix(s, R), fi = old && invFmt(s, R, FMT_KEYS);
+    return old && fi ? [{ op: "set", range: key(R.r1, R.c1), values: old }].concat(fi) : null;
+  }
   function headerRow(s, u) {
     if (s.freeze.rows >= 1) return true;
     var allText = true, numBelow = false;
@@ -2153,7 +2238,7 @@
     if (!multi() || selMode !== "cells") { R = { r1: R.r1, c1: 0, r2: u.r, c2: u.c }; if (R.r1 === 0 && headerRow(s, u)) R.r1 = 1; }
     else { R.r2 = Math.min(R.r2, u.r); R.c2 = Math.min(R.c2, u.c); }
     if (R.r2 <= R.r1) return;
-    structural([{ op: "sort", range: rangeName(R), col: colName(clamp(sc, R.c1, R.c2)), desc: !!desc }]);
+    structural([{ op: "sort", range: rangeName(R), col: colName(clamp(sc, R.c1, R.c2)), desc: !!desc }], s, sortBack(s, R));
   }
   var BAD_NAME = /[\[\]:*?\/\\'!]/;
   function validName(n, exceptId) {
@@ -2169,7 +2254,7 @@
   }
   function addSheet(name, rows) {
     name = uniqueName(name || T.sheetWord + " " + (book.length + 1));
-    return structural([{ op: "add_sheet", name: name, rows: rows || [] }]).then(function () {
+    return structural([{ op: "add_sheet", name: name, rows: rows || [] }], null, false).then(function () {
       var i = book.findIndex(function (s) { return s.name === name; });
       if (i >= 0) switchTo(i);
       return book[i];
@@ -2180,7 +2265,7 @@
     if (name === s.name) return;
     if (!validName(name, s.id)) return kit.toast(T.badName);
     s.name = name; drawTabs(); invalidate();
-    structural([{ op: "rename_sheet", name: name }], s);
+    structural([{ op: "rename_sheet", name: name }], s, false);
   }
   function deleteSheet(s) {
     if (book.length < 2) return;
@@ -2195,7 +2280,7 @@
     var curS = book[cur];
     book.splice(i, 1); book.splice(to, 0, s); cur = book.indexOf(curS);
     drawTabs();
-    structural([{ op: "move_sheet", to: to }], s);
+    structural([{ op: "move_sheet", to: to }], s, false);
   }
 
   // ------------------------------------------------------------------ charts: SVG cards anchored at a cell
@@ -2285,9 +2370,14 @@
     if (legend) card.appendChild(legend);
     if (C.thumb || ro()) return card;
     menuBtn.addEventListener("click", function () {
-      var re = function (t) { return function () { ch.type = t; drawCharts(); structural([{ op: "delete_chart", id: ch.id }, { op: "add_chart", type: t, range: ch.range, title: ch.title || "", at: ch.at }]); }; };
-      kit.menu(menuBtn, [{ label: T.cBar, onClick: re("bar") }, { label: T.cLine, onClick: re("line") }, { label: T.cPie, onClick: re("pie") },
-        { label: T.delChart, onClick: function () { s.charts = s.charts.filter(function (x) { return x !== ch; }); drawCharts(); structural([{ op: "delete_chart", id: ch.id }]); } }]);
+      var re = function (t) { return function () { var old = chartOp(ch, "a"); ch.type = t; drawCharts(); chartSwap(s, ch, old, chartOp(ch, "b")); }; };
+      kit.menu(menuBtn, [{ label: T.cBar, icon: "chart", on: type === "bar", onClick: re("bar") }, { label: T.cLine, icon: "lineD", on: type === "line", onClick: re("line") },
+        { label: T.cPie, icon: "oval", on: type === "pie", onClick: re("pie") }, { sep: true },
+        { label: T.delChart, icon: "trash", onClick: function () {
+          var old = chartOp(ch, "a");
+          s.charts = s.charts.filter(function (x) { return x !== ch; }); drawCharts();
+          structural([{ op: "delete_chart", id: ch.id, cid: "a" }], s, [old]);
+        } }]);
     });
     head.addEventListener("mousedown", function (e) {
       if (e.button !== 0 || e.target.closest("button")) return;
@@ -2300,13 +2390,19 @@
         card.classList.remove("is-drag"); card.style.transform = "";
         var a = parseKey(ch.at) || { r: 0, c: 0 }, nc = colAt(Math.max(0, colX[Math.min(a.c, nCols - 1)] + dx)), nr = clamp(rowOf(Math.max(0, Math.floor((rowY(a.r) + dy) / RH))), 0, MAXR - 1);
         if (nr === a.r && nc === a.c) return;
-        var at = key(nr, nc);
-        structural([{ op: "delete_chart", id: ch.id }, { op: "add_chart", type: type, range: ch.range, title: ch.title || "", at: at }]);
+        var at = key(nr, nc), old = chartOp(ch, "a");
         ch.at = at; drawCharts();
+        chartSwap(s, ch, old, chartOp(ch, "b"));
       }
       document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
     });
     return card;
+  }
+  /** A chart as the op that adds it, tagged (cid) for the undo step that deletes it again by its new id. */
+  function chartOp(ch, cid) { return { op: "add_chart", type: ch.type === "line" || ch.type === "pie" ? ch.type : "bar", range: ch.range, title: ch.title || "", at: ch.at, cid: cid }; }
+  /** A chart changed (its type, or moved): the old one goes and the new one comes, one undo step. */
+  function chartSwap(s, ch, oldOp, newOp) {
+    structural([{ op: "delete_chart", id: ch.id, cid: "a" }, newOp], s, [{ op: "delete_chart", cid: "b" }, oldOp]);
   }
   function drawCharts() {
     cellQ.forEach(function (q) { q.ov.charts.innerHTML = ""; });
@@ -2327,7 +2423,7 @@
     var at = key(R.r1, Math.min(MAXC - 1, R.c2 + 2)), ch = { id: "tmp-" + Date.now(), type: type, range: rangeName(R), title: title, at: at };
     s.charts.push(ch); s._used = null;
     refresh();
-    structural([{ op: "add_chart", type: type, range: ch.range, title: title, at: at }]);
+    structural([{ op: "add_chart", type: type, range: ch.range, title: title, at: at, cid: "a" }], s, [{ op: "delete_chart", cid: "a" }]);
   }
 
   // ------------------------------------------------------------------ small popovers: a question, colours
@@ -2537,14 +2633,37 @@
       banner.innerHTML = "";
       banner.append(h("span", { text: fill(T.showing, { t: kit.date(r.at || x.at, true) }) }),
         h("button", { type: "button", "class": "sh-b pri", text: T.restoreThis, onclick: function () {
-          hm.sheet.restore(s.id, x.rev).then(function () { closePreview(); kit.toast(T.restored, 0, "success"); undoS = []; redoS = []; drawUndo(); return readSheet(s); })
-            .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
+          // the restored sheet is read while the preview still shows, then drawn from nothing, as a fresh open draws it
+          hm.sheet.restore(s.id, x.rev).then(function () { return readSheet(s); }).then(function () {
+            undoS = undoS.filter(function (e) { return e.id !== s.id; }); redoS = redoS.filter(function (e) { return e.id !== s.id; }); drawUndo();
+            freshView();
+            kit.toast(T.restored, 0, "success");
+          }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         } }),
         h("button", { type: "button", "class": "sh-b", text: T.backNow, onclick: closePreview }));
       banner.hidden = false;
       document.documentElement.classList.add("sh-ro");
       invalidate(); refresh();
     }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
+  }
+  /** The preview closed and the grid drawn from nothing (no cell, pane or chart kept from before), the view at the
+   *  top left: as the sheet draws when it opens. */
+  function freshView() {
+    preview = null; banner.hidden = true;
+    document.documentElement.classList.toggle("sh-ro", !editable);
+    if (ed) cancelEdit();
+    Q.forEach(function (q) {
+      q.pool.forEach(function (el) { if (el) el.remove(); });
+      q.pool = []; q.rowAt = []; q.H = 0; q.W = 0; q.rr = null; q.cc = null;
+    });
+    var s = book[cur];
+    s._used = null; s._bd = undefined; s._cf = null; refit(s);
+    nRows = 50; nCols = 26; sr = sc = er = ec = 0; selMode = "cells";
+    invalidate();
+    grid.scrollLeft = 0; grid.scrollTop = 0;
+    refresh();
+    sl = grid.scrollLeft; st = grid.scrollTop; translate(); renderAll(true);
+    afterSel();
   }
   function closePreview() {
     if (!preview) return;
@@ -3077,8 +3196,8 @@
       return g;
     }
     var zl = h("span", { "class": "sh-zl", "aria-live": "polite" });
-    var out = h("button", { type: "button", "class": "sh-b", title: T.zoomOut, "aria-label": T.zoomOut, text: "−", onclick: function () { zoomStep(-1); draw(); } });
-    var inn = h("button", { type: "button", "class": "sh-b", title: T.zoomIn, "aria-label": T.zoomIn, text: "+", onclick: function () { zoomStep(1); draw(); } });
+    var out = h("button", { type: "button", "class": "sh-b", title: T.zoomOut, "aria-label": T.zoomOut, html: kit.icon("minus"), onclick: function () { zoomStep(-1); draw(); } });
+    var inn = h("button", { type: "button", "class": "sh-b", title: T.zoomIn, "aria-label": T.zoomIn, html: kit.icon("plus"), onclick: function () { zoomStep(1); draw(); } });
     var reset = h("button", { type: "button", "class": "sh-b", text: T.zoomReset, onclick: function () { setView("zoom", 100); draw(); } });
     var levels = seg(T.zoom, ZOOMS.map(function (z) { return [z, z + "%"]; }), prefs.zoom, function (z) { setView("zoom", z); });
     var fx = h("input", { type: "checkbox" });
@@ -3129,17 +3248,6 @@
       .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); })
       .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
-  // The error cells of the selection (the active cell first), for the toolbar's button.
-  function selErrs() {
-    var s = S(), out = [], R = selUsed(), v = valueOf(s, key(sr, sc));
-    if (isErr(v)) out.push({ s: s, k: key(sr, sc), code: String(v.error) });
-    if (multi() && area(R) <= 4000) eachIn(R, function (r, c, k) {
-      if (out.length >= 8 || r === sr && c === sc || hid(s, r) || !isFormula(s.cells[k])) return;
-      var x = valueOf(s, k);
-      if (isErr(x)) out.push({ s: s, k: k, code: String(x.error) });
-    });
-    return out;
-  }
   // The bubble by an error cell: under the active one, or the one the pointer rests on.
   var errTip = h("div", { "class": "sh-errtip", role: "status", hidden: true }), errAt = null, errTimer = null;
   var errText = h("span"), errBtn = h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk });
@@ -3155,11 +3263,15 @@
     errAt = { s: s, k: k, code: String(v.error), hover: hover };
     errText.textContent = errSentence(s, k, v);
     errBtn.hidden = !canFix();
-    errTip.hidden = false;
+    // only by a cell in view (a part of it, past the headers): never pointing at one scrolled away
     var b = cellBox(r, c), vr = vp.getBoundingClientRect(), x = vr.left + b.x, y = vr.top + b.y + b.h + 4;
-    if (b.x < HW - b.w || b.y < 0 || b.x > vpW || b.y > vpH) return hideErr();
-    errTip.style.left = Math.max(8, Math.min(x, innerWidth - errTip.offsetWidth - 8)) + "px";
-    errTip.style.top = (y + errTip.offsetHeight > innerHeight - 8 ? Math.max(8, vr.top + b.y - errTip.offsetHeight - 4) : y) + "px";
+    if (Math.min(b.x + b.w, vpW) - Math.max(b.x, HW) < 8 || Math.min(b.y + b.h, vpH) - Math.max(b.y, HH) < 4) return hideErr();
+    errTip.hidden = false;
+    // measured where it has the whole width (at the right edge it would be squeezed, then overrun when moved)
+    errTip.style.left = "0px"; errTip.style.top = "0px";
+    var w = errTip.offsetWidth, th = errTip.offsetHeight;
+    errTip.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
+    errTip.style.top = (y + th > innerHeight - 8 ? Math.max(8, vr.top + b.y - th - 4) : y) + "px";
   }
   function errSync() { if (C.thumb) return; if (!multi() && !ed) showErr(sr, sc, false); else hideErr(); }
   if (!C.thumb) {
@@ -3176,23 +3288,41 @@
     errTip.addEventListener("mouseleave", function () { if (errAt && errAt.hover) errTimer = setTimeout(errSync, 250); });
     // typing, scrolling or opening the editor puts the bubble away (the selection moving brings the next one)
     grid.addEventListener("keydown", function (e) { if (!/^(Shift|Control|Alt|Meta)$/.test(e.key)) hideErr(); }, true);
-    grid.addEventListener("scroll", hideErr, { passive: true });
+    // a scroll puts it away; once the grid rests it comes back by its cell, if that is still in view
+    grid.addEventListener("scroll", function () { hideErr(); errTimer = setTimeout(errSync, 200); }, { passive: true });
     grid.addEventListener("dblclick", hideErr, true);
     fxTa.addEventListener("focus", hideErr);
   }
-  // Once after the sheet opens: how many errors it holds, and the same request for the first of them. A row of
-  // its own over the toolbar (the top 56 px the host's popup chat always leaves free), never over a control.
-  function errToast() {
-    if (C.thumb || preview) return;
-    var e = errCells(8);
-    if (!e.n) return;
-    var el = h("div", { "class": "sh-errbar", role: "status" }), close = h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close") });
-    el.appendChild(h("span", { text: e.n === 1 ? T.errOne : fill(T.errMany, { n: e.n }) }));
-    if (canFix()) el.appendChild(h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk, onclick: function () { el.remove(); var now = errCells(8); askFix(now.list, now.n); } }));
-    close.addEventListener("click", function () { el.remove(); grid.focus(); });
-    el.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { el.remove(); grid.focus(); } });
-    el.appendChild(close);
-    document.body.insertBefore(el, bar);
+  // How many errors the workbook holds, and the same request for them: a row of its own over the toolbar (the
+  // top 56 px the host's popup chat always leaves free), never over a control. It follows the count as the
+  // sheet changes and goes at none; closed, it stays away until there are more than when it was closed.
+  var errBar = null, errBarText = null, errBarFix = null, errShut = -1, errBarTimer = null;
+  function errBarSync() {
+    if (C.thumb || !bar) return;
+    clearTimeout(errBarTimer);
+    errBarTimer = setTimeout(function () {
+      var n = preview ? 0 : errCells(0).n;
+      if (!n) errShut = -1;
+      var show = n > 0 && n > errShut;
+      if (show && !errBar) {
+        errBar = h("div", { "class": "sh-errbar", role: "status" });
+        errBarText = h("span");
+        errBarFix = h("button", { type: "button", "class": "sh-b pri", text: T.fixAsk, onclick: function () { var now = errCells(8); askFix(now.list, now.n); } });
+        var close = h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close") });
+        var shut = function () { errShut = errCells(0).n; errBar.hidden = true; grid.focus(); };
+        close.addEventListener("click", shut);
+        errBar.addEventListener("keydown", function (ev) { if (ev.key === "Escape") shut(); });
+        errBar.append(errBarText, errBarFix, close);
+        document.body.insertBefore(errBar, bar);
+      }
+      if (!errBar) return;
+      if (show) {
+        var t = n === 1 ? T.errOne : fill(T.errMany, { n: n });
+        if (errBarText.textContent !== t) errBarText.textContent = t;
+        errBarFix.hidden = !canFix();
+      }
+      if (errBar.hidden === show) errBar.hidden = !show;
+    }, 250);
   }
 
   // ------------------------------------------------------------------ the toolbar: what it offers follows the selection; what does not fit goes into More
@@ -3209,6 +3339,32 @@
   ICO.rules = "M4 4h16v16H4zM4 10h16M10 4v16M13 13h4v4h-4z";
   ICO.date = "M5 6h14v14H5zM5 10h14M9 4v4M15 4v4";
   ICO.replace = "M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3";
+  // The sheet's icons for the kit's menus too (sh- names), with the ones its text-drawn buttons have there.
+  ICO.decLess = "M4 15h.01M8 9h3v6H8zM20 12h-5M17 9.5L14.5 12l2.5 2.5";
+  ICO.decMore = "M3 15h.01M6 9h3v6H6zM11 9h3v6h-3zM17 12h4M19 10l2 2-2 2";
+  ICO.cur = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM14.8 9.5c-.5-.9-1.5-1.4-2.8-1.4-1.6 0-2.8.8-2.8 1.9s1.2 1.6 2.8 1.9 2.8.8 2.8 1.9-1.2 2-2.8 2c-1.4 0-2.4-.5-2.9-1.4M12 6.5v11";
+  ICO.pct = "M19 5L5 19M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z";
+  ICO.rowAbove = "M4 12h16v8H4zM12 3v6M9 6h6";
+  ICO.rowBelow = "M4 4h16v8H4zM12 15v6M9 18h6";
+  ICO.colLeft = "M12 4h8v16h-8zM3 12h6M6 9v6";
+  ICO.colRight = "M4 4h8v16H4zM15 12h6M18 9v6";
+  ICO.rowDel = "M4 9h16v6H4zM9 5l6 0M10 19h4";
+  ICO.colDel = "M9 4h6v16H9zM5 9l-2 3 2 3M19 9l2 3-2 3";
+  ICO.freezeRow = "M4 4h16v16H4zM4 9h16";
+  ICO.freezeCol = "M4 4h16v16H4zM9 4v16";
+  ICO.unfreeze = "M4 4h16v16H4z";
+  ICO.chartLine = "M3 20h18M4 16l5-6 4 3 7-8";
+  ICO.chartPie = "M12 3a9 9 0 1 0 9 9h-9zM14 3.2V10h6.8A9 9 0 0 0 14 3.2z";
+  ICO.fileSheet = "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6M12 11v8";
+  ICO.fileText = "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h4";
+  (function () { var m = {}; for (var k in ICO) m["sh-" + k] = ICO[k]; kit.addIcons(m); })();
+  // Each tool's icon in a menu (More), by its id.
+  var TOOL_IC = { undo: "undo", redo: "redo", bold: "bold", italic: "italic", underline: "underline", align: "alignL", fg: "sh-fcolor", bg: "sh-bucket",
+    borders: "sh-borders", merge: "sh-merge", unmerge: "sh-unmerge", num: "sh-num", decLess: "sh-decLess", decMore: "sh-decMore", cur: "sh-cur", pct: "sh-pct",
+    dd: "sh-dropdown", check: "sh-checkbox", ckTick: "check", date: "sh-date", ins: "sh-rows", sort: "sh-sort", freeze: "sh-freeze", chart: "sh-chart",
+    filter: "sh-filter", rules: "sh-rules", comment: "comment", ask: "sparkle", find: "sh-search", view: "zoomIn", hist: "history", imp: "upload", exp: "download" };
+  /** A button's words after the kit's plus (an "add" button). */
+  function plusLabel(t) { return kit.icon("plus") + "<span>" + kit.esc(t) + "</span>"; }
   function txtIco(t) { return '<span class="sh-ico sh-txt">' + kit.esc(t) + "</span>"; }
   var bar = document.getElementById("sh-bar");
   bar.className = "kit-bar";
@@ -3220,33 +3376,37 @@
   function numMenu(anchor) { commitIfEditing(); var c = curFmt().num || null; kit.menu(anchor, NUMS.map(function (x) { return { on: x.num === c, label: x.label, onClick: function () { fmtSel({ num: x.num }); } }; })); }
   function alignMenu(anchor) {
     commitIfEditing();
-    var f = curFmt();
-    kit.menu(anchor, [["left", T.alignL], ["center", T.alignC], ["right", T.alignR]].map(function (x) {
-      return { on: f.align === x[0], label: x[1], onClick: function () { fmtSel({ align: f.align === x[0] ? null : x[0] }); } };
-    }).concat([{ on: !!f.wrap, label: T.wrap, onClick: function () { toggleFmt("wrap"); } }]));
+    // no alignment set reads as the cell's own: a number's right, anything else's left
+    var f = curFmt(), def = typeof valueOf(S(), key(sr, sc)) === "number" ? "right" : "left", a = f.align || def;
+    kit.menu(anchor, [["left", T.alignL, "alignL"], ["center", T.alignC, "alignC"], ["right", T.alignR, "alignR"]].map(function (x) {
+      return { icon: x[2], on: a === x[0], label: x[1], onClick: function () { fmtSel({ align: x[0] === def ? null : x[0] }); } };
+    }).concat([{ sep: true }, { icon: "sh-wrap", on: !!f.wrap, label: T.wrap, onClick: function () { toggleFmt("wrap"); } }]));
   }
   function insMenu(anchor) {
     commitIfEditing();
-    kit.menu(anchor, [{ label: T.rowAbove, onClick: function () { insRows(false); } }, { label: T.rowBelow, onClick: function () { insRows(true); } },
-      { label: T.colLeft, onClick: function () { insCols(false); } }, { label: T.colRight, onClick: function () { insCols(true); } },
-      { label: T.delRows, onClick: delRows }, { label: T.delCols, onClick: delCols }]);
+    kit.menu(anchor, [{ icon: "sh-rowAbove", label: T.rowAbove, onClick: function () { insRows(false); } }, { icon: "sh-rowBelow", label: T.rowBelow, onClick: function () { insRows(true); } },
+      { icon: "sh-colLeft", label: T.colLeft, onClick: function () { insCols(false); } }, { icon: "sh-colRight", label: T.colRight, onClick: function () { insCols(true); } },
+      { sep: true }, { icon: "sh-rowDel", label: T.delRows, onClick: delRows }, { icon: "sh-colDel", label: T.delCols, onClick: delCols }]);
   }
-  function sortMenu(anchor) { commitIfEditing(); kit.menu(anchor, [{ label: T.sortAsc, onClick: function () { sortSel(false); } }, { label: T.sortDesc, onClick: function () { sortSel(true); } }]); }
+  function sortMenu(anchor) { commitIfEditing(); kit.menu(anchor, [{ icon: "sortAsc", label: T.sortAsc, onClick: function () { sortSel(false); } }, { icon: "sortDesc", label: T.sortDesc, onClick: function () { sortSel(true); } }]); }
   function freezeMenu(anchor) {
     commitIfEditing();
-    kit.menu(anchor, [{ label: T.freezeRow, onClick: function () { setFreeze(1, 0); } }, { label: T.freezeCol, onClick: function () { setFreeze(0, 1); } },
-      { label: T.freezeHere, onClick: function () { setFreeze(Math.min(sr, 50), Math.min(sc, 20)); } }, { label: T.unfreeze, onClick: function () { setFreeze(0, 0); } }]);
+    var fz = S().freeze, here = { rows: Math.min(sr, 50), cols: Math.min(sc, 20) };
+    var is = function (r, c) { return fz.rows === r && fz.cols === c; };
+    kit.menu(anchor, [{ icon: "sh-freezeRow", on: is(1, 0), label: T.freezeRow, onClick: function () { setFreeze(1, 0); } }, { icon: "sh-freezeCol", on: is(0, 1), label: T.freezeCol, onClick: function () { setFreeze(0, 1); } },
+      { icon: "sh-freeze", on: (here.rows || here.cols) && is(here.rows, here.cols) && !is(1, 0) && !is(0, 1), label: T.freezeHere, onClick: function () { setFreeze(here.rows, here.cols); } },
+      { sep: true }, { icon: "sh-unfreeze", label: T.unfreeze, disabled: is(0, 0), onClick: function () { setFreeze(0, 0); } }]);
   }
-  function chartMenu(anchor) { commitIfEditing(); kit.menu(anchor, [{ label: T.cBar, onClick: function () { addChart("bar"); } }, { label: T.cLine, onClick: function () { addChart("line"); } }, { label: T.cPie, onClick: function () { addChart("pie"); } }]); }
+  function chartMenu(anchor) { commitIfEditing(); kit.menu(anchor, [{ icon: "sh-chart", label: T.cBar, onClick: function () { addChart("bar"); } }, { icon: "sh-chartLine", label: T.cLine, onClick: function () { addChart("line"); } }, { icon: "sh-chartPie", label: T.cPie, onClick: function () { addChart("pie"); } }]); }
   // The CSV holds every row, also the ones a filter hides: its entry says so then.
-  function expMenu(anchor) { kit.menu(anchor, exportList.map(function (x) { return { label: x.id === "csv" && S()._hid ? T.csvAll : x.label, onClick: x.run }; })); }
+  function expMenu(anchor) { kit.menu(anchor, exportList.map(function (x) { return { icon: x.id === "csv" ? "sh-fileText" : "sh-fileSheet", label: x.id === "csv" && S()._hid ? T.csvAll : x.label, onClick: x.run }; })); }
   function filterMenu(anchor) {
-    var s = S(), items = [{ label: T.fltCol, onClick: filterHere }];
-    if (s._flt) items.push({ label: T.fltClear, onClick: clearFilter });
-    if (s._fon && s.freeze.rows < 1) items.push({ label: T.fltHide, onClick: function () { s._fon = false; s._flt = null; applyFilter(s); } });
+    var s = S(), items = [{ icon: "sh-filter", label: T.fltCol, onClick: filterHere }];
+    if (s._flt) items.push({ icon: "close", label: T.fltClear, onClick: clearFilter });
+    if (s._fon && s.freeze.rows < 1) items.push({ icon: "eyeOff", label: T.fltHide, onClick: function () { s._fon = false; s._flt = null; applyFilter(s); } });
     kit.menu(anchor, items);
   }
-  function impMenu(anchor) { kit.menu(anchor, [{ label: T.impNew, onClick: function () { pickImport("new"); } }, { label: T.impReplace, onClick: function () { pickImport("replace"); } }]); }
+  function impMenu(anchor) { kit.menu(anchor, [{ icon: "plus", label: T.impNew, onClick: function () { pickImport("new"); } }, { icon: "sh-replace", label: T.impReplace, onClick: function () { pickImport("replace"); } }]); }
   var exportList = [{ id: "xlsx", label: T.xlsx, run: exportXlsx }, { id: "csv", label: T.csv, run: exportCsv }];
   // Decimals, currency, percent: the selection's number format, from the active cell's.
   function stepDecimals(d) {
@@ -3270,7 +3430,7 @@
   function uiCall(name, a) { var f = sheetUI()[name]; if (typeof f !== "function") return undefined; try { return f(a); } catch (e) { console.error("sheet ui " + name, e); return undefined; } }
   function ctxOf() {
     var s = S(), k = key(sr, sc), f = s.fmt[k] || {}, v = valueOf(s, k), R = selR(), u = used(s), any = false, numHere = typeof v === "number";
-    var cx = { dd: !!f.options && sr !== hdrRow(s), check: !!f.check, num: false, empty: false, err: isErr(v), merged: uiCall("canUnmerge") === true, on: v === true };
+    var cx = { dd: !!f.options && sr !== hdrRow(s), check: !!f.check, num: false, empty: false, merged: uiCall("canUnmerge") === true, on: v === true };
     R = { r1: R.r1, c1: R.c1, r2: Math.min(R.r2, u.r), c2: Math.min(R.c2, u.c) };
     if (R.r2 >= R.r1 && R.c2 >= R.c1) {
       if (area(R) > 4000) any = true;
@@ -3307,22 +3467,21 @@
       on: function (cx) { return typeof sheetUI().unmergeSel === "function" && cx.merged ? "bar" : false; } },
     "|",
     { id: "num", label: T.numFmt, html: ico("num") + CARET, run: function (e, b) { numMenu(b); }, edit: true, pri: 1, menu: true },
-    { id: "decLess", label: T.decLess, html: txtIco("←.0"), run: function () { stepDecimals(-1); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; } },
-    { id: "decMore", label: T.decMore, html: txtIco(".00→"), run: function () { stepDecimals(1); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; } },
-    { id: "cur", label: T.currency, html: txtIco(L === "hu" ? "Ft" : "$"), run: function () { toggleNum(CUR_FMT); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; },
+    // The tools a selection brings keep their place on the bar: greyed (off) where they do nothing for it, so
+    // the bar never moves under the pointer as the selection changes.
+    { id: "decLess", label: T.decLess, html: txtIco("←.0"), run: function () { stepDecimals(-1); }, edit: true, pri: 3, off: function (cx) { return !cx.num; } },
+    { id: "decMore", label: T.decMore, html: txtIco(".00→"), run: function () { stepDecimals(1); }, edit: true, pri: 3, off: function (cx) { return !cx.num; } },
+    { id: "cur", label: T.currency, html: txtIco(L === "hu" ? "Ft" : "$"), run: function () { toggleNum(CUR_FMT); }, edit: true, pri: 3, off: function (cx) { return !cx.num; },
       pressed: function () { return curFmt().num === CUR_FMT; } },
-    { id: "pct", label: T.nPercent, html: txtIco("%"), run: function () { toggleNum("0%"); }, edit: true, pri: 3, on: function (cx) { return cx.num ? "bar" : false; },
+    { id: "pct", label: T.nPercent, html: txtIco("%"), run: function () { toggleNum("0%"); }, edit: true, pri: 3, off: function (cx) { return !cx.num; },
       pressed: function () { return curFmt().num === "0%"; } },
     "|",
-    { id: "dd", label: T.dropdown, html: ico("dropdown"), run: function () { dropdownDlg(); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : cx.dd ? false : "more"; } },
-    { id: "ddOpts", label: T.ddOptions, html: ico("dropdown") + "<span></span>", text: T.ddOptions, run: function () { dropdownDlg(); }, edit: true, pri: 3, on: function (cx) { return cx.dd ? "bar" : false; } },
-    { id: "check", label: T.checkbox, html: ico("checkbox"), run: function () { toggleFmt("check"); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : cx.check ? false : "more"; } },
-    { id: "ckTick", label: T.ckTick, html: '<span class="sh-ico sh-ckb"></span>', run: function () { toggleChecks(selR()); }, edit: true, pri: 3, on: function (cx) { return cx.check ? "bar" : false; },
+    // a dropdown's button opens its options; a checkbox's takes it off again (pressed: the cell has one)
+    { id: "dd", label: T.dropdown, html: ico("dropdown"), run: function () { dropdownDlg(); }, edit: true, pri: 3, pressed: function (cx) { return cx.dd; } },
+    { id: "check", label: T.checkbox, html: ico("checkbox"), run: function () { toggleFmt("check"); }, edit: true, pri: 3, off: function (cx) { return cx.dd; }, pressed: function (cx) { return cx.check; } },
+    { id: "ckTick", label: T.ckTick, html: '<span class="sh-ico sh-ckb"></span>', run: function () { toggleChecks(selR()); }, edit: true, pri: 7, on: function (cx) { return cx.check ? "more" : false; },
       pressed: function (cx) { return cx.on; } },
-    { id: "ckOff", label: T.ckRemove, html: ico("checkbox"), run: function () { toggleFmt("check"); }, edit: true, pri: 7, on: function (cx) { return cx.check ? "more" : false; } },
-    { id: "date", label: T.dateToday, html: ico("date"), run: function () { insertDate(); }, edit: true, pri: 3, on: function (cx) { return cx.empty ? "bar" : false; } },
-    { id: "fix", label: T.fixAsk, html: kit.icon("sparkle") + "<span></span>", text: T.fixAsk, run: function () { var e = selErrs(); askFix(e, e.length); }, edit: "ask", pri: 3,
-      on: function (cx) { return cx.err && canFix() ? "bar" : false; } },
+    { id: "date", label: T.dateToday, html: ico("date"), run: function () { insertDate(); }, edit: true, pri: 3, off: function (cx) { return !cx.empty; } },
     "|",
     { id: "ins", label: T.insert, html: ico("rows") + CARET, run: function (e, b) { insMenu(b); }, edit: true, pri: 8, menu: true },
     { id: "sort", label: T.sort, html: ico("sort") + CARET, run: function (e, b) { sortMenu(b); }, edit: true, pri: 8, menu: true },
@@ -3357,9 +3516,10 @@
       toolEls[t.id] = t.el; bar.appendChild(t.el); tools.push(t);
     });
     moreBtn = barBtn(T.more, kit.icon("more"), function (e, b) {
+      var cx = ctxOf();
       kit.menu(b, barOver.map(function (t) {
-        var on = t.pressed ? t.pressed(ctxOf()) : false;
-        return { on: t.pressed ? on : null, label: t.label.replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { t.run(null, t.menu ? b : t.el); } };
+        return { icon: TOOL_IC[t.id] || "more", on: t.pressed ? t.pressed(cx) : null, disabled: t.off ? !!t.off(cx) : false,
+          label: t.label.replace(/ \(Ctrl\+.\)$/, ""), onClick: function () { t.run(null, t.menu ? b : t.el); } };
       }));
     });
     moreBtn.setAttribute("aria-haspopup", "true");
@@ -3376,9 +3536,12 @@
   function barSync(force) {
     if (C.thumb || !moreBtn) return;
     var cx = ctxOf(), zl = toolEls.view && toolEls.view.querySelector(".sh-zoom"), W = bar.clientWidth;
-    var sig = [W, ro() ? 1 : 0, cx.dd, cx.check, cx.num, cx.empty, cx.err && canFix(), cx.merged, Object.keys(sheetUI()).join(",")].join("|");
+    var sig = [W, ro() ? 1 : 0, cx.check, cx.merged, Object.keys(sheetUI()).join(",")].join("|");
     if (zl && zl.textContent !== prefs.zoom + "%") { zl.textContent = prefs.zoom + "%"; toolEls.view.w = 0; force = true; }
-    tools.forEach(function (t) { if (t.el && t.pressed) { var p = t.pressed(cx) ? "true" : "false"; if (t.el.getAttribute("aria-pressed") !== p) t.el.setAttribute("aria-pressed", p); } });
+    tools.forEach(function (t) {
+      if (t.el && t.pressed) { var p = t.pressed(cx) ? "true" : "false"; if (t.el.getAttribute("aria-pressed") !== p) t.el.setAttribute("aria-pressed", p); }
+      if (t.el && t.off) { var d = !!t.off(cx); if (t.el.disabled !== d) t.el.disabled = d; }
+    });
     if (!force && sig === barSig) return;
     barSig = sig;
     var list = tools.filter(function (t) { return t.el; }), onBar = [];
@@ -3419,7 +3582,7 @@
     if (toolEls.undo) toolEls.undo.disabled = !undoS.length;
     if (toolEls.redo) toolEls.redo.disabled = !redoS.length;
   }
-  if (!C.thumb) { applyMetrics(); if (prefs.theme !== "auto") applyTheme(); setTimeout(errToast, 700); }
+  if (!C.thumb) { applyMetrics(); if (prefs.theme !== "auto") applyTheme(); errBarSync(); }
   function cellMenu(x, y) {
     var a = h("div", { style: "position:fixed;width:1px;height:1px;left:" + x + "px;top:" + y + "px" });
     document.body.appendChild(a);
@@ -3457,7 +3620,7 @@
       bAll: "All borders", bInner: "Inner borders", bHorizontal: "Horizontal inner borders", bVertical: "Vertical inner borders", bOuter: "Outer border",
       bLeft: "Left border", bTop: "Top border", bRight: "Right border", bBottom: "Bottom border", bNone: "No borders",
       cfAdd: "Add rule", cfNone: "No rules on this sheet yet. A rule colours the cells that meet a condition.", cfHighlight: "Highlight", cfScale: "Colour scale",
-      cfApplies: "Applies to", cfUseSel: "Use the selection", cfWhen: "Format cells if the value", cfAndCol: "And", cfAddAnd: "+ And another column",
+      cfApplies: "Applies to", cfUseSel: "Use the selection", cfWhen: "Format cells if the value", cfAndCol: "And", cfAddAnd: "And another column",
       cfNoAnd: "Remove the second condition", cfFormat: "Format", cfFill: "Fill", cfText: "Text", cfBold: "Bold", cfStrike: "Strikethrough", cfNoColor: "None",
       cfLow: "Low", cfMid: "Midpoint", cfHigh: "High", cfSave: "Save", cfDelete: "Delete rule", cfRules: "Rules", cfSample: "Sample 123",
       cfBadRange: "Enter a range like C2:C20", cfBadFormula: "Enter a formula like =C2>10", cfNeedsValue: "Enter a value to compare with",
@@ -3475,7 +3638,7 @@
       bAll: "Minden szegély", bInner: "Belső szegélyek", bHorizontal: "Vízszintes belső szegélyek", bVertical: "Függőleges belső szegélyek", bOuter: "Külső szegély",
       bLeft: "Bal szegély", bTop: "Felső szegély", bRight: "Jobb szegély", bBottom: "Alsó szegély", bNone: "Nincs szegély",
       cfAdd: "Új szabály", cfNone: "Ezen a munkalapon még nincs szabály. Egy szabály kiszínezi a feltételnek megfelelő cellákat.", cfHighlight: "Kiemelés", cfScale: "Színskála",
-      cfApplies: "Tartomány", cfUseSel: "A kijelölés használata", cfWhen: "Formázás, ha az érték", cfAndCol: "És", cfAddAnd: "+ És egy másik oszlop",
+      cfApplies: "Tartomány", cfUseSel: "A kijelölés használata", cfWhen: "Formázás, ha az érték", cfAndCol: "És", cfAddAnd: "És egy másik oszlop",
       cfNoAnd: "Második feltétel törlése", cfFormat: "Formátum", cfFill: "Kitöltés", cfText: "Szöveg", cfBold: "Félkövér", cfStrike: "Áthúzott", cfNoColor: "Nincs",
       cfLow: "Alsó", cfMid: "Középpont", cfHigh: "Felső", cfSave: "Mentés", cfDelete: "Szabály törlése", cfRules: "Szabályok", cfSample: "Minta 123",
       cfBadRange: "Adj meg egy tartományt, például C2:C20", cfBadFormula: "Adj meg egy képletet, például =C2>10", cfNeedsValue: "Adj meg egy értéket az összehasonlításhoz",
@@ -3891,7 +4054,7 @@
       body.appendChild(card);
     });
     rpEl.append(rpHead(T.cfTitle, false), body);
-    if (!ro()) body.appendChild(h("button", { type: "button", "class": "sh-b sh-rp-add", text: "+ " + T.cfAdd, onclick: function () { rpEdit(-1); } }));
+    if (!ro()) body.appendChild(h("button", { type: "button", "class": "sh-b sh-rp-add", html: plusLabel(T.cfAdd), onclick: function () { rpEdit(-1); } }));
   }
   function rpField(label, kids) { return h("label", { "class": "sh-rp-f" }, [h("span", { text: label })].concat(kids)); }
   // One rule's editor (i: its place in the list, -1: a new one).
@@ -3991,7 +4154,7 @@
         part.append(h("div", { "class": "sh-rp-and" }, [h("span", { "class": "sh-rp-l", text: T.cfAndCol }), cols,
           h("button", { type: "button", "class": "sh-rp-x", title: T.cfNoAnd, "aria-label": T.cfNoAnd, html: kit.icon("close"), onclick: function () { st.and = null; draw(); } })]), condRow(st.and, false));
       } else {
-        part.appendChild(h("button", { type: "button", "class": "sh-flt-add", text: T.cfAddAnd, onclick: function () {
+        part.appendChild(h("button", { type: "button", "class": "sh-flt-add", html: plusLabel(T.cfAddAnd), onclick: function () {
           var Rn = rangeOf(), base = Rn ? Rn.c2 : 0;
           st.and = { col: Math.min(base + 1, MAXC - 1), op: "is", a: "", b: "" }; draw();
         } }));

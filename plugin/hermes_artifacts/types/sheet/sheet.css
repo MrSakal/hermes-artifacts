@@ -276,6 +276,7 @@ html[data-thumb] .sh-active, html[data-thumb] .sh-sel, html[data-thumb] .sh-hand
   border-bottom: 1px solid var(--color-border-line); background: color-mix(in srgb, var(--color-bad) 8%, var(--color-bg)); font: 400 12.5px/1.4 var(--font-sans); color: var(--color-fg); }
 .sh-errbar > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .sh-errbar > span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--color-bad); }
+.sh-errbar[hidden], .sh-errbar .sh-b[hidden] { display: none; }
 .sh-errbar > .kit-btn { flex-shrink: 0; width: 26px; height: 26px; padding: 0; justify-content: center; }
 
 /* ---- filter: chips in the bar, tinted headers, conditions and quick picks in the popover */
@@ -414,6 +415,11 @@ html[data-thumb] .sh-rp { display: none; }
 .sh-rp-b { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
 .sh-rp-none { margin: 4px 0; color: var(--color-fg-muted); line-height: 1.45; }
 .sh-rp-add { align-self: flex-start; }
+/* the kit's plus before an add button's words, and alone in the round add chip and the zoom steps */
+.sh-flt-add, .sh-rp-add, .sh-view-row .sh-b, .sh-chip-add { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.sh-flt-add svg, .sh-rp-add svg, .sh-view-row .sh-b svg { width: 14px; height: 14px; flex: none; }
+.sh-chip-add svg { width: 13px; height: 13px; }
+.sh-ddl [role="option"] > svg { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
 .sh-rc { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 30px 8px 8px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 8px);
   background: var(--color-panel); cursor: pointer; }
 .sh-rc:hover, .sh-rc:focus-visible { border-color: var(--color-border-strong); outline: none; }
