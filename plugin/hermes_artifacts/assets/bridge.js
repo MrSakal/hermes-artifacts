@@ -30,6 +30,45 @@
   var hostV = 0; // the protocol the host's port message names (Hermes Desktop 2, the browser viewer 1; 3: wants "alive")
   var MAX_QUEUED_EVENTS = 50;
 
+  // A plain page's scrollbars in the host's theme (thin, its colours), as the type runtimes' are, only when the
+  // page styles none of its own. One <style> put first into <head> by the DOM (no line of the document moves),
+  // every selector in :where() (specificity 0, first in order): any rule of the page wins. Not in an export (no
+  // bridge there), not in a type runtime (the kit styles its own).
+  var hostBars = null, BARS_ID = "hermes-scrollbars", OWN_BARS = /scrollbar-(color|width)|::?-webkit-scrollbar/i;
+  function barColour(c) { return typeof c === "string" && /^(#[0-9a-f]{3,8}|rgba?\([\d.,%\s\/]+\))$/i.test(c) ? c : null; }
+  function ownScrollbars() {
+    var i, n = document.querySelectorAll("style, [style]");
+    for (i = 0; i < n.length; i++) {
+      if (n[i].id === BARS_ID) continue;
+      if (OWN_BARS.test(n[i].tagName === "STYLE" ? n[i].textContent : n[i].getAttribute("style") || "")) return true;
+    }
+    var sheets = document.styleSheets || [];
+    for (i = 0; i < sheets.length; i++) {
+      var s = sheets[i];
+      if (s.ownerNode && s.ownerNode.tagName === "STYLE") continue; // read above
+      try { for (var j = 0; j < s.cssRules.length; j++) if (OWN_BARS.test(s.cssRules[j].cssText)) return true; } catch (_) {} // another origin's: unread
+    }
+    return false;
+  }
+  function scrollbars() {
+    try {
+      if (!hostBars || document.readyState === "loading") return; // DOMContentLoaded comes back here
+      var mine = document.getElementById(BARS_ID);
+      var thumb = barColour(hostBars.muted) || barColour(hostBars.strong), track = barColour(hostBars.bg);
+      if (document.getElementById("hermes-artifact-content") || !thumb || ownScrollbars()) { if (mine) mine.remove(); return; }
+      var css = ":where(*){scrollbar-width:thin;scrollbar-color:" + thumb + " transparent}" +
+        (track ? ":where(:root){scrollbar-color:" + thumb + " " + track + "}" : "");
+      if (!mine) {
+        mine = document.createElement("style");
+        mine.id = BARS_ID;
+        var head = document.head || document.documentElement;
+        head.insertBefore(mine, head.firstChild);
+      }
+      if (mine.textContent !== css) mine.textContent = css;
+    } catch (_) {}
+  }
+  document.addEventListener("DOMContentLoaded", scrollbars);
+
   function offlineError(msg) { var e = new Error(msg); e.__hermesOffline = true; return e; }
   function call(op, args) {
     return new Promise(function (resolve, reject) {
@@ -73,7 +112,10 @@
     port.onmessage = function (ev) {
       var r = ev.data;
       if (r && r.event) {
-        if (r.event === "theme") { var ta = r.detail && r.detail.vars && r.detail.vars.accent; if (typeof ta === "string" && /^(rgb|#)/.test(ta)) hostAccent = ta; }
+        if (r.event === "theme") {
+          var ta = r.detail && r.detail.vars && r.detail.vars.accent; if (typeof ta === "string" && /^(rgb|#)/.test(ta)) hostAccent = ta;
+          hostBars = r.detail && r.detail.vars; scrollbars();
+        }
         fire(r.event, r.detail);
         return;
       }

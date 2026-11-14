@@ -558,6 +558,36 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertTrue(all(ord(c) < 128 for c in bridge), "bridge.js: non-ASCII written as escapes")
 
 
+class PageScrollbarTests(unittest.TestCase):
+    """The theme's scrollbars for a plain page are made in the browser (the bridge puts a <style> into the DOM):
+    the document the server sends has no scrollbar rule (no line moves, its line map is the same), the export has
+    no bridge and so none either, and every selector is in :where() so any rule of the page wins. The browser
+    side: test_type_pages_browser.PageScrollbars."""
+
+    def test_not_in_the_document_nor_in_the_export(self):
+        import os
+        import sys
+        os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
+        sys.path.insert(0, str(ROOT / "plugin"))
+        from hermes_artifacts import api, store
+        page = "<!doctype html>\n<html><head><title>P</title></head>\n<body><p>x</p>\n<script>nope()</script></body></html>\n"
+        aid = store.publish(html=page, title="Bars")["id"]
+        try:
+            shown = api.handle("GET", f"/artifacts/{aid}/html", {}, None)["html"]
+            export = api.handle("GET", f"/artifacts/{aid}/html", {"export": "1"}, None)["html"]
+        finally:
+            store.delete(aid)
+        self.assertNotIn("<style id=\"hermes-scrollbars\"", shown)  # only the bridge's code: the DOM gets the style
+        self.assertIn("hermes-scrollbars", shown)
+        self.assertNotIn("scrollbar", export)
+        self.assertEqual(export.replace("\r\n", "\n"), page)  # the page as it was written
+        bridge = (PKG / "assets" / "bridge.js").read_text("utf-8")
+        css = re.findall(r'"(:where\([^"]*)"', bridge)
+        self.assertEqual(len(css), 2, css)
+        self.assertTrue(all(re.fullmatch(r":where\([^)]*\)\{[^{}]*", c) for c in css), css)  # specificity 0 only
+        self.assertIn('head.insertBefore(mine, head.firstChild)', bridge)  # first: any later rule of the page wins
+
+
 class LineMapTests(unittest.TestCase):
     def test_unchanged_page(self):
         import sys

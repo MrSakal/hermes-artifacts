@@ -580,5 +580,62 @@ class DocQuoteMarkTests(unittest.TestCase):
         self.assertEqual(o["openMd"], o["resolvedMd"])
 
 
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PageScrollbars(unittest.TestCase):
+    """A plain page's scrollbars take the host's theme (thin, its muted colour on its background) when the page
+    styles none of its own; a page with its own scrollbar style (scrollbar-color or ::-webkit-scrollbar, in a
+    <style> or a style attribute) and a type runtime are left as they are; no error line moves."""
+
+    THEME = {"mode": "dark", "vars": dict(THEME["vars"], muted="rgb(140, 139, 134)")}
+    PLAIN = ("<!doctype html>\n<html><head><meta charset=utf-8><title>Plain</title>\n"
+             "<style>.box{height:80px;overflow:auto}</style>\n</head><body>\n"
+             "<div class=box><div style=\"height:400px\">tall</div></div>\n"
+             "<script>setTimeout(function () { notDefinedHere(); }, 50);</script>\n</body></html>\n")
+    WEBKIT = PLAIN.replace(".box{", ".box::-webkit-scrollbar{width:12px} .box{")
+    INLINE = PLAIN.replace("<div class=box>", "<div class=box style=\"scrollbar-color: red blue\">")
+
+    def test_only_a_page_without_its_own(self):
+        import shutil
+        import tempfile
+        from hermes_artifacts import store
+        ids, tmp = {}, Path(tempfile.mkdtemp(prefix="ha-bars-"))
+        try:
+            for name, html in (("plain", self.PLAIN), ("webkit", self.WEBKIT), ("inline", self.INLINE)):
+                (tmp / name).mkdir()
+                (tmp / name / "index.html").write_text(html, "utf-8")
+                ids[name] = store.publish(path=str(tmp / name), title=name)["id"]
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        ids["dashboard"] = store.publish(path=str(EX / "dashboard"), title="Dash", type="dashboard")["id"]
+        host = B.Host()
+        try:
+            look = """(() => { const r = getComputedStyle(document.documentElement), b = document.querySelector('.box') || document.body
+              const s = document.getElementById('hermes-scrollbars')
+              return { style: !!s, first: !!s && document.head.firstElementChild === s, rootW: r.scrollbarWidth, rootC: r.scrollbarColor,
+                       boxW: getComputedStyle(b).scrollbarWidth, boxC: getComputedStyle(b).scrollbarColor } })()"""
+            body = "const out = {}\n"
+            for name, aid in ids.items():
+                body += (f"await api.go({json.dumps(host.url(aid, theme=self.THEME))}, 800); {READY}\n await api.sleep(1800)\n"
+                         f"out[{json.dumps(name)}] = Object.assign(await api.frame({json.dumps(look)}), "
+                         "{ at: await api.top('window.__events.filter(e => e.event === \"diag\").flatMap(e => e.detail.entries).map(x => x.at || null)') })\n")
+            r = B.drive(body + "return out")
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        p = o["plain"]
+        self.assertTrue(p["style"] and p["first"], p)
+        self.assertEqual((p["rootW"], p["boxW"]), ("thin", "thin"))
+        self.assertEqual(p["rootC"], "rgb(140, 139, 134) rgb(31, 31, 30)")
+        self.assertTrue(p["boxC"].startswith("rgb(140, 139, 134) "), p)
+        self.assertEqual([str(a).split(":")[:2] for a in p["at"]], [["index.html", "6"]], p)  # the error's own line
+        for name in ("webkit", "inline", "dashboard"):
+            self.assertFalse(o[name]["style"], (name, o[name]))
+        self.assertEqual((o["webkit"]["rootW"], o["inline"]["rootW"]), ("auto", "auto"))
+        self.assertEqual(o["inline"]["boxC"], "rgb(255, 0, 0) rgb(0, 0, 255)")
+        self.assertEqual(o["webkit"]["at"], p["at"])  # the same line in each
+        self.assertEqual(o["inline"]["at"], p["at"])
+
+
 if __name__ == "__main__":
     unittest.main()
