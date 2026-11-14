@@ -714,3 +714,29 @@ class PageScrollbars(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class NoResizeObserverLoop(unittest.TestCase):
+    """Round V1: Hermes' desktop.log filled with "ResizeObserver loop completed with undelivered notifications"
+    from dashboards and design systems (their gallery cards too) on every window resize: an observer laid out
+    what it observed (a KPI row's columns, a redraw) inside its own callback. kit.onResize does it in the next frame."""
+
+    def test_resizing_a_dashboard_and_a_design_system_logs_no_loop(self):
+        from hermes_artifacts import store
+        host = B.Host()
+        try:
+            for ex, typ in (("dashboard", "dashboard"), ("design-system", "design-system")):
+                aid = store.publish(path=str(EX / ex), title=ex, type=typ)["id"]
+                r = B.drive(f"await api.size(1400, 800); await api.go({json.dumps(host.url(aid))}, 800); {READY}" + """
+  await api.sleep(1200)
+  await api.frame('window.__ro = []; window.addEventListener("error", e => window.__ro.push(String(e.message)))')
+  for (const w of [1300, 900, 620, 480, 360, 700, 1100, 1500, 820, 400, 1250]) { await api.size(w, 760 + w % 7); await api.sleep(90) }
+  await api.sleep(600)
+  return await api.frame('window.__ro')
+""")
+                self.assertIsNone(r.get("err"), r)
+                loops = [m for m in (r["out"] or []) + (r.get("logs") or []) if "ResizeObserver" in m]
+                self.assertEqual(loops, [], ex)
+        finally:
+            host.close()

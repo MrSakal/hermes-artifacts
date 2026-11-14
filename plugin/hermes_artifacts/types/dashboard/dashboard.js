@@ -652,7 +652,7 @@
   window.addEventListener("unhandledrejection", function (e) { logError("rejection", e.reason); });
 
   var lastW = 0;
-  new ResizeObserver(function () { var w = root.clientWidth; if (w !== lastW) { lastW = w; redraw(); } }).observe(root);
+  kit.onResize(root, function () { var w = root.clientWidth; if (w !== lastW) { lastW = w; redraw(); } });
 
   // ------------------------------------------------------------------ chrome
   var srcOpen = false, picked = null, drawer = null;

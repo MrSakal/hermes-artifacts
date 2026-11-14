@@ -250,13 +250,13 @@
     });
     // As many to a row as fit (12rem each), but never one left alone on the last row: four go 4 or 2 + 2, not 3 + 1
     var n = cells.length;
-    if (n > 2 && typeof ResizeObserver === "function") new ResizeObserver(function () {
+    if (n > 2) kit.onResize(wrap, function () {
       var gap = parseFloat(getComputedStyle(wrap).columnGap) || 0, rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var fit = Math.max(1, Math.floor((wrap.clientWidth + gap) / (12 * rem + gap))), c = Math.min(fit, n);
       while (c > 2 && n % c === 1) c--;
       var cols = "repeat(" + c + ", minmax(0, 1fr))";
       if (wrap.style.gridTemplateColumns !== cols) wrap.style.gridTemplateColumns = cols;
-    }).observe(wrap);
+    });
     return { el: wrap, draw: function () {
       cells.forEach(function (c) {
         var k = c.k, r = rowsOf(k);

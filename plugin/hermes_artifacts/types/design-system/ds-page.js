@@ -508,9 +508,9 @@
       if (Math.abs(nh - f.h) > 1) { f.h = nh; layoutFrame(f); }
     }
   });
-  if (window.ResizeObserver) new ResizeObserver(function () {
+  kit.onResize(main, function () {
     Object.keys(frames).forEach(function (k) { if (frames[k].w) layoutFrame(frames[k]); });
-  }).observe(main);
+  });
 
   function cover(opts) {
     var path = "components/Cover/preview.html";

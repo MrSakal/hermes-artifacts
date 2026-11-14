@@ -528,6 +528,21 @@
     return (dateFmts[k] || (dateFmts[k] = new Intl.DateTimeFormat(locale(), o))).format(new Date(t));
   }
 
-  window.kit = { locale: locale, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** fn() once `el`'s size changed, in the next frame: a callback that lays out what it observes (a grid's
+   *  columns, a redraw) then changes that size outside the observer's delivery, so it never ends in "ResizeObserver
+   *  loop completed with undelivered notifications" (Hermes logs every one). Several changes in a frame: one call. */
+  function onResize(el, fn) {
+    if (!el || typeof ResizeObserver !== "function") return null;
+    var raf = 0, w = -1, hh = -1, ro = new ResizeObserver(function (es) {
+      var r = es[es.length - 1].contentRect;
+      if (r.width === w && r.height === hh) return;
+      w = r.width; hh = r.height;
+      if (!raf) raf = requestAnimationFrame(function () { raf = 0; fn(); });
+    });
+    ro.observe(el);
+    return ro;
+  }
+
+  window.kit = { locale: locale, onResize: onResize, date: date, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();
