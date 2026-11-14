@@ -290,6 +290,21 @@ def _replace(tmp: Path, p: Path) -> None:
             time.sleep(0.01 * (2 ** i))
 
 
+def read_text(p: Path) -> str:
+    """``p``'s text. On Windows a file another thread or process is replacing this very moment (os.replace
+    onto it) or holds without sharing answers PermissionError for a few ms: tried again as a write is (10 to
+    160 ms apart, ~0.3 s in all) before the error goes to the caller. A folder is not tried again (Windows
+    answers PermissionError for one too)."""
+    for i in range(REPLACE_TRIES):
+        try:
+            return Path(p).read_text(encoding="utf-8")
+        except PermissionError:
+            if i == REPLACE_TRIES - 1 or Path(p).is_dir():
+                raise
+            time.sleep(0.01 * (2 ** i))
+    raise AssertionError("unreachable")
+
+
 def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
     """Write ``data`` (str as UTF-8, or bytes) to ``p`` as described above. Returns the stat of the file as
     written (a rename keeps it: json_remember can stamp the cache with it)."""
@@ -342,11 +357,17 @@ def read_json(p: Path, text: Optional[str] = None) -> Any:
 
 def read_json_from(p: Path, text: Optional[str] = None) -> tuple:
     """read_json's (value, fell_back): ``fell_back`` is True when the value is a copy's, not ``p``'s own
-    (it may be older than the file was: nothing destructive may be decided on it)."""
-    if text is None:
-        text = p.read_text(encoding="utf-8")
+    (it may be older than the file was: nothing destructive may be decided on it). A file still locked after
+    read_text's retries falls back the same way; with no good copy, its PermissionError."""
+    first: Exception
     try:
+        if text is None:
+            text = read_text(p)
         return json.loads(text), False
+    except PermissionError as e:
+        if p.is_dir():
+            raise
+        first = e
     except ValueError as e:
         first = e
     cands = [p.with_name(p.name + ".bak")]
@@ -357,10 +378,11 @@ def read_json_from(p: Path, text: Optional[str] = None) -> tuple:
         pass
     for c in cands:
         try:
-            value = json.loads(c.read_text(encoding="utf-8"))
+            value = json.loads(read_text(c))
         except (OSError, ValueError):
             continue
-        logger.warning("%s is unreadable (empty or cut short): using its last good copy %s", p, c.name)
+        logger.warning("%s is unreadable (%s): using its last good copy %s", p,
+                       "held by another program" if isinstance(first, PermissionError) else "empty or cut short", c.name)
         return value, True
     raise first
 
@@ -437,14 +459,10 @@ def peek_meta(aid: str) -> Optional[dict]:
 
 
 def get_meta(aid: str) -> Optional[dict]:
-    p = _dir(aid) / "meta.json"
     try:
-        text = p.read_text(encoding="utf-8")
-    except (FileNotFoundError, NotADirectoryError):
+        return _read_meta(_dir(aid) / "meta.json")
+    except (FileNotFoundError, NotADirectoryError, IsADirectoryError):
         return None
-    except IsADirectoryError:
-        return None
-    return _read_meta(p, text)
 
 
 def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
@@ -1200,7 +1218,7 @@ def delete(aid: str) -> Path:
 def _deleted_at(item: Path) -> Optional[float]:
     """When a trashed item was deleted: its mark, else the time in its folder name, else its mtime."""
     try:
-        return float(json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))["deleted_at"])
+        return float(json.loads(read_text(item / TRASH_MARK))["deleted_at"])
     except Exception:
         pass
     m = re.search(r"-(\d{9,11})(?:-\d+)?$", item.name)
@@ -1230,13 +1248,13 @@ def trash_list() -> list[dict]:
             continue
         mark, meta = {}, {}
         try:
-            mark = json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))
+            mark = json.loads(read_text(item / TRASH_MARK))
         except Exception:
             pass
         if mark.get("purging"):
             continue  # being deleted for good (a file of it was in use): the sweep finishes it
         try:
-            meta = json.loads((item / "meta.json").read_text(encoding="utf-8"))
+            meta = json.loads(read_text(item / "meta.json"))
         except Exception:
             pass
         aid = str(mark.get("id") or meta.get("id") or re.sub(r"-\d{9,11}(?:-\d+)?$", "", item.name))
@@ -1423,12 +1441,12 @@ def _purge_item(item: Path) -> bool:
 
 def _trash_id(item: Path) -> Optional[str]:
     try:
-        aid = json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("id")
+        aid = json.loads(read_text(item / TRASH_MARK)).get("id")
     except Exception:
         aid = None
     if not aid:
         try:
-            aid = json.loads((item / "meta.json").read_text(encoding="utf-8")).get("id")
+            aid = json.loads(read_text(item / "meta.json")).get("id")
         except Exception:
             aid = None
     name = item.name[len(PURGING):] if item.name.startswith(PURGING) else item.name
@@ -1449,7 +1467,7 @@ def _id_in_use(aid: str) -> bool:
         if i.name == aid or i.name.startswith(aid + "-"):
             if _trash_id(i) == aid:
                 try:
-                    if json.loads((i / TRASH_MARK).read_text(encoding="utf-8")).get("purging"):
+                    if json.loads(read_text(i / TRASH_MARK)).get("purging"):
                         continue
                 except Exception:
                     pass
@@ -1481,6 +1499,13 @@ def forget(aid: str) -> None:
                     keep = {k: v for k, v in data.items() if not (isinstance(v, dict) and test(v))}
                     if len(keep) != len(data):
                         _write_json(path, keep, durable=False)
+            named = re.compile(r"(?<![\w-])" + re.escape(aid) + r"(?![\w-])")
+            for path, live, drop in ((_typing_path(), _typing_live, lambda k, v: k == aid),
+                                     (_chat_notes_path(), _notes_live, lambda k, v: bool(named.search(v["ref"])))):
+                try:
+                    _rewrite_live(path, live, drop)
+                except (OSError, ValueError):
+                    pass
             s = settings()
             if s.get("default_design_system") == aid:
                 settings_set("default_design_system", None)
@@ -1612,7 +1637,7 @@ def _age(p: Path, now: float) -> float:
 # (HERMES_ARTIFACTS_DIR). Its own names: the files below at the root and in an artifact folder, their copies
 # (<name>.bak), write_atomic's temp files (<name>.<pid>-<thread>.tmp), kept-aside corrupt files, version
 # folders v<n> and the live folders.
-_ROOT_FILES = frozenset({"settings.json", "inbox.jsonl", "views.json", "making.json"})
+_ROOT_FILES = frozenset({"settings.json", "inbox.jsonl", "views.json", "making.json", "typing.json", "chat-notes.json"})
 _ART_FILES = frozenset({"meta.json", "comments.json", "approvals.json", "history.json", "replies.json",
                         "reports.json", "storage.json", "diagnostics.json"})
 _ART_DIRS = frozenset({"previews", "cache", "sheet", "board", "doc"})
@@ -1866,7 +1891,16 @@ def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
     now = time.time() if now is None else now
     out: dict = {}
     base = root()
-    _sweep_files(base, now, out, _ROOT_FILES)  # the root's dead temp files (settings, inbox, views, making)
+    _sweep_files(base, now, out, _ROOT_FILES)  # the root's dead temp files (settings, inbox, views, making, ...)
+    # Typing marks and chat notes no one took (a draft the user changed, a turn that never ran): past their
+    # time they go here too, not only at the next mark or note (the file goes with its last entry).
+    for path, live in ((_typing_path(), _typing_live), (_chat_notes_path(), _notes_live)):
+        try:
+            with _LOCK:
+                if _rewrite_live(path, live, now=now):
+                    out["expired"] = out.get("expired", 0) + 1
+        except OSError:
+            pass
     for e in os.scandir(base):
         if e.name.startswith(".case-") and _age(Path(e.path), now) > ORPHAN_AGE:
             try:
@@ -1881,7 +1915,7 @@ def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
                     out["purging"] = out.get("purging", 0) + 1
                 continue
             try:
-                if json.loads((item / TRASH_MARK).read_text(encoding="utf-8")).get("purging"):
+                if json.loads(read_text(item / TRASH_MARK)).get("purging"):
                     with _LOCK:
                         if _purge_item(item):
                             out["purging"] = out.get("purging", 0) + 1
@@ -1959,25 +1993,55 @@ def _typing_path() -> Path:
     return root() / "typing.json"
 
 
+def _typing_live(data, now: float) -> dict:
+    """typing.json's marks still held at ``now`` ({artifact: {key: when}}; an artifact with none left goes)."""
+    if not isinstance(data, dict):
+        return {}
+    live = {a: {k: t for k, t in v.items() if isinstance(t, (int, float)) and now - t <= TYPING_TTL_S}
+            for a, v in data.items() if isinstance(v, dict)}
+    return {a: v for a, v in live.items() if v}
+
+
+def _rewrite_live(p: Path, live, drop=None, now: Optional[float] = None) -> bool:
+    """Under _LOCK: the small TTL file ``p`` (typing marks, chat notes) cut to ``live(data, now)`` and, with
+    ``drop``, to the entries it does not name; written back when that changed it, removed when nothing is
+    left (also when it can't be parsed: nothing in it outlives a few minutes). True when it changed."""
+    try:
+        data = json.loads(read_text(p))
+    except FileNotFoundError:
+        return False
+    except ValueError:
+        data = None
+    keep = live(data, time.time() if now is None else now)
+    if drop is not None:
+        keep = {k: v for k, v in keep.items() if not drop(k, v)} if isinstance(keep, dict) else [v for v in keep if not drop(None, v)]
+    if keep == data:
+        return False
+    if keep:
+        _write_json(p, keep, durable=False)
+    else:
+        p.unlink(missing_ok=True)
+    return True
+
+
 def typing_set(aid: str, keys) -> None:
     """The user is typing in these parts of ``aid`` now (at most MAX_TYPING_KEYS short ids)."""
-    _dir(aid)  # a valid id
+    if peek_meta(aid) is None:  # (a valid id, of an artifact there is: a deleted one's marks are not made again)
+        raise FileNotFoundError(aid)
     ks = [str(k)[:80] for k in (keys if isinstance(keys, list) else [])][:MAX_TYPING_KEYS]
     with _LOCK:
         p, now = _typing_path(), time.time()
         try:
-            data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
-        except ValueError:
+            data = json.loads(read_text(p))
+        except (FileNotFoundError, ValueError):
             data = {}
-        data = {a: {k: t for k, t in v.items() if now - t <= TYPING_TTL_S} for a, v in data.items() if isinstance(v, dict)}
+        data = _typing_live(data, now)
         if ks:
             data.setdefault(aid, {}).update({k: now for k in ks})
-        data = {a: v for a, v in data.items() if v}
-        if data or p.is_file():
-            if data:
-                _write_json(p, data, durable=False)
-            else:
-                p.unlink(missing_ok=True)
+        if data:
+            _write_json(p, data, durable=False)
+        else:
+            p.unlink(missing_ok=True)
 
 
 def typing_hits(aid: str, keys) -> list:
@@ -1986,7 +2050,7 @@ def typing_hits(aid: str, keys) -> list:
     if not p.is_file():
         return []
     try:
-        mine = json.loads(p.read_text(encoding="utf-8")).get(aid) or {}
+        mine = json.loads(read_text(p)).get(aid) or {}
     except (ValueError, OSError):
         return []
     now = time.time()
@@ -2184,12 +2248,15 @@ def _kv_path(aid: str) -> Path:
 
 
 def settings() -> dict:
-    """Plugin-wide choices the user made in a page (the default design system)."""
+    """Plugin-wide choices the user made in a page (the default design system, folders). Unreadable with no
+    good copy: none. Held by another program past read_text's retries: its last good copy, else that
+    PermissionError, never {} (settings_set would write the empty settings over the user's)."""
     p = root() / "settings.json"
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        s = read_json(p)
+    except (FileNotFoundError, NotADirectoryError, ValueError):
         return {}
+    return s if isinstance(s, dict) else {}
 
 
 def default_design_system(kind: Optional[str] = None) -> Optional[str]:
@@ -2211,7 +2278,7 @@ def settings_set(key: str, value: Any) -> None:
         else:
             s[key] = value
         root().mkdir(parents=True, exist_ok=True)
-        _write_json(root() / "settings.json", s)
+        _write_json(root() / "settings.json", s, backup=True)
 
 
 def kv_all(aid: str) -> dict:
@@ -2257,7 +2324,7 @@ def inbox_list(aid: Optional[str] = None, include_acked: bool = False) -> list[d
     p = _inbox_path()
     if not p.is_file():
         return []
-    items = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    items = [json.loads(line) for line in read_text(p).splitlines() if line.strip()]
     return [i for i in items if (aid is None or i["artifact"] == aid) and (include_acked or not i["acked"])]
 
 
@@ -2290,7 +2357,7 @@ def reply_set(aid: str, request: str, text: str = "", data=None) -> dict:
                             "lists the ones not yet seen (one you answered or saw is still answerable by its id)")
     with _LOCK:
         p = _replies_path(aid)
-        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr = json.loads(read_text(p)) if p.is_file() else {}
         allr[request] = {"text": str(text)[:20000], "data": data, "ts": time.time()}
         if len(json.dumps(allr).encode()) > MAX_KV_BYTES * 4:  # keep the newest when it grows
             for k in sorted(allr, key=lambda k: allr[k]["ts"])[: len(allr) // 2]:
@@ -2301,7 +2368,7 @@ def reply_set(aid: str, request: str, text: str = "", data=None) -> dict:
 
 def reply_get(aid: str, request: str) -> Optional[dict]:
     p = _replies_path(aid)
-    return (json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}).get(request)
+    return (json.loads(read_text(p)) if p.is_file() else {}).get(request)
 
 
 # --- comments (anchored notes on a page, sent to the agent on request) -------
@@ -2448,14 +2515,14 @@ def report_set(aid: str, kind: str, data: dict) -> None:
         raise ValueError("report too large")
     with _LOCK:
         p = _reports_path(aid)
-        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr = json.loads(read_text(p)) if p.is_file() else {}
         allr[kind] = {**json.loads(blob), "received": time.time()}
         _write_json(p, allr, durable=False)  # the page sends it again
 
 
 def reports(aid: str) -> dict:
     p = _reports_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return json.loads(read_text(p)) if p.is_file() else {}
 
 
 # --- previews: a picture of a version the page drew (a model's view), outside the versions -------------
@@ -2528,7 +2595,7 @@ def _history_path(aid: str) -> Path:
 
 def history(aid: str, dsid: Optional[str] = None) -> Any:
     p = _history_path(aid)
-    data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    data = json.loads(read_text(p)) if p.is_file() else {}
     return data.get(dsid, []) if dsid is not None else data
 
 
@@ -2564,7 +2631,7 @@ def view_set(session: str, aid: Optional[str], context: Optional[dict]) -> None:
         raise ValueError("bad session")
     with _LOCK:
         p = _views_path()
-        data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        data = json.loads(read_text(p)) if p.is_file() else {}
         now = time.time()
         data = {k: v for k, v in data.items() if now - v.get("at", 0) <= VIEW_TTL_S}
         if aid is None:
@@ -2585,7 +2652,7 @@ def view_get(session: str) -> Optional[dict]:
     p = _views_path()
     if not p.is_file():
         return None
-    v = json.loads(p.read_text(encoding="utf-8")).get(session)
+    v = json.loads(read_text(p)).get(session)
     if not v or time.time() - v.get("at", 0) > VIEW_TTL_S:
         return None
     return v
@@ -2608,6 +2675,14 @@ def _note_key(text) -> str:
     return " ".join(str(text or "").split())[:2000]
 
 
+def _notes_live(notes, now: float) -> list:
+    """chat-notes.json's notes not past CHAT_NOTE_TTL_S at ``now``."""
+    if not isinstance(notes, list):
+        return []
+    return [n for n in notes if isinstance(n, dict) and isinstance(n.get("at"), (int, float))
+            and now - n["at"] <= CHAT_NOTE_TTL_S and isinstance(n.get("text"), str) and isinstance(n.get("ref"), str)]
+
+
 def chat_note_add(text: str, ref: str) -> None:
     key, ref = _note_key(text), str(ref or "")[:600]
     if not key or not ref:
@@ -2615,11 +2690,10 @@ def chat_note_add(text: str, ref: str) -> None:
     with _LOCK:
         p, now = _chat_notes_path(), time.time()
         try:
-            notes = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
-        except ValueError:
+            notes = json.loads(read_text(p))
+        except (FileNotFoundError, ValueError):
             notes = []
-        notes = [n for n in notes if isinstance(n, dict) and now - n.get("at", 0) <= CHAT_NOTE_TTL_S]
-        notes = (notes + [{"text": key, "ref": ref, "at": now}])[-MAX_CHAT_NOTES:]
+        notes = (_notes_live(notes, now) + [{"text": key, "ref": ref, "at": now}])[-MAX_CHAT_NOTES:]
         _write_json(p, notes, durable=False)
 
 
@@ -2631,11 +2705,12 @@ def chat_note_take(text) -> Optional[str]:
     key = _note_key(text)
     with _LOCK:
         try:
-            notes = json.loads(p.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
+            notes = json.loads(read_text(p))
+        except FileNotFoundError:
             return None
-        now = time.time()
-        notes = [n for n in notes if isinstance(n, dict) and now - n.get("at", 0) <= CHAT_NOTE_TTL_S]
+        except ValueError:
+            notes = []
+        notes = _notes_live(notes, time.time())
         hit = next((i for i in range(len(notes) - 1, -1, -1) if notes[i]["text"] == key), None)
         ref = notes.pop(hit)["ref"] if hit is not None else None
         if notes:
@@ -2661,7 +2736,7 @@ def _making_read() -> dict:
     if not p.is_file():
         return {}
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(read_text(p))
     except (ValueError, OSError):
         return {}
     return data if isinstance(data, dict) else {}

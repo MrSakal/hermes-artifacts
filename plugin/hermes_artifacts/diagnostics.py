@@ -268,10 +268,16 @@ def _prune(data: dict, now: float) -> dict:
     return out
 
 
-def _load(aid: str) -> dict:
+def _load(aid: str, strict: bool = False) -> dict:
+    """What is on disk for ``aid`` ({} when nothing, or unreadable). ``strict`` (before a write): a file held
+    by another program past store.read_text's retries raises, so the write never puts {} over it."""
     try:
-        data = json.loads(_path(aid).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(store.read_text(_path(aid)))
+    except (FileNotFoundError, NotADirectoryError, ValueError):
+        return {}
+    except OSError:
+        if strict:
+            raise
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -311,7 +317,7 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
             meta = store.get_meta(aid)
             if not meta or meta.get("created") != pend["created"]:
                 return False
-            data = _load(aid)
+            data = _load(aid, strict=True)
             for op, at in pend["ops"]:
                 _apply(data, op, at)
             _write_file(_path(aid), _prune(data, time.time() if now is None else now))

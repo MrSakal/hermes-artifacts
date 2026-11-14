@@ -1261,7 +1261,7 @@ def cache_get(aid: str, key: str) -> Optional[dict]:
     if hit is None:
         p = _cache_dir(aid) / f"{key}.json"
         try:
-            hit = json.loads(p.read_text(encoding="utf-8"))
+            hit = json.loads(store.read_text(p))
         except (OSError, ValueError):
             return None
     if time.time() - hit.get("at", 0) > KEEP_S:

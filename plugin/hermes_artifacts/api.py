@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from typing import Any, Optional
 
@@ -675,6 +676,12 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
         raise ApiError(404 if e.status == "missing" else 400, e.message)
     except FileNotFoundError as e:
         raise ApiError(404, f"not found: {e}")
+    except PermissionError as e:
+        # A plugin file another program (a virus scanner, a backup, another writer here) held open past
+        # store.read_text's and write_atomic's retries: nothing was changed; the same request a moment
+        # later works. A sentence, not a 500.
+        name = os.path.basename(str(e.filename)) if getattr(e, "filename", None) else "a plugin file"
+        raise ApiError(503, f"{name} is in use by another program for a moment; nothing was changed. Try again.")
     except (ValueError, TypeError) as e:
         raise ApiError(400, str(e))
     raise ApiError(404, "Not Found")

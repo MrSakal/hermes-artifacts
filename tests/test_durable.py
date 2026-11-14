@@ -142,6 +142,146 @@ class WriteTests(unittest.TestCase):
             self.assertEqual(store.read_json(p), {"left": "complete"})
 
 
+def _hold_exclusively(p: Path):
+    """A real handle on ``p`` that shares nothing (Windows): every read of it fails until closed."""
+    import _winapi
+    return _winapi.CreateFile(str(p), _winapi.GENERIC_READ, 0, 0, _winapi.OPEN_EXISTING, 0, 0)
+
+
+class ReadRaceTests(unittest.TestCase):
+    """A read of a plugin file another writer is replacing this very moment (Windows answers PermissionError
+    for a few ms) is tried again, then falls back to its copy; never a 500 for it."""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="ha-race-"))
+        self.addCleanup(__import__("shutil").rmtree, self.d, True)
+
+    def test_a_locked_read_is_tried_again(self):
+        p = self.d / "meta.json"
+        store.write_atomic(p, '{"n": 1}')
+        real = Path.read_text
+        busy = [2]
+
+        def locked_for_a_moment(self_, *a, **kw):
+            if self_ == p and busy[0]:
+                busy[0] -= 1
+                raise PermissionError(13, "in use", str(p))
+            return real(self_, *a, **kw)
+        with mock.patch.object(Path, "read_text", locked_for_a_moment), mock.patch.object(store.time, "sleep") as sl:
+            self.assertEqual(store.read_json_from(p), ({"n": 1}, False))
+        self.assertEqual(sl.call_count, 2)
+
+    def test_still_locked_reads_the_copy_else_raises(self):
+        p = self.d / "c.json"
+        store.write_atomic(p, '{"n": 2}', backup=True)
+        real = Path.read_text
+
+        def locked(self_, *a, **kw):
+            if self_ == p:
+                raise PermissionError(13, "in use", str(p))
+            return real(self_, *a, **kw)
+        with mock.patch.object(Path, "read_text", locked), mock.patch.object(store.time, "sleep"):
+            with self.assertLogs(store.logger, "WARNING") as logs:
+                self.assertEqual(store.read_json_from(p), ({"n": 2}, True))
+            self.assertIn("held by another program", logs.output[0])
+            (self.d / "c.json.bak").unlink()
+            with self.assertRaises(PermissionError):
+                store.read_json(p)
+
+    @unittest.skipUnless(os.name == "nt", "sharing violations are Windows'")
+    def test_a_real_handle_that_shares_nothing(self):
+        import _winapi
+        import threading
+        p = self.d / "meta.json"
+        store.write_atomic(p, '{"n": 3}', backup=True)
+        h = _hold_exclusively(p)
+        threading.Timer(0.05, _winapi.CloseHandle, (h,)).start()  # let go of in a moment: the read gets through
+        self.assertEqual(store.read_json_from(p), ({"n": 3}, False))
+        h = _hold_exclusively(p)
+        try:  # held past the retries: the copy
+            with self.assertLogs(store.logger, "WARNING"):
+                self.assertEqual(store.read_json_from(p), ({"n": 3}, True))
+        finally:
+            _winapi.CloseHandle(h)
+
+    @unittest.skipUnless(os.name == "nt", "the replace race is Windows'")
+    def test_reads_while_a_writer_replaces_the_file_never_fail(self):
+        # The acceptance round's 500: get_meta while another request rewrote meta.json. A plain read in this
+        # loop fails now and then (~25 in 3 s here); the store's never, and the writer never fails either.
+        import threading
+        import time
+        p = self.d / "meta.json"
+        store.write_atomic(p, '{"n": 0}', backup=True)
+        stop, errors = threading.Event(), []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                i += 1
+                try:
+                    store.write_atomic(p, json.dumps({"n": i}), backup=True)
+                except OSError as e:
+                    errors.append(e)
+        t = threading.Thread(target=writer)
+        t.start()
+        try:
+            end, reads = time.monotonic() + 1.0, 0
+            while time.monotonic() < end:
+                self.assertIn("n", store.read_json(p))
+                reads += 1
+        finally:
+            stop.set()
+            t.join()
+        self.assertEqual(errors, [])
+        self.assertGreater(reads, 50)
+
+    def test_settings_held_open_are_never_written_over_with_nothing(self):
+        p = store.root() / "settings.json"
+        store.settings_set("folders", ["Keep"])
+        (store.root() / "settings.json.bak").unlink()
+        real = Path.read_text
+
+        def locked(self_, *a, **kw):
+            if self_ == p:
+                raise PermissionError(13, "in use", str(p))
+            return real(self_, *a, **kw)
+        with mock.patch.object(Path, "read_text", locked), mock.patch.object(store.time, "sleep"):
+            with self.assertRaises(PermissionError):
+                store.settings_set("default_design_system", "x")
+        self.assertEqual(store.settings().get("folders"), ["Keep"])
+        store.settings_set("folders", None)
+
+    def test_page_reports_held_open_are_never_written_over_with_nothing(self):
+        from hermes_artifacts import diagnostics
+        aid = store.publish(files={"index.html": "<p>x</p>"}, title="diag-race")["id"]
+        self.addCleanup(store.delete, aid)
+        m = store.get_meta(aid)
+        with mock.patch.object(diagnostics, "enabled", lambda getter=None: True):
+            diagnostics.record(aid, diagnostics.parse_shown(m, {"version": 1, "viewer": "desktop", "outcome": "ready"}))
+            diagnostics.flush(aid)
+            p = diagnostics._path(aid)
+            before = p.read_text("utf-8")
+            real = Path.read_text
+
+            def locked(self_, *a, **kw):
+                if self_ == p:
+                    raise PermissionError(13, "in use", str(p))
+                return real(self_, *a, **kw)
+            diagnostics.record(aid, diagnostics.parse_shown(m, {"version": 1, "viewer": "browser", "outcome": "threw"}))
+            with mock.patch.object(Path, "read_text", locked), mock.patch.object(store.time, "sleep"):
+                self.assertFalse(diagnostics.flush(aid))
+        self.assertEqual(p.read_text("utf-8"), before)
+
+    def test_the_api_answers_503_with_a_sentence(self):
+        aid = store.publish(files={"index.html": "<p>x</p>"}, title="race")["id"]
+        self.addCleanup(store.delete, aid)
+        with mock.patch.object(store, "get_meta", side_effect=PermissionError(13, "in use", "C:/x/meta.json")):
+            with self.assertRaises(api.ApiError) as cm:
+                api.handle("GET", f"artifacts/{aid}/html", {}, None)
+        self.assertEqual(cm.exception.status, 503)
+        self.assertIn("meta.json is in use", cm.exception.detail)
+
+
 class MetaTests(unittest.TestCase):
     def test_a_cut_meta_reads_its_last_good_copy_and_stays_listed(self):
         aid = store.publish(html="<p>a</p>", title="Kept")["id"]

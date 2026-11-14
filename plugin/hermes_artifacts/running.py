@@ -163,6 +163,8 @@ def _live(d: Path) -> list[dict]:
             ok = (isinstance(r, dict) and isinstance(r.get("version"), str) and _VALID.fullmatch(r["version"])
                   and type(r.get("pid")) is int and type(r.get("at")) in (int, float) and r.get("role") in ROLES
                   and name == f"loaded-{r['pid']}.json")
+        except PermissionError:
+            continue  # being written this moment (Windows): read again at the next look, never removed for it
         except (OSError, ValueError):
             ok = False
         if not ok or now - r["at"] > (CLI_MAX_AGE if r["role"] == "cli" else MAX_AGE):

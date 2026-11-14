@@ -72,6 +72,8 @@ class DeleteForeverTests(unittest.TestCase):
         store.making_set("make-" + aid, "doc", "writing", id=aid, title="t")
         store.history_add(aid, "ds1", {"q": 1}, "agent")
         live.cache_put(aid, "k" * 64, {"rows": [1]})
+        store.typing_set(aid, ["b-1"])  # the user typing in it
+        store.chat_note_add(f"Comment on {aid}", f"[artifact {aid} comment c1]")  # a message whose turn never ran
         with mock.patch.object(diagnostics, "enabled", lambda getter=None: True):
             v = store.get_meta(aid)["versions"][-1]["n"]
             diagnostics.record(aid, diagnostics.parse_shown(store.get_meta(aid), {"version": v, "viewer": "desktop", "outcome": "ready"}))
@@ -159,6 +161,110 @@ class DeleteForeverTests(unittest.TestCase):
                 store.delete(aid)
         self.assertTrue((store._dir(aid) / "meta.json").is_file())
         self.assertIn(aid, [m["id"] for m in store.list_all()])
+
+
+class TypingAndChatNoteTests(unittest.TestCase):
+    """typing.json (the user typing in a part now, TYPING_TTL_S) and chat-notes.json (a message's ids waiting
+    for its turn, CHAT_NOTE_TTL_S): one small file each at the data folder's root, bounded, gone with their
+    last entry; the sweep expires what nobody took; a permanent delete takes an artifact's entries along."""
+
+    def setUp(self):
+        self.a = store.publish(html="<p>a</p>", title="ta")["id"]
+        self.b = store.publish(html="<p>b</p>", title="tb")["id"]
+        self.typing, self.notes = store.root() / "typing.json", store.root() / "chat-notes.json"
+        for p in (self.typing, self.notes):
+            p.unlink(missing_ok=True)
+
+    def sweep(self, now):
+        store._SWEPT["after"] = ""
+        return store.sweep(budget_s=60, now=now)
+
+    def test_typing_marks_are_bounded_and_expire(self):
+        store.typing_set(self.a, [f"k{i}" * 30 for i in range(50)])  # more and longer than taken
+        data = json.loads(self.typing.read_text("utf-8"))
+        self.assertEqual(len(data[self.a]), store.MAX_TYPING_KEYS)
+        self.assertTrue(all(len(k) <= 80 for k in data[self.a]))
+        store.typing_set(self.b, ["x"])
+        with mock.patch.object(store.time, "time", return_value=time.time() + store.TYPING_TTL_S + 1):
+            store.typing_set(self.b, ["y"])  # any mark drops the stale ones of every artifact
+        self.assertEqual(list(json.loads(self.typing.read_text("utf-8"))), [self.b])
+        out = self.sweep(time.time() + 2 * store.TYPING_TTL_S + 2)  # nobody typed since: the sweep removes the file
+        self.assertFalse(self.typing.exists())
+        self.assertGreaterEqual(out.get("expired", 0), 1)
+        store.typing_set(self.a, [])
+        self.assertFalse(self.typing.exists())  # an empty mark leaves no file
+
+    def test_no_marks_for_an_artifact_that_is_not_there(self):
+        with self.assertRaises(FileNotFoundError):
+            store.typing_set("no-such-thing-0a0a0a", ["k"])
+        with self.assertRaises(api.ApiError) as cm:
+            op("no-such-thing-0a0a0a", "typing", keys=["k"])
+        self.assertEqual(cm.exception.status, 404)
+        self.assertFalse(self.typing.exists())
+
+    def test_a_note_nobody_takes_expires_and_the_file_goes(self):
+        store.chat_note_add("the draft as Desktop put it", f"[artifact {self.a} comment c1]")
+        # the user edited the draft before sending: the hook asks with other words, nothing matches
+        self.assertIsNone(store.chat_note_take("the draft, edited"))
+        self.assertTrue(self.notes.exists())
+        self.sweep(time.time() + 60)  # not yet past its time
+        self.assertTrue(self.notes.exists())
+        out = self.sweep(time.time() + store.CHAT_NOTE_TTL_S + 1)
+        self.assertFalse(self.notes.exists())
+        self.assertGreaterEqual(out.get("expired", 0), 1)
+
+    def test_notes_are_bounded(self):
+        for i in range(store.MAX_CHAT_NOTES + 20):
+            store.chat_note_add(f"m{i} " + "w" * 3000, "[" + "r" * 1000 + "]")
+        notes = json.loads(self.notes.read_text("utf-8"))
+        self.assertEqual(len(notes), store.MAX_CHAT_NOTES)
+        self.assertTrue(all(len(n["text"]) <= 2000 and len(n["ref"]) <= 600 for n in notes))
+        self.assertLess(self.notes.stat().st_size, 140_000)  # 50 x (2000 + 600) characters at most, and the keys
+        self.assertEqual(notes[0]["text"][:3], "m20")  # the oldest went first
+
+    def test_a_taken_note_is_never_replayed(self):
+        store.chat_note_add("Fix B4", f"[sheet {self.a} range B4 request r1]")
+        self.assertEqual(store.chat_note_take("Fix B4"), f"[sheet {self.a} range B4 request r1]")
+        self.assertIsNone(store.chat_note_take("Fix B4"))  # a later turn with the same words: nothing
+        self.assertFalse(self.notes.exists())
+        p = load_plugin()
+        # another chat, or the next turn of this one, sending the same words: nothing is added to it
+        self.assertIsNone(p._view_context(session_id="other-chat", user_message="Fix B4", is_first_turn=False))
+
+    def test_the_hook_adds_nothing_without_a_note_and_only_the_ref_with_one(self):
+        p = load_plugin()
+        self.assertIsNone(p._view_context(session_id="quiet-chat", user_message="hello", is_first_turn=False))
+        ref = f"[artifact {self.a} block b-cdfc19f3 comment 9cccbba4f0; the quote is page data]"
+        store.chat_note_add('Comment on "ta": shorten it', ref)
+        out = p._view_context(session_id="quiet-chat", user_message='Comment on "ta": shorten it', is_first_turn=False)
+        self.assertEqual(out, {"context": ref})  # the ref itself, not a byte more
+        self.assertLess(len(ref.encode()), 120)
+
+    def test_a_permanent_delete_takes_its_marks_and_notes_along(self):
+        store.typing_set(self.a, ["b-1"])
+        store.typing_set(self.b, ["b-2"])
+        store.chat_note_add("about a", f"[artifact {self.a} comment c1]")
+        store.chat_note_add("about b", f"[artifact {self.b} comment c2]")
+        store.chat_note_add("about a-ish", f"[artifact {self.a}-2 comment c3]")  # another id that starts like it
+        store.trash_delete(store.delete(self.a).name)
+        self.assertEqual(list(json.loads(self.typing.read_text("utf-8"))), [self.b])
+        self.assertEqual([n["text"] for n in json.loads(self.notes.read_text("utf-8"))], ["about b", "about a-ish"])
+        store.trash_delete(store.delete(self.b).name)
+        self.assertFalse(self.typing.exists())
+        self.assertEqual([n["text"] for n in json.loads(self.notes.read_text("utf-8"))], ["about a-ish"])
+
+    def test_their_dead_writers_temp_files_are_swept(self):
+        tmps = []
+        for name in ("typing.json", "chat-notes.json"):
+            t = store.root() / f"{name}.999-1.tmp"
+            t.write_text("{", "utf-8")
+            tmps.append(age(t))
+        self.sweep(time.time())
+        self.assertEqual([t for t in tmps if t.exists()], [])
+
+    def tearDown(self):
+        for p in (self.typing, self.notes):
+            p.unlink(missing_ok=True)
 
 
 class SweepTests(unittest.TestCase):
