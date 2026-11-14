@@ -520,8 +520,8 @@ class DocEditingInChrome(unittest.TestCase):
 
     def test_menus_open_under_their_button_and_end_on_a_whole_row(self):
         probe = ("(() => { const m = [...document.querySelectorAll('.kit-menu, .doc-rmenu')].pop(); if (!m) return null; const r = m.getBoundingClientRect();"
-                 " const rows = [...m.querySelectorAll('button, .doc-rm-swatches')].map(c => c.getBoundingClientRect()).filter(b => b.bottom > r.top && b.top < r.bottom);"
-                 " return { left: r.left, top: r.top, bottom: r.bottom, vh: innerHeight, cut: rows.filter(b => b.bottom > r.bottom + 0.5).length, scrolls: m.scrollHeight > m.clientHeight + 1,"
+                 " const rows = [...m.querySelectorAll('button, .doc-rm-swatches')].map(c => c.getBoundingClientRect()).filter(b => b.bottom > r.top + 1.5 && b.top < r.bottom - 1.5);"
+                 " return { left: r.left, width: r.width, vw: innerWidth, top: r.top, bottom: r.bottom, vh: innerHeight, cut: rows.filter(b => b.bottom > r.bottom + 0.5).length, scrolls: m.scrollHeight > m.clientHeight + 1,"
                  " lastGap: r.bottom - Math.max(...rows.map(b => b.bottom)) } })()")
         open_ = {"fonts": 'document.querySelectorAll(".doc-tool")[1]', "insert": 'document.querySelector(".doc-plus")'}
         for w, h in ((1000, 760), (400, 760), (1000, 420)):
@@ -536,7 +536,7 @@ class DocEditingInChrome(unittest.TestCase):
                 self.assertEqual(m["cut"], 0, (w, h, k, m))  # never through a row
                 if m["scrolls"]:
                     self.assertLess(m["lastGap"], 12, (w, h, k, m))  # cut to scroll: on a whole row, not a divider or a hint
-                self.assertAlmostEqual(m["left"], max(8, m["btn"]), delta=2, msg=(w, h, k, m))  # under its button
+                self.assertAlmostEqual(m["left"], max(8, min(m["btn"], m["vw"] - m["width"] - 8)), delta=2, msg=(w, h, k, m))  # under its button, within the window
 
 
 if __name__ == "__main__":

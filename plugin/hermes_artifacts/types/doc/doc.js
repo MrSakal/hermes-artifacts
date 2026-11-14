@@ -1164,7 +1164,7 @@
    *  menu with no room under it opens above it when there is more there; a menu at a point (a right-click) moves up
    *  as far as it must. Taller than the window, it scrolls, cut between two rows (never through one, never on a divider). */
   function placeMenu(el, x, y, from) {
-    el.style.maxHeight = "none";
+    el.style.maxHeight = "none"; el.style.paddingBottom = "";
     var full = el.offsetHeight, fr = from && from.getBoundingClientRect && from.getBoundingClientRect(), top = y, avail = innerHeight - 8 - y;
     if (full > avail) {
       var up = fr ? fr.top - 6 - 8 : 0;
@@ -1172,13 +1172,14 @@
       else if (!fr) { avail = innerHeight - 16; top = Math.max(8, innerHeight - 8 - full); }
     }
     if (full > avail) {
-      var cut = 0, pad = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+      // no bottom padding then: the next row would show a sliver in it
+      var cut = 0;
       Array.prototype.forEach.call(el.children, function (c) {
         if (/doc-rm-(sep|hint|foot)/.test(c.className)) return;
-        if (c.offsetTop + c.offsetHeight + pad + 2 <= avail) cut = c.offsetTop + c.offsetHeight;
+        if (c.offsetTop + c.offsetHeight + 2 <= avail) cut = c.offsetTop + c.offsetHeight;
       });
-      el.style.maxHeight = (cut + pad + 2) + "px";
-      if (fr && top < fr.top) top = Math.max(8, fr.top - 6 - (cut + pad + 2));
+      el.style.paddingBottom = "0px"; el.style.maxHeight = (cut + 2) + "px";
+      if (fr && top < fr.top) top = Math.max(8, fr.top - 6 - (cut + 2));
     }
     el.style.left = Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)) + "px";
     el.style.top = top + "px";
