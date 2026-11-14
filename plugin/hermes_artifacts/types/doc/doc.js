@@ -262,6 +262,7 @@
     else if (ed) el.setAttribute("contenteditable", "true");
     else el.removeAttribute("contenteditable");
     if (!s(b.md) && tab().blocks.length === 1) el.setAttribute("data-empty", T.empty); else el.removeAttribute("data-empty");
+    if (ed && live) markEmpty(el, false);
     return el;
   }
   function s(x) { return String(x || "").trim(); }
@@ -452,6 +453,7 @@
     page.classList.toggle("head-serif", settings.head === "serif"); // the theme's font unless the doc chose serif
     page.classList.toggle("body-serif", settings.body === "serif");
     document.documentElement.classList.toggle("doc-wide", !!settings.wide);
+    if (typeof widthBtn !== "undefined" && widthBtn) widthBtn.setAttribute("aria-pressed", String(!!settings.wide)); // the button shows the state it set
   }
 
   // ------------------------------------------------------------------ saving (each change goes to the server)
@@ -830,7 +832,8 @@
   }
   // Notion's hint on the empty line being typed in
   function markEmpty(el, on) {
-    var empty = on && !el.textContent.trim() && !el.querySelector("img,[data-md],table,hr,pre");
+    // an empty heading always says what it is (Heading 2), a line being typed in only while it has the caret
+    var empty = (on || /^H[1-6]$/.test((el.firstElementChild || {}).tagName)) && !el.textContent.trim() && !el.querySelector("img,[data-md],table,hr,pre");
     el.classList.toggle("is-empty", !!empty);
     if (empty) el.setAttribute("data-ph", /^H[1-6]$/.test((el.firstElementChild || {}).tagName) ? el.firstElementChild.tagName.replace("H", T.h1.replace(/1$/, "")) : T.typeHint);
   }
@@ -995,6 +998,10 @@
   });
   function enterInBlock(el) {
     var id = el.getAttribute("data-block"), r = E.caretRange();
+    if (!r || !el.contains(r.startContainer)) { // no caret in it (a block just made, a click beside it): Enter goes at its end
+      E.placeCaret(el.firstElementChild || el, true); r = E.caretRange();
+      if (!r) return;
+    }
     var c0 = containerOf(r.startContainer, el) || el, quote = c0.tagName === "BLOCKQUOTE";
     var line = el.textContent.trim();
     if (/^(```|~~~)\s*[\w+#.-]*$/.test(line) || /^-{3,}$/.test(line)) { // "```" or "---" then Enter
@@ -1153,6 +1160,29 @@
     if (opener && opener.contains(e.target)) return; // its own button: the click closes it (no close-and-reopen)
     if (!menuStack.some(function (m) { return m.el.contains(e.target); })) closeMenus(0);
   }
+  /** A menu at x, y (under its button `from` when there is one): as tall as its items within the window. A button's
+   *  menu with no room under it opens above it when there is more there; a menu at a point (a right-click) moves up
+   *  as far as it must. Taller than the window, it scrolls, cut between two rows (never through one, never on a divider). */
+  function placeMenu(el, x, y, from) {
+    el.style.maxHeight = "none";
+    var full = el.offsetHeight, fr = from && from.getBoundingClientRect && from.getBoundingClientRect(), top = y, avail = innerHeight - 8 - y;
+    if (full > avail) {
+      var up = fr ? fr.top - 6 - 8 : 0;
+      if (fr && up > avail) { avail = up; top = Math.max(8, fr.top - 6 - full); }
+      else if (!fr) { avail = innerHeight - 16; top = Math.max(8, innerHeight - 8 - full); }
+    }
+    if (full > avail) {
+      var cut = 0, pad = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+      Array.prototype.forEach.call(el.children, function (c) {
+        if (/doc-rm-(sep|hint|foot)/.test(c.className)) return;
+        if (c.offsetTop + c.offsetHeight + pad + 2 <= avail) cut = c.offsetTop + c.offsetHeight;
+      });
+      el.style.maxHeight = (cut + pad + 2) + "px";
+      if (fr && top < fr.top) top = Math.max(8, fr.top - 6 - (cut + pad + 2));
+    }
+    el.style.left = Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)) + "px";
+    el.style.top = top + "px";
+  }
   /** items: {icon, label, onClick, danger, disabled, sub: [items] | () => [items], hint, sep, swatches: [{color, label, onClick}]} */
   function richMenu(x, y, items, level, from) {
     level = level || 0;
@@ -1185,9 +1215,7 @@
       el.appendChild(b);
     });
     document.body.appendChild(el);
-    var w = el.offsetWidth, hh = el.offsetHeight;
-    el.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
-    el.style.top = Math.max(8, Math.min(y, innerHeight - hh - 8)) + "px";
+    placeMenu(el, x, y, from);
     menuStack.push({ el: el, rows: rows, i: -1, from: from || null });
     if (menuStack.length === 1) setTimeout(function () {
       document.addEventListener("mousedown", menuOut, true);
@@ -1357,10 +1385,13 @@
     var lh = parseFloat(cs.lineHeight); if (!isFinite(lh)) lh = (parseFloat(cs.fontSize) || 16) * 1.5;
     var ft = first ? first.getBoundingClientRect().top + (parseFloat(cs.paddingTop) || 0) : r.top;
     if (first && /^(TABLE|DIV|FIGURE|PRE)$/.test(first.tagName)) lh = 32;
+    // + and ⋮⋮ keep a clear 6 px from the block; a narrow pane has room for ⋮⋮ only (its menu then offers "add
+    // below"); with no room for that either, none shows.
+    var GAP = 6, roomy = r.left - 45 - GAP >= 0;
+    if (!roomy && r.left - 22 - GAP < 0) { hideGutter(); return; }
     gut.id = el.getAttribute("data-block"); gut.el.hidden = false;
-    var roomy = r.left >= 50; // a narrow pane has room for ⋮⋮ only; its menu then offers "add below"
     gut.plus.hidden = !roomy;
-    gut.el.style.left = Math.max(0, r.left - (roomy ? 46 : 23)) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
+    gut.el.style.left = (r.left - (roomy ? 45 : 22) - GAP) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
   }
   function addBelow(id) {
     insertBlock(id, "", "end");
@@ -1733,6 +1764,27 @@
       var s0 = window.getSelection(); s0.removeAllRanges(); var nr = document.createRange(); nr.selectNodeContents(w); s0.addRange(nr);
     });
   }
+  /** Code toggles as Bold does: words all in code come out of it, any others go in (one <code>, never one inside
+   *  another; a code the words held before is folded into the new one). */
+  function inCodeSel() {
+    var r = E.caretRange(), blk = currentBlockEl(); if (!r || !blk) return false;
+    var a = r.commonAncestorContainer, c = (a.nodeType === 1 ? a : a.parentNode).closest("code");
+    return !!(c && blk.contains(c) && !c.closest("pre"));
+  }
+  function toggleCode() {
+    var r = E.caretRange(); if (!r || r.collapsed || !inEditable()) return;
+    var blk = currentBlockEl(), a = r.commonAncestorContainer, home = (a.nodeType === 1 ? a : a.parentNode).closest("code");
+    var whole = home && blk.contains(home) ? home : Array.prototype.filter.call(blk.querySelectorAll("code"), function (c) {
+      return r.intersectsNode(c) && c.textContent === r.toString() && !c.parentNode.closest("code");
+    })[0];
+    if (!whole) return wrapSel("code");
+    while (whole.parentNode.closest && whole.parentNode.closest("code") && blk.contains(whole.parentNode.closest("code"))) whole = whole.parentNode.closest("code");
+    after(function () {
+      var txt = document.createTextNode(whole.textContent);
+      whole.parentNode.insertBefore(txt, whole); whole.remove();
+      var s0 = window.getSelection(), nr = document.createRange(); nr.selectNode(txt); s0.removeAllRanges(); s0.addRange(nr);
+    });
+  }
   function clearColor() {
     var r = E.caretRange(); if (!r || !inEditable()) return;
     after(function () {
@@ -1766,7 +1818,8 @@
     return ids.length ? { ids: ids, text: String(s0).trim(), rect: r.getBoundingClientRect() } : null;
   }
   function tb(label, ico, fn, cls) {
-    var b = h("button", { type: "button", "class": "doc-sb" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: ico });
+    var b = h("button", { type: "button", "class": "doc-sb" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: ico,
+      "aria-pressed": /\bis-on\b/.test(cls || "") ? "true" : null });
     b.addEventListener("click", fn);
     return b;
   }
@@ -1793,7 +1846,7 @@
       }),
       tb(T.bold, I.bold, function () { format("bold"); }), tb(T.italic, I.italic, function () { format("italic"); }),
       tb(T.underline, I.underline, function () { format("underline"); }), tb(T.strike, I.strike, function () { format("strikeThrough"); }),
-      tb(T.code, I.code, function () { wrapSel("code"); }),
+      tb(T.code, I.code, toggleCode, inCodeSel() ? "is-on" : ""),
       tb(T.color, I.color + CARET_S, function (e) { colorMenu(e.currentTarget); }),
       tb(T.listStyle, micon("bullets") + CARET_S, function (e) {
         var r = e.currentTarget.getBoundingClientRect();
@@ -1969,8 +2022,8 @@
       if (this.trigger === "/") nodes.push(h("div", { "class": "doc-rm-foot", text: T.slashHint }));
       this.el.replaceChildren.apply(this.el, nodes);
       var r = E.caretRange(), rc = r && r.getClientRects()[0] || this.block.getBoundingClientRect();
-      this.el.style.left = Math.min(rc.left, innerWidth - 240) + "px";
-      this.el.style.top = Math.min(rc.bottom + 6, innerHeight - this.el.offsetHeight - 8) + "px";
+      placeMenu(this.el, rc.left, rc.bottom + 6, { getBoundingClientRect: function () { return rc; } }); // under the caret, else over it
+      var on = this.el.querySelector(".is-focus"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
     },
     key: function (e) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); this.idx = (this.idx + (e.key === "ArrowDown" ? 1 : this.items.length - 1)) % this.items.length; this.update(); return true; }
@@ -2045,11 +2098,37 @@
     var el = e.target.closest && e.target.closest(".doc-blk[data-block]");
     Array.prototype.forEach.call(e.dataTransfer.files, function (f) { upload(f, el ? el.getAttribute("data-block") : null); });
   });
-  view.addEventListener("click", function (e) { // a click below the last block: type at the end
+  // A click below the last block: type at the end. The caret goes into a line of the page's own (not a block of
+  // the doc yet): the first thing typed there makes it one (an edit with those words); left untouched, it goes
+  // when it loses the focus, and nothing was saved, no revision, no history entry (the round-3 run saw an empty
+  // paragraph saved by a click).
+  var ghost = null;
+  function dropGhost() { if (ghost) { var g = ghost; ghost = null; g.parentNode && g.parentNode.remove(); } }
+  function ghostLine() {
+    dropGhost();
+    var wrap = h("div", { "class": page.className + " doc-ghostwrap" }), g = h("div", { "class": "doc-blk doc-ghost is-empty", contenteditable: "true", "data-ph": T.typeHint, html: "<p><br></p>" });
+    wrap.appendChild(g); page.after(wrap); ghost = g;
+    g.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); }); // an empty line does not split
+    g.addEventListener("input", function () {
+      if (composing || ghost !== g) return;
+      var text = E.toMd(g);
+      if (!s(text)) return;
+      dropGhost();
+      var last = tab().blocks[tab().blocks.length - 1];
+      insertBlock(last ? last.id : null, text, "end");
+      var nb = tab().blocks[tab().blocks.length - 1], el = nb && blockEl(nb.id);
+      if (el && slashTyped(el)) slash.show(el, slashTyped(el));
+    });
+    g.addEventListener("compositionend", function () { setTimeout(function () { if (ghost === g) g.dispatchEvent(new Event("input")); }, 0); });
+    g.addEventListener("focusout", function () { setTimeout(function () { if (ghost === g && document.activeElement !== g) dropGhost(); }, 0); });
+    commit();
+    g.focus(); E.placeCaret(g.firstChild, false);
+  }
+  view.addEventListener("click", function (e) {
     if (!live || e.target !== view && e.target !== page) return;
     var last = tab().blocks[tab().blocks.length - 1];
     if (last && editable(last) && !s(last.md)) return focusBlock(last.id, true);
-    if (last) insertBlock(last.id, "", "start");
+    if (last) ghostLine();
   });
 
   // ------------------------------------------------------------------ asking Hermes in the doc
@@ -2182,6 +2261,10 @@
     var t = tabs[cur];
     if (typeof full.edits === "number") edits = full.edits;
     selects = full.selects || {}; settings = full.settings || {}; suggestions = full.suggestions || [];
+    // A setting the person changed whose save is still on its way stays as they set it (a read sent before it
+    // landed said the old one: two quick presses of Full width left the page narrow and the doc wide).
+    outbox.forEach(function (e) { e.ops.forEach(function (o) { if (o.op === "settings") for (var k in o.set) settings[k] = o.set[k]; }); });
+    applySettings();
     if (t.id !== full.tab) return;
     // An edit the server applied whose answer never came (an error after it, a lost connection): the read
     // says so (done: cid -> its blocks), so it is settled here and never sent, nor shown, twice.
@@ -2256,9 +2339,9 @@
   }
   function tabMenu() {
     var items = tabs.map(function (t, i) {
-      return { on: i === cur, label: t.title || T.untitled, onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
+      return { icon: "file", on: i === cur, label: t.title || T.untitled, onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
     });
-    if (live) items = items.concat([
+    if (live) items = items.concat([{ sep: true },
       { icon: "plus", label: T.newTab, onClick: function () {
         ask(T.tabName, T.newTab).then(function (name) {
           if (!name) return;
@@ -2268,12 +2351,12 @@
           }); });
         });
       } },
-      { label: T.rename, onClick: function () {
+      { icon: "pencil", label: T.rename, onClick: function () {
         ask(T.tabName, tab().title).then(function (name) {
           if (!name || name === tab().title) return;
           edit([{ op: "rename_tab", title: name }]).then(function () { tab().title = name; drawTabs(); });
         });
-      } }].concat(tabs.length > 1 ? [{ label: T.delTab, onClick: function () {
+      } }].concat(tabs.length > 1 ? [{ icon: "trash", label: T.delTab, onClick: function () {
         var full = tab().blocks.some(function (b) { return s(b.md); }); // an empty tab goes without asking
         (full ? ask(T.delTabAsk, undefined, T.delTab) : Promise.resolve(true)).then(function (yes) {
           if (yes) edit([{ op: "delete_tab" }]).then(function () { cur = 0; pull(true); });
@@ -2295,6 +2378,7 @@
       { on: settings.body !== "serif", label: T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
   });
   var widthBtn = barBtn(T.width, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>', function () { setSettings({ wide: !settings.wide }); });
+  widthBtn.setAttribute("aria-pressed", String(!!settings.wide));
   function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
   var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); }, "doc-short");
   var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); }, "doc-short");
@@ -2307,8 +2391,8 @@
   var PEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>';
   var modeBtn = barBtn(T.editing, "", function () {
     kit.menu(modeBtn, [
-      { on: mode === "edit", label: T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
-      { on: mode === "suggest", label: T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
+      { icon: "pencil", on: mode === "edit", label: T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
+      { icon: "comment", on: mode === "suggest", label: T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
   }, "doc-mode");
   function setMode(m) {
     commit();
@@ -2658,14 +2742,16 @@
 
   // ------------------------------------------------------------------ export menu, history, the bar
   var titleEl = h("span", { "class": "kit-title", style: "display:none" }); // the host toolbar shows the title
-  var exportList = [{ id: "docx", label: T.docx, run: exportDocx }, { id: "pdf", label: T.pdf, run: exportPdf },
-    { id: "md", label: T.mdf, run: function () { kit.download(kit.slug(title()) + ".md", fullText(), "text/markdown"); } },
-    { id: "html", label: T.html, run: exportHtml }];
-  if (live) exportList.push(
-    { id: "to-slides", label: T.toSlides, run: function () { toChat("convert", "", [], "", { target: "slides" }); } },
-    { id: "to-design", label: T.toDesign, run: function () { toChat("convert", "", [], "", { target: "design" }); } });
+  var exportList = [{ id: "docx", icon: "file", label: T.docx, run: exportDocx }, { id: "pdf", icon: "pages", label: T.pdf, run: exportPdf },
+    { id: "md", icon: "text", label: T.mdf, run: function () { kit.download(kit.slug(title()) + ".md", fullText(), "text/markdown"); } },
+    { id: "html", icon: "code", label: T.html, run: exportHtml }];
+  if (live) exportList.push( // these ask Hermes (its caduceus), after a divider
+    { id: "to-slides", icon: "sparkle", label: T.toSlides, run: function () { toChat("convert", "", [], "", { target: "slides" }); } },
+    { id: "to-design", icon: "sparkle", label: T.toDesign, run: function () { toChat("convert", "", [], "", { target: "design" }); } });
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+    var items = [];
+    exportList.forEach(function (x) { if (x.id === "to-slides") items.push({ sep: true }); items.push({ icon: x.icon, label: x.label, onClick: x.run }); });
+    kit.menu(expBtn, items);
   }), T.exp);
   kit.exports(exportList); // the host's title menu lists them too; the bar keeps its own button
   // History (Claude's): the tab's earlier states; picking one and confirming brings it back as a new edit.
@@ -2674,14 +2760,14 @@
     var t = tab();
     hm.doc.history(t.id).then(function (r) {
       var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
-      if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
+      if (!list.length) return kit.menu(histBtn, [{ hint: T.histNone }]); // a note, not a row that does nothing
       kit.menu(histBtn, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
         return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () {
-          kit.menu(histBtn, [{ label: T.restoreThis, onClick: function () {
+          kit.menu(histBtn, [{ icon: "history", label: T.restoreThis, onClick: function () {
             hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored, 0, "success"); return pull(true); })
               .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
-          } }, { label: T.cancel, onClick: function () {} }]);
+          } }, { icon: "close", label: T.cancel, onClick: function () {} }]);
         } };
       }));
     }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });

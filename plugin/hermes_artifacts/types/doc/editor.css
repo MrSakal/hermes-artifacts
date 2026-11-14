@@ -121,6 +121,8 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .doc-sb:hover { background: var(--doc-soft); color: var(--color-fg); }
 .doc-sb svg { width: 16px; height: 16px; }
 .doc-sb.is-hermes { color: var(--color-accent); }
+/* a toggle that is on (Code over code words, Full width): the accent, on the hover's ground */
+.doc-sb[aria-pressed="true"], .doc-tool[aria-pressed="true"] { background: var(--doc-soft); color: var(--color-accent); }
 .doc-sb-sep { width: 1px; height: 18px; background: var(--color-border-line); margin: 0 3px; }
 .doc-slash { position: fixed; z-index: 170; min-width: 220px; max-height: 320px; overflow: auto; }
 .doc-slash[hidden] { display: none; }
@@ -177,10 +179,13 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 .doc-dropline { position: fixed; z-index: 46; height: 3px; border-radius: 2px; background: var(--color-accent); pointer-events: none; }
 .doc-blk.is-dragging { opacity: .4; }
 .doc-blk.is-empty::before { content: attr(data-ph); position: absolute; left: 10px; top: 0; color: var(--color-fg-muted); opacity: .7; pointer-events: none;
-  line-height: 1.7; white-space: nowrap; }
+  line-height: 1.7; white-space: nowrap; right: 10px; overflow: hidden; text-overflow: ellipsis; }
+/* An empty block of any kind keeps a line's height, so it can be seen, clicked and typed in (an empty heading was
+   0 px); its margin then goes out of the block, so the hint sits at the block's top. */
+.doc-blk[contenteditable=true] :is(h1, h2, h3, h4, h5, h6, p, blockquote, li):empty { min-height: 1lh; }
 .doc-blk.is-empty:has(> h1)::before { font: 600 40px/1.15 var(--font-display); }
-.doc-blk.is-empty:has(> h2)::before { font: 600 27px/1.3 var(--font-display); top: 36px; }
-.doc-blk.is-empty:has(> h3)::before { font: 600 21px/1.3 var(--font-display); top: 28px; }
+.doc-blk.is-empty:has(> h2)::before { font: 600 27px/1.3 var(--font-display); }
+.doc-blk.is-empty:has(> h3)::before { font: 600 21px/1.3 var(--font-display); }
 
 /* tables the way Claude's doc (and Notion) draws them: full width, quiet lines, handles on hover */
 .doc-prose table { width: 100%; min-width: 0; border: 1px solid var(--color-border-line); border-radius: var(--doc-r-lg); border-collapse: separate; border-spacing: 0;
@@ -203,7 +208,7 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 @media (max-width: 560px) { html.doc-live #doc-view { padding-left: 40px; padding-right: 16px; } }
 
 /* Claude's menus: icons, groups, submenus, a swatch row */
-.doc-rmenu { position: fixed; z-index: 180; min-width: 220px; max-height: min(70vh, 560px); overflow: auto; padding: 5px; border-radius: var(--doc-r-lg);
+.doc-rmenu { position: fixed; z-index: 180; min-width: 220px; max-height: calc(100vh - 16px); overflow: auto; overscroll-behavior: contain; padding: 5px; border-radius: var(--doc-r-lg);
   background: var(--color-elevated, var(--color-panel)); border: 1px solid var(--color-border-line); box-shadow: var(--doc-shadow); font-size: 13.5px; }
 .doc-rmenu[hidden] { display: none; }
 .doc-rm-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 9px; border: 0; border-radius: var(--doc-r); background: none; color: var(--color-fg);
@@ -303,6 +308,8 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 [hidden] { display: none !important; }
 /* The page grows with the doc, so the sticky bar stays on screen however far it scrolls (a body one screen tall lets it scroll away). */
 body { height: auto; min-height: 100%; }
+/* The page's scrollbar has its room kept: a doc growing past the window moves nothing sideways (the bar's right group moved 8 px). */
+html { scrollbar-gutter: stable; }
 
 /* A question asked in the page (a name, a link, a yes or no): the sandboxed frame has no dialogs of its own */
 .doc-dlg { position: fixed; z-index: 200; left: 50%; top: 96px; transform: translateX(-50%); width: min(380px, calc(100vw - 32px)); padding: 14px;
