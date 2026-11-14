@@ -589,6 +589,29 @@ class DocQuoteMarkTests(unittest.TestCase):
         self.assertNotIn("==", o["openMd"])  # nor written as a highlight
         self.assertEqual(o["openMd"], o["resolvedMd"])
 
+    def test_a_block_drawn_again_when_the_focus_leaves_it_keeps_its_threads_marks(self):
+        # live round V3: a click into a paragraph holding an open thread's mark, then the focus elsewhere (a comment
+        # draft's Discard): the commit drew the block again from its Markdown and the mark was gone until a reopen
+        from hermes_artifacts import store
+        host = B.Host()
+        try:
+            aid = store.publish(title="Marks", type="doc", files={"doc.md": "# Marks\n\nThe paragraph with a thread in it.\n\nAnother paragraph."})["id"]
+            pin = {"selector": ".doc-blk:nth-child(2)", "n": 1, "id": "c1", "author": "user", "text": "note", "quote": "thread", "replies": 0}
+            r = B.drive(f"await api.go({json.dumps(host.url(aid))}, 800); {READY}\n" + """
+              await api.sleep(600)
+              const marks = () => api.frame('[...document.querySelectorAll("mark.doc-cq")].map(m => m.textContent)')
+              await api.top('window.__post("pins", [' + %s + '])'); await api.sleep(400)
+              const open = await marks()
+              await api.clickIn('document.querySelectorAll(".doc-blk")[1]'); await api.sleep(300)
+              const inBlock = await api.frame('!!document.activeElement.closest(".doc-blk")')
+              await api.clickIn('document.querySelectorAll(".doc-blk")[2]'); await api.sleep(600)
+              return { open, inBlock, after: await marks() }
+            """ % json.dumps(json.dumps(pin)))
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["out"], {"open": ["thread"], "inBlock": True, "after": ["thread"]})
+
 
 class EverySelectIsTheKits(unittest.TestCase):
     """No native select arrow in any type's page: every select a runtime makes is the kit's (kit-select)."""
