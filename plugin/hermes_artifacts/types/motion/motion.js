@@ -13,7 +13,7 @@
     en: { noHost: "Not connected to Hermes: changes won't be saved.", retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)",
       restart: "Restart (Home)", stepHint: "← → one frame · Shift + ← → one second",
       present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
-      style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long",
+      style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long", asMade: "Its own speed",
       prevScene: "Previous scene", nextScene: "Next scene", words: "Words on screen", pickWords: "Click words on the picture to change them.",
       placesOne: "Changes 1 place in the animation", places: "Changes {n} places in the animation", elsewhere: "Elsewhere in this scene", palette: "Palette",
       format: "Format", resolution: "Resolution", frameRate: "Frame rate", quality: "Quality", high: "High", medium: "Medium", low: "Low",
@@ -33,7 +33,7 @@
     hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)",
       restart: "Újrakezdés (Home)", stepHint: "← → egy képkocka · Shift + ← → egy másodperc",
       present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
-      style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú",
+      style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú", asMade: "Eredeti sebesség",
       prevScene: "Előző jelenet", nextScene: "Következő jelenet", words: "Szöveg a képen", pickWords: "Kattints a képen egy szövegre, hogy átírd.",
       placesOne: "Az animációban 1 helyen változik", places: "Az animációban {n} helyen változik", elsewhere: "Máshol ebben a jelenetben", palette: "Paletta",
       format: "Formátum", resolution: "Felbontás", frameRate: "Képkockasebesség", quality: "Minőség", high: "Magas", medium: "Közepes", low: "Alacsony",
@@ -915,12 +915,15 @@
     return [inp].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : []);
   }
   function sceneSpeed(sc) {
-    // 0.5× plays the scene twice as long, 2× half as long; a button that can't go further is off.
-    var slow = h("button", { "class": "kit-btn", type: "button", text: "0.5×", title: T.slower, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur * 2) }); } });
-    var fast = h("button", { "class": "kit-btn", type: "button", text: "2×", title: T.faster, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur / 2) }); } });
-    slow.disabled = sc.pdur >= sc.dur * 3 - 1e-6;
-    fast.disabled = sc.pdur <= sc.dur / 2 + 1e-6;
-    return [h("div", { "class": "mo-choice" }, [slow, fast])];
+    // The scene's speed against its own length: 0.5× twice as long, 1× as made, 2× half as long; the one it plays at
+    // is checked (none when its length was typed to something else).
+    var speed = sc.dur / sc.pdur;
+    var opts = [[0.5, "0.5×", T.slower], [1, "1×", T.asMade], [2, "2×", T.faster]].map(function (o) {
+      var on = Math.abs(speed - o[0]) < 0.01;
+      return h("button", { "class": "kit-btn" + (on ? " is-on" : ""), type: "button", role: "radio", "aria-checked": String(on), text: o[1], title: o[2],
+        onclick: function () { setRecut(sc.id, { dur: o[0] === 1 ? null : lenClamp(sc, sc.dur / o[0]) }); } });
+    });
+    return [h("div", { "class": "mo-choice", role: "radiogroup", "aria-label": T.speed }, opts)];
   }
   var pop = null;
   function closePop() {
@@ -1289,6 +1292,8 @@
       var picked = REC.recolored && typeof REC.recolored.palette === "number" ? REC.recolored.palette : null, marked = false;
       palList.forEach(function (p, i) {
         if (!Array.isArray(p) || p.length < cols.length || !p.every(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); })) return;
+        // the offered palette the film was made with is its Original: listed once, not again as "#n"
+        if (i > 0 && p.slice(0, cols.length).join().toLowerCase() === palList[0].join().toLowerCase()) return;
         var same = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
         var on = same && !marked && (picked == null || picked === i);
         if (on) marked = true;
@@ -1310,7 +1315,7 @@
     // Font: the headline and text slots, one of the ten or the film's own.
     sec(box, T.font);
     [["display", T.headlines], ["sans", T.text]].forEach(function (pair) {
-      var sel = h("select", {}), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
+      var sel = h("select", { "class": "kit-select" }), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
       sel.appendChild(h("option", { value: "", text: T.original }));
       Object.keys(TEN).forEach(function (id) { sel.appendChild(h("option", { value: id, text: id })); });
       sel.value = rf && rf.v && TEN[rf.v] ? rf.v : "";
@@ -1624,8 +1629,15 @@
   // The Export dialog (Claude's): a format, and for MP4 the resolution, frame rate and quality the
   // encoder is really given. GIF and PNG have fixed settings, so they show a line saying what they make.
   var canMp4 = !!(window.VideoEncoder && window.VideoFrame);
-  var expOpts = null, dialog = null;
-  function closeDialog() { if (dialog) { dialog.remove(); dialog = null; document.removeEventListener("keydown", dialogKey, true); } }
+  var expOpts = null, dialog = null, dialogOpener = null;
+  // Closed (Esc, the backdrop, Cancel, done), the focus goes back to what opened it: the Export button
+  function closeDialog() {
+    if (!dialog) return;
+    dialog.remove(); dialog = null; document.removeEventListener("keydown", dialogKey, true);
+    var back = dialogOpener && dialogOpener.isConnected && dialogOpener.offsetParent ? dialogOpener : expBtn.offsetParent ? expBtn : null;
+    dialogOpener = null;
+    if (back) back.focus({ preventScroll: true });
+  }
   function dialogKey(e) {
     if (!dialog) return;
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDialog(); }
@@ -1634,6 +1646,7 @@
     if (exporting) return;
     if (dialog) { closeDialog(); return; }
     pause(); closePop();
+    dialogOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     // First open: the film's own frame rate, and its own size where it is 720p or 1080p already.
     if (!expOpts) expOpts = { fmt: canMp4 ? "mp4" : "gif", res: Math.min(W, H) >= 1080 ? 1080 : 720, fps: FPS, q: "high" };
     dialog = h("div", { "class": "mo-modal" });

@@ -27,7 +27,7 @@
       views: "Views", top: "Top", front: "Front", right: "Right", iso: "Iso", named: "Saved views",
       persp: "Perspective (P)", ortho: "Orthographic (P)", fit: "Zoom to fit (F)", fitSel: "Zoom to selection (F)",
       select: "Select (Q)", move: "Move (W)", rotate: "Rotate (E)", scale: "Scale (R)",
-      snap: "Snap", snapOff: "No snapping", snapMove: "Move step", snapRot: "Rotate step",
+      snap: "Snap", tools: "Tools", snapOff: "No snapping", snapMove: "Move step", snapRot: "Rotate step",
       add: "Add a part", importBtn: "Bring in a mesh file", dropHere: "Drop a mesh file (glb, gltf, stl, obj, ply, 3mf)",
       tooBig: "Mesh files up to 12 MB", badExt: "glb, gltf, stl, obj, ply or 3mf", imported: "Added",
       section: "Section (X)", flip: "Flip", axis: "Axis", measure: "Measure (M)", measureHint: "Click two points. Esc clears.",
@@ -67,7 +67,7 @@
       views: "N\u00e9zetek", top: "Fel\u00fcln\u00e9zet", front: "El\u00f6ln\u00e9zet", right: "Jobb oldal", iso: "Izometrikus", named: "Mentett n\u00e9zetek",
       persp: "Perspektivikus (P)", ortho: "Ortogon\u00e1lis (P)", fit: "Mindent mutat (F)", fitSel: "Kijel\u00f6l\u00e9sre nagy\u00edt (F)",
       select: "Kijel\u00f6l\u00e9s (Q)", move: "Mozgat\u00e1s (W)", rotate: "Elforgat\u00e1s (E)", scale: "M\u00e9retez\u00e9s (R)",
-      snap: "Illeszt\u00e9s", snapOff: "Nincs illeszt\u00e9s", snapMove: "Mozgat\u00e1si l\u00e9p\u00e9s", snapRot: "Forgat\u00e1si l\u00e9p\u00e9s",
+      snap: "Illeszt\u00e9s", tools: "Eszk\u00f6z\u00f6k", snapOff: "Nincs illeszt\u00e9s", snapMove: "Mozgat\u00e1si l\u00e9p\u00e9s", snapRot: "Forgat\u00e1si l\u00e9p\u00e9s",
       add: "Elem hozz\u00e1ad\u00e1sa", importBtn: "H\u00e1l\u00f3f\u00e1jl behoz\u00e1sa", dropHere: "Ejts ide egy h\u00e1l\u00f3f\u00e1jlt (glb, gltf, stl, obj, ply, 3mf)",
       tooBig: "Legfeljebb 12 MB-os h\u00e1l\u00f3f\u00e1jl", badExt: "glb, gltf, stl, obj, ply vagy 3mf", imported: "Hozz\u00e1adva",
       section: "Metszet (X)", flip: "Megford\u00edt\u00e1s", axis: "Tengely", measure: "M\u00e9r\u00e9s (M)", measureHint: "Kattints k\u00e9t pontra. Esc: t\u00f6rl\u00e9s.",
@@ -133,6 +133,8 @@
     magnet: "M6 3v8a6 6 0 0 0 12 0V3M6 7h4M14 7h4",
     target: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
   };
+  // the model's icons for its menus too (kit.menu takes a name): md-<name>
+  kit.addIcons(Object.keys(ICON).reduce(function (o, k) { o["md-" + k] = ICON[k]; return o; }, {}));
   function icon(n) {
     return ICON[n] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICON[n] + '"/></svg>' : kit.icon(n);
   }
@@ -299,7 +301,7 @@
     pillL.querySelectorAll("button").forEach(function (b) { if (!glOK) b.disabled = true; });
     // file and panel (top right)
     var expBtn = btn("download", T.exp, function () { kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
-    var moreBtn = btn("more", T.more, function () { kit.menu(moreBtn, moreItems()); }, "md-narrow-only");
+    var moreBtn = btn("more", T.more, function () { kit.menu(moreBtn, moreItems()); }, "md-narrow-only md-morebtn");
     var panelBtn = btn("panel", T.panel, function () { togglePanel(); }, panelShown() ? "is-on" : "");
     pillR.replaceChildren(statusEl, saveBtn, moreBtn, expBtn, panelBtn);
     // tools (bottom)
@@ -349,14 +351,18 @@
   function moreItems() {
     var ed = editable(), out = [];
     if (!glOK) return exportList.map(function (x) { return { label: x.label, onClick: x.run }; });
-    if (ed) out.push({ label: T.select, onClick: function () { setGizmo(null); } }, { label: T.move, onClick: function () { setGizmo("translate"); } },
-      { label: T.rotate, onClick: function () { setGizmo("rotate"); } }, { label: T.scale, onClick: function () { setGizmo("scale"); } },
-      { on: !!snap.on, label: T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
-      { hint: T.add }, { label: T.addKinds.box, onClick: function () { addPart("box"); } }, { label: T.addKinds.cyl, onClick: function () { addPart("cyl"); } },
-      { label: T.addKinds.extrude, onClick: function () { addPart("extrude"); } }, { label: T.importBtn, onClick: pickFile }, { hint: T.views });
-    out.push({ on: !!sec.on, label: T.section, onClick: toggleSection }, { on: tool === "measure", label: T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
-      { on: !!showDims, label: T.dims, onClick: toggleDims }, { label: T.fitSel, onClick: focusSel });
-    if (ed) out.push({ label: T.undo, onClick: undo }, { label: T.redo, onClick: redo });
+    // Grouped as the bottom toolbar is: the tools (the one in use checked), adding, the view's aids, undo and redo;
+    // every item with its icon
+    if (ed) out.push({ hint: T.tools }, { on: tool === "select" && gizmoMode == null, icon: "cursor", label: T.select, onClick: function () { setGizmo(null); } },
+      { on: tool === "select" && gizmoMode === "translate", icon: "md-move", label: T.move, onClick: function () { setGizmo("translate"); } },
+      { on: tool === "select" && gizmoMode === "rotate", icon: "md-rotate", label: T.rotate, onClick: function () { setGizmo("rotate"); } },
+      { on: tool === "select" && gizmoMode === "scale", icon: "md-scale", label: T.scale, onClick: function () { setGizmo("scale"); } },
+      { on: !!snap.on, icon: "md-magnet", label: T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
+      { sep: true }, { hint: T.add }, { icon: "md-cube", label: T.addKinds.box, onClick: function () { addPart("box"); } }, { icon: "md-cube", label: T.addKinds.cyl, onClick: function () { addPart("cyl"); } },
+      { icon: "md-cube", label: T.addKinds.extrude, onClick: function () { addPart("extrude"); } }, { icon: "md-upload", label: T.importBtn, onClick: pickFile }, { sep: true });
+    out.push({ on: !!sec.on, icon: "md-section", label: T.section, onClick: toggleSection }, { on: tool === "measure", icon: "md-ruler", label: T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
+      { on: !!showDims, icon: "md-dims", label: T.dims, onClick: toggleDims }, { icon: "md-fitSel", label: T.fitSel, onClick: focusSel });
+    if (ed) out.push({ sep: true }, { icon: "undo", label: T.undo, disabled: !undoStack.length, onClick: undo }, { icon: "redo", label: T.redo, disabled: !redoStack.length, onClick: redo });
     return out;
   }
   function status(flashSaved) {
@@ -484,7 +490,7 @@
     return c;
   }
   function selectInput(val, opts, onSet, k) {
-    var s = h("select", { "data-k": k, disabled: !editable() }, opts.map(function (o) {
+    var s = h("select", { "class": "kit-select", "data-k": k, disabled: !editable() }, opts.map(function (o) {
       return o.group ? h("optgroup", { label: o.group }, o.items.map(function (x) { return h("option", { value: x[0], text: x[1] }); })) : h("option", { value: o[0], text: o[1] });
     }));
     s.value = val == null ? "" : String(val);

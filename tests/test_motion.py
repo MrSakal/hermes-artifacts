@@ -108,5 +108,39 @@ class MotionSaveTests(unittest.TestCase):
         self.assertTrue(r["conflict"])
 
 
+class MotionInTheBrowser(unittest.TestCase):
+    """Round 4: Esc on the Export dialog left the focus nowhere, the Speed chips offered 0.5x and 2x with no 1x and
+    none picked, the Original palette came again as #1. Esc gives the focus back to Export; 0.5x / 1x / 2x with the one
+    playing checked; the palette the film was made with is listed once."""
+
+    def test_export_esc_speed_and_palettes(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(path=str(EXAMPLE), title="Film", type="motion")["id"]
+            r = B.drive(f"await api.size(1200, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(3000)\n" + """
+              const exp = '[...document.querySelectorAll("button")].find(b => b.innerHTML.includes("M12 4v11"))'
+              await api.clickIn(exp); await api.sleep(300)
+              const open = await api.frame('!!document.querySelector(".mo-dialog")')
+              await api.key('Escape', 'Escape', 27); await api.sleep(200)
+              const back = await api.frame(exp + ' === document.activeElement')
+              await api.frame('document.querySelector(".mo-seg.on .mo-more, .mo-more").click()'); await api.sleep(300)
+              const speed = await api.frame('[...document.querySelectorAll(".mo-pop [role=radiogroup] button")].map(b => [b.textContent, b.getAttribute("aria-checked")])')
+              return { open, back, speed }
+            """)
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertTrue(o["open"])
+        self.assertTrue(o["back"], "the focus did not go back to Export")
+        self.assertEqual(o["speed"], [["0.5×", "false"], ["1×", "true"], ["2×", "false"]])
+        src = (PLUGIN / "hermes_artifacts" / "types" / "motion" / "motion.js").read_text("utf-8")
+        self.assertIn('if (i > 0 && p.slice(0, cols.length).join().toLowerCase() === palList[0].join().toLowerCase()) return;', src)
+
+
 if __name__ == "__main__":
     unittest.main()

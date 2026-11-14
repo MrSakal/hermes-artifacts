@@ -117,7 +117,7 @@ html, body { overflow: hidden; }
 .mo-row code { font: 11px var(--font-mono); color: var(--color-fg-muted); }
 .mo-row input[type=text], .mo-row input[type=number], .mo-row select, .mo-pop-name input, .mo-words {
   flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--kit-r-sm, 6px); border: 1px solid var(--color-border-line);
-  background: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 13px; outline: none; }
+  background-color: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 13px; outline: none; } /* a select keeps the kit's chevron */
 .mo-words { display: block; width: 100%; }
 .mo-row input:focus, .mo-row select:focus, .mo-pop-name input:focus, .mo-words:focus { border-color: var(--color-accent); }
 .mo-row input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-sm, 6px); background: none; cursor: pointer; }
@@ -198,6 +198,9 @@ html[data-thumb] #mo-frame { box-shadow: none; }
 .mo-tl.thumbs .mo-thumb { display: block; flex: none; height: 30px; width: calc(30px * var(--mo-ar, 1.7778)); max-width: 45%;
   border-radius: 4px; background: var(--color-hover) center / cover no-repeat; pointer-events: none; }
 .mo-tl.thumbs .mo-seg-t { padding: 0; line-height: 1.25; }
+/* A narrow scene gives its picture's room to its name: the words before the picture (the 0.20.0 round saw "The har…"). */
+.mo-tl.thumbs .mo-seg { container-type: inline-size; }
+@container (max-width: 180px) { .mo-tl.thumbs .mo-thumb { display: none; } }
 .mo-tl.thumbs .mo-seg-t b, .mo-tl.thumbs .mo-seg-t i { display: block; overflow: hidden; text-overflow: ellipsis; }
 .mo-tl.thumbs .mo-seg-t b { color: var(--color-fg); }
 .mo-tl.thumbs .mo-seg-t i { font-size: 11px; }
