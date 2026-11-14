@@ -139,7 +139,10 @@ class CommentPinTests(unittest.TestCase):
         """
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out, {"rect": {"x": 600, "y": 425, "w": 120, "h": 30}, "sameAnchor": True, "bad": True, "none": None})
-        self.assertIn("useEffect(() => setText('@Hermes '), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
+        # a new pick starts empty, as a selection's draft and a reply do ("Send to Hermes" is the checkbox)
+        self.assertIn("useEffect(() => setText(''), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
+        self.assertIn("useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])", section("function CommentsPanel(", "function Viewer("))
+        self.assertNotIn("'@Hermes '", SRC)
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertIn('emit("picked-rect", { rect: pickRect(picked) });', bridge)
         self.assertIn('window.addEventListener("scroll", pickedMoved, true);', bridge)
@@ -256,6 +259,23 @@ class CommentPinTests(unittest.TestCase):
           L({ x: -300, y: 100, w: 200, h: 40 }).pin, L({ x: 100, y: -20, w: 200, h: 40 }).pin !== null, L({ x: 100, y: 720, w: 200, h: 40 }).box !== null]))
         """
         self.assertEqual(run_node(stub_module(EXPORTS), body), [None, None, None, True, True])  # partly in view: still pinned
+
+    def test_a_draft_whose_element_is_out_of_sight_waits_in_the_bottom_right_corner(self):
+        # Round V1: scrolled out of view, the box jumped to x 310-630 over a doc's contents down its left. Now it
+        # waits in the bottom-right corner of the band between the page's bars, whatever the stage and the list.
+        body = '''
+        const out = []
+        for (const [bw, bh, cover] of [[1500, 860, 0], [1000, 700, 0], [700, 520, 0], [1000, 700, 0]])
+          for (const rect of [{ x: 310, y: -400, w: 500, h: 40 }, { x: 310, y: 2000, w: 500, h: 40 }, { x: 310, y: 6, w: 500, h: 30, vt: 44, vb: bh - 40, vis: false }])
+            for (const h0 of [120, 170, 400]) {
+              const { pin, box } = m.commentLayout(rect, bw, bh, h0, cover)
+              const vt = rect.vt || 0, vb = rect.vb || bh, h = Math.min(h0, box.maxH)
+              out.push([pin, box.x + m.COMMENT_W === bw - cover - 8, box.y + h === vb - 8, box.y >= vt + 8])
+            }
+        console.log(JSON.stringify(out))
+        '''
+        for pin, right, bottom, under_bar in run_node(stub_module(EXPORTS), body):
+            self.assertEqual((pin, right, bottom, under_bar), (None, True, True, True))
 
     def test_the_page_bars_are_kept_clear_and_an_element_under_them_has_no_pin(self):
         # Round 1, docked at 1500: a doc's list item scrolled up under the doc's own sticky toolbar kept its pin,

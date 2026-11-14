@@ -5282,7 +5282,9 @@ const BAND_MIN = 2 * BOX_M + BOX_MIN_H + 30 // a band between the page's own bar
  *  bars (rect.vt, rect.vb: a type page's sticky toolbar; pickedRect), never over them. box null: the box is in
  *  the list (commentDocks). pin null: its element cannot be seen (scrolled out of the frame or of its box,
  *  under the page's bars: rect.vis false), or the list leaves no room for it; an element behind the list gets
- *  its pin at the list's edge, on its own line. Pure. */
+ *  its pin at the list's edge, on its own line. An element out of sight puts the box in the band's
+ *  bottom-right corner (off the page's navigation down its left, a doc's contents), where it waits until the
+ *  element is back. Pure. */
 function commentLayout(rect, bw, bh, h, cover = 0) {
   const free = Math.max(0, bw - cover)
   let t0 = Number.isFinite(rect.vt) ? Math.max(0, Math.min(bh, rect.vt)) : 0
@@ -5291,16 +5293,18 @@ function commentLayout(rect, bw, bh, h, cover = 0) {
   const off = rect.vis === false || rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
   const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}) }
   const { pin, box } = placeCommentBox(inBand, free, b0 - t0, h)
-  return { pin: off || free < PIN + 8 ? null : { x: pin.x, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : { ...box, y: box.y + t0 } }
+  const band = b0 - t0, M = BOX_M
+  const parked = { x: Math.max(M, free - COMMENT_W - M), y: Math.max(M, band - M - Math.min(h, band - 2 * M)), maxH: band - 2 * M }
+  return { pin: off || free < PIN + 8 ? null : { x: pin.x, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : off ? { ...parked, y: parked.y + t0 } : { ...box, y: box.y + t0 } }
 }
 
-/** Claude's in-place comment: a box beside the element clicked, "@Hermes" ready, Send to Hermes on. */
+/** Claude's in-place comment: a box beside the element clicked, empty, Send to Hermes on (its checkbox). */
 function CommentPopover({ ctx, art, stageRef }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
   const cover = useValue($panelCover)
   const [text, setText] = useState('')
-  useEffect(() => setText('@Hermes '), [draft?.anchor]) // a new pick; the pin following its element keeps the text
+  useEffect(() => setText(''), [draft?.anchor]) // a new pick; the pin following its element keeps the text
   const stage = stageRef.current
   const bw = stage ? stage.clientWidth : 1200
   const bh = stage ? stage.clientHeight : 800
@@ -5674,7 +5678,7 @@ function CommentsPanel({ ctx, art, portRef }) {
   useLayoutEffect(() => () => ($panelCover.set(0), $panelShown.set(false)), [])
   // A picked element's comment whose box has no room left of the floating list is written here.
   const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)
-  useEffect(() => { if (docked) setText('@Hermes ') }, [docked && draft?.anchor])
+  useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])
   return jsxs('aside', {
     ref: box,
     style: panelStyle(mode),
