@@ -179,7 +179,7 @@ class LayoutTests(unittest.TestCase):
             %s
             if (searching && !root.querySelector('input')) { root.querySelector('button[aria-label="Search artifacts…"]').click(); %s }
             const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children
-            out.push({ w, searching, bar: box(bar), chips: [...chips.children].map(box), tools: [...tools.children].map(c => ({ ...box(c), tag: c.tagName })) })
+            out.push({ w, searching, bar: box(bar), chips: [box(chips)], tools: [...tools.children].map(c => ({ ...box(c), tag: c.tagName })) })  // the chips' row (it scrolls)
           }
           R.unmount()
           return out
@@ -237,10 +237,10 @@ class LayoutTests(unittest.TestCase):
             root.style.width = w + 'px'
             R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
             %s
-            const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children
+            const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children, all = [...chips.querySelectorAll('button')]
             const label = [...chips.querySelectorAll('span')].find(s => s.textContent === %s)
-            out.push({ w, chipTops: [...new Set([...chips.children].map(c => Math.round(c.getBoundingClientRect().top)))], toolsTop: Math.round(tools.getBoundingClientRect().top),
-                       cut: label.scrollWidth > label.clientWidth, tip: label.title, n: chips.children.length })
+            out.push({ w, chipTops: [...new Set(all.map(c => Math.round(c.getBoundingClientRect().top)))], toolsTop: Math.round(tools.getBoundingClientRect().top),
+                       cut: label.scrollWidth > label.clientWidth, tip: label.title, n: all.length })
           }
           R.unmount()
           return out
@@ -380,6 +380,87 @@ class LayoutTests(unittest.TestCase):
             self.assertLessEqual(abs(o["at"][0] - 60), 8, (layout, o))  # at the pointer (within the menu's fit)
             self.assertLessEqual(abs(o["at"][1] - 30), 8, (layout, o))
 
+
+    # Live round V6.
+    def test_the_folder_name_refusal_is_read_whole_in_move_to(self):
+        # V6: "A folder name is at most 40 chara…" in Move to's 280 px menu
+        out = self.gallery("""
+          const out = {}
+          for (const lang of ['en', 'hu']) for (const w of [400, 1200]) {
+            window.__STRINGS = M.STRINGS[lang]; root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            const row = [...root.querySelectorAll('[role=button][tabindex="0"]')].find(r => r.textContent.includes('Facade budget'))
+            row.focus(); row.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true })); %s
+            const input = document.activeElement
+            input.value = 'A folder name that is longer than forty characters'; input.dispatchEvent(new Event('input', { bubbles: true })); %s
+            const said = M.STRINGS[lang].folderTooLong(40)
+            const b = [...root.querySelectorAll('button')].find(x => x.textContent === said), span = b && b.querySelector('span span')
+            const menu = b && b.parentElement.getBoundingClientRect(), r = span && span.getBoundingClientRect()
+            out[lang + w] = span ? { cut: span.scrollWidth > span.clientWidth + 1 || span.scrollHeight > span.clientHeight + 1 || getComputedStyle(span).textOverflow === 'ellipsis',
+              inside: r.left >= menu.left && r.right <= menu.right + 0.5 } : null
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); %s
+            R.unmount()
+          }
+          window.__STRINGS = M.STRINGS.en
+          return out
+        """ % ((NEXT,) * 4))
+        self.assertEqual(out, {k: {"cut": False, "inside": True} for k in ("en400", "en1200", "hu400", "hu1200")})
+
+    def test_folder_chips_one_row_each_at_most_its_cap_and_the_tools_never_wrap(self):
+        # V6 at ~406 px: four folders (one long) put the chips on two rows and the tools on a third; the long chip
+        # was 188 px for a 160 px cap
+        long_name = "Quarterly review of the northern region"
+        out = self.gallery("""
+          const out = []
+          for (const n of [1, 4, 12]) for (const w of [400, 406, 440, 480]) for (const searching of [false, true]) {
+            const names = [%s, 'Alpha', 'Beta', 'Gamma', ...Array.from({ length: 8 }, (_, i) => 'Folder ' + (i + 1))].slice(0, n)
+            M.$folders.set(names); M.$folder.set(names[0]); M.$query.set(searching ? 'a' : '')
+            M.$trash.set([1, 2, 3, 4, 5, 6].map(i => ({ name: 't' + i, id: 't' + i, title: 'Gone ' + i, type: 'doc', deleted_at: now - 120, days_left: 30 })))
+            root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            if (searching && !root.querySelector('input')) { root.querySelector('button[aria-label="Search artifacts…"]').click(); %s }
+            const bar = root.querySelector('h1').nextElementSibling, b = bar.getBoundingClientRect()
+            const chips = [...bar.firstElementChild.querySelectorAll('button')].map(c => c.getBoundingClientRect())
+            const tools = [...bar.lastElementChild.children].map(c => c.getBoundingClientRect())
+            const longChip = [...bar.firstElementChild.querySelectorAll('button')].find(c => c.textContent === %s)
+            out.push({ n, w, searching, barH: b.height, chipTops: [...new Set(chips.map(c => Math.round(c.top)))], toolTops: [...new Set(tools.map(c => Math.round(c.top)))],
+              toolsIn: tools.every(t => t.left >= b.left - 0.5 && t.right <= b.right + 0.5), longW: longChip ? longChip.getBoundingClientRect().width : 0,
+              scrollbar: (() => { const s = bar.firstElementChild.firstElementChild; return s.offsetHeight - s.clientHeight })() })
+            R.unmount()
+          }
+          M.$query.set(''); M.$trash.set([])
+          return out
+        """ % (json.dumps(long_name), NEXT, NEXT, json.dumps(long_name)))
+        for o in out:
+            self.assertEqual(len(o["chipTops"]), 1, o)  # one row of chips
+            self.assertEqual(o["toolTops"], o["chipTops"], o)  # the tools on the same row, never wrapped
+            self.assertTrue(o["toolsIn"], o)
+            self.assertLessEqual(o["barH"], 31, o)  # a single row
+            self.assertLessEqual(o["longW"], 160 + 0.5, o)  # the whole chip within the cap
+            self.assertEqual(o["scrollbar"], 0, o)  # no scrollbar under the chips
+
+    def test_a_search_shows_its_results_without_scrolling(self):
+        # V6 at ~406 px: the results (and "Nothing matches.") sat under the eleven template tiles, at y ≈ 1008
+        out = self.gallery("""
+          root.style.height = '1000px'
+          const out = {}
+          for (const w of [406, 1200]) for (const q of ['facade', 'zzqx']) {
+            M.$query.set(q); M.$layout.set('grid'); root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            const hit = [...root.querySelectorAll('div, span')].find(d => d.children.length === 0 && (d.textContent === 'Nothing matches.' || d.textContent === 'Facade budget'))
+            out[q + w] = { top: hit ? Math.round(hit.getBoundingClientRect().top) : null, tiles: [...root.querySelectorAll('div')].some(d => d.textContent === 'Make something new') }
+            R.unmount()
+          }
+          M.$query.set(''); root.style.height = '900px'
+          return out
+        """ % NEXT)
+        for k, o in out.items():
+            self.assertIsNotNone(o["top"], (k, out))
+            self.assertLess(o["top"], 400, (k, out))  # in the first screen
+            self.assertFalse(o["tiles"], (k, out))
 
 class ListColsTests(unittest.TestCase):
     def test_columns_by_width(self):

@@ -35,8 +35,11 @@ body { display: flex; flex-direction: column; }
 #sh-grid { position: relative; flex: 1; min-height: 0; overflow: auto; outline: none; background: var(--color-panel); overscroll-behavior: contain; }
 #sh-grid:focus-visible .sh-active { box-shadow: 0 0 0 1px var(--color-panel), 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent); }
 .sh-wrap { position: relative; }
-.sh-vp { position: sticky; top: 0; left: 0; overflow: hidden; }
-.sh-q { position: absolute; overflow: hidden; }
+/* clip, not hidden: a box that is hidden-overflow is still a scroller (scrollIntoView, a focus, a selection's
+   autoscroll move it), and a pane scrolled on its own left the cells off their column headers (V6); the grid alone
+   scrolls, the panes follow it by their transform */
+.sh-vp { position: sticky; top: 0; left: 0; overflow: clip; }
+.sh-q { position: absolute; overflow: clip; }
 .sh-in { position: absolute; left: 0; top: 0; will-change: transform; }
 .sh-c { position: absolute; padding: 0 5px; border-right: 1px solid var(--sh-grid); border-bottom: 1px solid var(--sh-grid);
   font: 13px/23px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--color-fg); white-space: pre; overflow: hidden; text-overflow: clip; }

@@ -841,7 +841,7 @@
   }
 
   // ------------------------------------------------------------------ element toolbar
-  var tools = h("div", { "class": "sl-tools", hidden: true, role: "toolbar" });
+  var tools = h("div", { "class": "sl-tools", "data-comment-keep": "", hidden: true, role: "toolbar" });
   document.body.appendChild(tools);
   function tbtn(icon, title, fn, on) {
     var b = h("button", { type: "button", "class": "kit-btn" + (on ? " is-on" : ""), title: title, "aria-label": title, html: kit.icon(icon) });
@@ -1739,7 +1739,7 @@
     kit.menu(insertMore, [{ icon: "text", label: T.text, onClick: function () { insertText(); } }, { icon: "image", label: T.image, onClick: function () { filePick.click(); } },
       { icon: "table", label: T.table, onClick: function () { insertTable(); } }, { sep: true }].concat(shapeItems()));
   }, "sl-caret sl-narrow-only");
-  var insertPill = h("div", { "class": "sl-pill sl-pill-l", role: "toolbar", "aria-label": T.insert }, insertBtns.concat([insertMore]));
+  var insertPill = h("div", { "class": "sl-pill sl-pill-l", "data-comment-keep": "", role: "toolbar", "aria-label": T.insert }, insertBtns.concat([insertMore]));
 
   var EXP_ICON = { pdf: "file", pptx: "present", png: "image", html: "code" };
   function exportItems() { return exportList.map(function (x) { return { icon: EXP_ICON[x.id], label: x.label, onClick: x.run }; }); }
@@ -1762,7 +1762,7 @@
   }, "sl-zoom");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
   insertBtns.concat([dlBtn, playBtn]).forEach(function (b) { b.classList.add("sl-wide-only"); });
-  var viewPill = h("div", { "class": "sl-pill sl-pill-r", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn, moreBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+  var viewPill = h("div", { "class": "sl-pill sl-pill-r", "data-comment-keep": "", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn, moreBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
   /** The two pills never meet nor leave the window: Export and Present fold into More first, then the insert tools into one menu. */
   function fitPills() {
     viewPill.classList.remove("is-compact"); insertPill.classList.remove("is-compact");
@@ -1791,7 +1791,7 @@
   function refitTools() { if (!tools.hidden && !tools.querySelector(".sl-askin")) drawTools(); }
 
   var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);
-  var navPill = h("div", { "class": "sl-pill sl-pill-b", role: "toolbar" }, [
+  var navPill = h("div", { "class": "sl-pill sl-pill-b", "data-comment-keep": "", role: "toolbar" }, [
     cbtn(kit.icon("prev"), T.prev, function () { show(cur - 1); }), counter, cbtn(kit.icon("next"), T.nextSlide, function () { show(cur + 1); }),
     h("span", { "class": "sl-sep" }), notesBtn2, cbtn(kit.icon("strip"), T.showThumbs, function () { setStrip(true); })]);
   var oneBtn = cbtn(kit.icon("slide"), T.oneSlide, function () { closeGrid(); });

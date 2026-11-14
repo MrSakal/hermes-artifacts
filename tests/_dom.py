@@ -51,10 +51,15 @@ function setProps(n, props, svg) {
   const had = n.__attrs || [], now = []
   for (const [t, f] of n.__ev || []) n.removeEventListener(t, f)
   n.__ev = []
-  n.removeAttribute('style')
+  // As React: a style written only where its value changed (what the page itself set on the node stays).
+  const css = (p, x) => x == null || x === false ? '' : typeof x === 'number' && !UNITLESS.has(p) ? x + 'px' : String(x)
+  const was = n.__style || {}, now_ = props.style || {}
+  for (const p of Object.keys(was)) if (!(p in now_)) n.style[p] = ''
+  for (const [p, x] of Object.entries(now_)) if (!(p in was) || css(p, was[p]) !== css(p, x)) n.style[p] = css(p, x)
+  n.__style = now_
   for (const [k, v] of Object.entries(props)) {
     if (k === 'children' || k === 'key' || k === 'ref' || k === 'autoFocus') continue
-    if (k === 'style') { for (const [p, x] of Object.entries(v || {})) if (x != null && x !== false) n.style[p] = typeof x === 'number' && !UNITLESS.has(p) ? x + 'px' : String(x); continue }
+    if (k === 'style') continue
     if (/^on[A-Z]/.test(k)) {
       if (typeof v !== 'function') continue
       const t = k === 'onChange' ? (n.type === 'checkbox' ? 'change' : 'input') : EV[k] || k.slice(2).toLowerCase()
@@ -195,8 +200,9 @@ class Page:
 
 
 # The whole viewer as Hermes Desktop runs it, on a test host (_browser.Host) that serves the plugin's REST routes:
-# plugin.js on the React above, SandboxedFrame a plain iframe (unsandboxed: the driver reaches only frames in the
-# page's own process), ctx.rest a fetch to /api (api.handle), Hermes' toasts kept in window.__notes.
+# plugin.js on the React above, SandboxedFrame a plain iframe loading="lazy" as Hermes' (unsandboxed: the driver
+# reaches only frames in the page's own process; window.__noLoad: its load never heard, as from a frame the
+# browser has not loaded), ctx.rest a fetch to /api (api.handle), Hermes' toasts kept in window.__notes.
 VIEWER_TOP = """<!doctype html><html><head><meta charset="utf-8"><style>
 :root { --background:#1f1f1e; --foreground:#ecebe6; --ui-text-secondary:#c3c2bb; --ui-text-tertiary:#9a9993;
  --ui-stroke-secondary:#3a3936; --chrome-action-hover:rgba(255,255,255,.07); --font-sans: system-ui, "Segoe UI", sans-serif; }
@@ -226,6 +232,7 @@ def viewer_files(exports: str) -> dict:
               .replace("from 'react/jsx-runtime'", "from './react.mjs'").replace("from 'react'", "from './react.mjs'"))
     sdk = (SDK.replace("import { useState, useEffect } from './react.mjs'", "import { useState, useEffect, jsx } from './react.mjs'")
               .replace("export const SandboxedFrame = () => null",
-                       "export const SandboxedFrame = p => jsx('iframe', { ref: p.ref, src: p.src, title: p.title, style: p.style })")
+                       "export const SandboxedFrame = p => jsx('iframe', { ref: p.ref, loading: 'lazy', src: p.src, title: p.title, style: p.style,"
+                       " onLoad: e => window.__noLoad || !p.onLoad ? null : p.onLoad(e) })")
               .replace("composer: {", "notify: n => (window.__notes = window.__notes || []).push(n.message), composer: {"))
     return {"plugin.mjs": src + exports, "react.mjs": REACT, "sdk.mjs": sdk, "index.html": VIEWER_TOP}

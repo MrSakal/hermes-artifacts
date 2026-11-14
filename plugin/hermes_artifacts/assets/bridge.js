@@ -676,9 +676,11 @@
   /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
    *  frame, a point of a film's picture), in `el` (what holds it there: the frame, the picture). The page may say
    *  where its first line is (ly, lh, lr) and which pin spots are taken inside el (fr, fl, fw, fa, fb: false,
-   *  where it alone can see); point: true pins it on the box's middle (a point, not a part). */
+   *  where it alone can see); point: true pins it on the box's middle (a point, not a part), seen when that
+   *  point is (a box of no size is never "seen": the pin and the box went to the corner). */
   function boxRect(el, b) {
-    var r = { left: b.x, top: b.y, right: b.x + b.w, bottom: b.y + b.h, width: b.w, height: b.h };
+    var r = b.point ? { left: b.x + b.w / 2 - 0.5, top: b.y + b.h / 2 - 0.5, width: 1, height: 1 } : { left: b.x, top: b.y, width: b.w, height: b.h };
+    r.right = r.left + r.width; r.bottom = r.top + r.height;
     var line = isFinite(b.ly) && isFinite(b.lh) && b.lh > 0 ? { top: b.ly, height: b.lh, right: isFinite(b.lr) ? b.lr : r.right } : null;
     var out = rectOf(el, r, line, b);
     if (!isFinite(b.lr)) { delete out.lr; delete out.fw; }
@@ -699,6 +701,22 @@
       var wb = at(line.right + PIN_GAP, t);
       out.lr = line.right;
       out.fw = free("fw", wb) && (given || !ownWords(el, wb));
+    }
+    var kp = keeps(el);
+    if (kp.length) out.kp = kp;
+    return out;
+  }
+  /** The page's own controls the comment's box keeps off where there is room ([data-comment-keep]: a film's
+   *  playback bar and scenes, a canvas's floating tools, a design's frame names, a deck's thumbnails), each
+   *  [left, top, right, bottom] in the window: those in sight, not one holding el, at most KEEP_MAX. */
+  var KEEP_MAX = 24;
+  function keeps(el) {
+    var out = [], ns = document.querySelectorAll("[data-comment-keep]");
+    for (var i = 0; i < ns.length && out.length < KEEP_MAX; i++) {
+      if (ns[i].contains(el)) continue;
+      var q = ns[i].getBoundingClientRect();
+      if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight) continue;
+      out.push([Math.floor(q.left), Math.floor(q.top), Math.ceil(q.right), Math.ceil(q.bottom)]);
     }
     return out;
   }

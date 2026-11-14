@@ -14,7 +14,7 @@ import _browser as B
 import _dom as D
 from hermes_artifacts import api, docs, store
 
-EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, sawEdit, shownUpdated, $list, $panel, $panelHere, $picking, $panelShown, STRINGS }\n"
+EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, sawEdit, shownUpdated, $list, $panel, $panelHere, $picking, $panelShown, $draft, STRINGS }\n"
 BOOT = """
   await api.go(URL, 400)
   for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
@@ -320,6 +320,165 @@ class ViewerComments(unittest.TestCase):
           return o""")
         self.assertEqual(out, {"shown": True, "armed": False, "again": True, "list": False})
 
+
+
+# Any type's page in the viewer (BOOT is the doc's): ready once SEL (frame JS) finds its part drawn.
+BOOT_ANY = """
+  await api.go(URL, 400)
+  for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+  await api.top(`(async () => { const { M, R, jsx, ctx } = window.H; M.$list.set((await ctx.rest('/artifacts')).artifacts)
+    M.openArtifact(ctx, ${JSON.stringify(AID)}); R.mount(() => jsx(M.Viewer, { ctx }), document.getElementById('root')) })()`)
+  for (let i = 0; i < 80; i++) { await api.sleep(150); try { if (await api.frame('!!(' + SEL + ')')) break } catch (_) {} }
+  await api.sleep(SETTLE)
+  const frameAt = () => api.top('(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top] })()')
+  // Picking armed, a real click at the frame's point q (frame JS, read once picking shows its band): the new
+  // comment's pin and box (in the window), and the page's own controls that `chrome` (frame JS: a list of
+  // elements) finds, in the window too.
+  const pickAt = async (where, chrome) => {
+    await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+    let off = await frameAt(); const q = await api.frame(where)
+    await api.mouse(off[0] + q[0], off[1] + q[1]); await api.sleep(900)
+    off = await frameAt()
+    const top = await api.top(`(() => { const box = q => { const b = q.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
+      const ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*="z-index: 27"]')
+      const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%')
+      return { box: card ? box(card) : null, pin: pin ? box(pin) : null, title: card ? card.firstElementChild.textContent : null, selector: (window.H.M.$draft.get() || { anchor: {} }).anchor.selector } })()`)
+    const kept = await api.frame('(' + chrome + ').filter(e => e.getClientRects().length).map(e => { const b = e.getBoundingClientRect(); return { n: e.id || e.className, l: b.left, t: b.top, r: b.right, b: b.bottom } })')
+    return { ...top, off, kept: kept.map(k => ({ ...k, l: k.l + off[0], r: k.r + off[0], t: k.t + off[1], b: k.b + off[1] })) }
+  }
+"""
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class CommentBoxOffThePagesControls(unittest.TestCase):
+    """Live round V6: the new comment's box sat over a film's playback bar and scenes (and had no pin on its
+    picture: a point has no size, so the bridge said it was out of sight and the box waited in the corner), over a
+    design's tool palette after a pan and over the name strip of the very artboard commented on, and over a deck's
+    thumbnails after a pick on the slide's blank. Each page marks its own controls (data-comment-keep) and the box
+    keeps off them where there is room, at 1500 and at 400 px."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive(self, aid, sel, body, w, h=900, settle=1500):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, SETTLE = {settle}; await api.size({w}, {h});"
+                    + BOOT_ANY + body, timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def clear(self, o, what):
+        self.assertTrue(o["box"], (what, o))
+        self.assertTrue(o["kept"], (what, o))  # the controls were there to keep off
+        b = o["box"]
+        for k in o["kept"]:
+            self.assertFalse(b["l"] < k["r"] - 0.5 and k["l"] < b["r"] - 0.5 and b["t"] < k["b"] - 0.5 and k["t"] < b["b"] - 0.5, (what, k, o))
+
+    def test_a_films_point_has_its_pin_and_the_box_keeps_off_the_playback_bar_and_scenes(self):
+        aid = store.publish(path=str(D.ROOT / "examples" / "motion"), title="Harbor film", type="motion")["id"]
+        for w in (1500, 400):
+            # the tester's point: the sky right of the title (73 %, 29 %); and one low on the water (40 %, 85 %)
+            for fx, fy in ((0.73, 0.29), (0.4, 0.85)):
+                o = self.drive(aid, 'document.querySelector("#mo-frame")', f"""
+                  const o = await pickAt('(() => {{ const r = document.getElementById("mo-frame").getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * {fy}] }})()', '[document.getElementById("mo-controls")]')
+                  // the point said in the comment, on the picture as it is now (the band gone, the frame taller)
+                  const xy = (/@xy=([0-9.]+)%,([0-9.]+)%/.exec(o.selector) || []).slice(1).map(Number)
+                  o.at = await api.frame(`(() => {{ const r = document.getElementById("mo-frame").getBoundingClientRect(); return [r.left + r.width * ${{xy[0]}} / 100, r.top + r.height * ${{xy[1]}} / 100] }})()`)
+                  o.at = [o.at[0] + o.off[0], o.at[1] + o.off[1]]
+                  return o""", w, settle=2500)
+                what = (w, fx, fy)
+                self.assertTrue(o["pin"], (what, o))  # V6: no pin while the draft was open
+                self.assertAlmostEqual((o["pin"]["l"] + o["pin"]["r"]) / 2, o["at"][0], delta=2, msg=(what, o))
+                self.assertAlmostEqual((o["pin"]["t"] + o["pin"]["b"]) / 2, o["at"][1], delta=2, msg=(what, o))
+                self.clear(o, what)
+
+    def test_a_design_box_keeps_off_its_palette_after_a_pan_and_off_the_strip_commented_on(self):
+        aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
+        chrome = '[...document.querySelectorAll(".dc-pill, .dc-strip")]'
+        board = '__design.boards["Main.dc.html"].el'
+        for w in (1500, 400):
+            # panned (the wheel) until a point high in the landing page sits 250 px over the canvas's foot, then picked
+            o = self.drive(aid, board, f"""
+              const spot = () => api.frame('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(), v = document.getElementById("dc-view").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + Math.min(r.height * 0.2, 120), v.left + v.width * 0.45, v.bottom - 250] }})()')
+              for (let i = 0; i < 4; i++) {{ const s = await spot(); await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaX: ${{s[0] - s[2]}}, deltaY: ${{s[1] - s[3]}}, clientX: 200, clientY: 200, bubbles: true, cancelable: true }}))`); await api.sleep(300) }}
+              return await pickAt('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + Math.min(r.height * 0.2, 120)] }})()', {json.dumps(chrome)})""", w, settle=3000)
+            self.clear(o, (w, "panned"))
+            # a pick on the landing page's name strip: a comment on that artboard, its strip kept clear (zoomed in on
+            # it until its name shows: at 400 px the whole canvas fitted is too small for any)
+            o = self.drive(aid, board, f"""
+              await api.frame('__design.fitAll()'); await api.sleep(600)
+              for (let i = 0; i < 12 && await api.frame('getComputedStyle({board}.querySelector(".dc-strip")).visibility !== "visible"'); i++) {{
+                await api.frame('(() => {{ const r = {board}.getBoundingClientRect(); document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaY: -120, ctrlKey: true, clientX: r.left + 10, clientY: r.top + 10, bubbles: true, cancelable: true }})) }})()'); await api.sleep(250)
+              }}
+              return await pickAt('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left + Math.min(30, r.width / 3), r.top + r.height / 2] }})()', {json.dumps(chrome)})""", w, settle=3000)
+            self.clear(o, (w, "strip"))
+
+    def test_a_decks_blank_pick_keeps_the_box_off_the_thumbnails(self):
+        aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
+        for w in (1500, 400):
+            o = self.drive(aid, 'document.querySelector(".sl-clip .sl-canvas")', """
+              return await pickAt('(() => { const r = document.querySelector(".sl-clip .sl-canvas").getBoundingClientRect(); return [r.left + r.width * 0.97, r.top + r.height * 0.97] })()', '[...document.querySelectorAll("#sl-strip, .sl-pill")]')""", w, settle=2500)
+            self.assertIn(o["title"], ("Slide 1", "Dia 1"), (w, o))
+            self.clear(o, (w, "blank"))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class GalleryThumbs(unittest.TestCase):
+    """Live round V6: card pictures stayed dark boxes for minutes after a window resize or a list refresh, until a
+    scroll. Hermes' SandboxedFrame loads every frame lazily (the browser decides when), and a card's frame is shown
+    only once its load is heard: our frames load at once (when is ours to say: a card near the window), and a card
+    whose load is not heard in THUMB_LOAD_MS shows its frame anyway."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files("\nexport { Gallery, refresh, $layout, STRINGS }\n"))
+        for i in range(10):
+            store.publish(title=f"Card {i}", type="doc", files={"doc.md": f"# Card {i}\n\nA few words."})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    PROBE = ("(() => { const fs = [...document.querySelectorAll('iframe')].filter(f => { const r = f.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight });"
+             " return { n: fs.length, shown: fs.filter(f => f.style.opacity === '1').length, eager: fs.filter(f => f.getAttribute('loading') === 'eager').length } })()")
+
+    def gallery(self, body):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"""
+          await api.size(1500, 900); await api.go({json.dumps(url)}, 400)
+          for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+          const mount = () => api.top(`(async () => {{ const {{ M, R, jsx, ctx }} = window.H; M.$layout.set('grid'); document.getElementById('root').style.height = '100%'
+            await M.refresh(ctx); R.mount(() => jsx(M.Gallery, {{ ctx, pageRef: {{ current: null }} }}), document.getElementById('root')) }})()`)
+          const probe = () => api.top({json.dumps(self.PROBE)})
+        """ + body, 240)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_a_cards_frame_loads_at_once_also_after_a_resize_and_a_refresh(self):
+        out = self.gallery("""
+          await mount(); await api.sleep(4000); const o = { first: await probe() }
+          await api.size(1100, 900); await api.sleep(300)
+          await api.top('(async () => { const { M, ctx } = window.H; await M.refresh(ctx) })()'); await api.sleep(4000)
+          o.after = await probe(); return o""")
+        for k, o in out.items():
+            self.assertGreater(o["n"], 2, (k, out))
+            self.assertEqual(o["eager"], o["n"], (k, out))  # none left to the browser's lazy loading
+            self.assertEqual(o["shown"], o["n"], (k, out))
+
+    def test_a_card_whose_load_is_never_heard_shows_its_frame_after_the_wait(self):
+        out = self.gallery("""
+          await api.top('window.__noLoad = true'); await mount(); await api.sleep(1500); const o = { soon: await probe() }
+          await api.sleep(8500); o.later = await probe(); return o""")
+        self.assertGreater(out["later"]["n"], 2, out)
+        self.assertEqual(out["soon"]["shown"], 0, out)  # its load not heard: hidden for now
+        self.assertGreaterEqual(out["later"]["shown"], 3, out)  # V6: dark for good; now the first slots' after THUMB_LOAD_MS
 
 if __name__ == "__main__":
     unittest.main()

@@ -306,9 +306,11 @@
   }
 
   /** A bar chart's values, drawn (their boxes measured): each keeps VALUE_GAP screen px, its halo included, off
-   *  the dashed reference line's stroke at ry (null: none) on the side its bar's top is: above when the bar reaches
-   *  the line, else below it, between the line and the bar; one with no room there keeps its place and the line
-   *  breaks behind it, VALUE_GAP px past its halo either side. Values closer than VALUE_GAP px to a neighbour: every
+   *  the dashed reference line's stroke at ry (null: none): above the line when its bar reaches it, else below it,
+   *  between the line and the bar, where there is room for it, else above the line too (a bar just under the line:
+   *  live, "97.9" under a target of 100 kept its place with the line broken behind it, its ink 3 px from the
+   *  dashes); only one with no room above in the chart keeps its place, the line broken behind it, VALUE_GAP px
+   *  past its halo either side. Values closer than VALUE_GAP px to a neighbour: every
    *  second one is shown (or third…), the rest are in their bars' tooltips. Never a label touching the line or
    *  another. Measured in the chart's own units (its viewBox), the px turned into them at the size it is drawn;
    *  drawn again when a font arrives (dashboard.js), the boxes being the font's. */
@@ -324,8 +326,9 @@
     var off = (VALUE_GAP + REF_HALF + HALO) * u, side = (VALUE_GAP + HALO) * u; // from the line's middle; past a value's box
     if (ry != null) items.forEach(function (o) {
       if (o.y - off >= ry || o.y + o.h + off <= ry) return;
-      var dy = o.bar <= ry ? ry - off - (o.y + o.h) // above the line, its bar up to it or past it
-        : o.bar - 1 - (ry + off) >= o.h ? ry + off - o.y : null; // below it, over its bar
+      var up = ry - off - (o.y + o.h), down = ry + off - o.y;
+      var dy = o.bar > ry && o.bar - 1 - (ry + off) >= o.h ? down // below the line, over its bar
+        : o.y + up >= 0 ? up : null; // above it: its bar up to it or past it, or no room between
       if (dy == null) { o.cut = true; return; }
       o.y += dy;
       o.t.setAttribute("y", +o.t.getAttribute("y") + dy);

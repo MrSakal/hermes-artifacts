@@ -1938,6 +1938,10 @@ function Chip({ label, active, onClick, more = null, max = 0 }) {
       ...font,
       display: 'inline-flex',
       alignItems: 'center',
+      flexShrink: 0,
+      // `max`: the whole chip at most (its padding and chevron in it), its name cut to what is left
+      ...(max ? { maxWidth: max, boxSizing: 'border-box' } : {}),
+      whiteSpace: 'nowrap',
       gap: 4,
       height: 30,
       padding: more ? '0 8px 0 14px' : '0 14px',
@@ -1949,7 +1953,7 @@ function Chip({ label, active, onClick, more = null, max = 0 }) {
       background: active ? C.accentBg : h ? C.card : 'transparent'
     },
     children: [
-      max ? jsx('span', { title: label, style: { maxWidth: max, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: label }) : label,
+      max ? jsx('span', { title: label, style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: label }) : label,
       more ? jsx(Icon, { name: 'chevron', size: 14 }) : null
     ]
   })
@@ -2007,6 +2011,13 @@ function thumbKind(art, picFailed = false) {
 const THUMB_MARGIN = '300px'
 const THUMB_LOADS = 3
 const THUMB_LOAD_MS = 8000
+/** A frame of ours loads at once. SandboxedFrame makes every frame loading="lazy", which leaves the browser to
+ *  decide when: a card's frame (a large page scaled down in a scrolling list) or a viewer's could wait, dark,
+ *  until the next scroll (V6: minutes after a resize or a refresh). When a frame is mounted is ours to say
+ *  already (a card only near the window, THUMB_MARGIN). */
+function eager(f) {
+  if (f && f.getAttribute('loading') !== 'eager') f.setAttribute('loading', 'eager')
+}
 
 function Thumb({ ctx, art, height }) {
   const t = usePluginI18n(ID)
@@ -2017,6 +2028,8 @@ function Thumb({ ctx, art, height }) {
   const [picFailed, setPicFailed] = useState(false)
   const [w, setW] = useState(0)
   const loaded = useRef(null) // ends the load slot this card holds
+  const frame = useRef(null)
+  useLayoutEffect(() => eager(frame.current))
   useLayoutEffect(() => {
     const el = box.current
     if (!el) return undefined
@@ -2049,7 +2062,8 @@ function Thumb({ ctx, art, height }) {
     // A card that left before its turn costs nothing.
     queueThumb(() => !live ? Promise.resolve() : fetchHtml(ctx, art.id, art.version, { thumb: true, stamp: htmlStamp(art) }).then(u => new Promise(done => {
       if (!live) return done()
-      const timer = setTimeout(() => end(), THUMB_LOAD_MS)
+      // No load heard in THUMB_LOAD_MS: the slot goes, and the frame shows as it is (never a dark box for good).
+      const timer = setTimeout(() => { if (frame.current) frame.current.style.opacity = '1'; end() }, THUMB_LOAD_MS)
       const end = () => { clearTimeout(timer); if (loaded.current === end) loaded.current = null; done() }
       loaded.current = end
       setSrc(u)
@@ -2076,6 +2090,7 @@ function Thumb({ ctx, art, height }) {
         })
       : kind === 'frame' && src && near && !held
       ? jsx(SandboxedFrame, {
+          ref: frame,
           src,
           title: art.title,
           // Hidden until it has drawn: a frame paints white before its page's own background arrives.
@@ -2395,7 +2410,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
         { sep: true },
         { input: true, key: 'q', value: q, placeholder: t('folderSearch'), onChange: setQ, onEnter: () => name && (folders.includes(name) || name.length <= FOLDER_MAX) && moveTo(name)() },
         ...(name && !folders.some(f => f.toLowerCase() === name.toLowerCase())
-        ? [name.length > FOLDER_MAX ? { key: 'create', icon: 'plus', label: t('folderTooLong', FOLDER_MAX), disabled: true } : { key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }]
+        ? [name.length > FOLDER_MAX ? { key: 'create', icon: 'plus', label: t('folderTooLong', FOLDER_MAX), disabled: true, wrap: true } : { key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }]
         : []),
         // Where it is now: checked, and no move to there.
         ...hits.map(f => ({ key: `f:${f}`, icon: 'folder', label: f, checked: art.folder === f, disabled: art.folder === f, onClick: moveTo(f) })),
@@ -2882,13 +2897,65 @@ function FolderMenu({ ctx, name, count, onClose }) {
  *  folder's on a right click. */
 function FolderChip({ ctx, name, active, count }) {
   const t = usePluginI18n(ID)
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState(null) // its left in the toolbar while its menu is open
+  const ref = useRef(null)
+  // The menu hangs from the chips' row (CHIP_BAR), not from inside it: that scrolls, and would cut it.
+  const open = () => {
+    const el = ref.current, bar = el?.closest(`[${CHIP_BAR}]`)
+    setMenu(el && bar ? el.getBoundingClientRect().left - bar.getBoundingClientRect().left : 0)
+  }
   return jsxs('div', {
-    onContextMenu: e => (e.preventDefault(), setMenu(true)),
-    style: { position: 'relative', display: 'flex' },
+    ref,
+    onContextMenu: e => (e.preventDefault(), open()),
+    style: { display: 'flex', flexShrink: 0 },
     children: [
-      jsx(Chip, { label: name, max: FOLDER_CHIP, active, more: active ? t('folderMore', name) : null, onClick: () => (active ? setMenu(!menu) : showFolder(name)) }),
-      menu ? jsx(FolderMenu, { ctx, name, count, onClose: () => setMenu(false) }) : null
+      jsx(Chip, { label: name, max: FOLDER_CHIP, active, more: active ? t('folderMore', name) : null, onClick: () => (!active ? showFolder(name) : menu == null ? open() : setMenu(null)) }),
+      menu != null ? jsx('div', { style: { position: 'absolute', left: menu, top: 0 }, children: jsx(FolderMenu, { ctx, name, count, onClose: () => setMenu(null) }) }) : null
+    ]
+  })
+}
+
+const CHIP_BAR = 'data-chip-bar' // the folder chips' row: their menus hang from it
+/** The folder chips in one row that scrolls sideways when they do not fit (as Hermes' own tab and profile rows:
+ *  no scrollbar, a cut end faded, the wheel scrolls it), the chip shown kept in sight. */
+function ChipRow({ children, shown }) {
+  const ref = useRef(null)
+  const [ends, setEnds] = useState([false, false]) // chips past the left end, the right end
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return undefined
+    const measure = () => setEnds(e => {
+      const n = [el.scrollLeft > 1, el.scrollLeft + el.clientWidth < el.scrollWidth - 1]
+      return n[0] === e[0] && n[1] === e[1] ? e : n
+    })
+    const wheel = e => {
+      if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    measure()
+    el.addEventListener('scroll', measure)
+    el.addEventListener('wheel', wheel, { passive: false })
+    let ro = null
+    try { ro = new ResizeObserver(measure); ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild) } catch {}
+    return () => { el.removeEventListener('scroll', measure); el.removeEventListener('wheel', wheel); ro?.disconnect() }
+  }, [])
+  useLayoutEffect(() => {
+    ref.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [shown])
+  const fade = side => jsx('div', { style: { position: 'absolute', top: 0, bottom: 0, [side]: 0, width: 24, pointerEvents: 'none', background: `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, ${C.bg}, transparent)` } })
+  // Not itself the scroller: a folder's menu hangs from here (CHIP_BAR) and is not cut by the scrolling row.
+  return jsxs('div', {
+    [CHIP_BAR]: '',
+    style: { position: 'relative', display: 'flex', minWidth: 56, flex: '0 1000 auto' },
+    children: [
+      jsx('div', {
+        ref,
+        style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none' },
+        children: jsx('div', { style: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }, children })
+      }),
+      ends[0] ? fade('left') : null,
+      ends[1] ? fade('right') : null
     ]
   })
 }
@@ -3036,13 +3103,13 @@ function Gallery({ ctx, pageRef }) {
           children: [
             jsx('h1', { style: { margin: '0 0 22px', fontSize: 28, lineHeight: 1.25, fontWeight: 600, letterSpacing: '-0.02em', color: C.fg }, children: t('title') }),
             jsx(VersionNotice, {}),
-            // The toolbar: the folders on the left, the tools on the right. When both do not fit one row the
-            // tools take the next, whole and right-aligned, and the folders wrap among themselves.
+            // The toolbar, one row at every width: the folders on the left (a row that scrolls sideways when
+            // they do not fit: ChipRow), the tools on the right, whole.
             jsxs('div', {
-              style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 26 },
+              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26 },
               children: [
-                jsxs('div', {
-                  style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, flex: '0 1 auto', minWidth: 0 },
+                jsx(ChipRow, {
+                  shown: `${folder}:${inTrash}`,
                   children: [
                     jsx(Chip, { label: t('all'), active: !folder && !inTrash, onClick: () => showFolder(null) }),
                     ...folders.map(f => jsx(FolderChip, { ctx, name: f, active: folder === f && !inTrash, count: list.filter(a => a.folder === f).length }, f)),
@@ -3056,7 +3123,7 @@ function Gallery({ ctx, pageRef }) {
                   ]
                 }),
                 jsxs('div', {
-                  style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: '1 1 auto', minWidth: 0 },
+                  style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: '0 1 auto', minWidth: 0, marginLeft: 'auto' },
                   children: [
                     searching
                       ? jsx('input', {
@@ -3068,8 +3135,8 @@ function Gallery({ ctx, pageRef }) {
                           onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
                           'aria-label': t('searchArtifacts'),
                           className: INPUT,
-                          // 240 px where there is room; it gives way first when the tools' row is narrower.
-                          style: { ...font, boxSizing: 'border-box', height: 30, width: 240, flex: '0 1 240px', minWidth: 0, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
+                          // 240 px where there is room; it gives way, down to 120, after the folders did.
+                          style: { ...font, boxSizing: 'border-box', height: 30, width: 240, flex: '0 1 240px', minWidth: 120, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
                         })
                       : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
                     jsxs('div', {
@@ -3099,8 +3166,9 @@ function Gallery({ ctx, pageRef }) {
                 })
               ]
             }),
-            inTrash ? null : jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
-            inTrash
+            // While a search is on, its results come first (the tiles would push them below the window).
+            inTrash || q ? null : jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
+            inTrash || q
               ? null
               : jsx('div', {
                   // As the cards under it: the row fills the width (tiles of 136 px and up), so its right edge
@@ -3880,6 +3948,7 @@ function Frame({ ctx, art, rec, F, presenting }) {
   const hidden = F.hidden(rec)
   const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
   useBridge(ref, art, ctx, portRef, rec, F)
+  useLayoutEffect(() => eager(ref.current))
   useEffect(() => { if (wrap.current) wrap.current.inert = hidden }, [hidden])
   return jsx('div', {
     ref: wrap,
@@ -4138,6 +4207,9 @@ function pickedRect(r) {
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
   for (const k of ['lr', 'vt', 'vb']) if (Number.isFinite(r[k])) out[k] = r[k]
   for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis', 'pt']) if (typeof r[k] === 'boolean') out[k] = r[k]
+  // The page's own controls the box keeps off (bridge.js keeps): [l, t, r, b] each, at most 24.
+  const kp = Array.isArray(r.kp) ? r.kp.slice(0, 24).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
+  if (kp.length) out.kp = kp
   return out
 }
 
@@ -5103,7 +5175,8 @@ function MenuRow({ it }) {
         ? jsx('span', { style: { width: 14, height: 14, flexShrink: 0, borderRadius: 4, border: `1px solid ${it.checked ? C.fg : C.line}`, background: it.checked ? C.fg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.bg }, children: it.checked ? jsx(Icon, { name: 'check', size: 11, stroke: 2.4 }) : null })
         : it.icon ? jsx(Icon, { name: it.icon }) : null,
       jsxs('span', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }, children: [
-        jsx('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.label }),
+        // wrap: a sentence (a refusal), read whole on as many lines as it takes, never cut
+        jsx('span', { style: it.wrap ? { padding: '7px 0', lineHeight: 1.35, overflowWrap: 'anywhere' } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.label }),
         it.sub2 ? jsx('span', { style: { fontSize: 11.5, color: C.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: it.sub2 }) : null
       ] }),
       it.right ? jsx('span', { style: { fontSize: 12, color: C.text3 }, children: it.right }) : null,
@@ -5404,17 +5477,22 @@ const BOX_GAP = 8 // between the box and the element (or its pin)
 const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep clear of its element
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w,
  *  h in stage px, its first line and free sides: pickedRect) and the box's height `h`: the pin beside the
- *  element (pinSpot); the box clear of the element's whole box and of the pin, inside the stage. Tried in
- *  turn: under the element, over it, right of it, left of it (under and over from its left edge, beside it
- *  level with its top); none fits whole: under or over it, wherever there is more room, cut to that room
- *  (box.maxH; it scrolls). Only when neither leaves BOX_MIN_H (the element fills the stage) it goes over the
- *  element, at the stage's bottom edge. box.maxH is always set: the most it may be. Pure: tested without a DOM. */
+ *  element (pinSpot); the box clear of the element's whole box and of the pin, inside the stage, and off the
+ *  page's own controls (rect.kp: a film's playback bar, a canvas's tools, a design's frame names, a deck's
+ *  thumbnails) wherever there is room. Tried in turn: under the element, over it, right of it, left of it
+ *  (under and over from its left edge, beside it level with its top); then, with controls to keep off, next to
+ *  one of them (over, under, at either end) nearest the pin, off the element, else over it; none fits whole:
+ *  under or over it, wherever there is more room, cut to that room (box.maxH; it scrolls). Only when neither
+ *  leaves BOX_MIN_H (the element fills the stage) it goes over the element, at the stage's bottom edge.
+ *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
 function placeCommentBox(rect, bw, bh, h) {
   const M = BOX_M, GAP = BOX_GAP, W = COMMENT_W
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
   const pin = pinSpot(rect, bw, bh)
   const cut = (a, ah, bx, by, bw2, bh2) => a.x < bx + bw2 && bx < a.x + W && a.y < by + bh2 && by < a.y + ah
   const onPin = (b, bh2) => cut(b, bh2, pin.x, pin.y, PIN, PIN)
+  const keep = rect.kp || []
+  const clear = (b, bh2) => !keep.some(([l, t, r, bt]) => cut(b, bh2, l, t, r - l, bt - t))
   const x0 = clamp(rect.x, M, Math.max(M, bw - W - M))
   // Under and over: past the element, and past its pin where the pin is in the way.
   let yb = rect.y + rect.h + GAP
@@ -5427,8 +5505,28 @@ function placeCommentBox(rect, bw, bh, h) {
   let xl = rect.x - GAP - W
   if (onPin({ x: xl, y: yy }, h)) xl = Math.min(xl, pin.x - GAP - W)
   const fits = b => b.x >= M && b.x + W <= bw - M && b.y >= M && b.y + h <= bh - M
-  const whole = [{ x: x0, y: yb }, { x: x0, y: ya }, { x: xr, y: yy }, { x: xl, y: yy }].find(fits)
-  if (whole) return { pin, box: { ...whole, maxH: bh - 2 * M } }
+  const sides = [{ x: x0, y: yb }, { x: x0, y: ya }, { x: xr, y: yy }, { x: xl, y: yy }]
+  const placed = b => ({ pin, box: { ...b, maxH: bh - 2 * M } })
+  const whole = sides.find(b => fits(b) && clear(b, h))
+  if (whole) return placed(whole)
+  if (keep.length) {
+    // Beside a control to keep off: over it, under it, or at either end, level with it; the nearest the pin.
+    const xs = [x0, ...keep.flatMap(([l, , r]) => [l, r - W, r + GAP, l - GAP - W])]
+    const spots = keep.flatMap(([l, t, r, bt]) => xs.flatMap(x => [{ x, y: t - GAP - h }, { x, y: bt + GAP }, { x, y: clamp(t, M, bh - h - M) }]))
+      .map(b => ({ x: clamp(b.x, M, Math.max(M, bw - W - M)), y: b.y }))
+      .filter(b => fits(b) && clear(b, h) && !onPin(b, h))
+    const far = b => Math.hypot(Math.max(0, pin.x - (b.x + W), b.x - (pin.x + PIN)), Math.max(0, pin.y - (b.y + h), b.y - (pin.y + PIN)))
+    const near = list => list.reduce((a, b) => (!a || far(b) < far(a) ? b : a), null)
+    const off = near(spots.filter(b => !cut(b, h, rect.x, rect.y, rect.w, rect.h)))
+    if (off) return placed(off)
+    const below = bh - M - yb, above = ya + h - M
+    const room = below >= above ? { x: x0, y: yb, maxH: below } : { x: x0, y: M, maxH: above }
+    if (room.maxH >= BOX_MIN_H && clear(room, Math.min(h, room.maxH))) return { pin, box: room }
+    const over = near(spots)
+    if (over) return placed(over)
+    const any = sides.find(fits)
+    if (any) return placed(any)
+  }
   const below = bh - M - yb, above = ya + h - M
   if (Math.max(below, above) >= BOX_MIN_H) {
     return { pin, box: below >= above ? { x: x0, y: yb, maxH: below } : { x: x0, y: M, maxH: above } }
@@ -5483,7 +5581,8 @@ function commentLayout(rect, bw, bh, h, cover = 0) {
   let b0 = Number.isFinite(rect.vb) ? Math.max(t0, Math.min(bh, rect.vb)) : bh
   if (b0 - t0 < BAND_MIN) [t0, b0] = [0, bh]
   const off = rect.vis === false || rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
-  const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}) }
+  const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}),
+    ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
   const { pin, box } = placeCommentBox(inBand, free, b0 - t0, h)
   const band = b0 - t0, M = BOX_M
   const parked = { x: Math.max(M, free - COMMENT_W - M), y: Math.max(M, band - M - Math.min(h, band - 2 * M)), maxH: band - 2 * M }

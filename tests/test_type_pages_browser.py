@@ -1371,3 +1371,133 @@ class RoundV5Layout(unittest.TestCase):
         self.assertAlmostEqual(o["at0"][0]["y"], 0.70, delta=0.01)
         self.assertEqual(o["later"], [], o)  # another moment: not there
         self.assertEqual([p["n"] for p in o["back"]], ["1"], o)  # its comment clicked in the list: there again
+
+
+# Live round V6: the staging gallery's "Test dash2", as published (its dashboard.json and data/monthly.csv).
+DASH2 = json.loads(
+    '{"title": "Orders 2026", "params": {"region": ""}, "datasets": {"monthly": {"title": "Orders per month", '
+    '"description": "Signed orders per month, in million USD.", "source": {"kind": "file", "path": '
+    '"data/monthly.csv"}, "types": {"orders": "number", "value": "number", "target": "number"}, "updated": {"at": '
+    '"2026-11-04T08:00:00Z", "by": "hermes"}}, "regions": {"title": "Orders by region", "source": {"kind": "rows", '
+    '"rows": [{"region": "North", "orders": 41, "value": 512.4, "url": "https://example.com/bp"}, {"region": "South",'
+    ' "orders": 17, "value": 198.0, "url": "https://example.com/south"}, {"region": "East", "orders": 9, "value": '
+    '121.7, "url": "https://example.com/east"}, {"region": "West", "orders": 6, "value": 77.3, "url": '
+    '"https://example.com/deb"}]}}}, "layout": [{"type": "header", "title": "Orders 2026", "subtitle": "**{orders}** '
+    'orders worth **{value} M USD** so far; October is the weakest month against target."}, {"type": "filters", '
+    '"items": [{"param": "region", "label": "Region", "input": "select", "options": {"source": "regions", "field": '
+    '"region"}}]}, {"type": "kpis", "items": [{"id": "orders", "label": "Orders, year to date", "source": "monthly", '
+    '"field": "orders", "agg": "sum", "format": "int"}, {"id": "value", "label": "Value, M USD", "source": "monthly",'
+    ' "field": "value", "agg": "sum", "format": "number"}, {"label": "October", "source": "monthly", "field": '
+    '"value", "where": {"month": "2026-10"}, "format": "number", "unit": "M USD", "delta": {"where": {"month": '
+    '"2026-09"}, "label": "vs September"}}, {"label": "Region selected", "source": "regions", "field": "orders", '
+    '"agg": "sum", "where": {"region": "{region}"}, "format": "int", "note": "orders in {param:region}"}]}, {"type": '
+    '"chart", "kind": "bar", "title": "Value per month", "note": "M USD, dashed = 100 target", "source": "monthly", '
+    '"x": "month", "y": "value", "xFormat": "month", "reference": {"value": 100, "label": "target"}}, {"type": '
+    '"chart", "kind": "line", "title": "Value vs target", "source": "monthly", "x": "month", "y": ["value", '
+    '"target"], "xFormat": "month", "labels": {"value": "Value", "target": "Target"}}, {"type": "chart", "kind": '
+    '"donut", "title": "Share by region", "source": "regions", "x": "region", "y": "value"}, {"type": "chart", '
+    '"kind": "hbar", "title": "Orders by region", "source": "regions", "x": "region", "y": "orders", "sort": '
+    '"-orders", "format": "int"}, {"type": "table", "title": "By region", "source": "regions", "key": "region", '
+    '"search": true, "sort": "-value", "columns": [{"field": "region", "label": "Region", "link": "url"}, {"field": '
+    '"orders", "label": "Orders", "format": "int"}, {"field": "value", "label": "M USD", "format": "number", "bar": '
+    'true}]}, {"type": "text", "text": "Figures are sample data. Source: [example](https://example.com)."}]}')
+DASH2_CSV = 'month,orders,value,target\n2026-01,6,71.5,80\n2026-02,7,88.0,80\n2026-03,9,104.2,90\n2026-04,8,97.9,90\n2026-05,10,131.0,100\n2026-06,7,92.4,100\n2026-07,6,79.0,100\n2026-08,5,66.3,90\n2026-09,9,118.8,100\n2026-10,6,60.3,100\n'
+# Hermes Desktop's own font (its --font-sans, styles.css --dt-font-sans), as its theme hands it to a page.
+HERMES_FONT = ("'Segoe WPC', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif, 'Apple Color Emoji',"
+               " 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', emoji")
+HERMES_DARK = {"mode": "dark", "vars": {"bg": "rgb(13, 17, 23)", "panel": "rgb(22, 27, 34)", "fg": "rgb(230, 237, 243)", "fg2": "rgb(201, 209, 217)",
+                                        "muted": "rgb(139, 148, 158)", "line": "rgb(48, 54, 61)", "accent": "rgb(74, 132, 254)", "font": HERMES_FONT}}
+HERMES_LIGHT = {"mode": "light", "vars": {"bg": "rgb(255, 255, 255)", "panel": "rgb(246, 248, 250)", "fg": "rgb(31, 35, 40)", "fg2": "rgb(68, 76, 86)",
+                                          "muted": "rgb(101, 109, 118)", "line": "rgb(208, 215, 222)", "accent": "rgb(74, 132, 254)", "font": HERMES_FONT}}
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6Pages(unittest.TestCase):
+    """Live round V6 (0.20.0): a design system's Markdown editor saved with a foreground button, not the accent;
+    "Test dash2"'s "97.9" sat 3 px from its target line in a 1246 px frame."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_the_design_system_editors_save_is_hermes_accent(self):
+        aid = self.store.publish(path=str(EX / "design-system"), title="Test design system", type="design-system")["id"]
+        for theme in (HERMES_DARK, HERMES_LIGHT):
+            r = B.drive(f"await api.size(1500, 900); await api.go({json.dumps(self.host.url(aid, theme=theme))}, 800); {READY}\n await api.sleep(1500)\n"
+                        "await api.frame('[...document.querySelectorAll(\".ds-head .ds-btn\")].pop().click()'); await api.sleep(600)\n"
+                        "return await api.frame('(() => { const b = [...document.querySelectorAll(\".ds-md-bar button\")].find(x => /^(Save|Mentés)$/.test(x.textContent.trim())); return b ? getComputedStyle(b).backgroundColor : null })()')")
+            self.assertIsNone(r.get("err"), r)
+            self.assertEqual(r["out"], theme["vars"]["accent"], theme["mode"])
+
+    def test_test_dash2_values_keep_their_ink_off_the_target_line(self):
+        # Measured as the eye sees it: each value's glyphs' own ink (the font's tight bounds, not its line box)
+        # against every dash of the line drawn, at least 6 px apart (4 px past the halo), in Hermes' font and colours.
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        probe = r"""(() => { const svg = [...document.querySelectorAll('.c-chart svg')].find(s => s.querySelector('line.c-ref')); if (!svg) return null
+          const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, m0 = svg.getScreenCTM()
+          const segs = [...svg.querySelectorAll('line.c-ref')].map(l => l.getBoundingClientRect())
+          const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
+          return { font: getComputedStyle(svg.querySelector('text.c-value')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+            const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
+            const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k
+            const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
+            const d = Math.min(...segs.map(s => Math.hypot(Math.max(0, s.left - ink.r, ink.l - s.right), Math.max(0, s.top - ink.b, ink.t - s.bottom))))
+            return { v: t.textContent, d: Math.round(d * 10) / 10 } }) } })()"""
+        out = {}
+        for theme in (HERMES_DARK, HERMES_LIGHT):
+            for w in (1246, 1500):
+                r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=theme, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
+                            f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
+                self.assertIsNone(r.get("err"), r)
+                out[(theme["mode"], w)] = r["out"]
+        for k, o in out.items():
+            self.assertTrue(o and len(o["vals"]) >= 8, (k, o))
+            self.assertIn("Segoe", o["font"], k)  # Hermes' font reached the chart
+            self.assertTrue("97.9" in [v["v"] for v in o["vals"]], (k, o))
+            for v in o["vals"]:
+                self.assertGreaterEqual(v["d"], 6, (k, v, o))
+
+    def test_a_click_from_one_artboard_into_another_keeps_its_selection_and_toolbar(self):
+        # V6: the landing page's element selected, then one in the phone: the phone's selection was wiped (the landing
+        # page's answer to its deselect came after it), so no toolbar and no properties
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        at = ("(() => {{ const r = __design.boards[{p}].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * {x}, r.top + r.height * {y}] }})()")
+        state = ("(() => { const t = document.querySelector('.dc-tools'), s = __design.state(); return { path: s.sel.path, n: s.sel.tids.length,"
+                 " tools: !t.hidden && t.getClientRects().length > 0 && t.getBoundingClientRect().width > 0 } })()")
+        r = B.drive(f"await api.size(1500, 900); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK))}, 800); {READY}\n await api.sleep(3000)\n"
+                    f"let q = await api.frame({json.dumps(at.format(p=json.dumps('Main.dc.html'), x=0.3, y=0.15))}); await api.mouse(q[0], q[1]); await api.sleep(1000)\n"
+                    f"const o = {{ first: await api.frame({json.dumps(state)}) }}\n"
+                    f"q = await api.frame({json.dumps(at.format(p=json.dumps('Order.dc.html'), x=0.3, y=0.45))}); await api.mouse(q[0], q[1]); await api.sleep(1500)\n"
+                    f"o.second = await api.frame({json.dumps(state)}); return o")
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual((o["first"]["path"], o["first"]["tools"]), ("Main.dc.html", True), o)
+        self.assertEqual((o["second"]["path"], o["second"]["tools"]), ("Order.dc.html", True), o)
+        self.assertGreater(o["second"]["n"], 0, o)
+
+    def test_no_scroll_moves_a_sheets_cells_off_their_column_headers(self):
+        # V6: after an element's scrollIntoView the body's cells sat ~120 px left of their column letters (a pane
+        # that clips by overflow: hidden is still a scroller; the grid alone may scroll)
+        rows = [["Item", "Unit price", "Qty", "Total", "Note"] + [f"H{i}" for i in range(20)]] + [[f"r{r}", r, r * 2, r * 3, "dcell" if r == 9 else ""] for r in range(1, 30)]
+        aid = self.store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": rows, "freeze": {"rows": 1}}]}})["id"]
+        probe = ("(() => { const cell = [...document.querySelectorAll('#sh-grid .sh-c')].find(c => c.textContent === 'dcell'), head = [...document.querySelectorAll('#sh-grid .sh-h.col')].find(c => c.textContent === 'E');"
+                 " return { panes: [...document.querySelectorAll('.sh-q, .sh-vp')].map(q => q.scrollLeft + q.scrollTop).reduce((a, b) => a + b, 0),"
+                 " dx: cell && head ? Math.round(cell.getBoundingClientRect().left - head.getBoundingClientRect().left) : null } })()")
+        r = B.drive(f"await api.size(900, 700); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK))}, 800); {READY}\n await api.sleep(1500)\n"
+                    "const o = {}\n"
+                    "await api.frame('document.getElementById(\"sh-grid\").scrollLeft = 260'); await api.sleep(300)\n"
+                    f"o.scrolled = await api.frame({json.dumps(probe)})\n"
+                    "await api.frame('[...document.querySelectorAll(\"#sh-grid .sh-c\")].find(c => c.textContent === \"dcell\").scrollIntoView({ inline: \"start\", block: \"start\" })'); await api.sleep(300)\n"
+                    f"o.intoView = await api.frame({json.dumps(probe)})\n"
+                    "await api.frame('(() => { const c = [...document.querySelectorAll(\"#sh-grid .sh-c\")].find(c => c.textContent === \"dcell\"); c.tabIndex = -1; c.focus() })()'); await api.sleep(300)\n"
+                    f"o.focused = await api.frame({json.dumps(probe)})\n"
+                    "return o")
+        self.assertIsNone(r.get("err"), r)
+        for k, o in r["out"].items():
+            self.assertEqual(o, {"panes": 0, "dx": 0}, (k, r["out"]))

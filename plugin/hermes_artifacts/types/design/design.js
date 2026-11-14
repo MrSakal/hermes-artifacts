@@ -400,7 +400,7 @@
     b.el = h("div", { "class": "dc-board", "data-path": p });
     b.wrap = h("div", { "class": "dc-frame" });
     b.name = h("span", { "class": "dc-name" });
-    b.strip = h("div", { "class": "dc-strip" }, [h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
+    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
     b.playBtn = sbtn("play", T.play, function () { setPlay(b, !b.playing); });
     b.full = sbtn("expand", T.expand, function () { openFocus(p); });
@@ -674,6 +674,10 @@
   overlay.append(selLayer, hoverBox);
   function receiveSel(b, m) {
     var items = (m.items || []).filter(function (it) { return it && typeof it.tid === "number" && it.count > 0; });
+    // An artboard saying it has nothing selected after another took the selection (its answer to the deselect it
+    // was sent, which comes after the new one's): the selection stays the new one's (V6: a click from the landing
+    // page into a phone lost it, its toolbar and its properties).
+    if (!items.length && sel.path !== b.path) return;
     var same = sel.path === b.path && items.map(function (i) { return i.tid; }).join() === sel.tids.join();
     if (sel.path && sel.path !== b.path && boards[sel.path] && boards[sel.path].frame) boards[sel.path].frame.send({ t: "select", tids: [] });
     selBoard = null;
@@ -722,7 +726,7 @@
   }
 
   // breadcrumb: the selected element's template ancestors
-  var crumbs = h("nav", { "class": "dc-crumbs", "aria-label": "Breadcrumb", hidden: true });
+  var crumbs = h("nav", { "class": "dc-crumbs", "data-comment-keep": "", "aria-label": "Breadcrumb", hidden: true });
   viewEl.appendChild(crumbs);
   function nodeOf(path, tid) { var f = files[path]; return f ? f.nodes[tid] : null; }
   function tagLabel(n) {
@@ -750,7 +754,7 @@
   }
 
   // ------------------------------------------------------------------ element toolbar
-  var tools = h("div", { "class": "dc-tools", hidden: true, role: "toolbar" });
+  var tools = h("div", { "class": "dc-tools", "data-comment-keep": "", hidden: true, role: "toolbar" });
   document.body.appendChild(tools);
   function tbtn(icon, label, fn, withText) {
     var b = h("button", { type: "button", "class": "kit-btn", title: label, "aria-label": label, html: kit.icon(icon) });
@@ -760,7 +764,8 @@
   }
   function drawTools() {
     var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null;
-    if (!editable || (!n && !selBoard) || focus) { tools.hidden = true; return; }
+    // every selection has its toolbar (an element the source does not name: Ask and Comment, on its artboard)
+    if (!editable || (!sel.path && !selBoard) || focus) { tools.hidden = true; return; }
     var kids = [];
     if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(tbtn("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
     if (n && n.localName === "img") kids.push(tbtn("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
@@ -1734,7 +1739,7 @@
     pages = canvas.pages;
     changed(); setPage(id);
   }
-  var pagesPill = h("div", { "class": "dc-pill dc-pill-l" }, [pagesBtn]);
+  var pagesPill = h("div", { "class": "dc-pill dc-pill-l", "data-comment-keep": "" }, [pagesBtn]);
 
   // the view (top right)
   var EXP_ICON = { png: "image", pdf: "file", "pdf-all": "pages", html: "code" };
@@ -1763,7 +1768,7 @@
         { label: T.redo + "  (Ctrl+Shift+Z)", disabled: !redos.length, onClick: redo }] : []));
   }, "dc-zoomval");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
-  var viewPill = h("div", { "class": "dc-pill dc-pill-r" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
+  var viewPill = h("div", { "class": "dc-pill dc-pill-r", "data-comment-keep": "" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
 
   // the tools (bottom)
   var tool = "select", toolBtns = {}, shapeKind = "rect";
@@ -1780,7 +1785,7 @@
       return { icon: ic[x[0]], label: x[1], on: shapeKind === x[0], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(ic[x[0]]); setTool(x[0]); } };
     }));
   }, "dc-caretonly");
-  var toolPill = h("div", { "class": "dc-pill dc-pill-b", role: "toolbar", "aria-label": T.tools }, [
+  var toolPill = h("div", { "class": "dc-pill dc-pill-b", "data-comment-keep": "", role: "toolbar", "aria-label": T.tools }, [
     tbtn2("select", "cursor", T.tSelect), tbtn2("hand", "hand", T.tHand), tbtn2("text", "text", T.tText), tbtn2("board", "frame", T.tBoard),
     tbtn2("sticky", "sticky", T.tSticky), tbtn2("pen", "pencil", T.tPen), tbtn2("shape", "shape", T.shapes), shapeCaret]);
   viewEl.append(pagesPill, viewPill);
