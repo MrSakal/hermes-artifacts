@@ -1899,6 +1899,10 @@
     if (selBar.contains(document.activeElement)) return;
     selTimer = setTimeout(showSelBar, 200);
   });
+  // The person went to the host (its Comment, the comments list, the chat): a frame's selection stays while it has no
+  // focus, its bar would float there, stale (and cut by the list opening beside it). It closes; the comment pick too.
+  window.addEventListener("blur", function () { clearTimeout(selTimer); selBar.hidden = true; });
+  if (hm && hm.on) hm.on("comment-mode", function (d) { if (d && d.on) { clearTimeout(selTimer); selBar.hidden = true; } });
   document.addEventListener("mousedown", function (e) {
     if (!selBar.contains(e.target)) selBar.hidden = true;
     if (slash.open && !slash.el.contains(e.target)) slash.close();

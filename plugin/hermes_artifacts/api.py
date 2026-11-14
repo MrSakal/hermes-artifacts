@@ -152,6 +152,7 @@ _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)
 _FONT_PATH = re.compile(r"\.(woff2?|ttf|otf)$", re.I)
 _FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x-font-[a-z]+|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+FOLDER_MAX = 40  # a new gallery folder's name at most (plugin.js FOLDER_MAX); older, longer ones keep working
 # A mesh the model page brings in: any data: URL (browsers name these types inconsistently).
 _MESH_PATH = re.compile(r"^meshes/.+\.(glb|gltf|stl|obj|ply|3mf)$", re.I)
 _ANY_URI = re.compile(r"^data:[^,]*;base64,([A-Za-z0-9+/=]+)$")
@@ -472,11 +473,15 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             if not name:
                 raise ApiError(400, "a folder needs a name")
             have = list(store.settings().get("folders") or [])
+            if len(name) > FOLDER_MAX and name not in have and "rename" not in body and not body.get("delete"):
+                raise ApiError(400, f"a folder name is at most {FOLDER_MAX} characters")
             if "rename" in body:
                 # In its place in the list; what is in it moves along (into a folder of that name, if one is there).
                 new = " ".join(str(body.get("rename") or "").split())[:60]
                 if not new:
                     raise ApiError(400, "a folder needs a name")
+                if len(new) > FOLDER_MAX and new != name:
+                    raise ApiError(400, f"a folder name is at most {FOLDER_MAX} characters")
                 out: list = []
                 for f in (new if f == name else f for f in have):
                     if f not in out:

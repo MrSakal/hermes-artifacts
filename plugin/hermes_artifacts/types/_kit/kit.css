@@ -161,3 +161,9 @@ html[data-thumb] *::-webkit-scrollbar, html[data-thumb]::-webkit-scrollbar { dis
   [role="option"], [role="slider"], [role="checkbox"], [role="switch"], [role="radio"], [tabindex]):not([contenteditable]):not(.kit-surface):not(.kit-bare):focus-visible {
   outline: none !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 50%, transparent) !important; }
 .kit-surface:focus, .kit-surface:focus-visible, .kit-bare:focus-visible { outline: none !important; box-shadow: none !important; }
+
+/* A colour well whose colour paints nothing (kit.noFill): a slash over the panel, never black. */
+input[type=color].kit-nofill::-webkit-color-swatch { background: linear-gradient(to top right, transparent calc(50% - 1px), var(--color-bad, #c0392b) calc(50% - 1px),
+  var(--color-bad, #c0392b) calc(50% + 1px), transparent calc(50% + 1px)), var(--color-panel, #fff) !important; }
+input[type=color].kit-nofill::-moz-color-swatch { background: linear-gradient(to top right, transparent calc(50% - 1px), var(--color-bad, #c0392b) calc(50% - 1px),
+  var(--color-bad, #c0392b) calc(50% + 1px), transparent calc(50% + 1px)), var(--color-panel, #fff) !important; }

@@ -38,7 +38,7 @@
       bad: "canvas.json is missing or not valid JSON.", empty: "This canvas has no artboards yet.", missing: "Missing file",
       error: "Error", noLib: "The export library didn't load (open the canvas in Hermes Desktop)", tooBig: "Images up to 8 MB",
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
-      comment: "Comment", editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
+      comment: "Comment", kinds: { image: "Image", text: "Text", shape: "Shape", line: "Line", other: "Element" }, editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
       exp: "Export", png: "This artboard (PNG)", pdf: "This artboard (PDF)", pdfAll: "All artboards (PDF)", html: "This artboard (HTML)",
       dupEl: "Duplicate", group: "Group", ungroup: "Ungroup", forward: "Bring forward", backward: "Send backward",
       text: "Text", color: "Color", size: "Size", weight: "Weight", align: "Align", fill: "Fill", background: "Background",
@@ -60,7 +60,7 @@
       bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
       error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
-      comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
+      comment: "Megjegyzés", kinds: { image: "Kép", text: "Szöveg", shape: "Alakzat", line: "Vonal", other: "Elem" }, editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
       fixIt: "Kérd meg a Hermest, hogy javítsa",
       dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
@@ -174,8 +174,9 @@
     var self = this;
     this.path = opts.path; this.mode = opts.mode; this.wheel = opts.wheel; this.onMsg = opts.onMsg; this.queue = []; this.loaded = false;
     this.reqs = {};
+    // data-comment-frame: the host's comment pick goes on inside it (frame.js picks; bridge.js leaves it the pointer).
     this.iframe = h("iframe", { "class": "dc-iframe", title: titleOf(opts.path), sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox",
-      tabindex: opts.mode === "export" ? "-1" : null });
+      tabindex: opts.mode === "export" ? "-1" : null, "data-comment-frame": "" });
     this.iframe.srcdoc = SRCDOC;
     opts.parent.appendChild(this.iframe);
     frames.push(this);
@@ -219,6 +220,7 @@
       }
       if (m.t === "ready") { f.ready = true; (f.readyWaiters || []).splice(0).forEach(function (r) { r(); }); }
       if (m.t === "raster" && f.reqs[m.req]) { f.reqs[m.req](m); return; }
+      if (m.t === "picked") { framePicked(f, m); return; }
       if (f.onMsg) f.onMsg(m, f);
       return;
     }
@@ -305,6 +307,8 @@
     viewEl.style.backgroundPosition = tx + "px " + ty + "px";
     zoomLabel.textContent = R(z * 100) + "%";
     drawSel(); placeTools(); sendView(); stripsSoon();
+    if (commentPicking) sendPick();
+    if (window.hermes && window.hermes.moved) window.hermes.moved(); // a comment's pin follows a pan or a zoom
   }
   // A frame's name strip keeps its screen size at any zoom: zoomed far out it would reach over a title or another
   // frame above it. One that meets anything stays hidden until there is room (its name truncates, its buttons go
@@ -777,9 +781,9 @@
       var o = geo(sel.path), rs = [];
       sel.tids.forEach(function (t) { ((sel.info[t] || {}).rects || []).slice(0, 1).forEach(function (r) { rs.push({ x: o.x + r.x, y: o.y + r.y, w: r.w, h: r.h }); }); });
       var u = bounds(rs);
-      if (u) return { left: v.left + tx + u.x * z, top: v.top + ty + u.y * z, bottom: v.top + ty + (u.y + u.h) * z };
+      if (u) return { left: v.left + tx + u.x * z, right: v.left + tx + (u.x + u.w) * z, top: v.top + ty + u.y * z, bottom: v.top + ty + (u.y + u.h) * z };
     }
-    if (selBoard) { var g = geo(selBoard); return { left: v.left + tx + g.x * z, top: v.top + ty + (g.y - 30) * z, bottom: v.top + ty + (g.y + g.h) * z }; }
+    if (selBoard) { var g = geo(selBoard); return { left: v.left + tx + g.x * z, right: v.left + tx + (g.x + g.w) * z, top: v.top + ty + (g.y - 30) * z, bottom: v.top + ty + (g.y + g.h) * z }; }
     return null;
   }
   function placeTools() {
@@ -790,10 +794,39 @@
     // never wider than the canvas: Ask Hermes and Comment keep their icons and drop their words when it would be
     tools.classList.remove("is-compact");
     if (tools.offsetWidth > v.width - 12) tools.classList.add("is-compact");
-    var top = r.top - tools.offsetHeight - 10;
-    if (top < v.top + 4) top = r.bottom + 10;
-    tools.style.top = clamp(top, v.top + 4, innerHeight - tools.offsetHeight - 8) + "px";
-    tools.style.left = clamp(r.left, v.left + 4, v.right - tools.offsetWidth - 8) + "px";
+    var w = tools.offsetWidth, hh = tools.offsetHeight, spot = toolSpot(r, v, w, hh);
+    if (!spot) {
+      var top = r.top - hh - 10;
+      if (top < v.top + 4) top = r.bottom + 10;
+      spot = { x: r.left, y: top };
+    }
+    tools.style.top = clamp(spot.y, v.top + 4, innerHeight - hh - 8) + "px";
+    tools.style.left = clamp(spot.x, v.left + 4, v.right - w - 8) + "px";
+  }
+  /** Where the selection's toolbar (w x hh) covers no other frame (its name strip, its top edge) nor its own
+   *  frame's strip, nor the selection: above it, below it, then above its frame's strip or under its frame, each
+   *  from the selection's left, its right, its middle (the board's rule: the first free spot near it). Null when
+   *  none is free in the canvas (the toolbar then goes just above the selection, as before). */
+  function toolSpot(r, v, w, hh) {
+    var own = sel.path || selBoard, keep = [{ left: r.left, right: r.right, top: r.top, bottom: r.bottom }], oe = null, os = null;
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (!b.el.isConnected || !b.el.getClientRects().length) return;
+      var sr = b.strip.getClientRects().length ? b.strip.getBoundingClientRect() : null;
+      if (p === own) { oe = b.el.getBoundingClientRect(); os = sr; if (sr) keep.push(sr); return; }
+      keep.push(b.el.getBoundingClientRect());
+      if (sr) keep.push(sr);
+    });
+    var ys = [r.top - hh - 10, r.bottom + 10];
+    if (oe) ys.push(Math.min(oe.top, os ? os.top : oe.top) - hh - 8, oe.bottom + 10);
+    var xs = [r.left, r.right - w, (r.left + r.right) / 2 - w / 2];
+    for (var i = 0; i < ys.length; i++) for (var j = 0; j < xs.length; j++) {
+      var x = clamp(xs[j], v.left + 4, v.right - w - 8), y = ys[i];
+      if (y < v.top + 4 || y + hh > v.bottom - 4) continue;
+      var hit = keep.some(function (k) { return x < k.right && k.left < x + w && y < k.bottom && k.top < y + hh; });
+      if (!hit) return { x: x, y: y };
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ editing the templates
@@ -987,13 +1020,13 @@
   }
   function colorField(prop, comp) {
     var v = inline(prop), wrap = h("span", { "class": "dc-color" });
-    var sw = h("input", { type: "color", value: hex(v || computed(comp)), "aria-label": prop });
+    var sw = kit.noFill(h("input", { type: "color", value: hex(v || computed(comp)), "aria-label": prop }), v || computed(comp));
     var tx2 = h("input", { type: "text", value: v, placeholder: computed(comp), spellcheck: "false" });
     if (boundNote(v)) { sw.disabled = tx2.disabled = true; tx2.title = T.bound; }
     var live = false;
-    sw.addEventListener("input", function () { setStyle(prop, sw.value, live); live = true; tx2.value = sw.value; });
+    sw.addEventListener("input", function () { setStyle(prop, sw.value, live); live = true; tx2.value = sw.value; kit.noFill(sw, sw.value); });
     sw.addEventListener("change", function () { live = false; });
-    tx2.addEventListener("change", function () { setStyle(prop, tx2.value.trim()); });
+    tx2.addEventListener("change", function () { setStyle(prop, tx2.value.trim()); kit.noFill(sw, tx2.value.trim() || computed(comp)); });
     tx2.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Enter") tx2.blur(); });
     wrap.append(sw, tx2);
     if (ds.model && ds.model.colors.length) {
@@ -1200,10 +1233,10 @@
       ctl.value = String(Math.max(0, os.map(function (o) { return o.v; }).indexOf(val)));
       ctl.addEventListener("change", function () { setProp(p, k, os[+ctl.value].v); });
     } else if (ed === "color") {
-      var sw = h("input", { type: "color", value: hex(val) }), t2 = h("input", { type: "text", value: val == null ? "" : String(val), spellcheck: "false" });
-      sw.addEventListener("input", function () { setProp(p, k, sw.value, live); live = true; t2.value = sw.value; });
+      var sw = kit.noFill(h("input", { type: "color", value: hex(val) }), val), t2 = h("input", { type: "text", value: val == null ? "" : String(val), spellcheck: "false" });
+      sw.addEventListener("input", function () { setProp(p, k, sw.value, live); live = true; t2.value = sw.value; kit.noFill(sw, sw.value); });
       sw.addEventListener("change", function () { live = false; });
-      t2.addEventListener("change", function () { setProp(p, k, t2.value.trim()); });
+      t2.addEventListener("change", function () { setProp(p, k, t2.value.trim()); kit.noFill(sw, t2.value.trim()); });
       t2.addEventListener("keydown", function (e) { e.stopPropagation(); });
       ctl = h("span", { "class": "dc-color" }, [sw, t2]);
       var os2 = opts();
@@ -1389,11 +1422,54 @@
   function commentOn() {
     var a = about();
     if (!a.p || !window.hermes || !window.hermes.comment) return;
-    var text = a.n ? ((sel.info[sel.tids[0]] || {}).text || labelOf(a.n) || "") : titleOf(a.p);
-    window.hermes.comment({ selector: a.id, text: text.slice(0, 200), label: (a.p + (a.n ? " · " + tagLabel(a.n) : "")).slice(0, 40) });
+    var b = boards[a.p];
+    // An element: its frame says where it is (framePicked opens the comment there); the artboard: its frame's box.
+    if (a.n && b && b.frame) { b.frame.send({ t: "where", tid: sel.tids[0], k: scaleOf(b.frame) }); return; }
+    if (b && b.frame) framePicked(b.frame, { t: "picked", tid: null });
   }
+  /** The scale a frame is shown at (the canvas's zoom, an opened artboard's fit): frame px to the page's. */
+  function scaleOf(f) { return f.iframe.getBoundingClientRect().width / (f.iframe.offsetWidth || 1) || 1; }
+  function clipWords(s, n) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (s.length <= n) return s;
+    var c = s.slice(0, n - 1), i = c.lastIndexOf(" ");
+    return (i > n * 0.4 ? c.slice(0, i) : c).replace(/[\s,;:.·–-]+$/, "") + "…";
+  }
+  /** A comment on what a frame picked (m: frame.js where(); tid null: the artboard), beside it with its pin: its
+   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). */
+  function framePicked(f, m) {
+    if (!window.hermes || !window.hermes.comment) return;
+    var p = f.path, n = m.tid != null ? nodeOf(p, m.tid) : null, name = titleOf(p);
+    var anchor = n ? { selector: selId(p, m.tid), text: String(m.text || labelOf(n) || "").slice(0, 200),
+                       label: clipWords(name + " · " + (labelOf(n) || T.kinds[kindOf(n)] || T.kinds.other), 40) }
+                   : { selector: enc(p), text: name.slice(0, 200), label: clipWords(name, 40) };
+    if (!anchor.selector) return;
+    var inner = m.rect;
+    window.hermes.comment(anchor, { el: f.iframe, box: function () {
+      if (!f.iframe.isConnected) return null;
+      var ir = f.iframe.getBoundingClientRect(), k = scaleOf(f);
+      if (!inner) return { x: ir.left, y: ir.top, w: ir.width, h: ir.height };
+      var bx = { x: ir.left + inner.x * k, y: ir.top + inner.y * k, w: inner.w * k, h: inner.h * k };
+      if (isFinite(inner.ly) && isFinite(inner.lh)) { bx.ly = ir.top + inner.ly * k; bx.lh = inner.lh * k; }
+      if (isFinite(inner.lr)) bx.lr = ir.left + inner.lr * k;
+      ["fr", "fl", "fw", "fa", "fb"].forEach(function (s2) { if (m[s2] === false) bx[s2] = false; });
+      return bx;
+    } });
+  }
+  // The host's comment pick: the frames pick inside themselves (frame.js); a zoom while picking tells them again.
+  var commentPicking = false;
+  function sendPick() { frames.forEach(function (f) { if (f.mode !== "export") f.send({ t: "pick", on: commentPicking, k: scaleOf(f) }); }); }
+  // A click on a frame's own chrome while picking (its name strip): the comment is on that artboard.
+  window.addEventListener("click", function (e) {
+    if (!commentPicking) return;
+    var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
+    if (!b || !b.frame) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    framePicked(b.frame, { t: "picked", tid: null });
+  }, true);
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.
+    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); });
     window.hermes.on("flash", function (d) {
       var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(String(d && d.selector || ""));
       var p = m && Object.keys(files).filter(function (f) { return enc(f) === m[1]; })[0];

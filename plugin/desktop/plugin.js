@@ -204,6 +204,7 @@ const STRINGS = {
     noFolder: 'No folder',
     folderMore: n => `Rename or delete “${n}”`,
     folderRename: 'New name, then Enter',
+    folderTooLong: n => `A folder name is at most ${n} characters`,
     folderDelete: 'Delete folder',
     folderDelConfirm: 'Delete the folder?',
     folderDelConfirmSub: n => (n === 1 ? 'The artifact in it moves to No folder' : `The ${n} artifacts in it move to No folder`),
@@ -281,6 +282,7 @@ const STRINGS = {
     noOpenComments: 'No open comments.',
     noResolvedComments: 'No resolved comments.',
     you: 'You',
+    selectedPart: 'Selected part',
     hermes: 'Hermes',
     type_page: 'Page',
     type_dashboard: 'Dashboard',
@@ -473,6 +475,7 @@ const STRINGS = {
     noFolder: 'Nincs mappa',
     folderMore: n => `„${n}” átnevezése vagy törlése`,
     folderRename: 'Új név, aztán Enter',
+    folderTooLong: n => `A mappa neve legfeljebb ${n} karakter`,
     folderDelete: 'Mappa törlése',
     folderDelConfirm: 'Törlöd a mappát?',
     folderDelConfirmSub: n => (n === 1 ? 'A benne lévő artifact a Nincs mappa alá kerül' : `A benne lévő ${n} artifact a Nincs mappa alá kerül`),
@@ -550,6 +553,7 @@ const STRINGS = {
     noOpenComments: 'Nincs nyitott komment.',
     noResolvedComments: 'Nincs megoldott komment.',
     you: 'Te',
+    selectedPart: 'Kijelölt rész',
     hermes: 'Hermes',
     type_page: 'Oldal',
     type_dashboard: 'Dashboard',
@@ -1256,6 +1260,9 @@ function sawEdit(id, now = Date.now() / 1000) {
   const list = $list.get(), a = list.find(x => x.id === id)
   if (a && now - (a.updated || 0) >= SEEN_EVERY_S) $list.set(withSeen(list, false))
 }
+/** What an open artifact's "Updated" says: the latest edit this half saw, at once, even within SEEN_EVERY_S of
+ *  the list's (SEEN_EVERY_S only throttles writes to the list). */
+const shownUpdated = a => Math.max(a?.updated || 0, seenEdits.get(a?.id) || 0)
 /** The list with each artifact's "updated" moved to the edit this half saw after it; `list` itself when none
  *  moves. From the server (`server`), an entry the list has caught up with goes. */
 function withSeen(list, server = true) {
@@ -1656,10 +1663,12 @@ function ago(ts) {
 }
 
 /** One shared clock for the ages shown ("now", "3m", "2h": the gallery's cards and rows, the trash, the
- *  comments): one timer for all of them, twice a minute, only while one is mounted and the page is in sight
+ *  comments): one timer for all of them, every AGE_TICK_MS, only while one is mounted and the page is in sight
  *  (paused while hidden, ticking at once when it is back), gone with the last one and on dispose. Each age is
- *  its own component (Ago), so a memo'd card around it never keeps it from ticking. */
-const AGE_TICK_MS = 30000
+ *  its own component (Ago), so a memo'd card around it never keeps it from ticking. An age is always read from
+ *  the real time as it draws (one just mounted too); the clock only asks each to look again, and one draws
+ *  again only when its words changed: a label is at most AGE_TICK_MS behind a minute's turn. */
+const AGE_TICK_MS = 5000
 const clock = {
   subs: new Set(), timer: null, watching: false,
   tick() { clock.subs.forEach(fn => fn()) },
@@ -1678,13 +1687,15 @@ const clock = {
 }
 function Ago({ ts, fmt = null }) {
   const [, setN] = useState(0)
+  const s = ago(ts)
+  const seen = useRef({ ts, s })
+  seen.current = { ts, s }
   useEffect(() => {
-    const fn = () => setN(n => n + 1)
+    const fn = () => { if (ago(seen.current.ts) !== seen.current.s) setN(n => n + 1) }
     clock.subs.add(fn)
     clock.sync()
     return () => { clock.subs.delete(fn); clock.sync() }
   }, [])
-  const s = ago(ts)
   return s && fmt ? fmt(s) : s
 }
 
@@ -1874,14 +1885,14 @@ const memo = typeof React.memo === 'function' ? React.memo : c => c
 
 /** `count` (a number, 0 for none): a count after the icon in room kept for two digits, so the buttons beside it
  *  stay where they are when it comes and goes. */
-function IconButton({ icon, title, onClick, active, label, pressed, data, count, disabled = false }) {
+function IconButton({ icon, title, onClick, active, label, pressed, armed, data, count, disabled = false }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
     disabled,
     title,
     'aria-label': title,
-    'aria-pressed': pressed,
+    'aria-pressed': armed !== undefined ? Boolean(armed) : pressed,
     ...(data || {}),
     // While its menu is open, its own press must not count as a click outside that menu.
     onMouseDown: active ? e => e.stopPropagation() : undefined,
@@ -1900,8 +1911,9 @@ function IconButton({ icon, title, onClick, active, label, pressed, data, count,
       cursor: disabled ? 'default' : 'pointer',
       opacity: disabled ? 0.5 : 1, // Hermes' disabled:opacity-50
       fontSize: 12,
-      color: (active || h) && !disabled ? C.fg : C.text2,
-      background: (active || h) && !disabled ? C.hover : 'transparent'
+      // armed (a mode it turns on, on now: picking): pressed, with the chosen chip's tinted look (Chip)
+      color: disabled ? C.text2 : armed ? C.accent : active || h ? C.fg : C.text2,
+      background: disabled ? 'transparent' : armed ? C.accentBg : active || h ? C.hover : 'transparent'
     },
     children: [
       jsx(Icon, { name: icon }),
@@ -1911,8 +1923,9 @@ function IconButton({ icon, title, onClick, active, label, pressed, data, count,
   })
 }
 
-/** `more` (a title): the chip also opens a menu, marked with a chevron. */
-function Chip({ label, active, onClick, more = null }) {
+/** `more` (a title): the chip also opens a menu, marked with a chevron. `max` (px): its label is cut there with
+ *  an ellipsis, the whole label in its tooltip (a long folder name: the chips stay on their row). */
+function Chip({ label, active, onClick, more = null, max = 0 }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
@@ -1935,7 +1948,10 @@ function Chip({ label, active, onClick, more = null }) {
       color: active || h ? C.fg : C.text2,
       background: active ? C.accentBg : h ? C.card : 'transparent'
     },
-    children: [label, more ? jsx(Icon, { name: 'chevron', size: 14 }) : null]
+    children: [
+      max ? jsx('span', { title: label, style: { maxWidth: max, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: label }) : label,
+      more ? jsx(Icon, { name: 'chevron', size: 14 }) : null
+    ]
   })
 }
 
@@ -2377,8 +2393,10 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
       items: [
         { icon: 'back', label: t('moveTo'), onClick: () => setView('main') },
         { sep: true },
-        { input: true, key: 'q', value: q, placeholder: t('folderSearch'), onChange: setQ, onEnter: () => name && moveTo(name)() },
-        ...(name && !folders.some(f => f.toLowerCase() === name.toLowerCase()) ? [{ key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }] : []),
+        { input: true, key: 'q', value: q, placeholder: t('folderSearch'), onChange: setQ, onEnter: () => name && (folders.includes(name) || name.length <= FOLDER_MAX) && moveTo(name)() },
+        ...(name && !folders.some(f => f.toLowerCase() === name.toLowerCase())
+        ? [name.length > FOLDER_MAX ? { key: 'create', icon: 'plus', label: t('folderTooLong', FOLDER_MAX), disabled: true } : { key: 'create', icon: 'plus', label: t('createFolder', name), onClick: moveTo(name) }]
+        : []),
         // Where it is now: checked, and no move to there.
         ...hits.map(f => ({ key: `f:${f}`, icon: 'folder', label: f, checked: art.folder === f, disabled: art.folder === f, onClick: moveTo(f) })),
         { key: 'none', icon: 'folder', label: t('noFolder'), checked: !art.folder, disabled: !art.folder, onClick: moveTo('') }
@@ -2643,8 +2661,18 @@ function TrashRow({ ctx, item, cols = 'wide' }) {
     style: { ...font, display: 'flex', alignItems: 'center', gap: narrow ? 8 : 12, width: '100%', padding: '6px 6px 6px 12px', borderRadius: C.rMd, background: h ? C.rowHover : 'transparent', boxSizing: 'border-box' },
     children: [
       jsx(TypeBadge, { type: item.type, size: 28 }),
-      // A narrow gallery drops the cells beside it (listCols): the title stays readable.
-      jsx('div', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
+      // A narrow gallery drops the cells beside it (listCols): the title stays readable, when it was deleted and
+      // the days left on a second line under it (what the trash is for: how long it is kept).
+      narrow
+        ? jsxs('div', { style: { flex: 1, minWidth: 0 }, children: [
+            jsx('div', { style: { fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
+            jsxs('div', { title: item.deleted_at ? dateText(item.deleted_at, true) : undefined, style: { ...cell, display: 'block', marginTop: 1 }, children: [
+              item.deleted_at ? jsx(Ago, { ts: item.deleted_at, fmt: s => t('deletedAgo', s) }) : null,
+              item.deleted_at && item.days_left != null ? ' · ' : null,
+              item.days_left == null ? null : t('daysLeft', item.days_left)
+            ] })
+          ] })
+        : jsx('div', { style: { flex: 1, minWidth: 0, fontSize: 14, color: C.fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: item.title }),
       narrow ? null : jsx('span', { style: { ...cell, width: 90 }, children: t(`type_${item.type}`) || item.type }),
       cols === 'wide'
         ? jsx('span', {
@@ -2760,6 +2788,9 @@ function clearFilters() {
   $pinnedOnly.set(false)
 }
 
+const FOLDER_MAX = 40 // a folder's name at most (api.py FOLDER_MAX): its chip is cut shorter still (FOLDER_CHIP)
+const FOLDER_CHIP = 160 // a folder chip's widest, its name cut with an ellipsis (the whole name in its tooltip)
+
 /** New: a chat, a folder, or one of each type. */
 function NewMenu({ ctx, onClose }) {
   const t = usePluginI18n(ID)
@@ -2773,6 +2804,7 @@ function NewMenu({ ctx, onClose }) {
         { input: true, key: 'n', value: name, placeholder: t('newFolder'), onChange: setName, onEnter: async () => {
           const n = name.trim()
           if (!n) return
+          if (n.length > FOLDER_MAX) return toast(t('folderTooLong', FOLDER_MAX), 'error') // the name stays to shorten
           onClose()
           await ctx.rest('/folders', { method: 'POST', body: { name: n } }).catch(e => toast(errText(e), 'error'))
           await refresh(ctx)
@@ -2805,6 +2837,7 @@ function FolderMenu({ ctx, name, count, onClose }) {
       items: [
         { input: true, key: 'r', value: q, placeholder: t('folderRename'), onChange: setQ, onEnter: async () => {
           const n = q.trim()
+          if (n.length > FOLDER_MAX) return toast(t('folderTooLong', FOLDER_MAX), 'error') // the name stays to shorten
           onClose()
           if (!n || n === name) return
           try {
@@ -2854,7 +2887,7 @@ function FolderChip({ ctx, name, active, count }) {
     onContextMenu: e => (e.preventDefault(), setMenu(true)),
     style: { position: 'relative', display: 'flex' },
     children: [
-      jsx(Chip, { label: name, active, more: active ? t('folderMore', name) : null, onClick: () => (active ? setMenu(!menu) : showFolder(name)) }),
+      jsx(Chip, { label: name, max: FOLDER_CHIP, active, more: active ? t('folderMore', name) : null, onClick: () => (active ? setMenu(!menu) : showFolder(name)) }),
       menu ? jsx(FolderMenu, { ctx, name, count, onClose: () => setMenu(false) }) : null
     ]
   })
@@ -2950,7 +2983,7 @@ function Gallery({ ctx, pageRef }) {
   // The search narrows whichever list is shown (the trash too, as Hermes' own search narrows every list under
   // it): while it hides something, a line says so and clears it.
   const [seen, all] = inTrash ? [trashShown.length, trash.length] : [shown.length, inView.length]
-  const searchNote = q && seen < all
+  const searchNote = q && seen < all && seen > 0 // none left: the empty list says so (noMatch)
     ? jsxs('div', {
         role: 'status',
         style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12, fontSize: 13, color: C.text2 },
@@ -2960,6 +2993,14 @@ function Gallery({ ctx, pageRef }) {
         ]
       })
     : null
+  // Nothing left to show: Hermes' empty list, centred (its words, and Clear search when a search hid it all).
+  const noMatch = jsxs('div', {
+    style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '48px 16px', textAlign: 'center', fontSize: 13, color: C.text2 },
+    children: [
+      jsx('div', { children: t('noMatch') }),
+      q ? jsx(IconButton, { icon: 'close', label: t('clearSearch'), title: t('clearSearch'), onClick: () => ($query.set(''), setSearching(false)) }) : null
+    ]
+  })
 
   const body = err
     ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('backendDown', err) })
@@ -2968,7 +3009,7 @@ function Gallery({ ctx, pageRef }) {
           jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('trashNote', trashDays) }),
           searchNote,
           trashShown.length === 0
-            ? searchNote ? null : jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
+            ? noMatch
             : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: trashShown.map(x => jsx(TrashRow, { ctx, item: x, cols }, x.name)) })
         ] })
     : list.length === 0
@@ -2976,7 +3017,7 @@ function Gallery({ ctx, pageRef }) {
       : jsxs(Fragment, { children: [
           searchNote,
           shown.length === 0
-            ? searchNote ? null : jsx('p', { style: { fontSize: 13, color: C.text2 }, children: t('noMatch') })
+            ? noMatch
             : layout === 'grid'
               ? jsx('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }, children: shown.map(a => jsx(Card, { ctx, art: a, sort }, a.id)) })
               : jsx('div', { style: { display: 'flex', flexDirection: 'column', gap: 2 }, children: shown.map(a => jsx(ListRow, { ctx, art: a, sort, cols }, a.id)) })
@@ -4096,8 +4137,24 @@ function pickedRect(r) {
   const out = { x: r.x, y: r.y, w: r.w, h: r.h }
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
   for (const k of ['lr', 'vt', 'vb']) if (Number.isFinite(r[k])) out[k] = r[k]
-  for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis']) if (typeof r[k] === 'boolean') out[k] = r[k]
+  for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis', 'pt']) if (typeof r[k] === 'boolean') out[k] = r[k]
   return out
+}
+
+// Tag names an older pick sent as its label ("div", "canvas"): never a title.
+const TAG_LABEL = /^(a|article|aside|b|button|canvas|circle|code|div|em|figure|footer|form|g|h[1-6]|header|i|img|input|label|li|main|nav|ol|p|path|pre|rect|section|select|span|strong|svg|table|tbody|td|text|textarea|th|tr|ul|video)$/
+/** What a comment's anchor is titled with: the part's name the page gave (its label), else its words cut at a
+ *  word (40 characters), else the neutral `fallback` ("Selected part"); never a tag name. */
+function anchorTitle(anchor, fallback) {
+  if (!anchor) return ''
+  const label = String(anchor.label || '').trim()
+  if (label && !TAG_LABEL.test(label)) return label
+  let s = String(anchor.text || '').trim().replace(/\s+/g, ' ')
+  if (s.length > 40) {
+    const c = s.slice(0, 39), i = c.lastIndexOf(' ')
+    s = (i > 16 ? c.slice(0, i) : c).replace(/[\s,;:.·–-]+$/, '') + '…'
+  }
+  return s || fallback
 }
 
 function onPageEvent(event, detail) {
@@ -4108,10 +4165,12 @@ function onPageEvent(event, detail) {
     return
   }
   if (event === 'comment') {
-    // A doc's "Comment" on selected text: open the comment form anchored there.
+    // A page's own "Comment" (a doc's selected text, a design's element, a film's point): the comment form
+    // anchored there; beside the part with its pin when the page measured it (rect, as a pick's), else in the list.
     $picking.set(false)
-    openPanel()
-    $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null })
+    const rect = pickedRect(detail && detail.rect)
+    if (!rect) openPanel()
+    $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null, ...(rect ? { rect } : {}) })
     return
   }
   if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickBand)
@@ -5001,7 +5060,9 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
                 value: it.value,
                 placeholder: it.placeholder,
                 onChange: e => it.onChange(e.target.value),
-                onKeyDown: e => e.key === 'Enter' && it.onEnter && it.onEnter(),
+                // Enter's own default stays here: the menu closes on it and the focus goes back to the button that
+                // opened it, which that same press would otherwise click (the menu drawn again over its card)
+                onKeyDown: e => { if (e.key === 'Enter' && it.onEnter) { e.preventDefault(); it.onEnter() } },
                 'aria-label': it.placeholder,
                 className: INPUT,
                 style: { ...font, width: '100%', boxSizing: 'border-box', height: 34, margin: '2px 0 4px', padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
@@ -5071,7 +5132,8 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
   // Nothing polls while an artifact is open: the list is asked once as the menu opens (its etag: a "same" costs
   // nothing), so "Updated" is the server's, or the edit seen here since (sawEdit), never the time it was opened.
   useEffect(() => { refresh(ctx) }, [])
-  const date = art.updated ? dateText(art.updated, true) : ''
+  const updated = shownUpdated(art)
+  const date = updated ? dateText(updated, true) : ''
   const close = fn => () => {
     onClose()
     fn()
@@ -5264,6 +5326,7 @@ function Header({ ctx, art, v, portRef, docked }) {
             title: t('comment'),
             count: open,
             active: narrow ? panel : picking,
+            armed: picking, // pressed until a pick, Esc or Cancel
             onClick: () => {
               $draft.set(null)
               if (!narrow) return $picking.set(!picking)
@@ -5317,6 +5380,8 @@ const PIN_EDGE = 4 // the least room between the pin and the stage's edge (bridg
  *  its top right corner. Pure. */
 function pinSpot(rect, bw, bh) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
+  // A point (a film's picture clicked: pt): the pin on it.
+  if (rect.pt) return { x: clamp(rect.x + rect.w / 2 - PIN / 2, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + rect.h / 2 - PIN / 2, PIN_EDGE, bh - PIN - PIN_EDGE) }
   const fitsX = x => x >= PIN_EDGE && x + PIN <= bw - PIN_EDGE
   const fitsY = y => y >= PIN_EDGE && y + PIN <= bh - PIN_EDGE
   const ly = Number.isFinite(rect.ly) ? rect.ly : rect.y
@@ -5459,7 +5524,7 @@ function CommentPopover({ ctx, art, stageRef }) {
   }, [Boolean(draft?.rect)])
   if (!draft?.rect) return null
   const { pin, box } = commentLayout(draft.rect, bw, bh, boxH, cover)
-  const label = draft.anchor ? draft.anchor.text || draft.anchor.label : ''
+  const label = anchorTitle(draft.anchor, t('selectedPart'))
   return jsxs('div', {
     children: [
       // The pin over the popover's layer: whatever the placement, it is never covered.
@@ -5625,7 +5690,7 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
   const [replying, setReplying] = useState(false)
   const [text, setText] = useState('')
   const who = cc => jsx('span', { style: { fontSize: 12, fontWeight: 600, color: cc.author === 'hermes' ? C.accent : C.fg }, children: cc.author === 'hermes' ? t('hermes') : t('you') })
-  const where = c.anchor ? c.anchor.text || c.anchor.label : ''
+  const where = anchorTitle(c.anchor, t('selectedPart'))
   const focusPin = useValue($focusPin)
   const focused = !!n && focusPin === n
   const boxRef = useRef(null)
@@ -5838,7 +5903,7 @@ function CommentsPanel({ ctx, art, portRef }) {
           // The whole stage: Back to the artifact (it closes here only; docked again it opens by itself).
           mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), $draft.set(null)) }) : null,
           jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: t('comments') }),
-          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, title: t('addComment'), onClick: () => ($draft.set(null), $picking.set(!picking)) }),
+          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, armed: picking, title: t('addComment'), onClick: () => ($draft.set(null), $picking.set(!picking)) }),
           mode.full ? null : jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $panelHere.set(false), $picking.set(false)) })
         ]
       }),
@@ -5850,7 +5915,7 @@ function CommentsPanel({ ctx, art, portRef }) {
             ? jsxs('div', {
                 style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${C.accent}`, background: C.card },
                 children: [
-                  draft.anchor ? jsx('div', { style: { fontSize: 12, color: C.text3, borderLeft: `2px solid ${C.accent}`, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: draft.anchor.text || draft.anchor.label }) : null,
+                  draft.anchor ? jsx('div', { style: { fontSize: 12, color: C.text3, borderLeft: `2px solid ${C.accent}`, paddingLeft: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: anchorTitle(draft.anchor, t('selectedPart')) }) : null,
                   jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText })
                 ]
               })
@@ -6002,12 +6067,17 @@ function Viewer({ ctx, docked = false }) {
             children: [
               // Never moved, only added and removed: the key is the frame's own.
               jsx(Fragment, { children: F.list().map(rec => jsx(Frame, { ctx, art, rec, F, presenting }, `f${rec.id}`)) }),
-              // Nothing on screen yet (a first load): the being-made outline it came from, else "Loading".
-              F.shown
+              // Nothing drawn yet (a first load, wherever it opens: the page, the pane beside a chat): the being-made
+              // outline it came from, else "Loading", over the frame until its page says ready (or gives up: its
+              // outcome, an error, an older bridge without a ready). Never the frame's own blank while it boots.
+              F.shown && (F.shown.ready || F.shown.legacy || F.shown.outcome || F.shown.err)
                 ? null
-                : fromMaking === art.id
-                  ? jsx(MakingSkeleton, { type: art.type })
-                  : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') }),
+                : jsx('div', {
+                    style: { position: 'absolute', inset: 0, zIndex: 1, display: 'flex', background: C.bg },
+                    children: fromMaking === art.id
+                      ? jsx(MakingSkeleton, { type: art.type })
+                      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') })
+                  }),
               jsx(CommentPopover, { ctx, art, stageRef: stage }),
               jsx(ConfirmSend, {}),
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in

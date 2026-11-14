@@ -14,7 +14,7 @@ import _browser as B
 import _dom as D
 from hermes_artifacts import api, docs, store
 
-EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, $list, $panel, $panelHere, $picking, $panelShown, STRINGS }\n"
+EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, sawEdit, shownUpdated, $list, $panel, $panelHere, $picking, $panelShown, STRINGS }\n"
 BOOT = """
   await api.go(URL, 400)
   for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
@@ -236,6 +236,89 @@ class ViewerComments(unittest.TestCase):
                   .map(c => { const q = c.getBoundingClientRect(); return Math.max(q.left - r.right, r.left - q.right) }) } })()`)""", w)
             self.assertTrue(out and out["cards"], (w, out))  # a card or icon beside the flashed block
             self.assertTrue(all(g >= 3 + 4 - 0.5 for g in out["cards"]), (w, out))  # its 3 px halo and 4 px clear
+
+
+    def test_picking_presses_the_comment_button_until_it_ends(self):
+        # V5: the header's Comment showed no pressed state while picking was armed
+        out = self.drive("""
+          const st = () => api.top('(() => { const b = [...document.querySelectorAll("header button, button")].find(b => b.getAttribute("aria-label") === "Comment"); return { pressed: b.hasAttribute("aria-pressed") && b.getAttribute("aria-pressed") !== "false", bg: getComputedStyle(b).backgroundColor, color: getComputedStyle(b).color, picking: window.H.M.$picking.get() } })()')
+          const o = { before: await st() }
+          await btn('Comment'); await api.mouse(5, 400); await api.sleep(300); o.armed = await st()
+          await api.key('Escape', 'Escape', 27); await api.sleep(300); await api.mouse(5, 400); await api.sleep(300); o.after = await st()
+          return o""")
+        self.assertEqual((out["armed"]["picking"], out["armed"]["pressed"]), (True, True), out)  # (the tests' React writes a true one as "")
+        self.assertNotEqual(out["armed"]["bg"], out["before"]["bg"], out)  # the pressed look, not only the attribute
+        self.assertEqual((out["after"]["picking"], out["after"]["pressed"]), (False, False), out)
+        self.assertEqual(out["after"]["bg"], out["before"]["bg"], out)
+
+    def test_an_age_turns_within_seconds_of_its_minute_and_updated_shows_the_latest_edit(self):
+        # V5: a card read "now" 67-80 s after its edit (the clock ticked twice a minute), and an edit within 30 s of
+        # the list's "updated" did not move the open viewer's "Updated" (only the list is throttled now)
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"""
+          await api.go({json.dumps(url)}, 400)
+          for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+          const o = {{}}
+          await api.top(`(() => {{ const {{ M, R, jsx }} = window.H, now = Date.now() / 1000
+            R.mount(() => jsx(M.Ago, {{ ts: now - 55 }}), document.getElementById('root')) }})()`)
+          await api.sleep(200); o.mounted = await api.top('document.getElementById("root").textContent')
+          await api.sleep(6500); o.later = await api.top('document.getElementById("root").textContent')  // no tick called: the clock's own
+          await api.top('window.H.R.unmount()')
+          o.seen = await api.top(`(() => {{ const M = window.H.M, now = Date.now() / 1000, id = 'x1'
+            M.$list.set([{{ id, title: 'X', type: 'doc', version: 1, versions: [1], updated: now - 10 }}])
+            M.sawEdit(id, now)
+            const a = M.$list.get()[0]
+            return {{ list: a.updated, shown: M.shownUpdated(a), now }} }})()`)
+          return o""")
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual(o["mounted"], "now", o)
+        self.assertEqual(o["later"], "1m", o)  # within AGE_TICK_MS of the minute's turn
+        s = o["seen"]
+        self.assertLess(s["list"], s["now"] - 5, s)  # the list itself waits (SEEN_EVERY_S)
+        self.assertGreaterEqual(s["shown"], s["now"] - 0.01, s)  # what the title menu says does not
+
+    def test_a_first_load_shows_loading_until_its_page_is_drawn(self):
+        # V5: a pane opened beside a chat was a blank area for ~2 s while the doc's page booted in its frame
+        for docked in (False, True):
+            url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+            r = B.drive(f"""
+              const URL = {json.dumps(url)}, AID = {json.dumps(self.aid)}; await api.size(900, 800)
+              await api.go(URL, 400)
+              for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+              await api.top(`(async () => {{ const {{ M, R, jsx, ctx }} = window.H; M.$list.set((await ctx.rest('/artifacts')).artifacts)
+                M.openArtifact(ctx, ${{JSON.stringify(AID)}}); R.mount(() => jsx(M.Viewer, {{ ctx, docked: {str(docked).lower()} }}), document.getElementById('root')) }})()`)
+              const seen = []
+              for (let i = 0; i < 120; i++) {{
+                const s = await api.top('(() => {{ const f = document.querySelector("iframe"), l = [...document.querySelectorAll("div")].find(d => !d.children.length && d.textContent === "Loading…" && d.getClientRects().length);'
+                  + ' let over = false; if (f && l) {{ const a = f.getBoundingClientRect(), x = a.left + a.width / 2, y = a.top + a.height / 2; const top = document.elementFromPoint(x, y); over = !!top && top !== f && !f.contains(top) }}'
+                  + ' return {{ frame: !!f, loading: !!l, over }} }})()')
+                let drawn = false; try {{ drawn = s.frame && await api.frame('document.querySelectorAll(".doc-blk").length > 0') }} catch (_) {{}}
+                seen.push({{ ...s, drawn }})
+                if (drawn && !s.loading) break
+                await api.sleep(40)
+              }}
+              return seen""")
+            self.assertIsNone(r.get("err"), r)
+            seen = r["out"]
+            self.assertTrue(seen and seen[-1]["drawn"] and not seen[-1]["loading"], (docked, seen[-6:]))  # gone once drawn
+            blank = [s for s in seen if s["frame"] and not s["drawn"] and not (s["loading"] and s["over"])]
+            self.assertEqual(blank, [], (docked, seen))  # never the frame's own blank while its page boots
+
+
+    def test_the_docs_selection_bar_closes_when_the_host_takes_the_focus(self):
+        # V6a: a word double-clicked (its bar up), then the header's Comment: the bar stayed, cut at the list's edge
+        out = self.drive("""
+          const bar = () => api.frame('(() => { const b = document.querySelector(".doc-selbar"); return !!b && !b.hidden })()')
+          const pick = async () => { await api.clickIn('document.querySelectorAll(".doc-blk")[1]'); await api.frame('(() => { const p = document.querySelectorAll(".doc-blk")[1], w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT).nextNode(), r = document.createRange(); r.setStart(w, 0); r.setEnd(w, 8); getSelection().removeAllRanges(); getSelection().addRange(r) })()'); await api.sleep(500) }
+          const o = {}
+          await pick(); o.shown = await bar()
+          await btn('Comment'); await api.sleep(300); o.armed = await bar()
+          await api.key('Escape', 'Escape', 27); await api.sleep(200)
+          await pick(); o.again = await bar()
+          await btn('More comment options'); await btn('All comments'); await api.sleep(300); o.list = await bar()
+          return o""")
+        self.assertEqual(out, {"shown": True, "armed": False, "again": True, "list": False})
 
 
 if __name__ == "__main__":

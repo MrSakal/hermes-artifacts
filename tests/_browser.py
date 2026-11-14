@@ -225,6 +225,8 @@ async function main() {
       await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
     },
     type: async text => { await send('Input.insertText', { text }) },
+    /** A key pressed as a keyboard does it, its character too (Enter's "\r"): what activates a focused button. */
+    press: async (key, code, vk, text) => { await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: code || key, windowsVirtualKeyCode: vk || 0, text }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: code || key, windowsVirtualKeyCode: vk || 0 }) },
     key: async (key, code, vk) => { await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: code || key, windowsVirtualKeyCode: vk || 0 }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: code || key, windowsVirtualKeyCode: vk || 0 }) },
     shot: async file => { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(file, Buffer.from(r.data, 'base64')) }
   }

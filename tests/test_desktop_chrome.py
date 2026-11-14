@@ -22,7 +22,7 @@ EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errTe
            " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
            " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, dateText, cardKey, CARD_KEYS,"
            " askedEdit, editOf, $popups, panelMode, panelStyle, VIEW_ROW, VIEW_FILL, FRAME_FIT, PANEL_W, STAGE_MIN,"
-           " BOX_M, BOX_GAP, BOX_MIN_H, BAND_MIN }\n")
+           " BOX_M, BOX_GAP, BOX_MIN_H, BAND_MIN, anchorTitle, $panel }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copyWord", "discard", "noOpenComments",
             "noResolvedComments", "folderMore", "folderRename", "folderDelete", "folderDelConfirm", "folderDelConfirmSub",
@@ -144,7 +144,7 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])", section("function CommentsPanel(", "function Viewer("))
         self.assertNotIn("'@Hermes '", SRC)
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
-        self.assertIn('emit("picked-rect", { rect: pickRect(picked) });', bridge)
+        self.assertIn('emit("picked-rect", { rect: b ? boxRect(picked.el, b) : pickRect(picked.el) });', bridge)
         self.assertIn('window.addEventListener("scroll", pickedMoved, true);', bridge)
         self.assertIn('window.addEventListener("resize", pickedMoved);', bridge)
 
@@ -191,6 +191,37 @@ class CommentPinTests(unittest.TestCase):
         self.assertEqual(above, {"x": 703 - 26, "y": 453 - 6 - 26})
         self.assertEqual(below, {"x": 703 - 26, "y": 453 + 42 + 6})
         self.assertEqual(corner, {"x": 703 - 26 - 4, "y": 453 + 4})
+
+    def test_a_pages_own_comment_with_its_rect_opens_beside_it_and_a_point_is_pinned_on(self):
+        # V5: a film's point and a design's element (the page's own comment, hermes.comment(anchor, where)) went
+        # to the list with no pin; with a rect they open beside it, as a pick does; a point's pin is on the point
+        body = """
+        m.$panel.set(false)
+        m.onPageEvent('comment', { selector: '@t=1.00 @xy=30%,70%', text: 'at 1.00 s', label: 'The harbor · 0:01', rect: { x: 300, y: 400, w: 0, h: 0, pt: true, vis: true } })
+        const d = m.$draft.get(), panel = m.$panel.get(), pin = m.pinSpot(d.rect, 1200, 800)
+        m.$draft.set(null)
+        m.onPageEvent('comment', { selector: '#blk-1', text: 'quoted', label: 'text' })
+        const listed = { panel: m.$panel.get(), rect: m.$draft.get().rect || null }
+        m.$draft.set(null)
+        console.log(JSON.stringify({ rect: d.rect, panel, pin, listed }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out["rect"], {"x": 300, "y": 400, "w": 0, "h": 0, "pt": True, "vis": True})
+        self.assertFalse(out["panel"])  # beside it, not in the list
+        self.assertEqual(out["pin"], {"x": 300 - 13, "y": 400 - 13})  # centred on the point
+        self.assertEqual(out["listed"], {"panel": True, "rect": None})  # no rect (a doc's selected words): the list
+
+    def test_a_comment_is_titled_with_a_name_never_a_tag(self):
+        # V5: drafts titled "div" or "canvas", and a filter row's every word ("REGION All North South East West Reset")
+        body = """
+        const T = a => m.anchorTitle(a, 'Selected part')
+        console.log(JSON.stringify([T({ label: 'div', text: '' }), T({ label: 'canvas', text: '' }), T({ label: 'Region filter', text: 'REGION All North South East West Reset' }),
+          T({ label: 'text', text: 'This document describes the steps from the request for a quote to the contract' }), T({ label: '', text: '' }),
+          T({ label: 'Sticky note', text: '' }), T(null)]))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(out, ["Selected part", "Selected part", "Region filter", "This document describes the steps from…",
+                               "Selected part", "Sticky note", ""])
 
     def test_the_bridge_reports_the_first_line_and_the_free_sides(self):
         body = """
@@ -708,7 +739,7 @@ class LookTests(unittest.TestCase):
     def test_quiet_text_meets_four_and_a_half(self):
         self.assertIn("text3: 'var(--conversation-scaffold-text, var(--ui-text-secondary))'", SRC)
         self.assertIn("color: hover ? C.fg : C.text2", section("function RowButton(", "function FloatingFooter("))
-        self.assertEqual(SRC.count("color: C.text2 }, children: t('noMatch')"), 2)
+        self.assertIn("textAlign: 'center', fontSize: 13, color: C.text2 },", section("const noMatch = ", "const body = err"))
         self.assertNotIn("color: C.text4 }, children: ago(", SRC)
 
     def test_labels_match_what_they_do(self):
@@ -810,7 +841,7 @@ class ClickThroughTests(unittest.TestCase):
         self.assertNotIn("toLocaleDateString(undefined", SRC)
         self.assertNotIn("toLocaleString()", SRC)
         self.assertIn("const lang = tr('lang') === 'hu' ? 'hu' : 'en'", section("function dateText(", "// ---------------------------------------------------------------- look"))
-        self.assertIn("const date = art.updated ? dateText(art.updated, true) : ''", section("function TitleMenu(", "function TitleButton("))
+        self.assertIn("const date = updated ? dateText(updated, true) : ''", section("function TitleMenu(", "function TitleButton("))
 
     def test_an_edit_of_an_artifact_there_is_says_editing(self):
         body = """

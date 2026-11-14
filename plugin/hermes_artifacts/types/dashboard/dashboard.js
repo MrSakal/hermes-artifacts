@@ -653,6 +653,12 @@
 
   var lastW = 0;
   kit.onResize(root, function () { var w = root.clientWidth; if (w !== lastW) { lastW = w; redraw(); } });
+  // A font that arrives after the first drawing (a look's web font, the host's theme font) changes every text's
+  // box: the charts are drawn again around the real ones (a bar's value kept off its target line: fitValues).
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", function () { gen++; redraw(); });
+  if (kit.hostTheme) { var themeFont = getComputedStyle(document.documentElement).getPropertyValue("--font-sans");
+    kit.hostTheme(function () { requestAnimationFrame(function () { // after a look has put its own font back (design.js)
+      var f = getComputedStyle(document.documentElement).getPropertyValue("--font-sans"); if (f !== themeFont) { themeFont = f; gen++; redraw(); } }); }); }
 
   // ------------------------------------------------------------------ chrome
   var srcOpen = false, picked = null, drawer = null;

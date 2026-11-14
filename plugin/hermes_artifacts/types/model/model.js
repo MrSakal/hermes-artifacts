@@ -19,7 +19,7 @@
   var kit = window.kit, h = kit.h, C = kit.content, MK = window.modelKit;
   var L = /^hu\b/i.test(C.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { noHost: "Not connected to Hermes: changes won't be saved.", loading: "Loading the 3D view\u2026", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", loading: "Loading the 3D view\u2026", view3d: "3D view", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
       noGL: "This device can't draw 3D here (WebGL is unavailable). The parts and parameters are in the panel.",
       noKit: "The model builder didn't load.", bad: "model.json is missing or not valid JSON.", empty: "This model has no parts yet.",
       params: "Parameters", props: "Properties", outline: "Outline", noParams: "This model has no parameters.",
@@ -59,7 +59,7 @@
       addKinds: { box: "Box", cyl: "Cylinder", sphere: "Sphere", cone: "Cone", prism: "Prism", extrude: "Extrusion (rounded rectangle)",
         lathe: "Lathe (turned body)" },
       about: function (list) { return "(model parts: " + list + ")"; } },
-    hu: { noHost: "Nincs kapcsolat a Hermesszel: a m\u00f3dos\u00edt\u00e1sok nem ment\u0151dnek.", loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a m\u00f3dos\u00edt\u00e1sok nem ment\u0151dnek.", loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", view3d: "3D n\u00e9zet", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
       noGL: "Ez az eszk\u00f6z itt nem tud 3D-t rajzolni (nincs WebGL). Az elemek \u00e9s a param\u00e9terek a panelen vannak.",
       noKit: "A modell\u00e9p\u00edt\u0151 nem t\u00f6lt\u0151d\u00f6tt be.", bad: "A model.json hi\u00e1nyzik, vagy nem \u00e9rv\u00e9nyes JSON.", empty: "Ebben a modellben m\u00e9g nincs elem.",
       params: "Param\u00e9terek", props: "Tulajdons\u00e1gok", outline: "Szerkezet", noParams: "Ennek a modellnek nincsenek param\u00e9terei.",
@@ -821,6 +821,7 @@
     renderer.toneMapping = THREE.NeutralToneMapping != null ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
     canvas = renderer.domElement;
     canvas.className = "md-canvas kit-surface"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
+    canvas.setAttribute("data-comment-label", T.view3d); // a comment pick on the view where no part is
     viewEl.insertBefore(canvas, viewEl.firstChild);
     scene = new THREE.Scene();
     scene.environment = makeEnv();
@@ -1837,7 +1838,20 @@
       drawSelPill();
     });
   }
+  // The host's comment pick on the view: the part under the click (its pin on the point clicked); where there is
+  // none, the bridge picks the view itself ("3D view").
+  var commentPicking = false;
+  window.addEventListener("click", function (e) {
+    if (!commentPicking || !canvas || e.target !== canvas || !window.hermes || !window.hermes.comment) return;
+    var p = pick(e.clientX, e.clientY), f = p && find(p.id);
+    if (!f) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var name = label(f.part);
+    window.hermes.comment({ selector: "part:" + p.id, text: name.slice(0, 200), label: name.slice(0, 40) },
+      { el: canvas, box: { x: e.clientX, y: e.clientY, w: 0, h: 0, point: true } });
+  }, true);
   if (window.hermes && window.hermes.on) {
+    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });
     // A comment's anchor clicked in the host: show that part.
     window.hermes.on("flash", function (d) {
       var m = /^part:(.+)$/.exec(String(d && d.selector || ""));

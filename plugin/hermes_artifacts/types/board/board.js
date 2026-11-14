@@ -23,7 +23,7 @@
     en: {
       noHost: "Not connected to Hermes: changes won't be saved.",
       board: "Whiteboard", noGeo: "The board could not load its geometry module.",
-      select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes",
+      select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes", shape: "Shape",
       image: "Image", ask: "Ask Hermes", askPh: "Describe a change", send: "Send", sent: "Sent to Hermes", drafted: "Put in the chat box",
       pen: "Pen", arrow: "Arrow", table: "Table", colour: "Colour",
       zoomIn: "Zoom in", zoomOut: "Zoom out", zoom: "Zoom level", zoomPick: "Zoom level: choose one", fit: "Fit the board", undo: "Undo", redo: "Redo", keys: "Single-key tool shortcuts",
@@ -56,7 +56,7 @@
     hu: {
       noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.",
       board: "Tábla", noGeo: "A tábla geometriai modulja nem töltődött be.",
-      select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok",
+      select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok", shape: "Alakzat",
       image: "Kép", ask: "Hermes megkérése", askPh: "Írd le a változtatást", send: "Küldés", sent: "Elküldve Hermesnek", drafted: "Bekerült a csevegőmezőbe",
       pen: "Toll", arrow: "Nyíl", table: "Táblázat", colour: "Szín",
       zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoom: "Nagyítás mértéke", zoomPick: "Nagyítás mértéke: válassz", fit: "Teljes tábla", undo: "Visszavonás", redo: "Újra", keys: "Egybetűs eszközbillentyűk",
@@ -535,6 +535,9 @@
       try { el = BUILD[it.type](it, n); } catch (e) { el = h("div", {}); }
       el.classList.add("bd-it");
       el.setAttribute("data-id", it.id);
+      // what a comment pick on it is titled (its words follow: "Sticky note · Six weeks")
+      el.setAttribute("data-comment-label", { note: T.sticky, text: T.text, section: T.section, image: T.image, arrow: T.arrow, pen: T.pen,
+        table: T.table, embed: T.embed }[it.type] || T.shape);
       if (old) old.replaceWith(el); else world.insertBefore(el, draftSvg);
       n.el = el;
     }

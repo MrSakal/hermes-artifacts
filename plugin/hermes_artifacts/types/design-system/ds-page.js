@@ -516,7 +516,7 @@
     var path = "components/Cover/preview.html";
     if (S.coverIsComponent || C.files[path] == null) return null;
     var mk = marker(kit.fileText(path));
-    return h("div", { "class": "ds-cover" }, [frame(path, { marker: { height: mk.height, width: 960 }, min: 240, max: 360, height: 288, fixed: true,
+    return h("div", { "class": "ds-cover", "data-comment-label": X.hero }, [frame(path, { marker: { height: mk.height, width: 960 }, min: 240, max: 360, height: 288, fixed: true,
       fill: !!(opts && opts.fill), title: S.title, onLoad: opts && opts.onLoad })]);
   }
 
@@ -538,7 +538,7 @@
       lineHeight: "Line height", layers: "Layers", addLayer: "Add layer", inset: "inset", color: "Color", blur: "Blur", spread: "Spread",
       cats: { docs: "Documents", css: "Stylesheets", js: "Scripts", data: "Data", fonts: "Fonts", images: "Images", other: "Other" },
       noFilePreview: "No preview for this file.", delFile: "Delete this file?", fontTooBig: "Fonts up to 8 MB (woff2, woff, ttf, otf)",
-      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", comment: "Comment", guideline: "Guidelines", noGuide: "No guidelines yet.",
+      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", comment: "Comment", hero: "Hero", guideline: "Guidelines", noGuide: "No guidelines yet.",
       desc: { "design-system.json": "The index: title, namespace, libraries, asset groups", "tokens.json": "The tokens every stylesheet is compiled from",
         "README.md": "The brand book: every reader starts here", "components/bundle.js": "The components, compiled for the global scope",
         "components/bundle.css": "The components' styles", "components/index.d.ts": "The components' props" },
@@ -562,7 +562,7 @@
       lineHeight: "Sormagasság", layers: "Rétegek", addLayer: "Új réteg", inset: "belső", color: "Szín", blur: "Elmosás", spread: "Terítés",
       cats: { docs: "Dokumentumok", css: "Stíluslapok", js: "Szkriptek", data: "Adat", fonts: "Betűk", images: "Képek", other: "Egyéb" },
       noFilePreview: "Ehhez a fájlhoz nincs előnézet.", delFile: "Törlöd ezt a fájlt?", fontTooBig: "Legfeljebb 8 MB-os betűfájl (woff2, woff, ttf, otf)",
-      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", comment: "Megjegyzés", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
+      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", comment: "Megjegyzés", hero: "Nyitókép", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
       desc: { "design-system.json": "Az index: cím, névtér, könyvtárak, eszközcsoportok", "tokens.json": "A tokenek: minden stíluslap ebből készül",
         "README.md": "A brand book: minden olvasó itt kezdi", "components/bundle.js": "A komponensek, a globális scope-ba fordítva",
         "components/bundle.css": "A komponensek stílusai", "components/index.d.ts": "A komponensek propjai" },
@@ -638,7 +638,19 @@
     el.scrollIntoView({ block: "center", behavior: "smooth" });
     el.classList.remove("ds-flash"); void el.offsetWidth; el.classList.add("ds-flash");
   }
+  // The host's comment pick on a part with an anchor (a token's row, a type style, a component): the comment is
+  // on that anchor (showAnchor finds it again), titled with its name, its pin beside it.
+  var dsPicking = false;
+  window.addEventListener("click", function (e) {
+    if (!dsPicking || !CAN_COMMENT) return;
+    var el = e.target.closest && e.target.closest("[data-ds-anchor]");
+    if (!el) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var a = el.getAttribute("data-ds-anchor"), name = el.getAttribute("data-token") || el.getAttribute("data-component") || a.replace(/^[a-z]+:/, "").split("/").pop();
+    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, el);
+  }, true);
   if (CAN_COMMENT && window.hermes.on) {
+    window.hermes.on("comment-mode", function (d) { dsPicking = !!(d && d.on); });
     // A comment's anchor clicked in the host: show that row or heading.
     window.hermes.on("flash", function (d) { showAnchor(String(d && d.selector || "")); });
   }

@@ -121,6 +121,21 @@ class BuildTests(unittest.TestCase):
         api.handle("POST", "folders", {}, {"name": "Alpha", "delete": True})
         self.assertNotIn("Alpha", api.handle("GET", "artifacts", {}, None)["folders"])
 
+    def test_a_new_folder_name_is_at_most_40_characters_and_says_so(self):
+        # V5: a 39-character name wrapped the gallery's chips onto three lines at 400 px (the chip is cut now);
+        # a new name, made or renamed to, is at most 40, refused in words; one already there keeps working.
+        from hermes_artifacts import api
+        api.handle("POST", "folders", {}, {"name": "x" * 40})
+        with self.assertRaises(api.ApiError) as e:
+            api.handle("POST", "folders", {}, {"name": "y" * 41})
+        self.assertIn("at most 40 characters", str(e.exception))
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", "folders", {}, {"name": "x" * 40, "rename": "z" * 41})
+        old = "o" * 50
+        store.settings_set("folders", list(store.settings().get("folders") or []) + [old])
+        api.handle("POST", "folders", {}, {"name": old, "rename": "Short"})  # an older, longer one renames
+        self.assertIn("Short", api.handle("GET", "artifacts", {}, None)["folders"])
+
     def test_a_stylesheet_of_their_own_stays(self):
         m = store.publish(title="Own", type="design-system", files={
             "design-system.json": {"v": 3, "title": "Own"}, "tokens.json": TOKENS, "README.md": "Use it.",

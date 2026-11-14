@@ -225,6 +225,68 @@ class LayoutTests(unittest.TestCase):
             if len(first) < len(o["tiles"]):  # a full first row: its last tile ends with the toolbar
                 self.assertAlmostEqual(first[-1]["r"], o["bar"]["r"], delta=1, msg=o["w"])
 
+    def test_a_long_folder_name_keeps_the_chips_on_one_row(self):
+        # V5 at 400 px: a 39-character folder, shown, put All, its chip and Trash on three lines: its chip is cut
+        # (the whole name in its tooltip), the chips one row, the tools the next
+        name = "Quarterly reports 2026 long folder name"
+        out = self.gallery("""
+          M.$folders.set([%s]); M.$folder.set(%s)
+          M.$trash.set([1, 2, 3, 4, 5, 6].map(i => ({ name: 't' + i, id: 't' + i, title: 'Gone ' + i, type: 'doc', deleted_at: now - 120, days_left: 30 })))
+          const out = []
+          for (const w of [400, 480, 560]) {
+            root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children
+            const label = [...chips.querySelectorAll('span')].find(s => s.textContent === %s)
+            out.push({ w, chipTops: [...new Set([...chips.children].map(c => Math.round(c.getBoundingClientRect().top)))], toolsTop: Math.round(tools.getBoundingClientRect().top),
+                       cut: label.scrollWidth > label.clientWidth, tip: label.title, n: chips.children.length })
+          }
+          R.unmount()
+          return out
+        """ % (json.dumps(name), json.dumps(name), NEXT, json.dumps(name)))
+        for o in out:
+            self.assertEqual(o["n"], 3, o)  # All, the long one, Trash
+            self.assertEqual(len(o["chipTops"]), 1, o)  # one row of chips
+            self.assertGreaterEqual(o["toolsTop"], o["chipTops"][0], o)  # the tools on it or the next: two lines at most
+            self.assertEqual(o["tip"], name, o)
+        self.assertTrue(out[0]["cut"], out[0])  # cut with an ellipsis at 400
+
+    def test_a_narrow_trash_keeps_when_and_how_long_under_each_title(self):
+        # V5 at 400 px: the trash rows showed neither "Deleted 2m" nor "30 days left" (both were cells dropped there)
+        out = self.gallery("""
+          M.$trash.set([{ name: 't1', id: 't1', title: 'Gone for now', type: 'doc', deleted_at: now - 120, days_left: 30 }]); M.$trashOpen.set(true)
+          const out = {}
+          for (const w of [400, 1500]) {
+            root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            out[w] = [...root.querySelectorAll('div, span')].filter(e => e.children.length === 0 || [...e.childNodes].some(n => n.nodeType === 3)).map(e => e.textContent).filter(t => /days left|Deleted/.test(t))
+          }
+          R.unmount(); M.$trashOpen.set(false)
+          return out
+        """ % NEXT)
+        for w in ("400", "1500"):
+            text = " ".join(out[w])
+            self.assertIn("30 days left", text, (w, out))
+            self.assertIn("Deleted 2m", text, (w, out))
+
+    def test_a_search_with_no_result_says_nothing_matches_with_clear_search(self):
+        # V6a: "0 of 22 match "zzqx" · Clear search" over an empty area
+        out = self.gallery("""
+          root.style.width = '1200px'
+          M.$query.set('zzqx')
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+          %s
+          const empty = [...root.querySelectorAll('div')].find(d => d.textContent === 'Nothing matches.')
+          const wrap = empty && empty.parentElement, r = wrap && wrap.getBoundingClientRect(), t = empty && empty.getBoundingClientRect()
+          const out = { empty: !!empty, clear: [...root.querySelectorAll('button')].filter(b => b.textContent.trim() === 'Clear search').length,
+                        centred: !!empty && Math.abs((t.left + t.right) / 2 - (r.left + r.right) / 2) < 2, note: /match “zzqx”/.test(root.textContent) }
+          R.unmount(); M.$query.set('')
+          return out
+        """ % NEXT)
+        self.assertEqual(out, {"empty": True, "clear": 1, "centred": True, "note": False})
+
     def test_a_closed_menu_or_dialog_gives_the_focus_back(self):
         out = self.gallery("""
           root.style.width = '1200px'
@@ -254,6 +316,29 @@ class LayoutTests(unittest.TestCase):
         """ % ((NEXT,) * 7))
         self.assertEqual(out, {"moveOpen": "INPUT", "afterMove": True, "renameOpen": "INPUT", "afterRename": True,
                                "menuOpen": True, "afterMenu": True})
+
+    def test_move_to_a_new_folder_with_enter_closes_the_whole_menu(self):
+        # V6a: Move to › a new name › Enter moved the card, and its menu came back over it (the press, its focus
+        # back on the ••• button, clicked that too)
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.width = '1200px'; root.style.height = '900px'
+          const now = Date.now() / 1000
+          M.$list.set([{ id: 'a2', title: 'Facade budget', type: 'sheet', version: 1, versions: [1], updated: now - 3600 }]); M.$folders.set([]); M.$folder.set(null); M.$layout.set('grid'); M.$query.set('')
+          window.__rests = []
+          const ctx = { rest: async (url, o) => (window.__rests.push(url), {}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        at = lambda js: "(() => { const b = %s; if (!b) return null; const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()" % js
+        card = "[...document.querySelectorAll('[role=button][tabindex=\"0\"]')].find(r => r.textContent.includes('Facade budget'))"
+        js = {k: json.dumps(v) for k, v in {"setup": setup, "card": at(card), "more": at(card + ".parentElement.querySelector('button[title^=\"More\"]')"),
+                                             "move": at("[...document.querySelectorAll('button')].find(b => b.textContent.startsWith('Move to'))")}.items()}
+        r = self.page.drive(f"""
+          await api.size(1300, 900); await api.top({js["setup"]}); await api.sleep(300)
+          const c = await api.top({js["card"]}); await api.mouse(c[0], c[1] - 40); await api.sleep(200)  // hover: its ••• button
+          const more = await api.top({js["more"]}); await api.mouse(more[0], more[1]); await api.sleep(300)
+          const mv = await api.top({js["move"]}); await api.mouse(mv[0], mv[1]); await api.sleep(300)
+          await api.type('Brand new'); await api.sleep(200); await api.press('Enter', 'Enter', 13, '\\r'); await api.sleep(600)
+          return {{ menu: await api.top("[...document.querySelectorAll('button')].some(b => /^(Rename|Move to)/.test(b.textContent))"), made: await api.top('window.__rests.some(u => u === "/folders")') }}""")
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["out"], {"menu": False, "made": True})
 
     def test_card_keys_after_a_mouse_opened_menu_and_the_menu_at_the_pointer(self):
         out = self.gallery("""

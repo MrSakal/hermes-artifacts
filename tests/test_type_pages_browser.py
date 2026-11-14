@@ -263,7 +263,7 @@ class PickInThePage(unittest.TestCase):
           return { picked: await api.top('window.__events.filter(e => e.event === "picked").map(e => e.detail.label)'),
                    checked: await api.frame('document.getElementById("c").checked') }
         """)
-        self.assertEqual(out["picked"], ["label"], out)
+        self.assertEqual(out["picked"], ["Anchor points checked"], out)  # its words, never its tag
         self.assertFalse(out["checked"], out)
 
 
@@ -1029,25 +1029,36 @@ class RoundV3Layout(unittest.TestCase):
 
     def test_a_dashboard_value_stays_readable_across_its_target_line(self):
         # V3: the dashes ran through "92.4"; V4: its glyphs (and "97.9"'s) still sat on the line, and at 400 px
-        # "104.2" and "97.9" were 1.4 px apart. Each value on its halo, 4 px clear of the line's stroke (or the
-        # line broken behind it) and of its neighbours, at 1500 and at 400.
+        # "104.2" and "97.9" were 1.4 px apart. V5: live, in a 1246 px frame, "88" was 0.6 px off the line and
+        # "97.9" 1.4 px over it, the line unbroken: the halo was not counted, the chart's units were taken for px,
+        # and a font that came after the first drawing (the theme's) moved every box. Each value's box with its
+        # halo is 4 px clear of the line's stroke (or the line broken behind it) and of its neighbours, at every
+        # width, measured after the fonts are in, and again after the theme's font changes.
         aid = self.store.publish(title="Orders", type="dashboard", files={"dashboard.json": MONTHS})["id"]
-        probe = r"""(() => { const segs = [...document.querySelectorAll('.c-chart line.c-ref')].map(l => l.getBoundingClientRect()); if (!segs.length) return null
-          const half = 0.75, ly = segs[0].top + segs[0].height / 2
-          const vals = [...document.querySelectorAll('.c-chart text.c-value')].map(t => { const r = t.getBoundingClientRect(), cs = getComputedStyle(t)
-            return { v: t.textContent, l: r.left, r: r.right, t: r.top, b: r.bottom, halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } })
-          const line = vals.map(v => ({ v: v.v, gap: Math.max(v.t - ly, ly - v.b) - half, under: segs.some(s => s.left < v.r + 3.5 && s.right > v.l - 3.5), halo: v.halo }))
-          const near = vals.slice(1).map((c, i) => { const a = vals[i]; return Math.max(c.l - a.r, a.l - c.r, c.t - a.b, a.t - c.b) })
-          return { line, near, n: vals.length } })()"""
-        for w in (1500, 400):
-            out = self.drive(aid, f"return await api.frame({json.dumps(probe)})", w=w, settle=2000)
-            self.assertTrue(out and out["n"] >= 4, (w, out))
-            for o in out["line"]:
-                self.assertTrue(o["halo"], (w, o))
-                self.assertTrue(o["gap"] >= 4 - 0.05 or not o["under"], (w, o, out))  # clear of the line, or the line broken there
-            self.assertTrue(all(g >= 4 - 0.05 for g in out["near"]), (w, out))
-            if w == 1500:
-                self.assertEqual(out["n"], 10, out)  # room for every value
+        probe = r"""(() => { const svg = document.querySelector('.c-chart svg'); const segs = [...document.querySelectorAll('.c-chart line.c-ref')].map(l => l.getBoundingClientRect()); if (!svg || !segs.length) return null
+          const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, half = 0.75 * k, ly = segs[0].top + segs[0].height / 2
+          const vals = [...document.querySelectorAll('.c-chart text.c-value')].map(t => { const r = t.getBoundingClientRect(), cs = getComputedStyle(t), halo = parseFloat(cs.strokeWidth) / 2 * k
+            return { v: t.textContent, l: r.left - halo, r: r.right + halo, t: r.top - halo, b: r.bottom + halo, fl: r.left, fr: r.right, ft: r.top, fb: r.bottom,
+                     halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } })
+          const line = vals.map(v => ({ v: v.v, gap: Math.max(v.t - ly, ly - v.b) - half, under: segs.some(s => s.left < v.r + 3.9 && s.right > v.l - 3.9), halo: v.halo }))
+          const near = vals.slice(1).map((c, i) => { const a = vals[i]; return Math.max(c.fl - a.fr, a.fl - c.fr, c.ft - a.fb, a.ft - c.fb) })
+          return { line, near, n: vals.length, w: innerWidth } })()"""
+        widths = (1500, 1246, 1100, 1000, 760, 560, 400)
+        body = "const out = {}\n"
+        for w in widths:
+            body += f"await api.size({w}, 760); await api.sleep(700); await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(150); out[{w}] = await api.frame({json.dumps(probe)})\n"
+        # the host's theme brings its font after the first drawing: drawn again around the new boxes
+        body += ("await api.size(1246, 760); await api.sleep(700); await api.top(" + json.dumps("window.__post('theme', " + json.dumps(
+                 {"mode": "dark", "vars": dict(THEME["vars"], font="Georgia, 'Times New Roman', serif")}) + ")") + "); await api.sleep(900);"
+                 f" await api.frame('document.fonts.ready.then(() => 1)'); out.font = await api.frame({json.dumps(probe)})\n")
+        out = self.drive(aid, body + "return out", w=1500, settle=2000)
+        for w, o in out.items():
+            self.assertTrue(o and o["n"] >= 4, (w, o))
+            for v in o["line"]:
+                self.assertTrue(v["halo"], (w, v))
+                self.assertTrue(v["gap"] >= 4 - 0.05 or not v["under"], (w, v, o))  # clear of the line, or the line broken there
+            self.assertTrue(all(g >= 4 - 0.05 for g in o["near"]), (w, o))
+        self.assertEqual(out["1500"]["n"], 10, out["1500"])  # room for every value
 
     def test_a_note_grown_by_its_text_shrinks_back_but_never_below_a_dragged_height(self):
         aid = self.store.publish(title="Notes", type="board", files={"board.json": {"title": "Notes", "items": [
@@ -1126,3 +1137,237 @@ class RoundV3Layout(unittest.TestCase):
         self.assertTrue(out["other"]["menu"], out)
         self.assertFalse(out["other"]["fontsFocused"] or out["other"]["fontsRing"], out)
         self.assertLessEqual(out["other"]["rings"], 1, out)
+
+
+PICK_DASH = {"title": "Orders", "params": {"region": ""},
+             "datasets": {"r": {"title": "Regions", "source": {"kind": "rows", "rows": [
+                 {"region": "North", "orders": 41}, {"region": "South", "orders": 17}, {"region": "East", "orders": 9}]}}},
+             "layout": [{"type": "filters", "items": [{"param": "region", "label": "Region", "input": "select", "options": {"source": "r", "field": "region"}}]},
+                        {"type": "kpis", "items": [{"label": "Orders", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                                   {"label": "Regions", "source": "r", "field": "orders", "agg": "count", "format": "int"}]},
+                        {"type": "chart", "kind": "bar", "title": "Orders by region", "source": "r", "x": "region", "y": "orders"}]}
+PICK_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui}main{padding:24px}div.box{width:160px;height:90px;"
+             "background:#ccc}</style><main><p id=p>A paragraph of the page</p><div class=box id=box></div></main>")
+TAG_NAMES = {"div", "span", "canvas", "svg", "img", "section", "p", "li", "td", "label", "iframe", "g", "rect", "text", "path", "main", "button"}
+
+
+def at(sel, fx=0.5, fy=0.5):
+    """Frame JS: [x, y] at fx, fy of the element `sel` (a JS expression) finds, scrolled into view; null without it."""
+    return ("(() => { const el = %s; if (!el) return null; el.scrollIntoView({block: 'center'}); const b = el.getBoundingClientRect();"
+            " return [b.left + b.width * %s, b.top + b.height * %s] })()" % (sel, fx, fy))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PickInEveryType(unittest.TestCase):
+    """Live round V5: with the header's Comment armed, a click in a design's artboard only selected the element
+    (no comment, the band stayed: the artboard is a frame of its own the bridge never hears), a click on a slide's
+    blank picked nothing, a film's point had no pin, and the comment's title was a tag ("div", "canvas") or a whole
+    filter row's words. In every type a click on a typical part makes one comment (a pick, or the page's own
+    comment with its rect) titled with a name, never a tag, and edits nothing."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def pick(self, aid, where, before="", settle=1500, w=1200):
+        """Arm picking, click where `where` (frame JS: [x, y]) says: the one comment event ("picked", or the page's
+        own "comment" with a rect; checked) and the point clicked."""
+        r = B.drive(f"await api.size({w}, 800); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n{before}\n"
+                    "await api.top('window.__post(\"comment-mode\", {on: true})'); await api.sleep(300)\n"
+                    f"const q = await api.frame({json.dumps(where)}); if (!q) return {{ none: true }}\n"
+                    "await api.mouse(q[0], q[1]); await api.sleep(700)\n"
+                    "return { at: q, ev: await api.top('window.__events.filter(e => e.event === \"picked\" || e.event === \"comment\")'), ops: await api.top('window.__ops') }",
+                    timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        out = r["out"]
+        self.assertFalse(out.get("none"), "nothing to click")
+        self.assertEqual(len(out["ev"]), 1, out["ev"])
+        self.assertEqual(edits(out["ops"]), [], out["ops"])
+        ev = out["ev"][0]
+        d, rect = ev["detail"], ev["detail"].get("rect")
+        self.assertTrue(rect and all(isinstance(rect[k], (int, float)) for k in "xywh"), ev)
+        self.assertNotIn(str(d.get("label") or "").lower(), TAG_NAMES, ev)
+        return ev, out["at"]
+
+    def test_doc_block(self):
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        ev, _ = self.pick(aid, at('[...document.querySelectorAll(".doc-blk li")].find(x => x.firstChild && x.firstChild.textContent.trim() === "A request for a quote arrives")', 0.1))
+        self.assertIn("A request for a quote", ev["detail"]["label"])
+
+    def test_sheet_cell(self):
+        aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        ev, _ = self.pick(aid, at('[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels")'), settle=2500)
+        self.assertEqual(ev["detail"]["label"], "Panels")
+
+    def test_board_note(self):
+        aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [
+            {"id": "a", "type": "box", "text": "Survey"}, {"id": "n", "type": "note", "text": "", "near": "a"}]}})["id"]
+        ev, _ = self.pick(aid, at('document.querySelector(".bd-it[data-id=n]")'))
+        self.assertIn(ev["detail"]["label"], ("Sticky note", "Cetli"))  # the page speaks the system's language
+
+    def test_dashboard_kpi_chart_and_filter_row(self):
+        aid = self.store.publish(title="Orders", type="dashboard", files={"dashboard.json": PICK_DASH})["id"]
+        ev, _ = self.pick(aid, at('document.querySelector(".c-kpi")', 0.9, 0.15), settle=2000)
+        self.assertEqual(ev["detail"]["label"], "Orders")  # its caption "ORDERS" is its name, not more words
+        ev, _ = self.pick(aid, at('document.querySelector(".c-chart svg")', 0.5, 0.95), settle=2000)
+        self.assertTrue(ev["detail"]["label"].startswith("Orders by region"), ev)
+        ev, _ = self.pick(aid, at('document.querySelector(".c-filters")', 0.97, 0.5), settle=2000)
+        self.assertIn(ev["detail"]["label"], ("Region filter", "Region szűrő"))  # never "REGION All North South … Reset"
+
+    def test_slides_text_and_blank(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        ev, _ = self.pick(aid, at('document.querySelector(".sl-clip .sl-canvas h1")', 0.2))
+        self.assertRegex(ev["detail"]["label"], r"^(Slide|Dia) 1 · ")
+        ev, _ = self.pick(aid, at('document.querySelector(".sl-clip .sl-canvas")', 0.97, 0.97))  # the slide's blank
+        self.assertIn(ev["detail"]["label"], ("Slide 1", "Dia 1"))
+
+    def test_motion_stage_point(self):
+        aid = self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"]
+        ev, q = self.pick(aid, at('document.getElementById("mo-frame")', 0.3, 0.7), settle=2500)
+        r = ev["detail"]["rect"]
+        self.assertTrue(r.get("pt"), ev)  # pinned on the point
+        self.assertAlmostEqual(r["x"] + r["w"] / 2, q[0], delta=1.5)
+        self.assertAlmostEqual(r["y"] + r["h"] / 2, q[1], delta=1.5)
+        self.assertIn("@xy=", ev["detail"]["selector"])
+
+    def test_design_element_on_the_canvas_and_in_an_opened_artboard(self):
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        board = ('(() => { const f = document.querySelector("[data-path=\\"Main.dc.html\\"] iframe"), b = f.getBoundingClientRect();'
+                 ' return [b.left + b.width * 0.25, b.top + b.height * 0.35, b.left, b.top, b.right, b.bottom] })()')
+        ev, q = self.pick(aid, board, settle=3000)
+        d = ev["detail"]
+        self.assertRegex(d["selector"], r"^Main\.dc\.html#\d+:")
+        self.assertNotIn(" · <", d["label"])
+        r = d["rect"]  # in the canvas's page px (its zoom undone): around the point clicked, inside its artboard
+        self.assertTrue(r["x"] - 1 <= q[0] <= r["x"] + r["w"] + 1 and r["y"] - 1 <= q[1] <= r["y"] + r["h"] + 1, (q, r))
+        self.assertTrue(q[2] - 1 <= r["x"] and r["x"] + r["w"] <= q[4] + 1 and q[3] - 1 <= r["y"] and r["y"] + r["h"] <= q[5] + 1, (q, r))
+        # V5: the pin sat 90 px right of the picture, over the next frame: every spot the host may take (plugin.js
+        # pinSpot: right, left, after the words, above, below) is inside this artboard, or marked taken
+        P, G = 26, 6
+        y = max(4, (r.get("ly", r["y"]) + r.get("lh", min(r["h"], 24)) / 2) - P / 2)
+        spots = {"fr": (r["x"] + r["w"] + G, y), "fl": (r["x"] - G - P, y), "fa": (r["x"] + r["w"] - P, r["y"] - G - P),
+                 "fb": (r["x"] + r["w"] - P, r["y"] + r["h"] + G)}
+        if "lr" in r:
+            spots["fw"] = (r["lr"] + G, y)
+        for k, (sx, sy) in spots.items():
+            if r.get(k):
+                self.assertTrue(q[2] - 0.5 <= sx and sx + P <= q[4] + 0.5 and q[3] - 0.5 <= sy and sy + P <= q[5] + 0.5, (k, sx, sy, q, r))
+        ev, q = self.pick(aid, at('document.querySelector(".dc-fbox iframe")', 0.3, 0.3),
+                          before="await api.frame('__design.openFocus(\"Main.dc.html\")'); await api.sleep(1500)", settle=3000)
+        r = ev["detail"]["rect"]
+        self.assertRegex(ev["detail"]["selector"], r"^Main\.dc\.html#\d+:")
+        self.assertTrue(r["x"] - 1 <= q[0] <= r["x"] + r["w"] + 1 and r["y"] - 1 <= q[1] <= r["y"] + r["h"] + 1, (q, r))
+
+    def test_design_system_hero_and_row(self):
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        ev, _ = self.pick(aid, at('document.querySelector(".ds-cover")'), settle=2500)
+        self.assertIn(ev["detail"]["label"], ("Hero", "Nyitókép"))
+        ev, _ = self.pick(aid, at('document.querySelector(".ds-row[data-token]")', 0.6),
+                          before="await api.frame('[...document.querySelectorAll(\".ds-nav-i\")].find(b => /Colou?rs|Színek/.test(b.textContent)).click()'); await api.sleep(800)", settle=2500)
+        self.assertRegex(ev["detail"]["selector"], r"^token:color/")
+
+    def test_model_view(self):
+        from test_models import PANEL
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        # a point of the view over a part, one over none (the canvas itself there, no chrome over it)
+        spot = ("(() => { const c = document.querySelector('.md-canvas'), r = c.getBoundingClientRect();"
+                " for (let j = 1; j < 20; j++) for (let i = 1; i < 20; i++) { const x = r.left + r.width * i / 20, y = r.top + r.height * j / 20;"
+                " if (document.elementFromPoint(x, y) === c && !!__model.pick(x, y) === %s) return [x, y] } return null })()")
+        ev, _ = self.pick(aid, spot % "false", settle=3500)  # no part there: the view
+        self.assertIn(ev["detail"]["label"], ("3D view", "3D nézet"))
+        if not B.drive(f"await api.go({json.dumps(self.host.url(aid))}, 800); {READY}; await api.sleep(3500); return await api.frame('__model.state().glOK')")["out"]:
+            return  # no WebGL in this Chrome: no part to hit
+        ev, _ = self.pick(aid, spot % "true", settle=3500)  # the part there
+        self.assertRegex(ev["detail"]["selector"], r"^part:")
+        self.assertTrue(ev["detail"]["rect"].get("pt"), ev)  # its pin on the point clicked
+
+    def test_plain_page(self):
+        aid = self.store.publish(title="Plain", type="page", html=PICK_PAGE)["id"]
+        ev, _ = self.pick(aid, at('document.getElementById("p")', 0.1))
+        self.assertEqual(ev["detail"]["label"], "A paragraph of the page")
+        ev, _ = self.pick(aid, at('document.getElementById("box")'))
+        self.assertEqual(ev["detail"]["label"], "")  # no words, no name: the host's "Selected part"
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV5Layout(unittest.TestCase):
+    """Live round V5 (0.20.0): a design's selection toolbar sat over the name strips and the top edges of the frames
+    beside the selection; a film's comment had no pin on its picture."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive(self, aid, body, w=1000, settle=1500, timeout=300):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n" + body, timeout=timeout)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_design_selection_toolbar_covers_no_other_frame_where_there_is_room(self):
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        probe = ("(() => { const t = document.querySelector('.dc-tools'); if (!t || t.hidden || !t.getClientRects().length) return null; const r = t.getBoundingClientRect();"
+                 " const hit = q => q.width && r.left < q.right && q.left < r.right && r.top < q.bottom && q.top < r.bottom;"
+                 " const others = [...document.querySelectorAll('.dc-board')].filter(b => b.getAttribute('data-path') !== 'Main.dc.html' && b.getClientRects().length);"
+                 " const strips = [...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length);"
+                 " return { frames: others.filter(b => hit(b.getBoundingClientRect())).map(b => b.getAttribute('data-path')),"
+                 " strips: strips.filter(s => hit(s.getBoundingClientRect())).map(s => s.title || s.textContent) } })()")
+        out = {}
+        for w in (1500, 1000):
+            out[w] = B.drive(f"await api.size({w}, 800); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n await api.sleep(3000)\n"
+                             "const q = await api.frame('(() => { const r = __design.boards[\"Main.dc.html\"].el.querySelector(\"iframe\").getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.35] })()')\n"
+                             f"await api.mouse(q[0], q[1]); await api.sleep(900); return await api.frame({json.dumps(probe)})")
+            self.assertIsNone(out[w].get("err"), out[w])
+            o = out[w]["out"]
+            self.assertTrue(o, (w, o))  # a toolbar shown
+            self.assertEqual((o["frames"], o["strips"]), ([], []), (w, o))
+
+    def test_a_colour_that_paints_nothing_shows_no_fill_never_black(self):
+        # V6a: Properties' Background well was solid black for a transparent fill (design, slides)
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        wells = ("[...document.querySelectorAll('input[type=color]')].filter(i => i.getClientRects().length).map(i => { const t = i.nextElementSibling;"
+                 " const v = t && t.tagName === 'INPUT' ? (t.value || t.placeholder) : ''; return { v, clear: kit.isClear(v), mark: i.classList.contains('kit-nofill'),"
+                 " swatch: getComputedStyle(i, '::-webkit-color-swatch').backgroundImage } })")
+        out = self.drive(aid, """
+          const q = await api.frame('(() => { const r = __design.boards["Main.dc.html"].el.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.72, r.top + r.height * 0.25] })()')
+          await api.mouse(q[0], q[1]); await api.sleep(900); await api.frame(%s); await api.sleep(600)
+          return { wells: await api.frame(%s), kit: await api.frame('[kit.isClear("rgba(0, 0, 0, 0)"), kit.isClear("transparent"), kit.isClear(""), kit.isClear("#00000000"), kit.isClear("rgb(31, 27, 22)"), kit.isClear("var(--x)")]') }
+        """ % (json.dumps(PROPS), json.dumps(wells)), w=1300, settle=3000)
+        self.assertEqual(out["kit"], [True, True, True, True, False, False])
+        self.assertTrue([w for w in out["wells"] if w["clear"]], out)  # the picture's transparent background is there
+        for w in out["wells"]:
+            self.assertEqual(w["mark"], w["clear"], w)
+        css = (ROOT / "plugin" / "hermes_artifacts" / "types" / "design-system" / "ds.css").read_text("utf-8")
+        self.assertIn(".ds-btn-primary { background: var(--color-accent); border-color: var(--color-accent);", css)  # D: as every primary action
+
+    def test_a_films_saved_point_comment_has_its_pin_on_the_picture_at_its_moment(self):
+        aid = self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"]
+        r = B.drive(f"await api.size(1200, 800); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n await api.sleep(2500)\n"
+                    "await api.top('window.__post(\"pins\", [{selector: \"@t=0.00 @xy=30.00%,70.00%\", n: 1}, {selector: \"@t=0.00\", n: 2}])'); await api.sleep(400)\n"
+                    "const at = () => api.frame('(() => { const f = document.getElementById(\"mo-frame\").getBoundingClientRect(); return [...document.querySelectorAll(\".mo-spin\")].map(p => { const b = p.getBoundingClientRect();"
+                    " return { n: p.textContent, x: (b.left + b.width / 2 - f.left) / f.width, y: (b.top + b.height / 2 - f.top) / f.height } }) })()')\n"
+                    "const o = { at0: await at() }\n"
+                    "await api.top('window.__post(\"flash\", {selector: \"@t=1.50\"})'); await api.sleep(400); o.later = await at()\n"
+                    "await api.top('window.__post(\"flash\", {selector: \"@t=0.00 @xy=30.00%,70.00%\"})'); await api.sleep(400); o.back = await at()\n"
+                    "return o")
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual([p["n"] for p in o["at0"]], ["1"], o)  # the point's comment only (the other is a moment's)
+        self.assertAlmostEqual(o["at0"][0]["x"], 0.30, delta=0.01)
+        self.assertAlmostEqual(o["at0"][0]["y"], 0.70, delta=0.01)
+        self.assertEqual(o["later"], [], o)  # another moment: not there
+        self.assertEqual([p["n"] for p in o["back"]], ["1"], o)  # its comment clicked in the list: there again

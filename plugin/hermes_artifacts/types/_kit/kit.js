@@ -588,6 +588,18 @@
     return ro;
   }
 
-  window.kit = { locale: locale, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
+  /** A colour that paints nothing (none, transparent, an alpha of 0, empty): a colour well showing it gets the
+   *  kit's "no fill" look (kit.css .kit-nofill: a slash over the panel), never the black an <input type=color>
+   *  falls back to. noFill(input, value) sets it on the well and returns the input. */
+  function isClear(c) {
+    c = String(c == null ? "" : c).trim().toLowerCase();
+    if (!c || c === "none" || c === "transparent") return true;
+    var m = /^rgba?\(([^)]*)\)$/.exec(c), parts = m ? m[1].split(/[\s,\/]+/).filter(Boolean) : null;
+    if (parts && parts.length === 4) return parseFloat(parts[3]) === 0;
+    return /^#([0-9a-f]{3}0|[0-9a-f]{6}00)$/.test(c);
+  }
+  function noFill(input, value) { input.classList.toggle("kit-nofill", isClear(value)); return input; }
+
+  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

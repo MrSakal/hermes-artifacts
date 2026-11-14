@@ -800,6 +800,7 @@
   }
   function fitSegs() { Array.prototype.forEach.call(segsEl.children, fitSeg); }
   kit.onResize(segsEl, fitSegs);
+  kit.onResize(view, function () { stagePins(); });
   function refreshSegs() {
     segsEl.textContent = "";
     var segs = custom ? chapters() : timeline;
@@ -871,6 +872,7 @@
     if (range) { rangeEl.hidden = false; rangeEl.style.left = range[0] / total * 100 + "%"; rangeEl.style.width = (range[1] - range[0]) / total * 100 + "%"; }
     else rangeEl.hidden = true;
     commentBtn.title = range ? T.commentRange : T.commentAt;
+    stagePins();
     if (!playing) { if (tweaksOpen) tweaksSync(); }
     sendView();
   }
@@ -1003,8 +1005,11 @@
     pause();
     var r = frame.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
     var sc = custom ? null : sceneAt(cur);
-    window.hermes.comment({ selector: "@t=" + secs(unmap(cur)) + " @xy=" + x.toFixed(2) + "%," + y.toFixed(2) + "%", label: fmtShort(cur),
-      text: "at " + secs(unmap(cur)) + " s, x " + x.toFixed(2) + "% y " + y.toFixed(2) + "%" + (sc ? " · " + sc.name : "") });
+    // The pin on the point clicked (and on it again after a resize: the same share of the picture).
+    window.hermes.comment({ selector: "@t=" + secs(unmap(cur)) + " @xy=" + x.toFixed(2) + "%," + y.toFixed(2) + "%",
+      label: ((sc ? sc.name + " · " : "") + fmtShort(cur)).slice(0, 40),
+      text: "at " + secs(unmap(cur)) + " s, x " + x.toFixed(2) + "% y " + y.toFixed(2) + "%" + (sc ? " · " + sc.name : "") },
+      { el: frame, box: function () { var q = frame.getBoundingClientRect(); return { x: q.left + q.width * x / 100, y: q.top + q.height * y / 100, w: 0, h: 0, point: true }; } });
     picking = false; view.classList.remove("picking");
   }, true);
   var pins = [];
@@ -1022,6 +1027,32 @@
       b.style.left = Math.min(100, ta / total * 100) + "%";
       b.addEventListener("pointerdown", function (e) { e.stopPropagation(); pause(); seek(ta); if (a[1] != null) { range = [ta, fmap(a[1])]; ui(); } });
       tl.appendChild(b);
+    });
+    stagePins();
+  }
+  // A comment on a point of the picture (@xy) has its pin there too while its moment is shown, paused (a frame's
+  // width either side): the picture is where it was said.
+  var stagePinsAt = "";
+  function stagePins() {
+    var shown = playing || !total || !pins ? [] : pins.filter(function (p) {
+      var a = parseAnchor(p.selector);
+      return a && a[1] == null && /@xy=/.test(p.selector) && Math.abs(fmap(a[0]) - cur) <= 1 / FPS + 1e-6;
+    });
+    if (!shown.length && !stagePinsAt) return; // none shown, none to take away: no layout read on a playing frame
+    var r = frame.getBoundingClientRect(), v = view.getBoundingClientRect();
+    var key = shown.length ? shown.map(function (p) { return p.n + p.selector; }).join("|") + "@" + [r.left - v.left, r.top - v.top, r.width, r.height].map(Math.round).join(",") : "";
+    if (key === stagePinsAt) return;
+    stagePinsAt = key;
+    view.querySelectorAll(".mo-spin").forEach(function (n) { n.remove(); });
+    shown.forEach(function (p) {
+      var m = /@xy=(-?\d+(?:\.\d+)?)%,(-?\d+(?:\.\d+)?)%/.exec(p.selector);
+      if (!m) return;
+      var b = h("div", { "class": "mo-spin", text: String(p.n) });
+      b.style.left = (r.left - v.left + r.width * parseFloat(m[1]) / 100) + "px";
+      b.style.top = (r.top - v.top + r.height * parseFloat(m[2]) / 100) + "px";
+      b.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+      b.addEventListener("click", function (e) { e.stopPropagation(); if (window.hermes && window.hermes.openPin) window.hermes.openPin(p.n); });
+      view.appendChild(b);
     });
   }
   // Host events: numbered pins for the comments, a comment clicked in the panel, comment pick mode.
@@ -1426,12 +1457,12 @@
       saveRecords({ retouched: layers.length ? { v: 1, layers: layers } : null });
     }
     if (svg) {
-      var fi = h("input", { type: "color", value: hex(cs.fill) });
-      fi.addEventListener("change", function () { put("svgfill", hex(cs.fill), fi.value); });
+      var fi = kit.noFill(h("input", { type: "color", value: hex(cs.fill) }), cs.fill);
+      fi.addEventListener("change", function () { kit.noFill(fi, fi.value); put("svgfill", hex(cs.fill), fi.value); });
       box.appendChild(row(T.ink, [fi]));
     } else {
-      var ink = h("input", { type: "color", value: hex(cs.color) });
-      ink.addEventListener("change", function () { put("ink", hex(cs.color), ink.value); });
+      var ink = kit.noFill(h("input", { type: "color", value: hex(cs.color) }), cs.color);
+      ink.addEventListener("change", function () { kit.noFill(ink, ink.value); put("ink", hex(cs.color), ink.value); });
       box.appendChild(row(T.ink, [ink]));
       var px = h("input", { type: "number", min: "6", max: "600", step: "1", value: String(Math.round(parseFloat(cs.fontSize))) });
       px.addEventListener("change", function () { put("px", Math.round(parseFloat(cs.fontSize)), Math.max(6, Math.min(600, +px.value))); });

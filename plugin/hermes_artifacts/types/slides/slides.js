@@ -188,6 +188,7 @@
   function canvasFor(s, scale, live) {
     var c = h("div", { "class": "sl-canvas" });
     c.style.transform = "scale(" + scale + ")";
+    if (live) c.setAttribute("data-comment-label", T.pSlide + " " + (slides.indexOf(s) + 1)); // what a comment pick on it is titled
     var sec = live ? s.sec : s.sec.cloneNode(true);
     if (!live) sec.querySelectorAll("[contenteditable]").forEach(function (n) { n.removeAttribute("contenteditable"); });
     c.appendChild(sec);
@@ -886,7 +887,7 @@
       kids.push(tb("comment", T.comment, function () {
         var el = sel[0], s = slides[cur];
         window.hermes.comment({ selector: selectorOf(el), text: el.textContent.trim().slice(0, 200),
-          label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) });
+          label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) }, el); // beside it, with its pin
       }));
     }
     var folded = [];
@@ -1849,17 +1850,17 @@
   }
   function pcolor(value, set, allowNone) {
     var hex = cssHex(value);
-    var c = h("input", { type: "color", value: hex || "#000000" }), t = h("input", { type: "text", value: hex, placeholder: T.none, spellcheck: "false" });
+    var c = kit.noFill(h("input", { type: "color", value: hex || "#000000" }), value), t = h("input", { type: "text", value: hex, placeholder: T.none, spellcheck: "false" });
     var put = function (v) { panelEdit(function () { set(v); }); };
-    c.addEventListener("input", function () { t.value = c.value; put(c.value); });
+    c.addEventListener("input", function () { t.value = c.value; kit.noFill(c, c.value); put(c.value); });
     t.addEventListener("keydown", function (e) { e.stopPropagation(); });
     t.addEventListener("change", function () {
       var v = t.value.trim();
-      if (!v && allowNone) return put("");
-      if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) { v = v[0] === "#" ? v : "#" + v; if (v.length === 7) c.value = v; put(v); } else t.value = cssHex(value);
+      if (!v && allowNone) { kit.noFill(c, ""); return put(""); }
+      if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) { v = v[0] === "#" ? v : "#" + v; if (v.length === 7) c.value = v; kit.noFill(c, v); put(v); } else t.value = cssHex(value);
     });
     var sw = h("div", { "class": "sl-pswatches" }, themeColors().map(function (k) {
-      return h("button", { type: "button", title: k.name, "aria-label": k.name, style: "background:" + k.v, onclick: function () { var x = cssHex(k.v); if (x) { c.value = x; t.value = x; } put(k.v); } });
+      return h("button", { type: "button", title: k.name, "aria-label": k.name, style: "background:" + k.v, onclick: function () { var x = cssHex(k.v); if (x) { c.value = x; t.value = x; } kit.noFill(c, k.v); put(k.v); } });
     }));
     return h("div", { "class": "sl-pcolorbox" }, [h("div", { "class": "sl-pcolor" }, [c, t]), sw]);
   }

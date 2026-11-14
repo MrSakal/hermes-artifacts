@@ -45,8 +45,9 @@
 .ds-btn:hover { background: var(--color-hover); }
 .ds-btn-add { display: inline-flex; align-items: center; gap: 6px; padding-left: 9px; white-space: nowrap; }
 .ds-btn-add svg { width: 14px; height: 14px; flex: none; }
-.ds-btn-primary { background: var(--color-fg); border-color: var(--color-fg); color: var(--color-bg); }
-.ds-btn-primary:hover { background: var(--color-fg-secondary); }
+/* the primary action in the accent, as every other in the plugin (a doc's, a board's, a design's Save) */
+.ds-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-fg, var(--color-bg)); }
+.ds-btn-primary:hover { background: var(--color-accent); opacity: 0.9; }
 .ds-btn-danger { color: var(--color-bad); margin-left: auto; }
 .ds-link { border: 0; background: none; padding: 0; color: var(--color-accent); font: inherit; font-size: 12px; cursor: pointer; }
 

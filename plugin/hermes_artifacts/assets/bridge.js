@@ -543,7 +543,7 @@
    *  between a dashboard's tiles). Picks nothing: pick mode stays on. */
   function blank(el, x, y) {
     if (!el || el === document.body || el === document.documentElement) return true;
-    if (!el.children.length) return false;
+    if (!el.children.length || el.closest("[data-comment-label]")) return false; // in a part the page named (a slide)
     for (var i = 0; i < el.childNodes.length; i++) { var n = el.childNodes[i]; if (n.nodeType === 3 && /\S/.test(n.nodeValue)) return false; }
     for (i = 0; i < el.children.length; i++) {
       var k = el.children[i].getBoundingClientRect();
@@ -591,7 +591,7 @@
     } catch (_) {}
     return false;
   }
-  var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|svg)$/;
+  var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|IFRAME|svg)$/;
   /** Whether a pin at box {l, t, r, b} would cover anything of another element: its words, or a picture or
    *  control. The element itself, what holds it (the column, the body) and the plugin's own marks don't count. */
   function blocked(el, box) {
@@ -672,48 +672,90 @@
    *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
    *  vb: band()). A spot is free when no other element's words, picture or control is under it (fw: nor the
    *  element's own words). */
-  function pickRect(el) {
-    var r = el.getBoundingClientRect(), line = firstLine(el), bd = band(el);
+  function pickRect(el) { return rectOf(el, el.getBoundingClientRect(), firstLine(el), null); }
+  /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
+   *  frame, a point of a film's picture), in `el` (what holds it there: the frame, the picture). The page may say
+   *  where its first line is (ly, lh, lr) and which pin spots are taken inside el (fr, fl, fw, fa, fb: false,
+   *  where it alone can see); point: true pins it on the box's middle (a point, not a part). */
+  function boxRect(el, b) {
+    var r = { left: b.x, top: b.y, right: b.x + b.w, bottom: b.y + b.h, width: b.w, height: b.h };
+    var line = isFinite(b.ly) && isFinite(b.lh) && b.lh > 0 ? { top: b.ly, height: b.lh, right: isFinite(b.lr) ? b.lr : r.right } : null;
+    var out = rectOf(el, r, line, b);
+    if (!isFinite(b.lr)) { delete out.lr; delete out.fw; }
+    if (b.point) out.pt = true;
+    return out;
+  }
+  function rectOf(el, r, line, given) {
+    var bd = band(el);
     var ly = line ? line.top : r.top, lh = line ? line.height : Math.min(r.height, 24);
     var t = Math.max(bd.t + PIN_EDGE, Math.min(bd.b - PIN - PIN_EDGE, ly + lh / 2 - PIN / 2));
     var at = function (l, tp) { return { l: l, t: tp, r: l + PIN, b: tp + PIN }; };
+    var free = function (k, box) { return !(given && given[k] === false) && !blocked(el, box); };
     var R = r.right + PIN_GAP, L = r.left - PIN_GAP - PIN, end = r.right - PIN;
     var out = { x: r.left, y: r.top, w: r.width, h: r.height, ly: ly, lh: lh, vt: bd.t, vb: bd.b, vis: visible(el, r, bd),
-                fr: !blocked(el, at(R, t)), fl: !blocked(el, at(L, t)),
-                fa: !blocked(el, at(end, r.top - PIN_GAP - PIN)), fb: !blocked(el, at(end, r.bottom + PIN_GAP)) };
+                fr: free("fr", at(R, t)), fl: free("fl", at(L, t)),
+                fa: free("fa", at(end, r.top - PIN_GAP - PIN)), fb: free("fb", at(end, r.bottom + PIN_GAP)) };
     if (line) {
       var wb = at(line.right + PIN_GAP, t);
       out.lr = line.right;
-      out.fw = !blocked(el, wb) && !ownWords(el, wb);
+      out.fw = free("fw", wb) && (given || !ownWords(el, wb));
     }
     return out;
+  }
+  // What the host titles a comment with: the part's name where the page gave one (data-comment-label on it or
+  // around it: "Note", "Slide 3", "Region filter"), with the clicked words after it; else the words; else ""
+  // (the host's neutral "Selected part"), never a tag name. At most LABEL_MAX, cut at a word.
+  var LABEL_MAX = 40;
+  function clipWords(s, n) {
+    s = String(s || "").trim().replace(/\s+/g, " ");
+    if (s.length <= n) return s;
+    var c = s.slice(0, n - 1), i = c.lastIndexOf(" ");
+    return (i > n * 0.4 ? c.slice(0, i) : c).replace(/[\s,;:.\u00b7\u2013-]+$/, "") + "\u2026";
+  }
+  function wordsOf(el) {
+    if (el.tagName === "SELECT") { var o = el.selectedOptions && el.selectedOptions[0]; return o ? o.text : ""; }
+    if (/^(INPUT|TEXTAREA)$/.test(el.tagName)) return "";
+    return el.innerText || el.textContent || el.getAttribute("alt") || el.getAttribute("aria-label") || "";
+  }
+  function pickLabel(el) {
+    var named = el.closest("[data-comment-label]");
+    if (!named) return clipWords(wordsOf(el), LABEL_MAX);
+    // In a named part, only words the clicked element holds itself (a value, a heading) follow the name: a click
+    // on the part's padding or a box around its words is the part.
+    var direct = !el.children.length || /^(SELECT|INPUT|TEXTAREA)$/.test(el.tagName) ||
+      Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue); });
+    var name = named.getAttribute("data-comment-label") || "", own = named !== el && direct ? clipWords(wordsOf(el), LABEL_MAX) : "";
+    return clipWords(!own || own.toLowerCase() === name.toLowerCase() ? name : name + " \u00b7 " + own, LABEL_MAX); // a label shown in capitals is the name
   }
   function onPick(e) {
     if (!picking) return;
     e.preventDefault(); e.stopImmediatePropagation();
     var el = e.target;
     if (blank(el, e.clientX, e.clientY)) return;
-    var text = (el.innerText || el.textContent || el.getAttribute("alt") || "").trim().replace(/\s+/g, " ");
-    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: el.tagName.toLowerCase(), rect: pickRect(el) });
-    follow(el);
+    var text = wordsOf(el).trim().replace(/\s+/g, " ");
+    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el), rect: pickRect(el) });
+    follow({ el: el });
   }
   // The element picked last, while its new comment is open: when the page scrolls or the frame is resized its
   // new rect goes to the host (at most every PICKED_GAP_MS), so the comment's pin and form stay at it. The host
   // says when the comment closes (pick-follow off); the next pick mode forgets it too. Listening only meanwhile.
+  // picked: {el} (the bridge's own pick), or {el, box} where box() measures a page's own part again (null: gone).
   var PICKED_GAP_MS = 40;
   var picked = null, pickedTimer = 0, pickedAt = 0;
   function pickedMoved() {
     if (!picked || pickedTimer) return;
     pickedTimer = setTimeout(function () {
       pickedTimer = 0;
-      if (!picked || !picked.isConnected) return;
+      if (!picked || !picked.el.isConnected) return;
       pickedAt = Date.now();
-      emit("picked-rect", { rect: pickRect(picked) });
+      var b = picked.box ? picked.box() : null;
+      if (picked.box && !b) return;
+      emit("picked-rect", { rect: b ? boxRect(picked.el, b) : pickRect(picked.el) });
     }, Math.max(0, PICKED_GAP_MS - (Date.now() - pickedAt)));
   }
-  function follow(el) {
+  function follow(p) {
     if (!picked) { window.addEventListener("scroll", pickedMoved, true); window.addEventListener("resize", pickedMoved); }
-    picked = el;
+    picked = p;
   }
   function unfollow() {
     if (!picked) return;
@@ -733,7 +775,11 @@
     if (picking && !pickStyle) {
       pickStyle = document.createElement("style");
       pickStyle.setAttribute("data-hermes-ui", "");
-      pickStyle.textContent = "html[data-commenting] *{cursor:crosshair!important}";
+      // A frame of the page's (a design system's preview, an embed) is a document of its own: a click in it would
+      // never reach this pick. While picking it takes no pointer: the click picks what holds it. A frame whose page
+      // picks inside it itself (a design's artboards: data-comment-frame) keeps it.
+      pickStyle.textContent = "html[data-commenting] *{cursor:crosshair!important}" +
+        "html[data-commenting] iframe:not([data-comment-frame]){pointer-events:none!important}";
       document.documentElement.appendChild(pickStyle);
     }
     if (!picking && pickStyle) { pickStyle.remove(); pickStyle = null; }
@@ -901,8 +947,25 @@
     }),
     /** Full screen for the artifact (the host fills the window; Esc leaves). */
     fullscreen: function (on) { return call("present", { on: on !== false }); },
-    /** Start a comment on a part of the page (the host opens its comment form there). */
-    comment: function (anchor) { emit("comment", anchor || {}); },
+    /** Start a comment on a part of the page (the host opens its comment form there). where (optional): the
+     *  element it is on, or {el, box} for a part the page measures itself (box: {x, y, w, h} in the window, or a
+     *  function giving it again after a scroll or a resize; boxRect says what more it may carry): the host then
+     *  opens the form beside it with its pin, as for a pick, and not in its panel. */
+    comment: function (anchor, where) {
+      var a = Object.assign({}, anchor || {}), el = where && (where.nodeType === 1 ? where : where.el);
+      if (el && el.nodeType === 1) {
+        var given = where.nodeType === 1 ? null : where.box;
+        var box = given == null ? null : typeof given === "function" ? given : function () { return given; };
+        var b = box ? box() : null;
+        if (!box || b) {
+          a.rect = b ? boxRect(el, b) : pickRect(el);
+          follow(box ? { el: el, box: box } : { el: el });
+        }
+      }
+      emit("comment", a);
+    },
+    /** A page that moved what was commented on without a scroll (a canvas panned or zoomed): its pin follows. */
+    moved: function () { pickedMoved(); },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */

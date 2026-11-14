@@ -196,9 +196,11 @@
   };
 
   builders.filters = function (b) {
-    var bar = h("div", { "class": "c-filters c-full" }), controls = [];
+    // data-comment-label: what a comment pick on a part is titled ("Region filter"; the row: "Filters")
+    var named = function (f) { return w((f.label || f.param) + " filter", (f.label || f.param) + " szűrő"); };
+    var bar = h("div", { "class": "c-filters c-full", "data-comment-label": (b.items || []).length === 1 ? named(b.items[0]) : w("Filters", "Szűrők") }), controls = [];
     (b.items || []).forEach(function (f) {
-      var lab = h("label", { "class": "c-filter" }, [h("span", { text: f.label || f.param })]);
+      var lab = h("label", { "class": "c-filter", "data-comment-label": named(f) }, [h("span", { text: f.label || f.param })]);
       var ctl;
       if (f.input === "text" || f.input === "number" || f.input === "date") {
         ctl = h("input", { type: f.input, placeholder: f.placeholder || "", "aria-label": f.label || f.param,
@@ -252,7 +254,7 @@
       var val = h("div", { "class": "c-kpi-value", "data-source": k.source, "data-field": k.agg && k.agg !== "first" && k.agg !== "last" ? null : k.field,
         "data-where": whereAttr(k.where) });
       var delta = h("div", { "class": "c-kpi-delta" }), note = h("div", { "class": "c-kpi-note" });
-      var card = h("div", { "class": "c-card c-kpi" }, [h("div", { "class": "c-label", text: k.label || k.field }), val, delta, note]);
+      var card = h("div", { "class": "c-card c-kpi", "data-comment-label": k.label || k.field }, [h("div", { "class": "c-label", text: k.label || k.field }), val, delta, note]);
       wrap.appendChild(card);
       cells.push({ k: k, val: val, delta: delta, note: note });
     });
@@ -303,19 +305,23 @@
     tip.style.top = (y + 14) + "px";
   }
 
-  /** A bar chart's values, drawn (their boxes measured): each keeps VALUE_GAP px off the dashed reference line at
-   *  ry (null: none) on the side its bar's top is: above when the bar reaches the line, else below it, between the
-   *  line and the bar; one with no room there keeps its place and the line breaks behind it, VALUE_GAP px either
-   *  side. Values closer than VALUE_GAP px to a neighbour: every second one is shown (or third…), the rest are in
-   *  their bars' tooltips. Never a label touching the line or another. */
-  var VALUE_GAP = 4, REF_HALF = 0.75; // the reference line's half stroke (dashboard.css .c-ref)
+  /** A bar chart's values, drawn (their boxes measured): each keeps VALUE_GAP screen px, its halo included, off
+   *  the dashed reference line's stroke at ry (null: none) on the side its bar's top is: above when the bar reaches
+   *  the line, else below it, between the line and the bar; one with no room there keeps its place and the line
+   *  breaks behind it, VALUE_GAP px past its halo either side. Values closer than VALUE_GAP px to a neighbour: every
+   *  second one is shown (or third…), the rest are in their bars' tooltips. Never a label touching the line or
+   *  another. Measured in the chart's own units (its viewBox), the px turned into them at the size it is drawn;
+   *  drawn again when a font arrives (dashboard.js), the boxes being the font's. */
+  var VALUE_GAP = 4, REF_HALF = 0.75, HALO = 1.75; // the line's half stroke, a value's half halo (dashboard.css .c-ref, .c-value)
   function fitValues(svg, ry, x1, x2) {
     var items = svg.selectAll("g.c-values text").nodes().map(function (t) {
       var bb = t.getBBox();
       return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5 };
     });
     if (!items.length) return;
-    var off = VALUE_GAP + REF_HALF; // from the line's middle
+    var node = svg.node(), vb = node.viewBox && node.viewBox.baseVal, drawn = node.getBoundingClientRect().width;
+    var u = vb && vb.width && drawn ? vb.width / drawn : 1; // one screen px in the chart's units
+    var off = (VALUE_GAP + REF_HALF + HALO) * u, side = (VALUE_GAP + HALO) * u; // from the line's middle; past a value's box
     if (ry != null) items.forEach(function (o) {
       if (o.y - off >= ry || o.y + o.h + off <= ry) return;
       var dy = o.bar <= ry ? ry - off - (o.y + o.h) // above the line, its bar up to it or past it
@@ -324,7 +330,7 @@
       o.y += dy;
       o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
     });
-    var near = function (a, c) { return Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)) < VALUE_GAP; };
+    var near = function (a, c) { return Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)) < VALUE_GAP * u; };
     var step = 1;
     for (; step < items.length; step++) {
       var shown = items.filter(function (o, i) { return i % step === 0; }), ok = true;
@@ -333,7 +339,7 @@
     }
     items.forEach(function (o, i) { if (i % step) { o.t.remove(); o.gone = true; } });
     var ln = ry == null ? null : svg.select("line.c-ref").node();
-    var gaps = items.filter(function (o) { return o.cut && !o.gone; }).map(function (o) { return [o.x - VALUE_GAP, o.x + o.w + VALUE_GAP]; });
+    var gaps = items.filter(function (o) { return o.cut && !o.gone; }).map(function (o) { return [o.x - side, o.x + o.w + side]; });
     if (!ln || !gaps.length) return;
     var segs = [], from = x1;
     gaps.sort(function (a, c) { return a[0] - c[0]; }).forEach(function (g) { if (g[0] > from) segs.push([from, Math.min(g[0], x2)]); from = Math.max(from, g[1]); });
@@ -349,7 +355,7 @@
 
   builders.chart = function (b) {
     var box = h("div", { "class": "c-chart", "data-source": b.source });
-    var card = h("section", { "class": "c-card c-block" + (b.width === "full" ? " c-full" : "") }, [
+    var card = h("section", { "class": "c-card c-block" + (b.width === "full" ? " c-full" : ""), "data-comment-label": b.title || w("Chart", "Diagram") }, [
       b.title ? h("h2", { "class": "c-h", text: b.title }) : null,
       b.note ? h("p", { "class": "c-note", text: b.note }) : null, box]);
     return { el: card, draw: function () {
@@ -486,7 +492,7 @@
     var thead = h("thead"), tbody = h("tbody");
     var table = h("table", { "class": "c-table", "data-source": b.source, "data-row-key": b.key || (cols[0] && cols[0].field) || null }, [thead, tbody]);
     var scroller = h("div", { "class": "c-table-wrap", style: b.maxHeight ? "max-height:" + b.maxHeight + "px" : null }, [table]);
-    var card = h("section", { "class": "c-card c-block" + (b.width === "half" ? "" : " c-full") }, [
+    var card = h("section", { "class": "c-card c-block" + (b.width === "half" ? "" : " c-full"), "data-comment-label": b.title || w("Table", "Táblázat") }, [
       h("div", { "class": "c-block-head" }, [b.title ? h("h2", { "class": "c-h", text: b.title }) : null, search]),
       b.note ? h("p", { "class": "c-note", text: b.note }) : null, scroller]);
     var sortBy = b.sort || null;
