@@ -183,5 +183,67 @@ class BoardPageTests(unittest.TestCase):
             self.assertEqual(src.count(call), 2, f.name)
 
 
+FLOW = [{"type": "text", "size": "title", "text": "Release flow"}, {"id": "dev", "type": "section", "text": "Development"},
+        {"id": "a", "type": "box", "text": "Draft", "in": "dev"}, {"id": "b", "type": "box", "kind": "diamond", "text": "Review ok?", "in": "dev"},
+        {"id": "c", "type": "box", "kind": "pill", "text": "Ship", "color": "blue"}, {"type": "arrow", "from": "a", "to": "b"},
+        {"type": "arrow", "from": "b", "to": "c", "label": "yes"}, {"type": "note", "text": "Owner: Anna", "near": "c"},
+        {"type": "note", "text": "Second note", "near": "c"}]
+# the item's toolbar and the items it covers, by the board's own boxes on screen
+CTX = """(() => {
+  const ctx = document.querySelector('.bd-ctx'); if (!ctx || ctx.hidden) return null
+  const r = ctx.getBoundingClientRect(), sel = new Set([...document.querySelectorAll('.bd-it.bd-sel')].map(e => e.getAttribute('data-id')))
+  return [...document.querySelectorAll('.bd-it')].filter(e => !sel.has(e.getAttribute('data-id')) && !e.classList.contains('bd-arrow') && !e.classList.contains('bd-section'))
+    .filter(e => { const b = e.getBoundingClientRect(); return b.width && r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom })
+    .map(e => e.textContent.trim())
+})()"""
+BOXES = ("[...document.querySelectorAll('.bd-it')].filter(e => !e.classList.contains('bd-arrow') && !e.classList.contains('bd-section'))"
+         ".map(e => { const b = e.getBoundingClientRect(); return [e.textContent.trim(), b.left, b.top, b.right, b.bottom] })")
+
+
+class BoardInTheBrowser(unittest.TestCase):
+    """Round 3: the item's toolbar sat over the notes beside it, Duplicate put the copy on the original (+16/+16), and the
+    zoom level gave no sign of what a click does. The toolbar takes a spot that covers no item, the copy the nearest
+    free spot, the level opens its menu with the current one checked."""
+
+    def test_toolbar_copy_and_zoom_menu(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        from hermes_artifacts import store
+        host = B.Host()
+        try:
+            out = {}
+            for w in (400, 1000):
+                aid = store.publish(title="Flow", type="board", files={"board.json": {"title": "Release flow", "items": FLOW}})["id"]
+                r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+                  await api.clickIn('document.querySelector(".bd-it[data-id=c]")'); await api.sleep(400)
+                  const covers = await api.frame(%s)
+                  await api.frame('document.querySelector(".bd-more").click()'); await api.sleep(250)
+                  await api.frame('[...document.querySelectorAll(".kit-menu button")].find(b => b.textContent.includes("Ctrl+D")).click()'); await api.sleep(500)
+                  const boxes = await api.frame(%s)
+                  await api.frame('document.querySelector(".bd-zl").click()'); await api.sleep(250)
+                  const zoom = await api.frame('[...document.querySelectorAll(".kit-menu [aria-checked=true]")].map(b => b.textContent.trim())')
+                  return { covers, boxes, zoom, level: await api.frame('document.querySelector(".bd-zl").textContent') }
+                """ % (json.dumps(CTX), json.dumps(BOXES)))
+                self.assertIsNone(r.get("err"), r)
+                out[w] = r["out"]
+        finally:
+            host.close()
+        for w, o in out.items():
+            self.assertEqual(o["covers"], [], w)
+            ships = [b for b in o["boxes"] if b[0] == "Ship"]
+            self.assertEqual(len(ships), 2, (w, o["boxes"]))
+            copy = ships[1]
+            for b in o["boxes"]:
+                if b is copy:
+                    continue
+                meet = copy[1] < b[3] - 1 and b[1] < copy[3] - 1 and copy[2] < b[4] - 1 and b[2] < copy[4] - 1
+                self.assertFalse(meet, (w, "the copy is on", b[0]))
+            if o["level"] in ("25%", "50%", "75%", "100%", "150%", "200%"):
+                self.assertEqual(o["zoom"], [o["level"]], w)
+
+
 if __name__ == "__main__":
     unittest.main()

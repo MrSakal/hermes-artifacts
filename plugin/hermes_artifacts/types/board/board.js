@@ -26,7 +26,7 @@
       select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes",
       image: "Image", ask: "Ask Hermes", askPh: "Describe a change", send: "Send", sent: "Sent to Hermes", drafted: "Put in the chat box",
       pen: "Pen", arrow: "Arrow", table: "Table", colour: "Colour",
-      zoomIn: "Zoom in", zoomOut: "Zoom out", zoom: "Zoom level", fit: "Fit the board", undo: "Undo", redo: "Redo", keys: "Single-key tool shortcuts",
+      zoomIn: "Zoom in", zoomOut: "Zoom out", zoom: "Zoom level", zoomPick: "Zoom level: choose one", fit: "Fit the board", undo: "Undo", redo: "Redo", keys: "Single-key tool shortcuts",
       hist: "Version history", histNone: "No earlier versions yet", byH: "Hermes", byYou: "you", byRestore: "restored",
       showing: "Showing the board as it was on {t}. View only.", restoreThis: "Restore this version", backNow: "Back to now", restored: "Restored",
       exp: "Export", expPng: "PNG picture", expSvg: "SVG drawing", expFail: "The picture could not be made",
@@ -59,7 +59,7 @@
       select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok",
       image: "Kép", ask: "Hermes megkérése", askPh: "Írd le a változtatást", send: "Küldés", sent: "Elküldve Hermesnek", drafted: "Bekerült a csevegőmezőbe",
       pen: "Toll", arrow: "Nyíl", table: "Táblázat", colour: "Szín",
-      zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoom: "Nagyítás mértéke", fit: "Teljes tábla", undo: "Visszavonás", redo: "Újra", keys: "Egybetűs eszközbillentyűk",
+      zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoom: "Nagyítás mértéke", zoomPick: "Nagyítás mértéke: válassz", fit: "Teljes tábla", undo: "Visszavonás", redo: "Újra", keys: "Egybetűs eszközbillentyűk",
       hist: "Korábbi változatok", histNone: "Még nincs korábbi változat", byH: "Hermes", byYou: "te", byRestore: "visszaállítva",
       showing: "A tábla ekkori állapota: {t}. Csak megtekintés.", restoreThis: "Változat visszaállítása", backNow: "Vissza a mostanihoz", restored: "Visszaállítva",
       exp: "Exportálás", expPng: "PNG kép", expSvg: "SVG rajz", expFail: "A képet nem sikerült elkészíteni",
@@ -104,8 +104,12 @@
     hNone: "M4 12h16", hArrow: "M4 12h16M14 6l6 6-6 6", hCircle: "M4 12h10M14 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
     hNoneS: "M4 12h16", hArrowS: "M20 12H4M10 6l-6 6 6 6", hCircleS: "M20 12H10M4 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
     width: "M4 6h16M4 11h16M4 11.8h16M4 17h16M4 17.8h16M4 18.6h16", arrange: "M4 4v16M8 7h10v4H8zM8 14h6v4H8z",
-    rowAdd: "M4 5h16v6H4zM12 14v6M9 17h6", colAdd: "M5 4h6v16H5zM14 12h6M17 9v6", tag: "M4 9h12l4 3-4 3H4z"
+    rowAdd: "M4 5h16v6H4zM12 14v6M9 17h6", colAdd: "M5 4h6v16H5zM14 12h6M17 9v6", tag: "M4 9h12l4 3-4 3H4z",
+    cut: "M6 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 14.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8.2 8.2L20 18M8.2 15.8L20 6",
+    paste: "M9 3h6v3H9zM7 4.5H5v16h14v-16h-2", ungroup: "M4 4h6v6H4zM14 14h6v6h-6z", tidy: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"
   };
+  // the board's icons for its menus too (kit.menu takes a name): bd-<name>
+  kit.addIcons(Object.keys(ICONS).reduce(function (o, k) { o["bd-" + k] = ICONS[k]; return o; }, {}));
   function ico(name) {
     return ICONS[name] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICONS[name] + '"/></svg>' : kit.icon(name);
   }
@@ -1017,16 +1021,25 @@
     if (ctxFitAt !== vw) { if (ctxFitAt >= 0) drawCtx(); fitCtx(); }
     var w = ctx.offsetWidth, hh = ctx.offsetHeight, one = sel.length === 1 && byId[sel[0]];
     var up = 30 + (one && one.type === "section" ? 22 : one && one.type === "embed" ? 26 : 0), down = 34 + (one && one.type === "table" ? 30 : 0);
-    var x = clamp(all.x + all.w / 2 - w / 2, 8, Math.max(8, vw - w - 8)), lo = 8, hi = vh - hh - 70;   // the tools pill holds the bottom
-    // Above the selection unless that covers more of its neighbours than below does; never off the view.
-    var best = null;
-    [all.y - hh - up, all.y + all.h + down].forEach(function (y, k) {
-      if (y < lo || y > hi) return;
-      var c = covered({ x: x, y: y, w: w, h: hh }) + k * 0.5;
-      if (!best || c < best.c) best = { y: y, c: c };
+    var lo = 8, hi = vh - hh - 70, side = 48;   // the tools pill holds the bottom; a side spot clears the connector dots
+    var cx = all.x + all.w / 2 - w / 2, cy = all.y + all.h / 2 - hh / 2, ya = all.y - hh - up, yb = all.y + all.h + down;
+    // The first spot near the selection that covers none of the other items: above it, below it, beside it, then
+    // above or below flush with either edge. None free: the view's foot, over the tools pill (its top edge when the
+    // selection is there).
+    var keep = { x: all.x - side + 4, y: all.y - up + 4, w: all.w + 2 * side - 8, h: all.h + up + down - 8 }, best = null;
+    [[cx, ya], [cx, yb], [all.x + all.w + side, cy], [all.x - w - side, cy], [all.x, ya], [all.x + all.w - w, ya], [all.x, yb], [all.x + all.w - w, yb]].some(function (p) {
+      if (p[1] < lo || p[1] > hi || p[0] < 8 || p[0] > vw - w - 8) return false;
+      var r = { x: p[0], y: p[1], w: w, h: hh };
+      if (cross(r, keep) || covered(r) > 0) return false;
+      best = r; return true;
     });
-    ctx.style.left = x + "px";
-    ctx.style.top = (best ? best.y : Math.max(lo, Math.min(all.y + 8, hi))) + "px";
+    if (!best) {
+      var x = clamp(cx, 8, Math.max(8, vw - w - 8));
+      best = { x: x, y: Math.max(lo, hi) };
+      if (cross({ x: x, y: best.y, w: w, h: hh }, keep)) best.y = lo;
+    }
+    ctx.style.left = best.x + "px";
+    ctx.style.top = best.y + "px";
   }
   /** Too wide for the view (a phone): the least needed controls move into "More", none scrolls out of sight. */
   function fitCtx() {
@@ -1683,10 +1696,12 @@
     });
     pop(anchor, grid, T.shapes, onEsc);
   }
-  var zoomLbl = h("button", { type: "button", "class": "kit-btn bd-zl", title: T.zoom, "aria-label": T.zoom, onclick: function () {
-    menu(zoomLbl, [25, 50, 75, 100, 150, 200].map(function (p) { return { label: p + "%", onClick: function () { zoomAt(vw / 2, vh / 2, p / 100); } }; })
-      .concat([{ label: T.fit + "  (Ctrl+0)", onClick: function () { fitAll(); } },
-        { on: !!prefs.keys, label: T.keys, onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
+  // The level opens a menu (the levels, the current one checked; fit; the key shortcuts), as the other pages' zoom does
+  var zoomLbl = h("button", { type: "button", "class": "kit-btn bd-zl", title: T.zoomPick, "aria-label": T.zoomPick, "aria-haspopup": "menu", onclick: function () {
+    var now = rnd(cam.z * 100);
+    menu(zoomLbl, [{ label: T.fit + "  (Ctrl+0)", onClick: function () { fitAll(); } }, { sep: true }]
+      .concat([25, 50, 75, 100, 150, 200].map(function (p) { return { label: p + "%", on: now === p, onClick: function () { zoomAt(vw / 2, vh / 2, p / 100); } }; }))
+      .concat([{ sep: true }, { on: !!prefs.keys, label: T.keys, onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
   } });
   var undoBtn = kit.button("", "undo", function () { undo(); }, T.undo + " (Ctrl+Z)"), redoBtn = kit.button("", "redo", function () { redo(); }, T.redo + " (Ctrl+Shift+Z)");
   var zoomEl = h("div", { "class": "bd-zoom bd-chrome", role: "toolbar", "aria-label": T.zoom }, [
@@ -1887,19 +1902,19 @@
     return b;
   }
   /** A control that may move into "More" on a narrow view: pri (higher goes first) and its menu entry; run gets the More button as its anchor. */
-  function opt(b, pri, label, run) {
+  function opt(b, pri, label, run, icon) {
     b._pri = pri;
-    b._entry = { label: label, onClick: function () { run(ctx.querySelector(".bd-more") || b); } };
+    b._entry = { label: label, icon: icon, onClick: function () { run(ctx.querySelector(".bd-more") || b); } };
     return b;
   }
   function lockBtn(on) { return cbtn(on ? T.unlock : T.lock, ico(on ? "lock" : "unlock"), toggleLock, !!on); }
   function textBtns() {
     var bold = function () { toggleMark("**"); }, ital = function () { toggleMark("*"); };
-    return [opt(cbtn(T.bold + " (Ctrl+B)", kit.icon("bold"), bold), 5, T.bold, bold), opt(cbtn(T.italic + " (Ctrl+I)", kit.icon("italic"), ital), 7, T.italic, ital),
-      opt(cbtn(T.link, ico("link"), linkPop), 8, T.link + "…", linkPop), opt(cbtn(T.list, ico("list"), toggleList), 9, T.list, toggleList),
-      opt(cbtn(T.align, kit.icon("alignC") + CARET, alignMenu), 10, T.align + "…", alignMenu)];
+    return [opt(cbtn(T.bold + " (Ctrl+B)", kit.icon("bold"), bold), 5, T.bold, bold, "bold"), opt(cbtn(T.italic + " (Ctrl+I)", kit.icon("italic"), ital), 7, T.italic, ital, "italic"),
+      opt(cbtn(T.link, ico("link"), linkPop), 8, T.link + "…", linkPop, "bd-link"), opt(cbtn(T.list, ico("list"), toggleList), 9, T.list, toggleList, "bd-list"),
+      opt(cbtn(T.align, kit.icon("alignC") + CARET, alignMenu), 10, T.align + "…", alignMenu, "alignC")];
   }
-  function sizeBtn(it) { var b = cbtn(T.size, "<b class=\"bd-szl\"></b>" + CARET, sizeMenu); b.querySelector("b").textContent = SIZE_LBL[it.size] || "M"; return opt(b, 4, T.size + "…", sizeMenu); }
+  function sizeBtn(it) { var b = cbtn(T.size, "<b class=\"bd-szl\"></b>" + CARET, sizeMenu); b.querySelector("b").textContent = SIZE_LBL[it.size] || "M"; return opt(b, 4, T.size + "…", sizeMenu, "font"); }
   function dotBtn(label, colour, fn, ring) {
     var b = cbtn(label, '<i class="bd-cdot' + (ring ? " bd-ring" : "") + '"></i>' + CARET, fn);
     b.querySelector("i").style[ring ? "borderColor" : "background"] = colour;
@@ -1917,28 +1932,28 @@
         case "box":
           var kindRun = function (b) { endEdit(); shapePop(b, kindOf(one), false, function (k) { patch(free(), function (it) { return it.type === "box" ? { kind: k === "rounded" ? null : k } : null; }); }); };
           var lineRun = function (b) { strokePop(b, "stroke", T.outline, { box: 1 }, true); };
-          c = [opt(cbtn(T.kind, kindIcon(kindOf(one)) + CARET, kindRun), 3, T.kind + "…", kindRun),
-            sizeBtn(one), sep()].concat(textBtns(), [sep(), opt(dotBtn(T.fillC, one.hollow ? "transparent" : f.bg, fillPop), 2, T.fillC + "…", fillPop),
-            opt(dotBtn(T.outline, one.stroke ? strokeOf(one.stroke) : f.line, lineRun, true), 6, T.outline + "…", lineRun), sep(), lockBtn(false), moreBtn()]);
+          c = [opt(cbtn(T.kind, kindIcon(kindOf(one)) + CARET, kindRun), 3, T.kind + "…", kindRun, "shape"),
+            sizeBtn(one), sep()].concat(textBtns(), [sep(), opt(dotBtn(T.fillC, one.hollow ? "transparent" : f.bg, fillPop), 2, T.fillC + "…", fillPop, "palette"),
+            opt(dotBtn(T.outline, one.stroke ? strokeOf(one.stroke) : f.line, lineRun, true), 6, T.outline + "…", lineRun, "bd-ring"), sep(), lockBtn(false), moreBtn()]);
           break;
         case "text":
           var colRun = function (b) { strokePop(b, "color", T.colour, { text: 1 }, false); };
-          c = [sizeBtn(one), opt(dotBtn(T.colour, strokeOf(one.color), colRun), 2, T.colour + "…", colRun), sep()].concat(textBtns(), [sep(), lockBtn(false), moreBtn()]);
+          c = [sizeBtn(one), opt(dotBtn(T.colour, strokeOf(one.color), colRun), 2, T.colour + "…", colRun, "palette"), sep()].concat(textBtns(), [sep(), lockBtn(false), moreBtn()]);
           break;
         case "note": c = [dotBtn(T.colour, f.bg, fillPop), sizeBtn(one), sep(), lockBtn(false), moreBtn()]; break;
         case "section": c = [dotBtn(T.colour, f.bg, fillPop), sep(), lockBtn(false), moreBtn()]; break;
         case "arrow":
           var hs = Array.isArray(one.heads) ? one.heads : ["none", "arrow"], cap = function (k) { return k.charAt(0).toUpperCase() + k.slice(1); };
           var h0 = function (b) { headMenu(b, 0); }, h1 = function (b) { headMenu(b, 1); }, lbl = function () { editLabel(one.id); };
-          c = [opt(cbtn(T.startHead, ico("h" + cap(hs[0] || "none") + "S") + CARET, h0), 5, T.startHead + "…", h0),
-            opt(cbtn(T.lineStyle, ico(one.dash ? "dash" : "solid") + '<i class="bd-cdot"></i>' + CARET, linePop), 3, T.lineStyle + "…", linePop),
-            opt(cbtn(T.endHead, ico("h" + cap(hs[1] || "none")) + CARET, h1), 4, T.endHead + "…", h1),
-            opt(cbtn(T.label, ico("tag"), lbl), 6, T.label, lbl), sep(), lockBtn(false), moreBtn()];
+          c = [opt(cbtn(T.startHead, ico("h" + cap(hs[0] || "none") + "S") + CARET, h0), 5, T.startHead + "…", h0, "bd-hArrowS"),
+            opt(cbtn(T.lineStyle, ico(one.dash ? "dash" : "solid") + '<i class="bd-cdot"></i>' + CARET, linePop), 3, T.lineStyle + "…", linePop, "bd-dash"),
+            opt(cbtn(T.endHead, ico("h" + cap(hs[1] || "none")) + CARET, h1), 4, T.endHead + "…", h1, "bd-hArrow"),
+            opt(cbtn(T.label, ico("tag"), lbl), 6, T.label, lbl, "bd-tag"), sep(), lockBtn(false), moreBtn()];
           c[1].querySelector("i").style.background = strokeOf(one.color);
           break;
         case "pen":
           var penRun = function (b) { strokePop(b, "color", T.colour, { pen: 1 }, false); };
-          c = [opt(dotBtn(T.colour, strokeOf(one.color), penRun), 2, T.colour + "…", penRun), opt(cbtn(T.width, ico("width") + CARET, widthMenu), 3, T.width + "…", widthMenu), sep(), lockBtn(false), moreBtn()];
+          c = [opt(dotBtn(T.colour, strokeOf(one.color), penRun), 2, T.colour + "…", penRun, "palette"), opt(cbtn(T.width, ico("width") + CARET, widthMenu), 3, T.width + "…", widthMenu, "bd-width"), sep(), lockBtn(false), moreBtn()];
           break;
         case "table":
           c = [cbtn(T.addRow, ico("rowAdd"), function () { tableAdd(one.id, "row"); }), cbtn(T.addCol, ico("colAdd"), function () { tableAdd(one.id, "col"); }), sep(), lockBtn(false), moreBtn()];
@@ -1954,8 +1969,8 @@
         menu(b, [["left", T.aLeft], ["center", T.aCenter], ["right", T.aRight], ["top", T.aTop], ["middle", T.aMiddle], ["bottom", T.aBottom], ["hspace", T.aH], ["vspace", T.aV]]
           .map(function (x) { return { label: x[1], onClick: function () { alignSel(x[0]); } }; }));
       }, grpRun = function () { if (grp) ungroup(); else group(); };
-      c = [opt(cbtn(T.arrange, ico("arrange") + CARET, arr), 3, T.arrange + "…", arr), opt(dotBtn(T.colour, "var(--bd-f-green)", fillPop), 4, T.colour + "…", fillPop),
-        opt(cbtn(grp ? T.ungroup + " (Ctrl+Shift+G)" : T.group + " (Ctrl+G)", ico("group"), grpRun, !!grp), 5, grp ? T.ungroup : T.group, grpRun), sep(), lockBtn(false), moreBtn()];
+      c = [opt(cbtn(T.arrange, ico("arrange") + CARET, arr), 3, T.arrange + "…", arr, "bd-arrange"), opt(dotBtn(T.colour, "var(--bd-f-green)", fillPop), 4, T.colour + "…", fillPop, "palette"),
+        opt(cbtn(grp ? T.ungroup + " (Ctrl+Shift+G)" : T.group + " (Ctrl+G)", ico("group"), grpRun, !!grp), 5, grp ? T.ungroup : T.group, grpRun, grp ? "bd-ungroup" : "bd-group"), sep(), lockBtn(false), moreBtn()];
     }
     c.forEach(function (x, i) { x._ord = i; ctx.appendChild(x); });
   }
@@ -2318,7 +2333,11 @@
   function duplicate() {
     endEdit();
     if (!sel.length) return;
-    pasteItems(JSON.parse(clipText()).items, null, 24, 24);
+    // the copy at the nearest free spot beside the original (right of it first), as a click puts a new item down:
+    // never on top of it or of anything else
+    var box = union(sel.map(function (id) { var it = byId[id]; return it && it.type !== "arrow" ? bb(it) : null; }));
+    var p = box ? freeSpot(box.x + box.w + 24, box.y, box.w, box.h) : null;
+    pasteItems(JSON.parse(clipText()).items, null, p ? rnd(p.x - box.x) : 24, p ? rnd(p.y - box.y) : 24);
   }
   function pastePoint() {
     if (lastPt && vrc && lastPt.x >= vrc.left && lastPt.x <= vrc.left + vw && lastPt.y >= vrc.top && lastPt.y <= vrc.top + vh) return toWorld({ clientX: lastPt.x, clientY: lastPt.y });
@@ -2416,13 +2435,15 @@
   // ------------------------------------------------------------------ "More" and the right-click menu
   function moreItems() {
     var list = selItems(), locked = list.length && list.every(function (it) { return it.locked; }), out;
-    out = [{ label: locked ? T.unlock : T.lock, onClick: toggleLock },
-      { label: T.cut + "  (Ctrl+X)", onClick: function () { menuCopy(true); } }, { label: T.copy + "  (Ctrl+C)", onClick: function () { menuCopy(false); } },
-      { label: T.paste + "  (Ctrl+V)", onClick: menuPaste }, { label: T.dup + "  (Ctrl+D)", onClick: duplicate },
-      { label: T.front + "  ( ] )", onClick: function () { orderSel("front"); } }, { label: T.back + "  ( [ )", onClick: function () { orderSel("back"); } },
-      { label: T.group + "  (Ctrl+G)", onClick: group }, { label: T.ungroup + "  (Ctrl+Shift+G)", onClick: ungroup },
-      { label: T.tidy, onClick: tidy }, { label: T.del + "  (Del)", onClick: deleteSel }];
-    if (canAsk) out.push({ label: T.ask + "  (Ctrl+K)", onClick: openAsk });
+    // grouped as Hermes' menus are, each item with its icon
+    out = [{ sep: true }, { label: locked ? T.unlock : T.lock, icon: locked ? "bd-unlock" : "bd-lock", onClick: toggleLock }, { sep: true },
+      { label: T.cut + "  (Ctrl+X)", icon: "bd-cut", onClick: function () { menuCopy(true); } }, { label: T.copy + "  (Ctrl+C)", icon: "copy", onClick: function () { menuCopy(false); } },
+      { label: T.paste + "  (Ctrl+V)", icon: "bd-paste", onClick: menuPaste }, { label: T.dup + "  (Ctrl+D)", icon: "plus", onClick: duplicate }, { sep: true },
+      { label: T.front + "  ( ] )", icon: "front", onClick: function () { orderSel("front"); } }, { label: T.back + "  ( [ )", icon: "back", onClick: function () { orderSel("back"); } },
+      { label: T.group + "  (Ctrl+G)", icon: "bd-group", onClick: group }, { label: T.ungroup + "  (Ctrl+Shift+G)", icon: "bd-ungroup", onClick: ungroup },
+      { label: T.tidy, icon: "bd-tidy", onClick: tidy }, { sep: true }];
+    if (canAsk) out.push({ label: T.ask + "  (Ctrl+K)", icon: "sparkle", onClick: openAsk });
+    out.push({ label: T.del + "  (Del)", icon: "trash", onClick: deleteSel });
     return out;
   }
   view.addEventListener("contextmenu", function (e) {
