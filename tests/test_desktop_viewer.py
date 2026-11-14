@@ -89,5 +89,59 @@ class ViewerComments(unittest.TestCase):
         self.assertIn(out["all"]["w"], (340, 341))  # PANEL_W beside the stage (and its border)
 
 
+    def test_a_thread_shown_from_the_whole_stage_list_shows_its_element_and_the_list_comes_back_where_it_was(self):
+        # live round V3: at 400 px a click on a thread flashed its element behind the list, out of sight
+        b = docs.read(self.aid)["blocks"]
+        for i in range(10):  # a list long enough to scroll
+            api.handle("POST", f"artifacts/{self.aid}/comments", {}, {"text": f"more {i}", "anchor": {"selector": f"#blk-{b[1]['id']}", "text": "steps", "label": "text"}})
+        for w in (400, 1300):
+            out = self.drive("""
+              const o = {}, scroller = 'document.querySelector("aside").children[1]'
+              await btn('More comment options'); await btn('All comments')
+              await api.top(scroller + '.scrollTop = 120'); await api.sleep(200)
+              o.top = await api.top(scroller + '.scrollTop')
+              const show = await api.top('(() => { const t = [...document.querySelectorAll("aside div")].find(d => d.textContent.trim() === "note Second").parentElement; const s = [...t.querySelectorAll("button")].find(x => x.textContent === "Show"); s.scrollIntoView({block: "center"}); const b = s.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()')
+              o.topBefore = await api.top(scroller + '.scrollTop')
+              await api.mouse(show[0], show[1]); await api.sleep(250)
+              o.after = await list()
+              o.flash = await api.frame('document.querySelectorAll("[data-hermes-ui]").length')
+              o.seen = await api.frame('(() => { const r = document.querySelector("mark.doc-cq[data-cq*=Second]").getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight })()')
+              if (!o.after.shown) { await api.sleep(1500); await btn('Comment') }
+              o.again = await list(); o.topAgain = await api.top(scroller + '.scrollTop')
+              return o""", w)
+            self.assertGreaterEqual(out["flash"], 1, (w, out))  # the element flashed
+            self.assertTrue(out["seen"], (w, out))
+            if w == 400:  # the whole-stage list stepped aside for it and came back where it was
+                self.assertFalse(out["after"]["shown"], out)
+                self.assertTrue(out["again"]["shown"], out)
+                self.assertEqual(out["topAgain"], out["topBefore"], out)
+            else:  # docked beside the page: it stays
+                self.assertTrue(out["after"]["shown"], out)
+
+    def test_a_discarded_draft_leaves_every_open_thread_marked(self):
+        # live round V3 (3 of 3): Comment, a list item picked (the draft opens), a click into the paragraph that
+        # holds an open thread's mark, Discard: that mark was gone until the doc was opened again
+        aid = store.publish(title="Draft", type="doc", files={"doc.md": "# Draft\n\nThe paragraph with a thread in it.\n\n- First item\n- Second item"})["id"]
+        blk = docs.read(aid)["blocks"]
+        api.handle("POST", f"artifacts/{aid}/comments", {}, {"text": "note thread", "anchor": {"selector": f"#blk-{blk[1]['id']}", "text": "thread", "label": "text"}})
+        self.aid = aid
+        out = self.drive("""
+          const at = async sel => { const f = await api.top('(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top] })()')
+            const r = await api.frame('(() => { const e = ' + sel + '; const b = e.getBoundingClientRect(); return [b.left + Math.min(40, b.width / 2), b.top + b.height / 2] })()'); return [f[0] + r[0], f[1] + r[1]] }
+          const marks = () => api.frame('[...document.querySelectorAll("mark.doc-cq")].map(m => m.textContent)')
+          const o = { before: await marks() }
+          await btn('Comment')
+          let p = await at('document.querySelector(".doc-blk li")'); await api.mouse(p[0], p[1]); await api.sleep(500)
+          o.draft = await api.top('!!document.querySelector("textarea")')
+          p = await at('document.querySelector("mark.doc-cq").closest(".doc-blk")'); await api.mouse(p[0] + 10, p[1]); await api.sleep(400)
+          o.inBlock = await api.frame('!!document.activeElement.closest(".doc-blk")')          await btn('Discard'); await api.sleep(800)
+          o.after = await marks()
+          return o""")
+        self.assertEqual(out["before"], ["thread"], out)
+        self.assertTrue(out["draft"], out)
+        self.assertTrue(out["inBlock"], out)
+        self.assertEqual(out["after"], ["thread"], out)
+
+
 if __name__ == "__main__":
     unittest.main()

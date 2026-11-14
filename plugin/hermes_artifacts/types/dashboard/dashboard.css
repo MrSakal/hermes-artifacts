@@ -166,6 +166,8 @@ textarea.src-arg { height: auto; padding: 8px 12px; font: 12.5px/1.5 var(--font-
 .c-chart svg { display: block; overflow: visible; }
 .c-grid line { stroke: var(--chart-grid); } .c-grid text, .c-axis text, .c-axis-text { fill: var(--color-fg-muted); font: 11px var(--font-sans); }
 .c-value { fill: var(--color-fg-secondary); font: 600 11px var(--font-sans); font-variant-numeric: tabular-nums; }
+/* a value or the reference's name on a halo of the card's colour: readable where the dashed reference line crosses it */
+.c-value, .c-ref-label { paint-order: stroke; stroke: var(--color-panel); stroke-width: 3.5px; stroke-linejoin: round; }
 .c-donut-total { fill: var(--color-fg); font: 700 20px var(--font-display); }
 .c-ref { stroke: var(--chart-reference); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .c-tip { position: fixed; z-index: 90; pointer-events: none; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4;

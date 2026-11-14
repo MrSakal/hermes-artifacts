@@ -19,6 +19,8 @@ body { overflow: hidden; }
   overflow: hidden; container-type: inline-size; }
 /* a frame narrow on screen keeps its name (cut with an ellipsis) and drops the buttons */
 @container (max-width: 110px) { .dc-strip .dc-sbtn { display: none; } }
+/* too narrow for six letters of a longer name: no name at all (not "A…"; the strip's tooltip and the selection name it) */
+@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name { display: none; } }
 .dc-strip:active { cursor: grabbing; }
 .dc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
 .dc-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dc-play); margin-right: 5px; flex-shrink: 0; }

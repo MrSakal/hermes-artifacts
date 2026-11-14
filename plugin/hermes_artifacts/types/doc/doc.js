@@ -263,6 +263,7 @@
     else el.removeAttribute("contenteditable");
     if (!s(b.md) && tab().blocks.length === 1) el.setAttribute("data-empty", T.empty); else el.removeAttribute("data-empty");
     if (ed && live) markEmpty(el, false);
+    if (el.isConnected) markQuotes(el); // drawn again (a focus left, an edit, Hermes' change): its open threads' words stay marked
     return el;
   }
   function s(x) { return String(x || "").trim(); }
@@ -2224,6 +2225,15 @@
       var i = t.nodeValue.indexOf(q);
       if (i >= 0) { var r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + q.length); var m = document.createElement("mark"); m.className = "doc-cq"; m.setAttribute("data-cq", key); try { r.surroundContents(m); } catch (_) {} return; }
     }
+  }
+  /** The open threads' marks inside el, drawn again from its Markdown (which has none): drawMargin is not run
+   *  for a block drawn again on its own (a commit when the focus leaves it, as when a comment draft is discarded). */
+  function markQuotes(el) {
+    (pins || []).forEach(function (p) {
+      if (!p.quote) return;
+      var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
+      if (anchor && (anchor === el || el.contains(anchor))) hiQuote(anchor, p.quote, p.selector + "\n" + p.quote);
+    });
   }
   function unQuote(m) { // the words back as they were
     var p = m.parentNode;

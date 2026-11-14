@@ -274,10 +274,23 @@
       b.addEventListener("dragend", function () { dragFrom = null; dropLine.hidden = true; });
       // the menu acts on this slide without making it the current one: marked only while the menu is open (Esc
       // leaves the current slide and the pick as they were; an action shows what it did)
+      // A right click does not focus it, and the menu gone, the focus is back where it was (Esc focused this
+      // thumbnail: a ring on it beside the current one's border, two marked); from this one, on the current one.
+      b.addEventListener("mousedown", function (e) { if (e.button === 2) e.preventDefault(); });
       b.addEventListener("contextmenu", function (e) {
         e.preventDefault();
+        var was = document.activeElement;
         b.classList.add("is-ctx");
-        slideMenu(b, i, function () { b.classList.remove("is-ctx"); });
+        slideMenu(b, i, function () {
+          b.classList.remove("is-ctx");
+          setTimeout(function () { // after the menu's own Esc focus
+            if (document.activeElement !== b) return;
+            var now = rail.querySelectorAll(".sl-thumb")[cur];
+            if (was === b) { if (now && now !== b) now.focus(); }
+            else if (was && was !== document.body && was.isConnected && was.focus) was.focus();
+            else b.blur();
+          }, 0);
+        });
       });
     }
     queueThumb(box, function (w) { return canvasFor(s, (w || 160) / W, false); });
@@ -839,11 +852,12 @@
   function drawTools() {
     if (!editable || pres || gridEl || !sel.length) { tools.hidden = true; return; }
     var texty = sel.some(function (el) { return el.textContent.trim(); });
-    var kids = [];
+    var kids = [], items = new Map(); // a button -> its entry in ··· when it folds there (a narrow frame)
+    function tb(icon, title, fn, on) { var b = tbtn(icon, title, fn, on); items.set(b, { icon: icon, label: title, on: on == null ? null : !!on, onClick: fn }); return b; }
     if (editing) {
-      kids.push(tbtn("bold", T.bold, function () { document.execCommand("bold"); }),
-        tbtn("italic", T.italic, function () { document.execCommand("italic"); }),
-        tbtn("underline", T.underline, function () { document.execCommand("underline"); }), sep());
+      kids.push(tb("bold", T.bold, function () { document.execCommand("bold"); }),
+        tb("italic", T.italic, function () { document.execCommand("italic"); }),
+        tb("underline", T.underline, function () { document.execCommand("underline"); }), sep());
     }
     if (texty) {
       // Claude's order: the face and size, the colour, then the marks and the alignment.
@@ -853,34 +867,49 @@
       tsB.classList.add("sl-tface");
       tsB.appendChild(h("span", { text: (face ? face + " · " : "") + R(parseFloat(cs0.fontSize)) }));
       tsB.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
+      items.set(tsB, { icon: "text", label: T.textStyle, onClick: function () { styleMenu(moreB); } });
       var colB = h("button", { type: "button", "class": "kit-btn sl-tcolor", title: T.color, "aria-label": T.color }, [h("i", { style: "background:" + cs0.color })]);
       colB.addEventListener("mousedown", function (e) { e.preventDefault(); });
       colB.addEventListener("click", function () { colorMenu(colB); });
+      items.set(colB, { label: T.color, onClick: function () { colorMenu(moreB); } });
       kids.push(tsB, colB);
       if (!editing) {
-        kids.push(tbtn("bold", T.bold, function () { toggleMark("fontWeight", parseInt(cs0.fontWeight, 10) >= 600 ? "400" : "700"); }, parseInt(cs0.fontWeight, 10) >= 600),
-          tbtn("italic", T.italic, function () { toggleMark("fontStyle", cs0.fontStyle === "italic" ? "normal" : "italic"); }, cs0.fontStyle === "italic"),
-          tbtn("underline", T.underline, function () { toggleMark("textDecoration", /underline/.test(cs0.textDecorationLine) ? "none" : "underline"); }, /underline/.test(cs0.textDecorationLine)));
+        kids.push(tb("bold", T.bold, function () { toggleMark("fontWeight", parseInt(cs0.fontWeight, 10) >= 600 ? "400" : "700"); }, parseInt(cs0.fontWeight, 10) >= 600),
+          tb("italic", T.italic, function () { toggleMark("fontStyle", cs0.fontStyle === "italic" ? "normal" : "italic"); }, cs0.fontStyle === "italic"),
+          tb("underline", T.underline, function () { toggleMark("textDecoration", /underline/.test(cs0.textDecorationLine) ? "none" : "underline"); }, /underline/.test(cs0.textDecorationLine)));
       }
-      kids.push(tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
+      kids.push(tb(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
     }
-    kids.push(tbtn("sparkle", T.ask, askAbout));
+    kids.push(tb("sparkle", T.ask, askAbout));
     if (window.hermes && window.hermes.comment && sel.length === 1) {
       // A comment on this element (Claude's): the host opens its comment form there; the thread names the slide.
-      kids.push(tbtn("comment", T.comment, function () {
+      kids.push(tb("comment", T.comment, function () {
         var el = sel[0], s = slides[cur];
         window.hermes.comment({ selector: selectorOf(el), text: el.textContent.trim().slice(0, 200),
           label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) });
       }));
     }
+    var folded = [];
     var moreB = tbtn("more", T.more, function () {
       var flow = sel.some(function (el) { return !isFree(el); });
-      kit.menu(moreB, (flow ? [{ label: T.detach, onClick: detach }] : [{ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } }])
+      kit.menu(moreB, folded.concat(folded.length ? [{ sep: true }] : [], flow ? [{ label: T.detach, onClick: detach }] : [{ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } }])
         .concat([{ label: T.dup, onClick: duplicate }, { label: T.del, onClick: removeSel }]));
     });
     kids.push(moreB);
     tools.replaceChildren.apply(tools, kids);
     tools.hidden = false;
+    // Never wider than the frame: from the right, its buttons fold into ··· (first in its menu, in their order).
+    tools.style.left = "0px"; tools.style.width = "max-content";
+    var room = innerWidth - 16;
+    for (var k = kids.length - 2; k >= 0 && tools.offsetWidth > room; k--) {
+      var el = kids[k];
+      if (!items.has(el)) { el.remove(); continue; } // a divider
+      folded.unshift(items.get(el));
+      el.remove();
+      var prev = moreB.previousElementSibling;
+      if (prev && prev.classList.contains("sl-sep")) prev.remove(); // no divider left at the end
+    }
+    tools.style.width = "";
     placeTools();
   }
   function toggleMark(prop, value) {
@@ -1692,7 +1721,7 @@
   function propsShown() { return propsOn && editable && !C.thumb && !gridEl && (!narrow() || sheetAsked); }
   function toggleNotes() { notesEl.hidden = !notesEl.hidden; drawChrome(); fit(); }
   function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); }
-  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); }
+  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); refitTools(); }
   function setZoom(z) { zoom = z; fit(); }
 
   kit.addIcons({ slRect: "M4 6h16v12H4z", slRounded: "M8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
@@ -1748,12 +1777,17 @@
   }
   var wasNarrow = narrow();
   window.addEventListener("resize", function () {
-    if (narrow() === wasNarrow) return fitPills();
-    // across 760 px open properties stay open in the other layout (a sheet below, the panel above); a resize
-    // closed them silently before
-    var wasOpen = !propsEl.hidden;
-    wasNarrow = narrow(); sheetAsked = wasOpen && wasNarrow; drawChrome(); drawProps(); fit();
+    if (narrow() === wasNarrow) fitPills();
+    else {
+      // across 760 px open properties stay open in the other layout (a sheet below, the panel above); a resize
+      // closed them silently before
+      var wasOpen = !propsEl.hidden;
+      wasNarrow = narrow(); sheetAsked = wasOpen && wasNarrow; drawChrome(); drawProps(); fit();
+    }
+    refitTools();
   });
+  /** The element toolbar's buttons fold (or unfold) to the frame's width: after a resize, and when the sheet that hid it closes. */
+  function refitTools() { if (!tools.hidden && !tools.querySelector(".sl-askin")) drawTools(); }
 
   var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);
   var navPill = h("div", { "class": "sl-pill sl-pill-b", role: "toolbar" }, [

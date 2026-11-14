@@ -1260,7 +1260,7 @@
       case "resize":
         // a handle only clicked counts as a click on its item (a section's title sits right at its corner handle)
         if (dist(gg.s0, e) < 4) { if (isDouble("i:" + gg.it.id, e)) openItem(gg.it, null); }
-        else finishResize(gg);
+        else { finishResize(gg); if (gg.it.type === "box" || gg.it.type === "note") baseH[gg.it.id] = { h: gg.it.h, at: gg.it.h }; } // the person's height: typing never shrinks it
         break;
       case "marquee":
         if (dist(gg.s0, e) < 5) {
@@ -1767,6 +1767,21 @@
       return hh > t.h ? hh : null;
     } catch (e) { return null; }
   }
+  // A block's text grows it while typed in and shrinks it back with the text, to the height it grows from: the
+  // person's (dragged, or as it was before its text grew it: kept for this page's session, by item), else, a
+  // height just what its text needs (grown in an earlier session), the default for its kind; never below the
+  // person's own.
+  var baseH = {}; // id -> { h: the height it grows from, at: the height that holds while it is this one's }
+  function growBase(it) {
+    var b = baseH[it.id];
+    if (b && b.at === it.h) return b.h;
+    var def = it.type === "note" ? 200 : (SHAPE_SIZE[it.kind || "rounded"] || [180, 100])[1];
+    if (it.h > def && it.text) {
+      var need = grown(it, { h: def }) || def;
+      if (Math.abs(need - it.h) <= px(it) * 0.7) return def; // grown by its text (by the shared measure: within half a line)
+    }
+    return it.h;
+  }
   function sizeMenu(b) {
     endEdit();
     var cur = (selItems()[0] || {}).size || "body";
@@ -1990,7 +2005,7 @@
     ta.value = it.text || "";
     tx.textContent = ""; tx.appendChild(ta);
     n.el.classList.add("bd-editing");
-    ed = { kind: "text", id: id, ta: ta, orig: it.text || "", h0: it.h, ph: o.ph || null, one: one };
+    ed = { kind: "text", id: id, ta: ta, orig: it.text || "", h0: it.h, base: growBase(it), ph: o.ph || null, one: one };
     ta.addEventListener("input", edInput);
     ta.addEventListener("input", typingOn);
     ta.addEventListener("keydown", function (e) {
@@ -2028,7 +2043,7 @@
     if (it.type === "text") { reshape(it); ta.style.height = "0px"; ta.style.height = ta.scrollHeight + "px"; }
     else if (it.type !== "section") {
       ta.style.height = "0px";
-      var need = ta.scrollHeight, hh = ed.h0, i;
+      var need = ta.scrollHeight, hh = ed.base, i;
       ta.style.height = need + "px";
       for (i = 0; i < 8; i++) { var ins = inset(kindOf(it), it.w, hh); if (ins.h >= need) break; hh += Math.ceil(need - ins.h); }
       if (hh !== it.h) { it.h = hh; n.b = null; reshape(it); }
@@ -2089,6 +2104,7 @@
     var p = { text: text };
     if (e.theirs != null && text !== e.theirs) kit.toast(T.keptMine); // Hermes changed it while it was typed in: never silently over it
     if ((it.type === "box" || it.type === "note") && hNew !== e.h0) p.h = hNew;
+    if ((it.type === "box" || it.type === "note") && cancel !== true) baseH[it.id] = { h: e.base, at: hNew };
     if (!patch([it.id], function () { return p; })) afterChange();
   }
   /** Typing given up because the item went away. */

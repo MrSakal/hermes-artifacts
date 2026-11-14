@@ -206,7 +206,7 @@ html[data-thumb] #sl-strip, html[data-thumb] .sl-pill, html[data-thumb] #sl-prop
     background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
     box-shadow: var(--shadow-popover); }
   .sl-phead { display: flex; position: sticky; top: 0; z-index: 1; background: inherit; }
-  body.sl-sheet-open .sl-pill { display: none; }
+  body.sl-sheet-open .sl-pill, body.sl-sheet-open .sl-tools { display: none; }
 }
 /* the strip's cut edge fades where more slides are (it scrolls) */
 #sl-rail.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }

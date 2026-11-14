@@ -355,7 +355,7 @@
           .attr("width", function (d) { return Math.max(0, xl(num(d[ys[0]]) || 0) - M.l); }).attr("rx", 3).attr("fill", colors[0])
           .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) }), h("div", { text: fy(d[ys[0]]) })]); })
           .on("mouseleave", function () { tooltip(false); });
-        svg.append("g").selectAll("text").data(rows).join("text").attr("class", "c-value")
+        svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value")
           .attr("x", function (d) { return xl(num(d[ys[0]]) || 0) + 6; }).attr("y", function (d) { return yb(String(d[b.x])) + yb.bandwidth() / 2; })
           .attr("dy", "0.35em").text(function (d) { return fy(d[ys[0]]); });
         box.replaceChildren(svg.node());
@@ -386,7 +386,7 @@
             .on("mouseleave", function () { tooltip(false); });
         });
         if (rows.length <= 16 && ys.length === 1) {
-          svg.append("g").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
+          svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
             .attr("x", function (d) { return x(String(d[b.x])) + x.bandwidth() / 2; }).attr("y", function (d) { return y(num(d[ys[0]]) || 0) - 5; })
             .text(function (d) { return format(d[ys[0]], b.format === "number" || !b.format ? "compact" : b.format); });
         }
@@ -411,7 +411,8 @@
       if (b.reference && !isNaN(num(b.reference.value))) {
         var ry = y(num(b.reference.value));
         svg.append("line").attr("x1", M.l).attr("x2", W - M.r).attr("y1", ry).attr("y2", ry).attr("class", "c-ref");
-        if (b.reference.label) svg.append("text").attr("x", W - M.r).attr("y", ry - 5).attr("text-anchor", "end").attr("class", "c-axis-text").text(b.reference.label);
+        if (b.reference.label) svg.append("text").attr("x", W - M.r).attr("y", ry - 5).attr("text-anchor", "end").attr("class", "c-axis-text c-ref-label").text(b.reference.label);
+        svg.selectAll("g.c-values").raise(); // the values over the line, each on its halo: a dash never runs through "92.4"
       }
       if (ys.length > 1) {
         var lg2 = svg.append("g").attr("transform", "translate(" + M.l + ",4)"), ox = 0;

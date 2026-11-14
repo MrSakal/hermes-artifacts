@@ -269,6 +269,8 @@ const STRINGS = {
     drafted: 'Put in the chat composer',
     notDelivered: 'Saved. Open a chat to send it.',
     reply: 'Reply',
+    show: 'Show',
+    showInPage: 'Show it in the page',
     resolve: 'Resolve',
     reopen: 'Reopen',
     fOpen: 'Open',
@@ -536,6 +538,8 @@ const STRINGS = {
     drafted: 'Beírva a chat szövegmezőjébe',
     notDelivered: 'Elmentve. Nyiss egy chatet a küldéshez.',
     reply: 'Válasz',
+    show: 'Mutasd',
+    showInPage: 'Megmutatás az oldalon',
     resolve: 'Megoldva',
     reopen: 'Újranyitás',
     fOpen: 'Nyitott',
@@ -5502,7 +5506,7 @@ function Reactions({ c, ctx, art }) {
   })
 }
 
-function CommentItem({ c, n, replies, ctx, art, portRef }) {
+function CommentItem({ c, n, replies, ctx, art, onShow }) {
   const t = usePluginI18n(ID)
   const [replying, setReplying] = useState(false)
   const [text, setText] = useState('')
@@ -5519,7 +5523,9 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
   }, [focused])
   return jsxs('div', {
     ref: boxRef,
-    onClick: () => c.anchor?.selector && postToPage(portRef, 'flash', { selector: c.anchor.selector }),
+    // A click on the thread, or its Show, shows its element in the page (flashed there): docked beside it, and
+    // on a whole-stage list (narrow) back on the artifact first, the list kept for the Comment button (onShow).
+    onClick: () => c.anchor?.selector && onShow(c),
     style: { padding: 12, borderRadius: C.rLg, border: `1px solid ${focused ? C.accent : 'transparent'}`, background: C.card, opacity: c.resolved ? 0.6 : 1, cursor: c.anchor ? 'pointer' : 'default', transition: 'border-color .3s' },
     children: [
       jsxs('div', {
@@ -5529,6 +5535,10 @@ function CommentItem({ c, n, replies, ctx, art, portRef }) {
           who(c),
           jsx('span', { style: { fontSize: 11, color: C.text3 }, children: ago(c.ts) }),
           jsx('div', { style: { flex: 1 } }),
+          c.anchor?.selector
+            ? jsx('button', { type: 'button', title: t('showInPage'), onClick: e => (e.stopPropagation(), onShow(c)), className: TEXT_BTN,
+                style: { ...font, border: 0, background: 'transparent', color: C.accent, fontSize: 11, cursor: 'pointer' }, children: t('show') })
+            : null,
           jsx('button', {
             type: 'button',
             onClick: async e => {
@@ -5688,6 +5698,22 @@ function CommentsPanel({ ctx, art, portRef }) {
   // A picked element's comment whose box has no room left of the floating list is written here.
   const docked = Boolean(draft?.rect) && commentDocks(rowW, cover)
   useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])
+  // A thread shown in the page: the whole-stage list steps aside for it (Back to the artifact) and comes back,
+  // by the Comment button, where it was scrolled to.
+  const listRef = useRef(null)
+  const keptTop = useRef(null)
+  const onShow = c => {
+    if (mode.full) {
+      keptTop.current = listRef.current ? listRef.current.scrollTop : null
+      $panelHere.set(false); $picking.set(false); $draft.set(null)
+    }
+    postToPage(portRef, 'flash', { selector: c.anchor.selector })
+  }
+  useLayoutEffect(() => {
+    if (mode.hidden || keptTop.current == null || !listRef.current) return
+    listRef.current.scrollTop = keptTop.current
+    keptTop.current = null
+  }, [mode.hidden])
   return jsxs('aside', {
     ref: box,
     style: panelStyle(mode),
@@ -5703,6 +5729,7 @@ function CommentsPanel({ ctx, art, portRef }) {
         ]
       }),
       jsxs('div', {
+        ref: listRef,
         style: { flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 },
         children: [
           picking ? jsx('div', { style: { fontSize: 12, color: C.accent, padding: '4px 2px' }, children: t('pickHint') }) : null,
@@ -5725,8 +5752,8 @@ function CommentsPanel({ ctx, art, portRef }) {
               })
             : null,
           !draft && !picking && empty ? jsx('p', { style: { fontSize: 12, color: C.text3, lineHeight: 1.5, margin: 0 }, children: t(empty) }) : null,
-          ...(filter !== 'resolved' ? open.map((c, i) => jsx(CommentItem, { c, n: c.anchor?.selector ? open.filter(x => x.anchor?.selector).indexOf(c) + 1 : 0, replies: replies(c.id), ctx, art, portRef }, c.id)) : []),
-          ...(filter !== 'open' ? done.map(c => jsx(CommentItem, { c, n: 0, replies: replies(c.id), ctx, art, portRef }, c.id)) : [])
+          ...(filter !== 'resolved' ? open.map((c, i) => jsx(CommentItem, { c, n: c.anchor?.selector ? open.filter(x => x.anchor?.selector).indexOf(c) + 1 : 0, replies: replies(c.id), ctx, art, onShow }, c.id)) : []),
+          ...(filter !== 'open' ? done.map(c => jsx(CommentItem, { c, n: 0, replies: replies(c.id), ctx, art, onShow }, c.id)) : [])
         ]
       })
     ]

@@ -421,15 +421,16 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
     # Secondary states (rounds 3 and 4 found their faults only there): each page measured at STATE_WIDTHS with a
     # panel, a menu, an opened artboard or a selection showing. `setup` runs once (driver context, may click for
     # real); `again` (frame JS) after each resize, to bring back what a resize closes (a menu) or a width resets.
-    def states(self, aid, cases, settle=1500):
+    def states(self, aid, cases, settle=1500, widths=None):
+        widths = widths or STATE_WIDTHS
         body = "const out = {}\n"
         for name, setup, again in cases:
             body += setup + "\n"
-            for w in STATE_WIDTHS:
+            for w in widths:
                 body += (f"await api.size({w}, 760); await api.sleep(600);"
                          + (f" await api.frame({json.dumps(again)}); await api.sleep(500);" if again else "")
                          + f" out[{json.dumps(name + ' @' + str(w))}] = await api.frame({json.dumps(PROBE)})\n")
-        r = B.drive(f"await api.size({STATE_WIDTHS[0]}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+        r = B.drive(f"await api.size({widths[0]}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
                     f"await api.sleep({settle})\n" + body + "return out", timeout=420)
         self.assertIsNone(r.get("err"), r)
         self.assertEqual({k: v for k, v in r["out"].items() if v}, {})
@@ -439,6 +440,13 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
         props = ("(() => { const b = [...document.querySelectorAll('button')].find(b => ['Properties','Tulajdonságok'].includes(b.getAttribute('aria-label'))"
                  " && b.getClientRects().length); if (b && b.getAttribute('aria-pressed') !== 'true') b.click() })()")
         self.states(aid, [("properties", "", props)])
+
+    def test_slides_with_an_element_selected_and_with_properties_open(self):
+        # live round V3: the selection toolbar ran 8..456 px in a 400 px frame (its comment and its ··· cut off)
+        # and, Properties open, across their sheet
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        pick = "await api.clickIn('document.querySelector(\".sl-clip .sl-canvas h1\")'); await api.sleep(500)"
+        self.states(aid, [("element selected", pick, None), ("element selected and properties open", "", SL_PROPS)], widths=(400, 560, 760))
 
     def test_design_with_an_artboard_opened_and_an_element_selected(self):
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
@@ -491,6 +499,8 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
 
 
 STATE_WIDTHS = (400, 560, 760, 1000, 1500)
+SL_PROPS = ("(() => { const b = [...document.querySelectorAll('button')].find(b => ['Properties','Tulajdonságok'].includes(b.getAttribute('aria-label'))"
+            " && b.getClientRects().length); if (b && b.getAttribute('aria-pressed') !== 'true') b.click() })()")
 
 
 BAR_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui}.bar{position:sticky;top:0;height:44px;"
@@ -930,3 +940,130 @@ class RoundV2Layout(unittest.TestCase):
                          w=400, settle=3000)
         self.assertGreater(len(out), 2, out)
         self.assertEqual(len({(c, o) for _, c, o in out}), 1, out)
+
+
+MONTHS = {"title": "Orders", "datasets": {"m": {"title": "Months", "source": {"kind": "rows", "rows": [
+    {"month": f"2026-{i + 1:02d}", "value": v} for i, v in enumerate([71.5, 88, 104.2, 97.9, 131, 92.4, 79, 66.3, 118.8, 60.3])]}}},
+    "layout": [{"type": "chart", "kind": "bar", "title": "Value per month", "source": "m", "x": "month", "y": "value",
+                "reference": {"value": 100, "label": "target"}}]}
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV3Layout(unittest.TestCase):
+    """Live round V3 (0.20.0): the slides selection toolbar past a 400 px frame's edge and across the Properties
+    sheet; two thumbnails marked after Esc from one's menu; a dashboard's target line through its bar values; a
+    board note left tall after its text was cleared; a design frame's name cut to "A…" at the default fit."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive(self, aid, body, w=1000, settle=1500, timeout=300):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n" + body, timeout=timeout)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_slide_selection_toolbar_stays_in_the_frame_and_folds_into_more(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        tools = ("(() => { const t = document.querySelector('.sl-tools'); if (!t || t.hidden || !t.getClientRects().length) return null; const r = t.getBoundingClientRect();"
+                 " return { l: r.left, r: r.right, vw: innerWidth, btns: [...t.querySelectorAll('button')].map(b => b.getAttribute('aria-label')) } })()")
+        more = ("(async () => { const b = [...document.querySelectorAll('.sl-tools button')].pop(); b.click(); await new Promise(r => setTimeout(r, 200));"
+                " const m = [...document.querySelectorAll('.kit-menu .kit-ml')].map(x => x.textContent); b.click(); return m })()")
+        body = "const out = {}\n"
+        for w in (400, 560, 760, 1000):
+            body += (f"await api.size({w}, 760); await api.sleep(600); await api.clickIn('document.querySelector(\".sl-clip .sl-canvas h1\")'); await api.sleep(400);"
+                     f" out[{w}] = await api.frame({json.dumps(tools)}); out['{w} more'] = await api.frame({json.dumps(more)}); await api.sleep(200)\n")
+        body += (f"await api.size(400, 760); await api.sleep(600); await api.frame({json.dumps(SL_PROPS)}); await api.sleep(600);"
+                 " out.sheet = await api.frame(`(() => { const t = document.querySelector('.sl-tools'), p = document.getElementById('sl-props').getBoundingClientRect();"
+                 " if (!t.getClientRects().length) return 'hidden'; const r = t.getBoundingClientRect(); return r.left < p.right && p.left < r.right && r.top < p.bottom && p.top < r.bottom ? 'over' : 'beside' })()`)\n")
+        out = self.drive(aid, body + "return out", w=400)
+        for w in (400, 560, 760, 1000):
+            t = out[str(w)]
+            self.assertTrue(t and t["l"] >= 0 and t["r"] <= t["vw"], (w, t))
+        wide = set(out["1000"]["btns"]) | set(out["1000 more"])
+        narrow = set(out["400"]["btns"]) | set(out["400 more"])
+        self.assertLess(len(out["400"]["btns"]), len(out["1000"]["btns"]), out)  # some folded at 400
+        self.assertTrue(wide - {None} <= narrow | {None}, (wide, narrow))  # every one still reachable (in ···)
+        self.assertIn(out["sheet"], ("hidden", "beside"), out)
+
+    def test_esc_from_a_thumbnail_menu_leaves_one_slide_marked(self):
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        out = self.drive(aid, """
+          await api.frame('(() => { const b = document.querySelectorAll("#sl-rail .sl-thumb")[2], r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 20})) })()')
+          await api.sleep(300)
+          await api.frame('document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))'); await api.sleep(300)
+          return await api.frame('(() => { const t = [...document.querySelectorAll("#sl-rail .sl-thumb")]; return { on: t.findIndex(x => x.classList.contains("on")), focus: t.indexOf(document.activeElement), menu: !!document.querySelector(".kit-menu") } })()')""")
+        self.assertFalse(out["menu"], out)
+        self.assertEqual(out["on"], 0, out)
+        self.assertIn(out["focus"], (-1, 0), out)  # never a ring on the thumbnail the menu was for
+
+    def test_a_dashboard_value_stays_readable_across_its_target_line(self):
+        aid = self.store.publish(title="Orders", type="dashboard", files={"dashboard.json": MONTHS})["id"]
+        probe = r"""(() => { const ln = document.querySelector('.c-chart line.c-ref'); if (!ln) return null; const lr = ln.getBoundingClientRect()
+          return [...document.querySelectorAll('.c-chart text.c-value')].filter(t => { const r = t.getBoundingClientRect(); return r.top - 1 < lr.top && lr.top < r.bottom + 1 && r.left < lr.right })
+            .map(t => { const cs = getComputedStyle(t); return { v: t.textContent, above: !!(ln.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING),
+              halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } }) })()"""
+        for w in (1500, 400):
+            out = self.drive(aid, f"return await api.frame({json.dumps(probe)})", w=w, settle=2000)
+            self.assertTrue(out, (w, out))  # the line does cross some ("97.9", "92.4")
+            self.assertTrue(all(o["above"] and o["halo"] for o in out), (w, out))
+
+    def test_a_note_grown_by_its_text_shrinks_back_but_never_below_a_dragged_height(self):
+        aid = self.store.publish(title="Notes", type="board", files={"board.json": {"title": "Notes", "items": [
+            {"id": "n", "type": "note", "text": "Hi", "x": 400, "y": 120, "w": 200, "h": 200}]}})["id"]
+        at = "(() => { const r = document.querySelector('.bd-it[data-id=n]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + 30, r.right, r.bottom] })()"
+        h = "(async () => (await window.hermes.board.read()).items.find(i => i.id === 'n').h)()"
+        clear = "(() => { const ta = document.querySelector('.bd-edit'); ta.value = ''; ta.dispatchEvent(new Event('input', {bubbles: true})) })()"
+        long = "Line one of the note\\n" * 14
+        out = self.drive(aid, f"""
+          const out = {{}}, open = async () => {{ const p = await api.frame({json.dumps(at)}); await api.mouse(p[0], p[1]); await api.sleep(60); await api.mouse(p[0], p[1]); await api.sleep(400) }}
+          const done = async () => {{ await api.key('Tab', 'Tab', 9); await api.sleep(1800) }}
+          await open(); await api.frame('document.querySelector(".bd-edit").setSelectionRange(9999, 9999)'); await api.type("{long}"); await done(); out.grown = await api.frame({json.dumps(h)})
+          await open(); await api.frame({json.dumps(clear)}); await done(); out.cleared = await api.frame({json.dumps(h)})
+          let p = await api.frame({json.dumps(at)}); await api.mouse(p[0], p[1]); await api.sleep(400)
+          const hd = await api.frame('(() => {{ const k = document.querySelector("[data-h=se]"); if (!k) return null; const r = k.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] }})()')
+          out.handle = !!hd; if (hd) {{ await api.drag(hd[0], hd[1], hd[0], hd[1] + 90); await api.sleep(1800) }}
+          out.dragged = await api.frame({json.dumps(h)})
+          await open(); await api.frame('document.querySelector(".bd-edit").setSelectionRange(9999, 9999)'); await api.type("{long}"); await done(); out.grown2 = await api.frame({json.dumps(h)})
+          await open(); await api.frame({json.dumps(clear)}); await done(); out.cleared2 = await api.frame({json.dumps(h)})
+          return out""", w=1300, settle=2000)
+        self.assertGreater(out["grown"], 300, out)
+        self.assertEqual(out["cleared"], 200, out)  # back to the size it was given
+        self.assertTrue(out["handle"], out)
+        self.assertGreater(out["dragged"], 240, out)
+        self.assertGreater(out["grown2"], out["dragged"], out)
+        self.assertEqual(out["cleared2"], out["dragged"], out)  # never below the dragged height
+
+    def test_the_design_selection_toolbar_is_in_the_frame_and_under_the_properties_sheet(self):
+        # the slides toolbar's pair checked in design: the element toolbar inside a 400 px frame, the sheet over it
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        probe = ("(() => { const t = document.querySelector('.dc-tools'); if (!t || t.hidden || !t.getClientRects().length) return 'none'; const r = t.getBoundingClientRect();"
+                 " const p = document.getElementById('dc-panel'), pr = p && !p.hidden && p.getClientRects().length ? p.getBoundingClientRect() : null;"
+                 " const x0 = pr ? Math.max(r.left, pr.left) : 0, x1 = pr ? Math.min(r.right, pr.right) : 0, y0 = pr ? Math.max(r.top, pr.top) : 0, y1 = pr ? Math.min(r.bottom, pr.bottom) : 0;"
+                 " const at = x1 > x0 && y1 > y0 ? document.elementFromPoint((x0 + x1) / 2, (y0 + y1) / 2) : null;"
+                 " return { inside: r.left >= 0 && r.right <= innerWidth, under: !at || !!at.closest('#dc-panel') } })()")
+        out = self.drive(aid, """
+          const q = await api.frame('(() => { const r = __design.boards["Main.dc.html"].el.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.35] })()')
+          await api.mouse(q[0], q[1]); await api.sleep(900)
+          const out = { selected: await api.frame(%(p)s) }
+          await api.frame(%(props)s); await api.sleep(600); out.sheet = await api.frame(%(p)s)
+          return out""" % {"p": json.dumps(probe), "props": json.dumps(PROPS)}, w=400, settle=3000)
+        self.assertNotEqual(out["selected"], "none", out)
+        for k, o in out.items():
+            self.assertTrue(o == "none" or (o["inside"] and o["under"]), (k, out))
+
+    def test_a_design_frame_too_narrow_for_its_name_shows_none(self):
+        aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
+        probe = ("[...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length).map(s => { const n = s.querySelector('.dc-name');"
+                 " return { name: s.title, shown: n.getClientRects().length > 0, cut: n.scrollWidth > n.clientWidth + 1, w: n.clientWidth } })")
+        for w in (400, 1000):
+            out = self.drive(aid, f"await api.frame('__design.fit ? __design.fit() : 0'); await api.sleep(600); return await api.frame({json.dumps(probe)})", w=w, settle=3000)
+            self.assertTrue(out and all(o["name"] for o in out), (w, out))  # each named in its tooltip
+            self.assertFalse([o for o in out if o["shown"] and o["cut"] and o["w"] < 40], (w, out))  # never "A…"

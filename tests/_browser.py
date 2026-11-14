@@ -206,6 +206,13 @@ async function main() {
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 })
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 })
     },
+    /** A real drag with the left button from x0, y0 to x1, y1 of the window, in steps. */
+    drag: async (x0, y0, x1, y1) => {
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y: y0 })
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y: y0, button: 'left', buttons: 1, clickCount: 1 })
+      for (let i = 1; i <= 8; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (x1 - x0) * i / 8, y: y0 + (y1 - y0) * i / 8, button: 'left', buttons: 1 })
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', buttons: 0, clickCount: 1 })
+    },
     /** A real click (mouse press and release) on the frame's element that sel finds (a JS expression). */
     clickIn: async (sel) => {
       const r = await api.frame('(() => { const el = ' + sel + '; if (!el) return null; el.scrollIntoView({block: "center"}); const b = el.getBoundingClientRect(); return [b.left + Math.min(20, b.width / 2), b.top + b.height / 2] })()')

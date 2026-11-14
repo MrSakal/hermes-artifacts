@@ -430,6 +430,8 @@
     b.el.classList.toggle("is-frameless", !!e.frameless);
     b.wrap.style.borderRadius = num(e.radius, 0) ? num(e.radius, 0) + "px" : "";
     b.name.textContent = titleOf(p);
+    b.strip.title = titleOf(p); // its name in a tooltip, also when the strip is too narrow to show it (design.css)
+    b.strip.toggleAttribute("data-short", titleOf(p).length <= 6);
     b.el.classList.toggle("is-interactive", !!e.is_interactive);
     b.playBtn.hidden = !e.is_interactive;
     b.tw.hidden = !tweakKeys(p).length;
