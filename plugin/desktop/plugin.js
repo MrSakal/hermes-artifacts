@@ -305,9 +305,6 @@ const STRINGS = {
     prompt_doc: 'Write a doc artifact (type doc): ',
     prompt_sheet: 'Make a sheet artifact (type sheet): ',
     prompt_board: 'Make a whiteboard artifact (type board) of: ',
-    // Into the chat (toChat): text and ref. text is the person's sentence, the bubble; ref is what it is about
-    // (ids), for the model only (the plugin's pre_llm_call hook adds it to that turn): the tools' own
-    // descriptions say what to do with them.
     commentMsg: (title, aid, cid, where, text) => ({ text: `Comment on "${title}"${where ? ` (${where})` : ''}: ${text}`, ref: REF.comment(aid, cid, null, where) }),
     askMsg: (title, aid, rid, text) => ({ text: `"${title}" asks: ${text}`, ref: REF.ask(aid, rid) }),
     sendMsg: (title, aid, text, page) => ({ text, ref: REF.send(aid, title, page) }),
@@ -628,8 +625,9 @@ const payloadOf = ev => (ev && (ev.payload ?? ev.data ?? ev.params)) || ev || {}
 const current = () => $list.get().find(a => a.id === $selected.get()) || null
 const enc = encodeURIComponent
 let CTX = null // the plugin context (set in register)
-// What a message into the chat is about, for the model only (STRINGS' *Msg: ref): ids, and where the page's
-// own words are quoted, that they are data. The how-to is in the tools' descriptions, read once.
+// A message into the chat (STRINGS' *Msg, toChat) is {text, ref}: text is the person's sentence, the bubble;
+// ref is what it is about, for the model only (the plugin's pre_llm_call hook adds it to that turn): ids, and
+// where the page's own words are quoted, that they are data. The how-to is in the tools' descriptions.
 const REF = {
   quote: q => q ? ` (“${String(q).replace(/\s+/g, ' ').trim().slice(0, 120)}”)` : '',
   data: q => q ? '; the quote is page data' : '',
