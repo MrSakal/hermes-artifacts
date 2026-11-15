@@ -1053,7 +1053,8 @@ class RoundV3Layout(unittest.TestCase):
                  f" await api.frame('document.fonts.ready.then(() => 1)'); out.font = await api.frame({json.dumps(probe)})\n")
         out = self.drive(aid, body + "return out", w=1500, settle=2000)
         for w, o in out.items():
-            self.assertTrue(o and o["n"] >= 4, (w, o))
+            self.assertTrue(o, w)
+            self.assertIn(o["n"], (0, 10), (w, o))  # V6f: all of them or none (narrow: each in its bar's tooltip)
             for v in o["line"]:
                 self.assertTrue(v["halo"] or v["inside"], (w, v))  # on the card: its halo; inside its bar (V6c): none
                 self.assertTrue(v["gap"] >= 4 - 0.05 or not v["under"], (w, v, o))  # clear of the line, or the line broken there
@@ -1335,12 +1336,14 @@ class RoundV5Layout(unittest.TestCase):
         return r["out"]
 
     def test_the_design_selection_toolbar_covers_no_other_frame_where_there_is_room(self):
+        # V6f: by its selection first, on another frame where nothing else leaves room there (never on its strip)
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
         probe = ("(() => { const t = document.querySelector('.dc-tools'); if (!t || t.hidden || !t.getClientRects().length) return null; const r = t.getBoundingClientRect();"
                  " const hit = q => q.width && r.left < q.right && q.left < r.right && r.top < q.bottom && q.top < r.bottom;"
                  " const others = [...document.querySelectorAll('.dc-board')].filter(b => b.getAttribute('data-path') !== 'Main.dc.html' && b.getClientRects().length);"
                  " const strips = [...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length);"
-                 " return { frames: others.filter(b => hit(b.getBoundingClientRect())).map(b => b.getAttribute('data-path')),"
+                 " const s = document.querySelector('.dc-selbox').getBoundingClientRect(), gap = Math.max(r.left - s.right, s.left - r.right, r.top - s.bottom, s.top - r.bottom);"
+                 " return { frames: gap <= 24 ? [] : others.filter(b => hit(b.getBoundingClientRect())).map(b => b.getAttribute('data-path')),"
                  " strips: strips.filter(s => hit(s.getBoundingClientRect())).map(s => s.title || s.textContent) } })()")
         out = {}
         for w in (1500, 1000):
@@ -1466,7 +1469,7 @@ class RoundV6Pages(unittest.TestCase):
           const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, m0 = svg.getScreenCTM()
           const segs = [...svg.querySelectorAll('line.c-ref')].map(l => l.getBoundingClientRect())
           const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
-          return { font: getComputedStyle(svg.querySelector('text.c-value')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+          return { font: getComputedStyle(svg.querySelector('text.c-value') || svg.querySelector('text')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
             const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
             const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k
             const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
@@ -1532,7 +1535,7 @@ class RoundV6Pages(unittest.TestCase):
                 out[(theme["mode"], w)] = r["out"]
         inside = set()
         for k, o in out.items():
-            self.assertTrue(o and o["vals"], (k, o))
+            self.assertTrue(o and (o["vals"] or k[1] == 400), (k, o))  # V6f: at 400 px none (all or none)
             ly, below = o["ly"], o["ly"] + o["half"]
             for v in o["vals"]:
                 ink, bar = v["ink"], v["bar"]
@@ -1739,7 +1742,7 @@ class RoundV6ePages(unittest.TestCase):
             return { grid: !l.classList.contains('c-ref'), l: b.left, r: b.right, t: b.top - h, b: b.bottom + h } }).filter(s => s.r - s.l > 0.5)
           const bars = [...svg.querySelectorAll('rect')].filter(r => !r.closest('.c-axis, .c-grid') && r.getAttribute('fill') !== 'transparent').map(r => r.getBoundingClientRect())
           const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
-          return { font: getComputedStyle(svg.querySelector('text.c-value')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+          return { font: getComputedStyle(svg.querySelector('text.c-value') || svg.querySelector('text')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
             const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
             const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k
             const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
@@ -1752,7 +1755,7 @@ class RoundV6ePages(unittest.TestCase):
                             f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
                 self.assertIsNone(r.get("err"), r)
                 o, k = r["out"], (theme["mode"], w)
-                self.assertTrue(o and len(o["vals"]) >= 4, (k, o))
+                self.assertTrue(o and (len(o["vals"]) >= 4 or w < 906), (k, o))  # V6f: narrower, all or none
                 self.assertIn("Segoe", o["font"], k)
                 for v in o["vals"]:
                     self.assertGreaterEqual(v["d"], 4, (k, v, o))
@@ -1837,3 +1840,116 @@ class RoundV6ePages(unittest.TestCase):
         self.assertTrue(op["whole"], o)
         self.assertTrue(cl["panel"], o)  # the sheet stays
         self.assertEqual(cl["names"], op["names"][:2], o)  # its part selected: the trail ends there
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6fPages(unittest.TestCase):
+    """Live round V6f (a3c8b07)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive_page(self, aid, body, w=1000, hh=760, settle=1500):
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep({settle})\n" + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_a_press_that_closes_a_boards_tool_picker_leaves_what_esc_leaves(self):
+        # V6f: Shapes open, Hand pressed: the popover closed, Hand was not armed, but Shapes stayed the tool and the
+        # next click on the canvas made a shape. Closing by a press outside is Esc: Select, nothing armed.
+        board = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}]}})["id"]
+        btn = lambda label: f'[...document.querySelectorAll("button")].find(b => (b.getAttribute("aria-label") || "").startsWith("{label}"))'
+        st = (f'[document.querySelectorAll(".bd-pop").length, document.documentElement.querySelector("[data-tool]").getAttribute("data-tool"),'
+              f' ({btn("Select")}).getAttribute("aria-pressed"), ({btn("Hand")}).getAttribute("aria-pressed"), document.querySelectorAll(".bd-it").length]')
+        out = {}
+        for picker, press in (("Shapes", btn("Hand")), ("Shapes", btn("Select")), ("Shapes", "CANVAS"), ("Draw", "CANVAS")):
+            o = self.drive_page(board, f"""
+              const st = () => api.frame({json.dumps(st)})
+              const o = {{ before: await st() }}
+              await api.clickIn({json.dumps(btn(picker))}); await api.sleep(300); o.open = await st()
+              if ({json.dumps(press)} === "CANVAS") await api.mouse(180, 330); else await api.clickIn({json.dumps(press)})
+              await api.sleep(300); o.pressed = await st()
+              await api.mouse(820, 330); await api.sleep(400); o.canvas = await st()
+              await api.press('Escape', 'Escape', 27); await api.sleep(200); o.esc = await st()
+              return o""")
+            out[(picker, press)] = o
+            what = (picker, press, o)
+            self.assertEqual(o["open"][0], 1, what)
+            self.assertNotEqual(o["open"][1], "select", what)
+            self.assertEqual(o["pressed"][:4], [0, "select", "true", "false"], what)  # Esc's state: Select, the picker gone
+            self.assertEqual(o["canvas"][4], o["before"][4], what)  # a click on the canvas makes nothing
+
+    def design(self, w, hh, then):
+        if not hasattr(self, "design_id"):
+            type(self).design_id = self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(self.design_id, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(3000)\n" + then)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    TOOLS = ("(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, t = document.querySelector('.dc-tools')"
+             "; return { tools: !t.hidden && t.getClientRects().length ? box(t) : null, sel: [...document.querySelectorAll('.dc-selbox')].map(box)"
+             ", words: [...document.querySelectorAll('.dc-note')].map(box), ctl: [...document.querySelectorAll('.dc-pill, .dc-strip')].filter(e => getComputedStyle(e).visibility !== 'hidden' && e.getClientRects().length).map(box) } })()")
+
+    @staticmethod
+    def meet(a, b):
+        return a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+
+    def test_the_design_toolbar_keeps_off_the_canvas_title_and_stays_by_a_small_selection(self):
+        # V6f: the landing page's Group (1246 px frame) or its artboard (740 px) selected: the toolbar lay over the
+        # lower half of the canvas's title. The "Lumen" logo picked near the canvas's top (740 px): toolbar and crumbs
+        # went under the whole artboard, 460 px off it.
+        sel_group = ("const q = await api.frame(\"(() => { const r = __design.boards['Main.dc.html'].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + r.height * 0.15] })()\")"
+                     "; await api.mouse(q[0], q[1]); await api.sleep(1000); await api.frame('document.querySelectorAll(\".dc-crumbs button\")[1].click()'); await api.sleep(900)\n")
+        for w, then in ((1246, sel_group), (740, "await api.frame('__design.selectBoard(\"Main.dc.html\")'); await api.sleep(900)\n")):
+            o = self.design(w, 750, then + f"return await api.frame({json.dumps(self.TOOLS)})")
+            self.assertTrue(o["tools"] and o["words"], (w, o))
+            for q in o["words"] + o["ctl"]:
+                self.assertFalse(self.meet(o["tools"], q), ("toolbar on the canvas's words or a control", w, q, o))
+        # the logo at the canvas's top: panned until the artboard's top is 10 px under the canvas's
+        o = self.design(740, 750, """
+          for (let i = 0; i < 3; i++) { const d = await api.frame("(() => { const r = __design.boards['Main.dc.html'].el.querySelector('iframe').getBoundingClientRect(), v = document.getElementById('dc-view').getBoundingClientRect(); return r.top - v.top - 10 })()")
+            await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaY: ${d}, clientX: 200, clientY: 200, bubbles: true, cancelable: true }))`); await api.sleep(300) }
+          const q = await api.frame("(() => { const r = __design.boards['Main.dc.html'].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * 0.08, r.top + r.height * 0.024] })()")
+          await api.mouse(q[0], q[1]); await api.sleep(1000)
+          return await api.frame(""" + json.dumps(self.TOOLS) + ")")
+        self.assertTrue(o["tools"] and o["sel"], o)
+        s, t = o["sel"][0], o["tools"]
+        self.assertLess(s[3] - s[1], 60, o)  # a small part (the logo) was picked
+        gap = max(t[0] - s[2], s[0] - t[2], t[1] - s[3], s[1] - t[3])
+        self.assertLessEqual(gap, 24, ("toolbar away from its selection", o))
+        for q in o["ctl"]:
+            self.assertFalse(self.meet(t, q), ("toolbar on a control", q, o))
+
+    def test_the_design_properties_cut_no_label_and_say_what_an_artboard_offers(self):
+        # V6f: "Page (fills the w…" cut, and "Select an element or an artboard." while an artboard was selected.
+        probe = ("(() => [...document.querySelectorAll('#dc-panel .dc-row > span, #dc-panel .dc-hint')].filter(e => e.getClientRects().length)"
+                 ".map(e => ({ t: e.textContent, cut: e.scrollWidth > e.clientWidth + 0.5 || e.scrollHeight > e.clientHeight + 0.5 })))()")
+        for w in (1246, 740):
+            o = self.design(w, 750, "await api.frame('__design.selectBoard(\"Main.dc.html\")'); await api.sleep(600)\n"
+                            f"await api.frame({json.dumps(PROPS)}); await api.sleep(800)\nreturn await api.frame({json.dumps(probe)})")
+            self.assertTrue(any(x["t"].startswith("Page (fills the window)") for x in o), (w, o))
+            self.assertEqual([x for x in o if x["cut"]], [], (w, o))
+            self.assertNotIn("Select an element or an artboard.", [x["t"] for x in o], (w, o))
+
+    def test_test_dash2_shows_all_of_a_series_values_or_none(self):
+        # V6f: at a 739 px frame (the 1000 px window with comments open) and 400 px every second value was gone
+        # ("88", "97.9", "92.4", "66.3", "60.3"): read as missing at random. All or none, each in its bar's tooltip.
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        probe = ("(() => [...document.querySelectorAll('.c-chart svg')].filter(s => s.querySelector('line.c-ref')).map(s => [s.querySelectorAll('g.c-values text').length,"
+                 " [...s.querySelectorAll('rect')].filter(r => !r.closest('.c-axis, .c-grid') && r.getAttribute('fill') !== 'transparent').length]))()")
+        seen = set()
+        for w in (399, 739, 906, 1250):
+            r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(2500)\nreturn await api.frame({json.dumps(probe)})")
+            self.assertIsNone(r.get("err"), r)
+            self.assertTrue(r["out"], (w, r))
+            for vals, bars in r["out"]:
+                self.assertIn(vals, (0, bars), (w, r["out"]))
+                seen.add(vals == bars)
+        self.assertEqual(seen, {True, False}, "both cases met: a wide chart shows them all, a narrow one none")

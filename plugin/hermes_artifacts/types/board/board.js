@@ -1609,7 +1609,9 @@
     popEl.remove(); popEl = null; popAnchor = null; popEsc = null;
     document.removeEventListener("pointerdown", popOut, true);
   }
-  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) { kit.swallowPress(e); closePop(); } } // only closes it
+  // A press outside only closes it, as Esc does (a tool's picker: back to Select; V6f, Shapes stayed armed and the next
+  // click on the canvas made a shape).
+  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) { kit.swallowPress(e); escPop(); } }
   /** A small panel by its button (colours, shapes, a link field). Clicking the button again closes it.
    * onEsc: what Esc does besides closing it (a tool's picker: back to Select). */
   function pop(anchor, content, label, onEsc) {

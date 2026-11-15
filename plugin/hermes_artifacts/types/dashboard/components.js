@@ -313,9 +313,9 @@
    *  whichever reads on the bar at 4.5:1, a token's alpha laid over the bar), else in its own place on its bar with
    *  the line broken behind it, BREAK_GAP px past its box either side (live, "88", "97.9" and "92.4" moved above the
    *  line read as cut off their bars: a 20 px bar under a 906 px frame's half-width chart). A value of a bar reaching
-   *  the line with no room above in the chart keeps its place, the line broken the same way. Values closer than
-   *  VALUE_GAP px to a neighbour: every second one is shown (or third…), the rest are in their bars' tooltips. Never
-   *  a label touching the line or another. Measured in the chart's own units (its viewBox), the px turned into them
+   *  the line with no room above in the chart keeps its place, the line broken the same way. A series' values are
+   *  all shown or none: one closer than VALUE_GAP px to a neighbour and none is drawn, each in its bar's tooltip
+   *  (V6f: every second one read as values gone at random). Never a label touching the line or another. Measured in the chart's own units (its viewBox), the px turned into them
    *  at the size it is drawn; drawn again when a font arrives (dashboard.js), the boxes being the font's. */
   var VALUE_GAP = 4, REF_HALF = 0.75, HALO = 1.75; // the line's half stroke, a value's half halo (dashboard.css .c-ref, .c-value)
   var IN_SIDE = 2, IN_PAD = 4, IN_GAP = 6, BREAK_GAP = 7; // a glyph's ink can reach ~0.5 px past its box
@@ -355,13 +355,9 @@
       o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
     });
     var near = function (a, c) { return Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)) < VALUE_GAP * u; };
-    var step = 1;
-    for (; step < items.length; step++) {
-      var shown = items.filter(function (o, i) { return i % step === 0; }), ok = true;
-      for (var i = 1; i < shown.length && ok; i++) ok = !near(shown[i - 1], shown[i]);
-      if (ok) break;
-    }
-    items.forEach(function (o, i) { if (i % step) { o.t.remove(); o.gone = true; } });
+    var all = true;
+    for (var i = 1; i < items.length && all; i++) all = !near(items[i - 1], items[i]);
+    if (!all) items.forEach(function (o) { o.t.remove(); o.gone = true; });
     // Every rule of the plot a shown value's box comes within VALUE_GAP px of (its halo and the rule's half stroke
     // counted) is broken BREAK_GAP px past the box either side: the target line behind a value left on its bar, a
     // gridline through or beside a value (V6e: the solid gridline at 100 ran through "92.4"). A gridline under a bar

@@ -115,17 +115,22 @@ class CommentPinTests(unittest.TestCase):
         if p:
             self.assertGreaterEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 8 - 0.01, out)
 
-    def test_a_pin_that_would_lie_on_the_pages_controls_is_not_drawn(self):
-        # V6c, a design panned at 1500 px: the element's pin drew over the bottom palette's tools
+    def test_a_pin_never_lies_on_the_pages_controls(self):
+        # V6c, a design panned at 1500 px: the element's pin drew over the bottom palette's tools. V6f: it takes the
+        # next free spot off them (above the element here); one with none is not drawn.
         body = """
         const kp = [[496, 726, 747, 766]]  // the palette
         const under = m.commentLayout({ x: 520, y: 720, w: 120, h: 40, ly: 720, lh: 20, vis: true, fr: true, fl: true, fa: true, fb: true, kp }, 1243, 780, 141)
         const clear = m.commentLayout({ x: 520, y: 300, w: 120, h: 40, ly: 300, lh: 20, vis: true, fr: true, fl: true, fa: true, fb: true, kp }, 1243, 780, 141)
-        console.log(JSON.stringify({ under: under.pin, clear: clear.pin }))
+        const none = m.commentLayout({ x: 520, y: 720, w: 120, h: 40, ly: 720, lh: 20, vis: true, fr: true, fl: true, fa: false, fb: false, kp }, 1243, 780, 141)
+        console.log(JSON.stringify({ under: under.pin, clear: clear.pin, none: none.pin }))
         """
         out = run_node(stub_module(EXPORTS), body)
-        self.assertIsNone(out["under"], out)  # its spot beside the element is on the palette
+        u = out["under"]
+        self.assertIsNotNone(u, out)  # beside the element is on the palette: above it
+        self.assertFalse(u["x"] < 747 and 496 < u["x"] + 26 and u["y"] < 766 and 726 < u["y"] + 26, out)
         self.assertIsNotNone(out["clear"], out)
+        self.assertIsNone(out["none"], out)  # its corner fallback is on the palette too: not drawn
 
     def test_near_every_edge_pin_and_box_stay_apart_and_inside(self):
         # The bridge's rect ends where the element's words end (a short line far left, a long one to the
@@ -214,10 +219,10 @@ class CommentPinTests(unittest.TestCase):
           m.pinSpot({ ...cell, fw: false, fa: false, fb: true }, 1500, 900), m.pinSpot({ ...cell, fw: false }, 1500, 900)]))
         """
         words, above, below, corner = run_node(stub_module(EXPORTS), body)
-        self.assertEqual(words, {"x": 672 + 6, "y": 462 + 12 - 13})
-        self.assertEqual(above, {"x": 703 - 26, "y": 453 - 6 - 26})
-        self.assertEqual(below, {"x": 703 - 26, "y": 453 + 42 + 6})
-        self.assertEqual(corner, {"x": 703 - 26 - 4, "y": 453 + 4})
+        self.assertEqual(words, {"x": 672 + 6, "y": 462 + 12 - 13, "s": 26})
+        self.assertEqual(above, {"x": 703 - 26, "y": 453 - 6 - 26, "s": 26})
+        self.assertEqual(below, {"x": 703 - 26, "y": 453 + 42 + 6, "s": 26})
+        self.assertEqual(corner, {"x": 703 - 26 - 4, "y": 453 + 4, "s": 26})
 
     def test_a_pages_own_comment_with_its_rect_opens_beside_it_and_a_point_is_pinned_on(self):
         # V5: a film's point and a design's element (the page's own comment, hermes.comment(anchor, where)) went
@@ -235,7 +240,7 @@ class CommentPinTests(unittest.TestCase):
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out["rect"], {"x": 300, "y": 400, "w": 0, "h": 0, "pt": True, "vis": True})
         self.assertFalse(out["panel"])  # beside it, not in the list
-        self.assertEqual(out["pin"], {"x": 300 - 13, "y": 400 - 13})  # centred on the point
+        self.assertEqual(out["pin"], {"x": 300 - 13, "y": 400 - 13, "s": 26})  # centred on the point
         self.assertEqual(out["listed"], {"panel": True, "rect": None})  # no rect (a doc's selected words): the list
 
     def test_a_comment_is_titled_with_a_name_never_a_tag(self):
@@ -261,7 +266,8 @@ class CommentPinTests(unittest.TestCase):
                                 "fa": False, "fb": True, "vis": False},
                                {"x": 1, "y": 2, "w": 3, "h": 4}, None])
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
-        self.assertIn("var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;", bridge)  # the host's own numbers
+        self.assertIn("var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4, PIN_MIN = 16;", bridge)  # the host's own numbers
+        self.assertIn("const PIN_MIN = 16", SRC)
         self.assertIn("const PIN = 26", SRC)
         self.assertIn("const PIN_GAP = 6", SRC)
         self.assertIn("const PIN_EDGE = 4", SRC)
@@ -270,7 +276,7 @@ class CommentPinTests(unittest.TestCase):
 
     def test_the_pin_is_drawn_over_the_box(self):
         pop = section("function CommentPopover(", "function DockView(")
-        self.assertIn("zIndex: 28, width: PIN", pop)
+        self.assertIn("zIndex: 28, width: pin.s", pop)
         self.assertIn("zIndex: 27, width: COMMENT_W", pop)
 
     def test_with_the_list_floating_over_a_narrow_view_nothing_goes_under_it(self):
@@ -835,13 +841,14 @@ class ClickThroughTests(unittest.TestCase):
         self.assertIn("art.comments ? jsx(CommentCount, { n: art.comments }) : null", section("const Card = memo(", "const ListRow = memo("))
         self.assertIn("art.comments ? jsx(CommentCount, { n: art.comments }) : null", section("const ListRow = memo(", "function TrashRow("))
 
-    def test_the_header_keeps_room_for_the_comment_count(self):
+    def test_the_header_gives_the_comment_count_its_room_only_when_there_is_one(self):
+        # V6f: with no comments the button kept the room (48 px, its icon at the left): now its icon's alone
         header = section("function Header(", "const PIN = 26")
         self.assertIn("count: open,", header)
         self.assertNotIn("label: open ? String(open) : null", header)
         btn = section("function IconButton(", "function Chip(")
         self.assertIn("minWidth: '2ch'", btn)
-        self.assertIn("children: count ? String(count) : ''", btn)
+        self.assertIn("count ? jsx('span', { style: { minWidth: '2ch'", btn)
 
     def test_comment_forms_grow_without_a_grip_and_discard_by_one_name(self):
         form = section("function CommentForm(", "function CommentsPanel(")

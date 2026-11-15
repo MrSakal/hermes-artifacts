@@ -46,7 +46,7 @@
       layout: "Layout", width: "Width", height: "Height", padding: "Padding", gap: "Gap", radius: "Radius", display: "Display",
       direction: "Direction", columns: "Columns", rows: "Rows", justify: "Justify", items: "Align items", wrap: "Wrap", style: "Text style",
       artboard: "Artboard", title: "Title", fillPage: "Page (fills the window)", interactive: "Interactive (Play)", reset: "Reset",
-      bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
+      bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", boardHint: "Select an element in it to edit its style.",
       noBoard: "No artboard to export", imgOnly: "png, jpeg, gif or webp",
       about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
     hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
@@ -70,7 +70,7 @@
       layout: "Elrendezés", width: "Szélesség", height: "Magasság", padding: "Belső margó", gap: "Térköz", radius: "Lekerekítés", display: "Megjelenés",
       direction: "Irány", columns: "Oszlopok", rows: "Sorok", justify: "Igazítás (fő)", items: "Igazítás (kereszt)", wrap: "Tördelés", style: "Szövegstílus",
       artboard: "Rajztábla", title: "Cím", fillPage: "Oldal (kitölti az ablakot)", interactive: "Interaktív (lejátszható)", reset: "Alaphelyzet",
-      bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", none: "Jelölj ki egy elemet vagy rajztáblát.",
+      bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", boardHint: "Jelölj ki benne egy elemet a stílusa szerkesztéséhez.",
       noBoard: "Nincs exportálható rajztábla", imgOnly: "png, jpeg, gif vagy webp",}
   }, L);
   kit.degraded(T.noHost); // no host: said once; the page still shows what it has
@@ -401,7 +401,9 @@
   function makeBoard(p) {
     var b = { path: p, playing: false, errors: [] };
     b.el = h("div", { "class": "dc-board", "data-path": p });
-    b.wrap = h("div", { "class": "dc-frame" });
+    // the artboard's picture: the new comment's box may lie on it, by what was picked (data-comment-under: V6f, a box
+    // kept off every artboard went 235 px from a strip, and stayed on the empty canvas as the canvas zoomed)
+    b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
     b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
@@ -873,24 +875,28 @@
     tools.style.left = clamp(spot.x, v.left + 4, v.right - w - 8) + "px";
   }
   /** Where the selection's toolbar (w x hh) covers none of the page's own controls (the pills, the Properties
-   *  panel), no other frame (its name strip, its top edge) nor its own frame's strip, nor the selection: above it,
-   *  below it, then above its frame's strip or under its frame, each from the selection's left, its right, its
-   *  middle (the board's rule: the first free spot near it). A selection the stage cannot show whole (V6e: the
+   *  panel), no other frame (its name strip, its top edge) nor its own frame's strip, the canvas's words (its title,
+   *  its notes), nor the selection: by it; by it on another frame; above its frame's strip or under its frame
+   *  (the board's rule: the first free spot near it). A selection the stage cannot show whole (V6e: the
    *  landing page's Group at 1510 and 999 px, its toolbar on the palette): in the stage in sight, under or over a
    *  pill, over the selection then, other frames kept clear where they can be, the controls always. Null when none
    *  is free in the canvas (the toolbar then goes just above the selection, as before). */
   function toolSpot(r, v, w, hh) {
-    var own = sel.path || selBoard, keep = [{ left: r.left, right: r.right, top: r.top, bottom: r.bottom }], oe = null, os = null;
+    var own = sel.path || selBoard, me = { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, others = [], strips = [], oe = null, os = null;
     Object.keys(boards).forEach(function (p) {
       var b = boards[p];
       if (!b.el.isConnected || !b.el.getClientRects().length) return;
       var sr = b.strip.getClientRects().length ? b.strip.getBoundingClientRect() : null;
-      if (p === own) { oe = b.el.getBoundingClientRect(); os = sr; if (sr) keep.push(sr); return; }
-      keep.push(b.el.getBoundingClientRect());
-      if (sr) keep.push(sr);
+      if (sr) strips.push(sr);
+      if (p === own) { oe = b.el.getBoundingClientRect(); os = sr; return; }
+      others.push(b.el.getBoundingClientRect());
     });
     var ctl = Array.prototype.slice.call(document.querySelectorAll(".dc-pill")).concat(panelEl.hidden ? [] : [panelEl])
       .filter(function (e) { return e.getClientRects().length; }).map(function (e) { return e.getBoundingClientRect(); });
+    // the canvas's own words (its title, the notes) are kept clear like a frame (V6f: the toolbar over the title)
+    var notes = Array.prototype.map.call(notesLayer.querySelectorAll(".dc-note"), function (n) { return n.getBoundingClientRect(); })
+      .filter(function (q) { return q.width && q.height; });
+    var keep = [me].concat(strips, notes, others);
     var first = function (ys, xs, list) {
       for (var i = 0; i < ys.length; i++) for (var j = 0; j < xs.length; j++) {
         var x = clamp(xs[j], v.left + 4, v.right - w - 8), y = ys[i];
@@ -900,9 +906,27 @@
       }
       return null;
     };
-    var ys = [r.top - hh - 10, r.bottom + 10];
+    // By the selection, from its left, its right, its middle, then slid past what is in the way (nearest first):
+    // above it, below it (on its own frame), else beside it level with its top.
+    var slid = function (list) {
+      var xs = [r.left, r.right - w, (r.left + r.right) / 2 - w / 2];
+      list.forEach(function (k) { xs.push(k.right + 8, k.left - w - 8); });
+      return xs.sort(function (a, b) { return Math.abs(a - r.left) - Math.abs(b - r.left); });
+    };
+    var near = function (list) {
+      return first([r.top - hh - 10, r.bottom + 10], slid(list), list) ||
+        first([r.top], [r.right + 10, r.left - w - 10], list);
+    };
+    var all = keep.concat(ctl), spot = near(all);
+    if (spot) return spot;
+    // Still by it, on another frame, never on a control, the selection, a strip or the canvas's words (V6f: a logo at
+    // the canvas's top got its toolbar under its whole artboard, 460 px off); else above its frame's strip or under
+    // its frame, clear of everything.
+    spot = near([me].concat(strips, notes, ctl));
+    if (spot) return spot;
+    var ys = [];
     if (oe) ys.push(Math.min(oe.top, os ? os.top : oe.top) - hh - 8, oe.bottom + 10);
-    var spot = first(ys, [r.left, r.right - w, (r.left + r.right) / 2 - w / 2], keep.concat(ctl));
+    spot = first(ys, [r.left, r.right - w, (r.left + r.right) / 2 - w / 2], all);
     if (spot) return spot;
     var l = Math.max(r.left, v.left), rr = Math.min(r.right, v.right), inside = [v.top + 8, v.bottom - hh - 8], xs = [l + 8, rr - w - 8, (l + rr) / 2 - w / 2];
     ctl.forEach(function (c) { inside.push(c.bottom + 8, c.top - hh - 8); });
@@ -1089,7 +1113,11 @@
     return "#" + m[1].split(/[\s,\/]+/).slice(0, 3).map(function (v) { return ("0" + clamp(R(+v), 0, 255).toString(16)).slice(-2); }).join("");
   }
   function px(v) { v = String(v).trim(); return /^-?\d+(\.\d+)?$/.test(v) ? v + "px" : v; }
-  function row(label, ctl) { return h("label", { "class": "dc-row" }, [h("span", { text: label }), ctl]); }
+  // A checkbox leads its words, which take the row's width (V6f: "Page (fills the w…" cut in the label's column).
+  function row(label, ctl) {
+    if (ctl.type === "checkbox") return h("label", { "class": "dc-row dc-tick" }, [ctl, h("span", { text: label })]);
+    return h("label", { "class": "dc-row" }, [h("span", { text: label }), ctl]);
+  }
   function boundNote(v) { return v.indexOf("{{") >= 0; }
   function textField(prop, ph, norm) {
     var v = inline(prop), inp = h("input", { type: "text", value: v, placeholder: ph || "", spellcheck: "false" });
@@ -1288,7 +1316,7 @@
     inter.addEventListener("change", function () { boardSet(function (en) { if (inter.checked) en.is_interactive = true; else delete en.is_interactive; }); });
     [title, w, hh].forEach(function (i) { i.addEventListener("keydown", function (ev) { ev.stopPropagation(); if (ev.key === "Enter") i.blur(); }); });
     out.appendChild(section(T.artboard, [row(T.title, title), row(T.width, w), row(T.height, hh), row(T.fillPage, fill), row(T.interactive, inter)]));
-    out.appendChild(h("p", { "class": "dc-hint", text: T.none }));
+    out.appendChild(h("p", { "class": "dc-hint", text: T.boardHint }));
     return out;
   }
   function tweakKeys(p) {
@@ -1548,7 +1576,9 @@
         if (!strip.strip.isConnected || !strip.strip.getClientRects().length) return null;
         var s = strip.strip.getBoundingClientRect(), end = [strip.name, strip.tw, strip.playBtn, strip.full]
           .filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().right; });
-        return { x: s.left, y: s.top, w: s.width, h: s.height, ly: s.top, lh: s.height, lr: Math.max.apply(null, end.concat(s.left)) };
+        // beside the strip is a neighbour's strip or the gap to it: the pin goes after the buttons, else above or under
+        // the strip's end (V6f: no room after them on a phone's strip, the pin went left of it, onto the landing page's)
+        return { x: s.left, y: s.top, w: s.width, h: s.height, ly: s.top, lh: s.height, lr: Math.max.apply(null, end.concat(s.left)), fr: false, fl: false };
       } });
       return;
     }

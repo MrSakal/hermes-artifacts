@@ -88,7 +88,9 @@ body { overflow: hidden; }
 .dc-sec { padding: 8px 0; border-top: 1px solid var(--color-border-line); }
 .dc-sec h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-fg-muted); }
 .dc-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 30px; color: var(--color-fg-secondary); }
-.dc-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-row > span:first-child { overflow-wrap: break-word; min-width: 0; }
+.dc-row.dc-tick { grid-template-columns: auto minmax(0, 1fr); }
+.dc-row.dc-tick > span { overflow-wrap: break-word; min-width: 0; }
 .dc-row input[type=text], .dc-row input[type=number], .dc-row select, .dc-row textarea { width: 100%; min-width: 0; height: 26px; padding: 0 6px;
   border: 1px solid var(--color-border-line); border-radius: 5px; background-color: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 12px; }
 .dc-row textarea { height: auto; padding: 4px 6px; resize: vertical; }

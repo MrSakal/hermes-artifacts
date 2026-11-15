@@ -9,6 +9,7 @@
   //          nothing a user could see when it was sent (isBlank()); t = ms since the page started.
   //   diag   {entries: [{k, m, at?, n, stack?, tag?, url?}], dropped}: n and dropped count since the last post.
   //   alive  null.
+  //   press  null: a press in the page (the host's own menus close on it, as on a press anywhere outside them).
   var PROTOCOL = 4;
   // Where this script sits in the document: the server put it, and its lines, right after <head>, so a
   // line the browser reports for the page's own inline code is that many lines further down.
@@ -86,6 +87,9 @@
     else if (queuedEvents < MAX_QUEUED_EVENTS) { queuedEvents++; queue.push(msg); }
   }
   function send(msg) { try { if (port) port.postMessage(msg); } catch (_) {} }
+  // First of the page's listeners: a press the page or the pick stops still reaches the host (V6f: the title's menu
+  // stayed open over a press in the page).
+  window.addEventListener("pointerdown", function () { send({ event: "press", detail: null }); }, true);
   // An event that comes before anyone listens (the port can arrive while the page is still loading)
   // is kept, and the first listener for it gets the last one. A state the host sends once and again only
   // when it changes (STICKY: the comment threads) goes to every listener that comes later too: this bridge
@@ -456,6 +460,7 @@
     if (rd.msg) return;
     rd.msg = { event: "ready", detail: { threw: rd.threw, blank: isBlank(), t: Math.round(clock()) } };
     deliver();
+    sayPickReady(); // picking came before it
   }
   function deliver() { // what waits for the port: the errors so far, then ready
     if (!port) return;
@@ -557,7 +562,7 @@
     return seen >= 0.4 * innerWidth * innerHeight;
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
-  var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;
+  var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4, PIN_MIN = 16;
   /** The first line of the element's words, {top, height, left, right}; null when it has none (an image). */
   function firstLine(el) {
     try {
@@ -707,6 +712,9 @@
     }
     var grid = el.closest && el.closest("[data-comment-pin-in]");
     if (grid && grid !== el) out.px = pinIn(r, line);
+    // the part the page named that holds el (a KPI whose number was picked): the box keeps off it where it can
+    var part = el.closest && el.closest("[data-comment-label]");
+    if (part && part !== el) { var q = part.getBoundingClientRect(); if (q.width >= 1 && q.height >= 1) out.pb = [q.left, q.top, q.right, q.bottom]; }
     var kp = keeps(el), kw = keptWords(el), kc = contentIn();
     if (kp.length) out.kp = kp;
     if (kw.length) out.kw = kw;
@@ -715,7 +723,8 @@
   }
   /** What is on the page in sight, for the comment's box to prefer empty room (kc): each line of words and each
    *  picture or control, [left, top, right, bottom] in the window, at most KC_MAX (the first in the page's order);
-   *  a box out of sight is not looked into. */
+   *  a box out of sight is not looked into, nor one the page lets the box lie on ([data-comment-under]: a design's
+   *  artboards on its canvas). */
   var KC_MAX = 160;
   function contentIn() {
     var out = [], seen = 0;
@@ -724,7 +733,7 @@
     try {
       var w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
         if (n.nodeType === 3) return /\S/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-        if (n.hasAttribute("data-hermes-ui") || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
+        if (n.hasAttribute("data-hermes-ui") || n.hasAttribute("data-comment-under") || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
         var q = n.getBoundingClientRect(); // a box out of sight, or of no size, holds nothing seen (an overflow aside)
         if (!inSight(q) && getComputedStyle(n).overflow !== "visible") return NodeFilter.FILTER_REJECT;
         return SOLID.test(n.tagName) && inSight(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
@@ -742,10 +751,11 @@
    *  beside the cell is on its neighbour: V6e, B3's pin over C3): after its words, else before them (a number set
    *  right), else at its right end; an empty part's in its middle. */
   function pinIn(r, line) {
-    var lo = r.left + 2, hi = r.right - 2 - PIN;
-    if (!line) return Math.max(lo, r.left + (r.width - PIN) / 2);
+    var s = Math.max(PIN_MIN, Math.min(PIN, Math.floor(r.height) - 4)); // plugin.js pinSize: never taller than the part
+    var lo = r.left + 2, hi = r.right - 2 - s;
+    if (!line) return Math.max(lo, r.left + (r.width - s) / 2);
     if (line.right + PIN_GAP <= hi) return line.right + PIN_GAP;
-    if (line.left - PIN_GAP - PIN >= lo) return line.left - PIN_GAP - PIN;
+    if (line.left - PIN_GAP - s >= lo) return line.left - PIN_GAP - s;
     return Math.max(lo, hi);
   }
   /** The words the comment's box keeps off where there is room, besides the page's controls (kw: never a reason to
@@ -891,9 +901,17 @@
   // Picking on: the host is told when a click picks (it holds one made sooner: V6e, a pick 0 ms after Comment in a
   // page just opened was lost), at once, or by a page that picks inside frames of its own once they all do
   // (<html data-pick-later>: a design's artboards; hermes.pickReady). The click it held comes back as pick-at.
+  // Never before the page's first real render (its "ready": V6f, a sheet said so as its port came, before its grid
+  // was laid out, and the click held for it, or one made then, hit nothing).
+  var framesPick = false; // a data-pick-later page said its frames pick (hermes.pickReady), this pick mode
+  function sayPickReady() {
+    if (!picking || !rd.msg || (document.documentElement.hasAttribute("data-pick-later") && !framesPick)) return;
+    emit("pick-ready", {});
+  }
   on("comment-mode", function (d) {
     setPicking(d && d.on);
-    if (picking && !document.documentElement.hasAttribute("data-pick-later")) emit("pick-ready", {});
+    framesPick = false;
+    sayPickReady();
   });
   on("pick-at", function (d) {
     if (!picking || !d || !isFinite(d.x) || !isFinite(d.y)) return;
@@ -1057,7 +1075,7 @@
     /** A page that moved what was commented on without a scroll (a canvas panned or zoomed): its pin follows. */
     moved: function () { pickedMoved(); },
     /** A page that picks inside frames of its own (<html data-pick-later>): its clicks pick from now on. */
-    pickReady: function () { if (picking) emit("pick-ready", {}); },
+    pickReady: function () { if (picking) { framesPick = true; sayPickReady(); } },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */
