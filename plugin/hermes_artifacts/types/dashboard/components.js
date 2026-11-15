@@ -327,7 +327,7 @@
     });
     return most >= 4.5 ? "var(" + best + ")" : null;
   }
-  function fitValues(svg, ry, x1, x2, bars) {
+  function fitValues(svg, ry, bars) {
     var items = svg.selectAll("g.c-values text").nodes().map(function (t, i) {
       var bb = t.getBBox();
       return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5, rect: bars[i] };
@@ -350,7 +350,7 @@
           o.t.style.fill = ink;
         }
       }
-      if (dy == null) { o.cut = true; return; } // on its bar, the line broken behind it
+      if (dy == null) return; // on its bar, the line broken behind it (below)
       o.y += dy;
       o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
     });
@@ -362,19 +362,28 @@
       if (ok) break;
     }
     items.forEach(function (o, i) { if (i % step) { o.t.remove(); o.gone = true; } });
-    var ln = ry == null ? null : svg.select("line.c-ref").node();
-    var gaps = items.filter(function (o) { return o.cut && !o.gone; }).map(function (o) { return [o.x - side, o.x + o.w + side]; });
-    if (!ln || !gaps.length) return;
-    var segs = [], from = x1;
-    gaps.sort(function (a, c) { return a[0] - c[0]; }).forEach(function (g) { if (g[0] > from) segs.push([from, Math.min(g[0], x2)]); from = Math.max(from, g[1]); });
-    if (from < x2) segs.push([from, x2]);
-    var prev = null;
-    segs.forEach(function (s) {
-      var n = prev ? ln.parentNode.insertBefore(ln.cloneNode(false), prev.nextSibling) : ln;
-      n.setAttribute("x1", s[0]); n.setAttribute("x2", s[1]);
-      prev = n;
+    // Every rule of the plot a shown value's box comes within VALUE_GAP px of (its halo and the rule's half stroke
+    // counted) is broken BREAK_GAP px past the box either side: the target line behind a value left on its bar, a
+    // gridline through or beside a value (V6e: the solid gridline at 100 ran through "92.4"). A gridline under a bar
+    // is hidden by it: one inside its bar breaks only the target line.
+    var shift = function (n) { var x = 0, y = 0; for (; n && n !== node; n = n.parentNode) { var t = n.transform && n.transform.baseVal.consolidate(); if (t) { x += t.matrix.e; y += t.matrix.f; } } return [x, y]; };
+    svg.selectAll("line.c-ref, .c-grid .tick line").nodes().forEach(function (ln) {
+      var at = shift(ln), ly = at[1] + (+ln.getAttribute("y1") || 0), ref = ln.classList.contains("c-ref");
+      var clear = (VALUE_GAP + (ref ? REF_HALF : 0.5) + HALO) * u - 0.01; // a value moved off the line is not on it
+      var gaps = items.filter(function (o) { return !o.gone && (ref || !o.t.classList.contains("c-value-in")) && o.y - clear < ly && ly < o.y + o.h + clear; })
+        .map(function (o) { return [o.x - side - at[0], o.x + o.w + side - at[0]]; });
+      if (!gaps.length) return;
+      var a = +ln.getAttribute("x1") || 0, z = +ln.getAttribute("x2") || 0, segs = [], from = a;
+      gaps.sort(function (p, c) { return p[0] - c[0]; }).forEach(function (g) { if (g[0] > from) segs.push([from, Math.min(g[0], z)]); from = Math.max(from, g[1]); });
+      if (from < z) segs.push([from, z]);
+      var prev = null;
+      segs.forEach(function (s) {
+        var n = prev ? ln.parentNode.insertBefore(ln.cloneNode(false), prev.nextSibling) : ln;
+        n.setAttribute("x1", s[0]); n.setAttribute("x2", s[1]);
+        prev = n;
+      });
+      if (!segs.length) ln.remove();
     });
-    if (!segs.length) ln.remove();
   }
 
   builders.chart = function (b) {
@@ -485,6 +494,7 @@
       }
       if (b.reference && !isNaN(num(b.reference.value))) {
         var ry = y(num(b.reference.value));
+        svg.selectAll(".c-grid .tick").filter(function (v) { return Math.abs(y(v) - ry) < 1; }).select("line").remove(); // the target line is the rule there
         svg.append("line").attr("x1", M.l).attr("x2", W - M.r).attr("y1", ry).attr("y2", ry).attr("class", "c-ref");
         if (b.reference.label) svg.append("text").attr("x", W - M.r).attr("y", ry - 5).attr("text-anchor", "end").attr("class", "c-axis-text c-ref-label").text(b.reference.label);
         svg.selectAll("g.c-values").raise(); // the values over the line, each on its halo: a dash never runs through "92.4"
@@ -499,7 +509,7 @@
         });
       }
       box.replaceChildren(svg.node());
-      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, M.l, W - M.r, bars);
+      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, bars);
       // every category's name whole: fewer of them (every second, third…) until the widest shown fits its slot
       var ticks = svg.selectAll(".c-axis .tick text").nodes(), widest = 0;
       ticks.forEach(function (t) { widest = Math.max(widest, t.getComputedTextLength()); });

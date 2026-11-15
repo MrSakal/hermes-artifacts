@@ -1607,9 +1607,9 @@
   function closePop() {
     if (!popEl) return;
     popEl.remove(); popEl = null; popAnchor = null; popEsc = null;
-    document.removeEventListener("mousedown", popOut, true);
+    document.removeEventListener("pointerdown", popOut, true);
   }
-  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) closePop(); }
+  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) { kit.swallowPress(e); closePop(); } } // only closes it
   /** A small panel by its button (colours, shapes, a link field). Clicking the button again closes it.
    * onEsc: what Esc does besides closing it (a tool's picker: back to Select). */
   function pop(anchor, content, label, onEsc) {
@@ -1624,7 +1624,7 @@
     p.style.left = clamp(r.left + r.width / 2 - pw / 2, 8, Math.max(8, innerWidth - pw - 8)) + "px";
     p.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); escPop(); if (anchor.focus) anchor.focus(); } });
     popEl = p; popAnchor = anchor; popEsc = onEsc || null;
-    setTimeout(function () { document.addEventListener("mousedown", popOut, true); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", popOut, true); }, 0);
     return p;
   }
   function escPop() { var f = popEsc; closePop(); if (f) f(); }

@@ -1160,7 +1160,7 @@
   var menuStack = [];
   function closeMenus(from) {
     while (menuStack.length > (from || 0)) { var m = menuStack.pop(); m.el.remove(); }
-    if (!menuStack.length) { document.removeEventListener("mousedown", menuOut, true); window.removeEventListener("scroll", closeAllMenus, true); window.removeEventListener("resize", closeAllMenus); }
+    if (!menuStack.length) { document.removeEventListener("pointerdown", menuOut, true); window.removeEventListener("scroll", closeAllMenus, true); window.removeEventListener("resize", closeAllMenus); }
   }
   function closeAllMenus(e) { // the page scrolling closes menus; a menu's own list scrolling does not
     if (e && e.type === "scroll" && e.target && e.target.nodeType === 1 && e.target.closest(".doc-rmenu")) return;
@@ -1170,7 +1170,7 @@
   function menuOut(e) {
     var opener = menuStack[0] && menuStack[0].from;
     if (opener && opener.contains(e.target)) return; // its own button: the click closes it (no close-and-reopen)
-    if (!menuStack.some(function (m) { return m.el.contains(e.target); })) closeMenus(0);
+    if (!menuStack.some(function (m) { return m.el.contains(e.target); })) { kit.swallowPress(e); closeMenus(0); } // only closes them
   }
   /** A menu at x, y (under its button `from` when there is one): as tall as its items within the window. A button's
    *  menu with no room under it opens above it when there is more there; a menu at a point (a right-click) moves up
@@ -1231,7 +1231,7 @@
     placeMenu(el, x, y, from);
     menuStack.push({ el: el, rows: rows, i: -1, from: from || null });
     if (menuStack.length === 1) setTimeout(function () {
-      document.addEventListener("mousedown", menuOut, true);
+      document.addEventListener("pointerdown", menuOut, true);
       window.addEventListener("scroll", closeAllMenus, true); window.addEventListener("resize", closeAllMenus); // a menu never drifts from its button
     }, 0);
     return el;

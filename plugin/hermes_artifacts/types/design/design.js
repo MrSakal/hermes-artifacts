@@ -765,18 +765,23 @@
     if (/^(p|span|label|b|strong|em|i|small|blockquote|figcaption|dt|dd)$/.test(t)) return "text";
     return "group";
   }
-  function drawCrumbs() {
-    crumbs.replaceChildren();
+  /** The selection's breadcrumb: the artboard, then each ancestor of the element, each a button selecting it (the
+   *  canvas's, and the Properties sheet's while the sheet covers the canvas's). [] when nothing is selected. */
+  function crumbParts() {
     var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[sel.tids.length - 1]) : null;
-    if (!n && !selBoard) { crumbs.hidden = true; return; }
-    crumbs.hidden = false;
-    var bp = sel.path || selBoard;
-    crumbs.appendChild(h("button", { type: "button", text: titleOf(bp), onclick: function () { selectBoard(bp); } }));
+    if (!n && !selBoard) return [];
+    var bp = sel.path || selBoard, out = [h("button", { type: "button", text: titleOf(bp), onclick: function () { selectBoard(bp); } })];
     if (n) ancestors(n).forEach(function (a) {
-      crumbs.appendChild(h("span", { "class": "dc-crumb-sep", text: "›", "aria-hidden": "true" }));
-      crumbs.appendChild(h("button", { type: "button", "class": a === n ? "is-on" : null, text: partName(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
+      out.push(h("span", { "class": "dc-crumb-sep", text: "›", "aria-hidden": "true" }),
+        h("button", { type: "button", "class": a === n ? "is-on" : null, text: partName(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
     });
-    placeCrumbs();
+    return out;
+  }
+  function drawCrumbs() {
+    var parts = crumbParts();
+    crumbs.replaceChildren.apply(crumbs, parts);
+    crumbs.hidden = !parts.length;
+    if (parts.length) placeCrumbs();
   }
   /** The breadcrumb's place, the first of the canvas's corners by its pills (over the drawing tools at the left, then
    *  at the right; under the top pills at the left, then at the right) that covers neither the selection nor its
@@ -867,10 +872,13 @@
     tools.style.top = clamp(spot.y, v.top + 4, innerHeight - hh - 8) + "px";
     tools.style.left = clamp(spot.x, v.left + 4, v.right - w - 8) + "px";
   }
-  /** Where the selection's toolbar (w x hh) covers no other frame (its name strip, its top edge) nor its own
-   *  frame's strip, nor the selection: above it, below it, then above its frame's strip or under its frame, each
-   *  from the selection's left, its right, its middle (the board's rule: the first free spot near it). Null when
-   *  none is free in the canvas (the toolbar then goes just above the selection, as before). */
+  /** Where the selection's toolbar (w x hh) covers none of the page's own controls (the pills, the Properties
+   *  panel), no other frame (its name strip, its top edge) nor its own frame's strip, nor the selection: above it,
+   *  below it, then above its frame's strip or under its frame, each from the selection's left, its right, its
+   *  middle (the board's rule: the first free spot near it). A selection the stage cannot show whole (V6e: the
+   *  landing page's Group at 1510 and 999 px, its toolbar on the palette): in the stage in sight, under or over a
+   *  pill, over the selection then, other frames kept clear where they can be, the controls always. Null when none
+   *  is free in the canvas (the toolbar then goes just above the selection, as before). */
   function toolSpot(r, v, w, hh) {
     var own = sel.path || selBoard, keep = [{ left: r.left, right: r.right, top: r.top, bottom: r.bottom }], oe = null, os = null;
     Object.keys(boards).forEach(function (p) {
@@ -881,16 +889,24 @@
       keep.push(b.el.getBoundingClientRect());
       if (sr) keep.push(sr);
     });
+    var ctl = Array.prototype.slice.call(document.querySelectorAll(".dc-pill")).concat(panelEl.hidden ? [] : [panelEl])
+      .filter(function (e) { return e.getClientRects().length; }).map(function (e) { return e.getBoundingClientRect(); });
+    var first = function (ys, xs, list) {
+      for (var i = 0; i < ys.length; i++) for (var j = 0; j < xs.length; j++) {
+        var x = clamp(xs[j], v.left + 4, v.right - w - 8), y = ys[i];
+        if (y < v.top + 4 || y + hh > v.bottom - 4) continue;
+        var hit = list.some(function (k) { return x < k.right && k.left < x + w && y < k.bottom && k.top < y + hh; });
+        if (!hit) return { x: x, y: y };
+      }
+      return null;
+    };
     var ys = [r.top - hh - 10, r.bottom + 10];
     if (oe) ys.push(Math.min(oe.top, os ? os.top : oe.top) - hh - 8, oe.bottom + 10);
-    var xs = [r.left, r.right - w, (r.left + r.right) / 2 - w / 2];
-    for (var i = 0; i < ys.length; i++) for (var j = 0; j < xs.length; j++) {
-      var x = clamp(xs[j], v.left + 4, v.right - w - 8), y = ys[i];
-      if (y < v.top + 4 || y + hh > v.bottom - 4) continue;
-      var hit = keep.some(function (k) { return x < k.right && k.left < x + w && y < k.bottom && k.top < y + hh; });
-      if (!hit) return { x: x, y: y };
-    }
-    return null;
+    var spot = first(ys, [r.left, r.right - w, (r.left + r.right) / 2 - w / 2], keep.concat(ctl));
+    if (spot) return spot;
+    var l = Math.max(r.left, v.left), rr = Math.min(r.right, v.right), inside = [v.top + 8, v.bottom - hh - 8], xs = [l + 8, rr - w - 8, (l + rr) / 2 - w / 2];
+    ctl.forEach(function (c) { inside.push(c.bottom + 8, c.top - hh - 8); });
+    return first(inside, xs, keep.slice(1).concat(ctl)) || first(inside, xs, ctl);
   }
 
   // ------------------------------------------------------------------ editing the templates
@@ -1156,12 +1172,15 @@
       } })]);
     var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
       : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
-    // The sheet covers the selection's toolbar (it steps aside: design.css): its actions are here, under the tabs.
-    // One taken closes the sheet, back to the canvas where it acts (Ask's field, the comment's box, the edit).
+    // The sheet covers the selection's toolbar and breadcrumb (they step aside: design.css): its actions are here,
+    // under the tabs, the breadcrumb first (V6e: at 999 px the hierarchy could not be climbed with the sheet open; a
+    // crumb keeps the sheet). An action taken closes the sheet, back to the canvas where it acts (Ask's field, the
+    // comment's box, the edit).
     var acts = narrow() && bp ? h("div", { "class": "dc-sheet-acts", role: "toolbar" }, selActions(function (icon, label, fn) {
       return tbtn(icon, label, function () { sheetAsked = false; renderPanel(); drawTools(); fn(); });
     })) : null;
-    panelEl.replaceChildren.apply(panelEl, acts ? [tabs, acts, body] : [tabs, body]);
+    var trail = acts ? h("nav", { "class": "dc-sheet-crumbs", "aria-label": "Breadcrumb" }, crumbParts()) : null;
+    panelEl.replaceChildren.apply(panelEl, acts ? [tabs, trail, acts, body] : [tabs, body]);
   }
   /** Outline: the page's notes, then each artboard and (for the open one) its elements; a click selects. */
   var openOutline = {};
@@ -1513,9 +1532,8 @@
   }
   /** A comment on what a frame picked (m: frame.js where(); tid null: the artboard), beside it with its pin: its
    *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). The
-   *  artboard picked by its name strip (strip: its board) has its pin on the strip, after the name (V6d: left of
-   *  the artboard, off it). */
-  var PIN_HALF = 13; // the host's pin (plugin.js PIN) is 26 px
+   *  artboard picked by its name strip (strip: its board) has its pin on the strip, after the name and its
+   *  buttons (V6d: left of the artboard, off it). */
   function framePicked(f, m, strip) {
     if (!window.hermes || !window.hermes.comment) return;
     var p = f.path, n = m.tid != null ? nodeOf(p, m.tid) : null, name = titleOf(p);
@@ -1524,12 +1542,13 @@
                    : { selector: enc(p), text: name.slice(0, 200), label: clipWords(name, 40) };
     if (!anchor.selector) return;
     if (strip) {
+      // the strip is the part: its line ends after the name and its buttons (lr), where the pin goes as after any
+      // words (V6e: a point before the buttons put the pin on the name's end, the box 7 px off the strip)
       window.hermes.comment(anchor, { el: strip.strip, box: function () {
         if (!strip.strip.isConnected || !strip.strip.getClientRects().length) return null;
-        var s = strip.strip.getBoundingClientRect(), nr = strip.name.getBoundingClientRect();
-        var stop = [strip.tw, strip.playBtn, strip.full].filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().left; });
-        var x = Math.max(s.left + PIN_HALF, Math.min(nr.right + 4 + PIN_HALF, Math.min.apply(null, stop.concat(s.right)) - PIN_HALF));
-        return { x: x - 1, y: s.top + s.height / 2 - 1, w: 2, h: 2, point: true };
+        var s = strip.strip.getBoundingClientRect(), end = [strip.name, strip.tw, strip.playBtn, strip.full]
+          .filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().right; });
+        return { x: s.left, y: s.top, w: s.width, h: s.height, ly: s.top, lh: s.height, lr: Math.max.apply(null, end.concat(s.left)) };
       } });
       return;
     }
@@ -1546,19 +1565,33 @@
     } });
   }
   // The host's comment pick: the frames pick inside themselves (frame.js); a zoom while picking tells them again.
+  // The host holds a click until every artboard has drawn and picks (runtime.html data-pick-later: V6e, a click in
+  // the 1.5 s an artboard took to load picked nothing), then gives it back (bridge pick-at: a click on its frame).
   var commentPicking = false;
   function sendPick() { frames.forEach(function (f) { if (f.mode !== "export") f.send({ t: "pick", on: commentPicking, k: scaleOf(f) }); }); }
-  // A click on a frame's own chrome while picking (its name strip): the comment is on that artboard.
+  function pickWhenDrawn() {
+    var waits = frames.filter(function (f) { return f.mode !== "export"; }).map(function (f) { return f.whenReady(); });
+    Promise.race([Promise.all(waits), new Promise(function (r) { setTimeout(r, 4000); })]).then(function () {
+      if (commentPicking && window.hermes.pickReady) window.hermes.pickReady();
+    });
+  }
+  // A click on a frame's own chrome while picking (its name strip): the comment is on that artboard. One the host
+  // held and gives back on an artboard's frame: picked in it, where it was.
   window.addEventListener("click", function (e) {
     if (!commentPicking) return;
     var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
     if (!b || !b.frame) return;
     e.preventDefault(); e.stopImmediatePropagation();
+    if (e.target === b.frame.iframe) {
+      var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
+      b.frame.send({ t: "pickAt", x: (e.clientX - ir.left) / k, y: (e.clientY - ir.top) / k });
+      return;
+    }
     framePicked(b.frame, { t: "picked", tid: null }, e.target.closest(".dc-strip") ? b : null);
   }, true);
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.
-    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); });
+    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); if (commentPicking) pickWhenDrawn(); });
     window.hermes.on("flash", function (d) {
       var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(String(d && d.selector || ""));
       var p = m && Object.keys(files).filter(function (f) { return enc(f) === m[1]; })[0];

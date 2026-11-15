@@ -665,8 +665,8 @@
     }
   }
   var pop = null;
-  function closePop() { if (pop) { pop.remove(); pop = null; document.removeEventListener("mousedown", popOut, true); } }
-  function popOut(e) { if (pop && !pop.contains(e.target)) closePop(); }
+  function closePop() { if (pop) { pop.remove(); pop = null; document.removeEventListener("pointerdown", popOut, true); } }
+  function popOut(e) { if (pop && !pop.contains(e.target)) { kit.swallowPress(e); closePop(); } } // only closes it
   function popover(anchor, kids, wide) {
     closePop();
     pop = h("div", { "class": "ds-pop" + (wide ? " ds-pop-wide" : ""), role: "dialog" }, kids);
@@ -674,7 +674,7 @@
     var r = anchor.getBoundingClientRect();
     pop.style.top = Math.max(8, Math.min(r.bottom + 6, innerHeight - pop.offsetHeight - 8)) + "px";
     pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + "px";
-    setTimeout(function () { document.addEventListener("mousedown", popOut, true); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", popOut, true); }, 0);
     pop.addEventListener("keydown", function (e) { if (e.key === "Escape") closePop(); });
     return pop;
   }

@@ -1,14 +1,15 @@
 /* Injected into every artifact page. Talks only to the parent shell over a MessagePort. */
 (function () {
   if (window.hermes) return;
-  // Protocol 3 (the hello's v): besides ops and events, the page sends the host "ready" (once per load),
-  // "diag" (the page's errors) and, when the host's port message says v >= 3, "alive" every 2 s.
+  // Protocol 4 (the hello's v): besides ops and events, the page sends the host "ready" (once per load),
+  // "diag" (the page's errors) and, when the host's port message says v >= 3, "alive" every 2 s; and (4) says
+  // "pick-ready" when picking is on, its click picks (the host holds a click until then: "pick-at").
   // Pages with an older bridge (hello v 2 or none) send none of them.
   //   ready  {threw, blank, t}: threw = an uncaught error or rejection came before it; blank = the page showed
   //          nothing a user could see when it was sent (isBlank()); t = ms since the page started.
   //   diag   {entries: [{k, m, at?, n, stack?, tag?, url?}], dropped}: n and dropped count since the last post.
   //   alive  null.
-  var PROTOCOL = 3;
+  var PROTOCOL = 4;
   // Where this script sits in the document: the server put it, and its lines, right after <head>, so a
   // line the browser reports for the page's own inline code is that many lines further down.
   var self = { head: -1, k: 0, url: "" };
@@ -557,7 +558,7 @@
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
   var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4;
-  /** The first line of the element's words, {top, height, right}; null when it has none (an image). */
+  /** The first line of the element's words, {top, height, left, right}; null when it has none (an image). */
   function firstLine(el) {
     try {
       var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, rg = document.createRange(), line = null;
@@ -568,8 +569,8 @@
         for (var j = 0; j < rs.length; j++) {
           var q = rs[j];
           if (!(q.height > 0 && q.width > 0)) continue;
-          if (!line) line = { top: q.top, height: q.height, right: q.right };
-          else if (q.top < line.top + line.height / 2) line.right = Math.max(line.right, q.right); // the same line
+          if (!line) line = { top: q.top, height: q.height, left: q.left, right: q.right };
+          else if (q.top < line.top + line.height / 2) { line.left = Math.min(line.left, q.left); line.right = Math.max(line.right, q.right); } // the same line
           else return line;
         }
       }
@@ -672,8 +673,8 @@
    *  end), which of the pin's spots are free (the host's pinSpot tries them in this order): right (fr) and
    *  left (fl) of the box on that line, after the line's words (fw), above (fa) and below (fb) the box's
    *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
-   *  vb: band()). A spot is free when no other element's words, picture or control is under it (fw: nor the
-   *  element's own words). */
+   *  vb: band()); in a grid that keeps pins in its parts, where in it the pin goes (px: pinIn). A spot is free
+   *  when no other element's words, picture or control is under it (fw: nor the element's own words). */
   function pickRect(el) { return rectOf(el, el.getBoundingClientRect(), firstLine(el), null); }
   /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
    *  frame, a point of a film's picture), in `el` (what holds it there: the frame, the picture). The page may say
@@ -702,12 +703,50 @@
     if (line) {
       var wb = at(line.right + PIN_GAP, t);
       out.lr = line.right;
-      out.fw = free("fw", wb) && (given || !ownWords(el, wb));
+      out.fw = free("fw", wb) && (!!given || !ownWords(el, wb)); // a boolean: the host drops anything else
     }
-    var kp = keeps(el), kw = keptWords(el);
+    var grid = el.closest && el.closest("[data-comment-pin-in]");
+    if (grid && grid !== el) out.px = pinIn(r, line);
+    var kp = keeps(el), kw = keptWords(el), kc = contentIn();
     if (kp.length) out.kp = kp;
     if (kw.length) out.kw = kw;
+    if (kc.length) out.kc = kc;
     return out;
+  }
+  /** What is on the page in sight, for the comment's box to prefer empty room (kc): each line of words and each
+   *  picture or control, [left, top, right, bottom] in the window, at most KC_MAX (the first in the page's order);
+   *  a box out of sight is not looked into. */
+  var KC_MAX = 160;
+  function contentIn() {
+    var out = [], seen = 0;
+    var inSight = function (q) { return q.width >= 1 && q.height >= 1 && q.right > 0 && q.bottom > 0 && q.left < innerWidth && q.top < innerHeight; };
+    var push = function (q) { out.push([Math.floor(q.left), Math.floor(q.top), Math.ceil(q.right), Math.ceil(q.bottom)]); };
+    try {
+      var w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+        if (n.nodeType === 3) return /\S/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        if (n.hasAttribute("data-hermes-ui") || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
+        var q = n.getBoundingClientRect(); // a box out of sight, or of no size, holds nothing seen (an overflow aside)
+        if (!inSight(q) && getComputedStyle(n).overflow !== "visible") return NodeFilter.FILTER_REJECT;
+        return SOLID.test(n.tagName) && inSight(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      } }), n, rg = document.createRange();
+      while ((n = w.nextNode()) && out.length < KC_MAX && seen++ < 4000) {
+        if (n.nodeType === 1) { push(n.getBoundingClientRect()); continue; }
+        rg.selectNodeContents(n);
+        var rs = rg.getClientRects();
+        for (var j = 0; j < rs.length && out.length < KC_MAX; j++) if (inSight(rs[j])) push(rs[j]);
+      }
+    } catch (_) {}
+    return out;
+  }
+  /** The pin's left inside a part of a grid that asks for it ([data-comment-pin-in]: a sheet's cells, where a pin
+   *  beside the cell is on its neighbour: V6e, B3's pin over C3): after its words, else before them (a number set
+   *  right), else at its right end; an empty part's in its middle. */
+  function pinIn(r, line) {
+    var lo = r.left + 2, hi = r.right - 2 - PIN;
+    if (!line) return Math.max(lo, r.left + (r.width - PIN) / 2);
+    if (line.right + PIN_GAP <= hi) return line.right + PIN_GAP;
+    if (line.left - PIN_GAP - PIN >= lo) return line.left - PIN_GAP - PIN;
+    return Math.max(lo, hi);
   }
   /** The words the comment's box keeps off where there is room, besides the page's controls (kw: never a reason to
    *  hide the pin): in a part of the page that asks for it ([data-comment-keep-words]: a deck's slide, V6d's box
@@ -849,7 +888,18 @@
   ["touchstart", "touchend"].forEach(function (t) { window.addEventListener(t, swallow, { capture: true, passive: true }); });
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onPick, true);
-  on("comment-mode", function (d) { setPicking(d && d.on); });
+  // Picking on: the host is told when a click picks (it holds one made sooner: V6e, a pick 0 ms after Comment in a
+  // page just opened was lost), at once, or by a page that picks inside frames of its own once they all do
+  // (<html data-pick-later>: a design's artboards; hermes.pickReady). The click it held comes back as pick-at.
+  on("comment-mode", function (d) {
+    setPicking(d && d.on);
+    if (picking && !document.documentElement.hasAttribute("data-pick-later")) emit("pick-ready", {});
+  });
+  on("pick-at", function (d) {
+    if (!picking || !d || !isFinite(d.x) || !isFinite(d.y)) return;
+    var el = document.elementFromPoint(d.x, d.y);
+    if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, clientX: d.x, clientY: d.y }));
+  });
   on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
     pins.forEach(function (p) { p.remove(); }); pins = [];
     if (document.documentElement.hasAttribute("data-own-pins")) return; // the page draws its own (a doc's margin cards)
@@ -1006,6 +1056,8 @@
     },
     /** A page that moved what was commented on without a scroll (a canvas panned or zoomed): its pin follows. */
     moved: function () { pickedMoved(); },
+    /** A page that picks inside frames of its own (<html data-pick-later>): its clicks pick from now on. */
+    pickReady: function () { if (picking) emit("pick-ready", {}); },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
     vendor: function (name) { return call("vendor", { name: String(name) }).then(function (r) { return r.text; }); },
     /** Type runtimes only (slides, doc): save edited files as a new version. */

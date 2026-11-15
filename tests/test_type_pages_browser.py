@@ -1712,3 +1712,128 @@ class DesignCrumbsAndSheet(unittest.TestCase):
         self.assertEqual(len(o["comments"]), 1, o)
         self.assertRegex(o["comments"][0][0], r"^Main\.dc\.html#\d+:")
         self.assertTrue(o["comments"][0][1], o)  # beside its element, with its pin
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6ePages(unittest.TestCase):
+    """Live round V6e (2fb9e93): "Test dash2"'s "92.4" and "97.9" kept the dashed target line off them, but the solid
+    gridline at 100 ran through the top of "92.4"'s digits and 1.7 px under "97.9" (a 906 px frame)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_test_dash2_values_keep_their_ink_off_every_rule_of_the_plot(self):
+        # Each value's glyphs' ink against every rule drawn (the target's dashes, every gridline; a gridline only
+        # where no bar covers it), its half stroke counted: at least 4 px apart, in Hermes' font and colours.
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        probe = r"""(() => { const svg = [...document.querySelectorAll('.c-chart svg')].find(s => s.querySelector('line.c-ref')); if (!svg) return null
+          const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, m0 = svg.getScreenCTM()
+          const rules = [...svg.querySelectorAll('line.c-ref, .c-grid line')].map(l => { const b = l.getBoundingClientRect(), h = (l.classList.contains('c-ref') ? 0.75 : 0.5) * k
+            return { grid: !l.classList.contains('c-ref'), l: b.left, r: b.right, t: b.top - h, b: b.bottom + h } }).filter(s => s.r - s.l > 0.5)
+          const bars = [...svg.querySelectorAll('rect')].filter(r => !r.closest('.c-axis, .c-grid') && r.getAttribute('fill') !== 'transparent').map(r => r.getBoundingClientRect())
+          const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
+          return { font: getComputedStyle(svg.querySelector('text.c-value')).fontFamily, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+            const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
+            const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k
+            const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
+            const inBar = bars.some(b => b.left <= ink.l && ink.r <= b.right && b.top <= ink.t && ink.b <= b.bottom)
+            const near = rules.filter(s => !(s.grid && inBar)).map(s => ({ grid: s.grid, d: Math.hypot(Math.max(0, s.l - ink.r, ink.l - s.r), Math.max(0, s.t - ink.b, ink.t - s.b)) }))
+            return { v: t.textContent, d: Math.round(Math.min(...near.map(n => n.d)) * 10) / 10, grid: near.filter(n => n.d < 4).map(n => n.grid) } }) } })()"""
+        for theme in (HERMES_DARK, HERMES_LIGHT):
+            for w in (399, 739, 906, 1250):
+                r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=theme, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
+                            f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
+                self.assertIsNone(r.get("err"), r)
+                o, k = r["out"], (theme["mode"], w)
+                self.assertTrue(o and len(o["vals"]) >= 4, (k, o))
+                self.assertIn("Segoe", o["font"], k)
+                for v in o["vals"]:
+                    self.assertGreaterEqual(v["d"], 4, (k, v, o))
+
+    DESIGN_AT = "(() => {{ const r = __design.boards[{p}].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * {x}, r.top + r.height * {y}] }})()"
+
+    def design(self, w, hh, then, path="Main.dc.html", fx=0.3, fy=0.15):
+        if not hasattr(self, "design_id"):
+            type(self).design_id = self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(self.design_id, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(3000)\n"
+                    f"const q = await api.frame({json.dumps(self.DESIGN_AT.format(p=json.dumps(path), x=fx, y=fy))}); await api.mouse(q[0], q[1]); await api.sleep(1200)\n" + then)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_design_toolbar_never_lies_on_the_pages_own_controls(self):
+        # V6e: the landing page's heading selected, its crumb "Group" (the whole page) clicked: the toolbar went under
+        # the selection, onto the bottom palette (a 1249 x 714 frame: the 1510 px window, Properties open); at 738 px
+        # (the 999 px window, the sheet closed) the artboard or its Group selected put it over the palette too.
+        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        probe = ("(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, t = document.querySelector('.dc-tools'), v = document.getElementById('dc-view')"
+                 "; return { tools: !t.hidden && t.getClientRects().length ? box(t) : null, view: box(v), ctl: [...document.querySelectorAll('.dc-pill, #dc-panel')].filter(e => !e.hidden && e.getClientRects().length).map(box) } })()")
+        for w, hh, crumb in ((1249, 714, 1), (738, 714, 0), (738, 714, 1)):
+            o = self.design(w, hh, f"await api.frame('document.querySelectorAll(\".dc-crumbs button\")[{crumb}].click()'); await api.sleep(900)\n"
+                                   f"return await api.frame({json.dumps(probe)})")
+            what = (w, crumb, o)
+            self.assertTrue(o["tools"], what)
+            self.assertTrue(o["view"][0] <= o["tools"][0] and o["tools"][2] <= o["view"][2] and o["view"][1] <= o["tools"][1] and o["tools"][3] <= o["view"][3], what)
+            for c in o["ctl"]:
+                self.assertFalse(meet(o["tools"], c), (c, what))
+
+    def drive_page(self, aid, body, w=1000):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(1500)\n" + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_a_press_that_closes_a_pages_own_menu_or_popover_activates_nothing(self):
+        # V6e: the doc's Insert (+) menu open (the doc's own menu, not the kit's), Full width pressed: the menu closed AND
+        # the page went wide. The same path in every type's own menus and toolbar popovers (a board's Shapes).
+        btn = lambda label: f'[...document.querySelectorAll("button")].find(b => (b.getAttribute("aria-label") || "").startsWith("{label}"))'
+        doc = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        st = '[document.querySelectorAll(".doc-rmenu").length, document.documentElement.classList.contains("doc-wide")]'
+        out = self.drive_page(doc, f"""
+          const st = () => api.frame({json.dumps(st)})
+          const o = {{ before: await st() }}
+          await api.clickIn({json.dumps(btn("Insert"))}); await api.sleep(300); o.open = await st()
+          await api.clickIn({json.dumps(btn("Full width"))}); await api.sleep(400); o.pressed = await st()
+          await api.clickIn({json.dumps(btn("Full width"))}); await api.sleep(400); o.again = await st()
+          return o""")
+        self.assertEqual(out["open"], [1, out["before"][1]], out)
+        self.assertEqual(out["pressed"], [0, out["before"][1]], out)  # only the menu went
+        self.assertEqual(out["again"], [0, not out["before"][1]], out)  # pressed again: it acts
+        board = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}]}})["id"]
+        st = f'[document.querySelectorAll(".bd-pop").length, ({btn("Sticky note")}).getAttribute("aria-pressed")]'
+        out = self.drive_page(board, f"""
+          const st = () => api.frame({json.dumps(st)})
+          await api.clickIn({json.dumps(btn("Shapes"))}); await api.sleep(300); const o = {{ open: await st() }}
+          await api.clickIn({json.dumps(btn("Sticky note"))}); await api.sleep(300); o.pressed = await st()
+          await api.clickIn({json.dumps(btn("Sticky note"))}); await api.sleep(300); o.again = await st()
+          return o""")
+        self.assertEqual(out["open"][0], 1, out)
+        self.assertEqual(out["pressed"], [0, "false"], out)
+        self.assertEqual(out["again"], [0, "true"], out)
+
+    def test_the_properties_sheet_carries_the_breadcrumb_it_covers(self):
+        # V6e: at 999 px (a 738 px frame) with the sheet open the canvas's breadcrumb was under it: the hierarchy
+        # could not be climbed. The sheet has it, each crumb whole and in sight; one clicked selects its part, the
+        # sheet stays open.
+        probe = r"""(() => { const sh = [...document.querySelectorAll('.dc-sheet-crumbs button')], p = document.getElementById('dc-panel').getBoundingClientRect()
+          return { panel: !document.getElementById('dc-panel').hidden, names: sh.map(b => b.textContent), canvas: [...document.querySelectorAll('.dc-crumbs button')].map(b => b.textContent),
+            whole: sh.every(b => { const r = b.getBoundingClientRect(); return r.width > 0 && b.scrollWidth <= b.clientWidth + 0.5 && r.left >= p.left - 0.5 && r.right <= p.right + 0.5 && r.bottom <= innerHeight }),
+            tids: __design.state().sel.tids.length } })()"""
+        o = self.design(738, 714, f"""
+          await api.frame({json.dumps(PROPS)}); await api.sleep(600)
+          const o = {{ open: await api.frame({json.dumps(probe)}) }}
+          await api.frame('document.querySelectorAll(".dc-sheet-crumbs button")[1].click()'); await api.sleep(800)
+          o.climbed = await api.frame({json.dumps(probe)})
+          return o""")
+        op, cl = o["open"], o["climbed"]
+        self.assertTrue(op["panel"], o)
+        self.assertEqual(op["names"], op["canvas"], o)  # the canvas's own trail
+        self.assertGreaterEqual(len(op["names"]), 3, o)
+        self.assertTrue(op["whole"], o)
+        self.assertTrue(cl["panel"], o)  # the sheet stays
+        self.assertEqual(cl["names"], op["names"][:2], o)  # its part selected: the trail ends there

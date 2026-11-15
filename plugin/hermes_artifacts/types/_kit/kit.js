@@ -147,6 +147,19 @@
     a.blur();
   }, true);
 
+  /** A press outside an open menu or a toolbar's popover only closes it (the caller closes it): neither the press
+   *  nor its click reaches what is under it (a canvas would select, a button would act: V6e, a doc's Full width
+   *  under its open Insert menu). For a pointerdown, in the capture phase; the click is caught once, as the press
+   *  ends. */
+  function swallowPress(e) {
+    e.preventDefault(); e.stopPropagation();
+    var swallow = function (c) { c.preventDefault(); c.stopPropagation(); };
+    var up = function () {
+      window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true);
+      setTimeout(function () { window.removeEventListener("click", swallow, true); }, 0);
+    };
+    window.addEventListener("click", swallow, true); window.addEventListener("pointerup", up, true); window.addEventListener("pointercancel", up, true);
+  }
   var openMenu = null, menuAnchor = null;
   /** A dropdown under anchor. Clicking anchor again closes it (it never closes and reopens);
    *  a scroll or a resize closes it too, so it never drifts away from its button. onClose(): once it is gone,
@@ -203,17 +216,10 @@
       if (onClose) { var f = onClose; onClose = null; f(); }
     }
     function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
-    // A press outside only closes it: neither it nor its click reaches what is under it (a canvas would select, a
-    // button would act). The click is caught once, as the press ends.
+    // A press outside only closes it (swallowPress).
     function out(e) {
       if (m.contains(e.target) || (anchor.contains && anchor.contains(e.target))) return;
-      e.preventDefault(); e.stopPropagation();
-      var swallow = function (c) { c.preventDefault(); c.stopPropagation(); };
-      var up = function () {
-        window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true);
-        setTimeout(function () { window.removeEventListener("click", swallow, true); }, 0);
-      };
-      window.addEventListener("click", swallow, true); window.addEventListener("pointerup", up, true); window.addEventListener("pointercancel", up, true);
+      swallowPress(e);
       close();
     }
     // Esc closes it (the focus back on its button); the arrows walk its items
@@ -612,6 +618,6 @@
   }
   function noFill(input, value) { input.classList.toggle("kit-nofill", isClear(value)); return input; }
 
-  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, toast: toast,
+  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, addIcons: addIcons, button: button, labelled: labelled, menu: menu, swallowPress: swallowPress, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

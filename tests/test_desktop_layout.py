@@ -604,6 +604,32 @@ class LayoutTests(unittest.TestCase):
             self.assertIsNone(r.get("err"), r)
             self.assertEqual(r["out"], {"open": True, "tile": True, "closed": True, "chats": 0, "chatsAfter": 1}, w)
 
+    def test_the_press_that_closes_a_menu_shows_no_tooltip_until_the_pointer_moves(self):
+        # V6e: the folder chip's menu open, a press on a template tile closed it and that tile's tooltip came up at
+        # once: the swallowed press (and the move to it, made under the menu) is no move onto the tile
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '100%%'; root.style.width = ''
+          M.$list.set([]); M.$folders.set(['Alpha', 'Beta']); M.$folder.set('Alpha'); M.$layout.set('grid'); M.$query.set(''); M.$trash.set([])
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        chip = ("(() => { const b = document.querySelector('button[aria-haspopup=\"menu\"]');"
+                " const r = b.getBoundingClientRect(); return [r.right - 12, r.top + r.height / 2] })()")
+        tile = """(() => { const items = [...document.querySelectorAll('button')].filter(b => /^Rename/.test(b.textContent.trim())); const m = items.length ? items[0].parentElement.getBoundingClientRect() : null
+          const t = [...document.querySelectorAll('button')].filter(b => ['Docs', 'Sheets', 'Slides', 'Design', '3D', 'Motion', 'Whiteboard', 'Dashboard'].includes(b.textContent))
+            .map(b => b.firstElementChild.getBoundingClientRect()).find(r => r.width && r.bottom < innerHeight && (!m || r.right < m.left || m.right < r.left || r.bottom < m.top || m.bottom < r.top))
+          return t ? [t.left + t.width / 2, t.top + t.height / 2] : null })()"""
+        tips = "document.querySelectorAll('[role=tooltip]').length"
+        for w in (406, 1500):
+            r = self.page.drive(f"""
+              await api.size({w}, 900); await api.top({json.dumps(setup)}); await api.sleep(400)
+              const c = await api.top({json.dumps(chip)}); await api.mouse(c[0], c[1]); await api.sleep(400)
+              const t = await api.top({json.dumps(tile)})
+              await api.pointer('mouseMoved', t[0] - 6, t[1]); await api.sleep(150); const o = {{ underMenu: await api.top({json.dumps(tips)}) }}
+              await api.mouse(t[0], t[1]); await api.sleep(500); o.closed = await api.top({json.dumps(tips)})
+              await api.pointer('mouseMoved', t[0] + 4, t[1] + 2); await api.sleep(300); o.moved = await api.top({json.dumps(tips)})
+              return o""")
+            self.assertIsNone(r.get("err"), r)
+            self.assertEqual(r["out"], {"underMenu": 0, "closed": 0, "moved": 1}, w)
+
     def test_the_chip_shown_is_scrolled_clear_of_the_faded_ends(self):
         # V6c at 406 px: the chosen chip ("Q…") was scrolled flush to the row's end, under its 24 px fade
         names = ["Alpha", "Beta", "Gamma", "Quarterly review of the northern region", *[f"Folder {i}" for i in range(1, 9)]]

@@ -423,12 +423,22 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
               const o = await pickAt('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left + Math.min(30, r.width / 3), r.top + r.height / 2] }})()', {json.dumps(chrome)})
               const s = await api.frame('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()')
               o.strip = [s[0] + o.off[0], s[1] + o.off[1], s[2] + o.off[0], s[3] + o.off[1]]
+              // the name's words and the strip's buttons, in the window
+              o.parts = (await api.frame('(() => {{ const s = {board}.querySelector(".dc-strip"), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
+                + '; return [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(b => [b.left, b.right]) }})()'))
+                .map(p => [p[0] + o.off[0], p[1] + o.off[0]])
               return o""", w, settle=3000)
             self.clear(o, (w, "strip"))
             # V6d: the pin lay 6 px left of the artboard, off it: on the strip picked
             self.assertTrue(o["pin"], (w, o))
             cx, cy = (o["pin"]["l"] + o["pin"]["r"]) / 2, (o["pin"]["t"] + o["pin"]["b"]) / 2
             self.assertTrue(o["strip"][0] <= cx <= o["strip"][2] and o["strip"][1] <= cy <= o["strip"][3], ("pin off the strip", w, o))
+            # V6e: its centre was 11 px before the name's end, on "…age"; the box 7 px off the strip. The pin goes
+            # after the name and its buttons, PIN_GAP (6 px) past the last, as after any words; the box 8 px off
+            end = max(p[1] for p in o["parts"])
+            self.assertTrue(0 <= o["pin"]["l"] - end <= 12, ("pin not right after the name and its buttons", w, o))
+            b, s = o["box"], o["strip"]
+            self.assertGreaterEqual(max(b["l"] - s[2], s[0] - b["r"], b["t"] - s[3], s[1] - b["b"]), 8 - 0.5, ("box within 8 px of the strip", w, o))
 
     def test_a_decks_blank_pick_keeps_the_box_off_the_thumbnails(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
@@ -666,6 +676,139 @@ class PickKeepsTheFrame(unittest.TestCase):
                 else:  # beside the part (pinSpot: PIN_GAP 6 off it) or on it
                     pt = o["part"]
                     self.assertTrue(pin[2] >= pt[0] - 7 and pin[0] <= pt[2] + 7 and pin[3] >= pt[1] - 7 and pin[1] <= pt[3] + 7, what)
+
+
+
+# The tester's plain page (V6e): a heading, a line under it, a field and its button across the page.
+BRIDGE_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui;background:#1d1d1b;color:#eee}main{padding:24px}"
+               "h1{font-size:32px;margin:40px 0 16px}.row{display:flex;gap:8px;margin-top:40px}.row input{flex:1;height:34px}</style>"
+               "<main><h1 id=h>Bridge demo v2</h1><p>This page checks the bridge: state, notify, reloads)</p>"
+               "<div class=row><input id=msg><button>Send</button></div></main>")
+# Every line of words and every picture or control in the frame, in the window (frame JS, off: the frame's corner).
+CONTENT = r"""(() => { const out = [], rg = document.createRange(), w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  for (let n; (n = w.nextNode());) { if (!/\S/.test(n.nodeValue) || n.parentElement.closest('[data-hermes-ui], script, style')) continue; rg.selectNodeContents(n)
+    for (const q of rg.getClientRects()) if (q.width && q.height && q.bottom > 0 && q.top < innerHeight) out.push({ t: n.nodeValue.trim().slice(0, 20), l: q.left, t0: q.top, r: q.right, b: q.bottom }) }
+  for (const e of document.querySelectorAll('input, button, select, svg, canvas, img, iframe')) { const q = e.getBoundingClientRect(); if (q.width && q.height && q.bottom > 0 && q.top < innerHeight) out.push({ t: e.tagName, l: q.left, t0: q.top, r: q.right, b: q.bottom }) }
+  return out })()"""
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6eComments(unittest.TestCase):
+    """Live round V6e (2fb9e93): a sheet's B3 picked had its pin over C3; the new comment's box lay on the paragraph
+    under a plain page's heading with room free to its right, and on the next KPI and a chart's title of a
+    dashboard."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def pick(self, aid, sel, where, w, then="return o", h=714, settle=2500):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, SETTLE = {settle}; await api.size({w}, {h});"
+                    + BOOT_ANY + f"const o = await pickAt({json.dumps(where)}, '[]')\n"
+                    f"o.content = (await api.frame({json.dumps(CONTENT)})).map(c => ({{ ...c, l: c.l + o.off[0], r: c.r + o.off[0], t0: c.t0 + o.off[1], b: c.b + o.off[1] }}))\n" + then, timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    @staticmethod
+    def meet(a, c):
+        return a["l"] < c["r"] - 0.5 and c["l"] < a["r"] - 0.5 and a["t"] < c["b"] - 0.5 and c["t0"] < a["b"] - 0.5
+
+    def test_a_sheet_cells_pin_is_in_the_cell_never_on_a_neighbour(self):
+        rows = [["Item", "Unit price", "Qty", "Total"], ["Wall panels", 2000, 3, 6000], ["Rails", 300, 10, 3000], ["Total"]]
+        aid = store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": rows}]}})["id"]
+        cell = '[...document.querySelectorAll("#sh-grid .sh-c")].find(c => c.textContent.trim() === "{}")'
+        for w in (1249, 600):
+            for v in ("300", "Rails", "10"):
+                c = cell.format(v)
+                o = self.pick(aid, c, f'(() => {{ const r = ({c}).getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height / 2] }})()', w,
+                              f"const b = await api.frame('(() => {{ const r = ({c}).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()'); o.cell = [b[0] + o.off[0], b[1] + o.off[1], b[2] + o.off[0], b[3] + o.off[1]]; return o")
+                what = (w, v, o["pin"], o["cell"])
+                self.assertTrue(o["pin"], what)
+                p, cl = o["pin"], o["cell"]
+                # V6e: B3's pin 6 px right of the cell, over C3. In its cell, across its borders at most (a pin is
+                # taller than a row), on no words
+                self.assertTrue(cl[0] <= p["l"] and p["r"] <= cl[2], ("pin outside its cell", what))
+                for c2 in o["content"]:
+                    self.assertFalse(self.meet(p, c2), ("pin on words", c2, what))
+
+    def test_the_box_takes_empty_room_before_the_words_around_its_element(self):
+        from test_type_pages_browser import DASH2, DASH2_CSV
+        page = store.publish(title="Test page", type="page", html=BRIDGE_PAGE)["id"]
+        dash = store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        cases = ((page, 'document.getElementById("h")', 0.3, None),
+                 (dash, '[...document.querySelectorAll(".c-kpi")][1]', 0.2, "Value, M USD"))
+        for aid, el, fx, own in cases:
+            for w in (1249, 900):
+                o = self.pick(aid, el, f'(() => {{ const r = ({el}).getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * 0.5] }})()', w,
+                              f"const b = await api.frame('(() => {{ const r = ({el}).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()'); o.el = [b[0] + o.off[0], b[1] + o.off[1], b[2] + o.off[0], b[3] + o.off[1]]; return o")
+                what = (aid, w, o["box"], o["el"])
+                self.assertTrue(o["box"] and o["pin"], what)
+                under = [c for c in o["content"] if self.meet(o["box"], c) and not (o["el"][0] <= c["l"] and c["r"] <= o["el"][2] and o["el"][1] <= c["t0"] and c["b"] <= o["el"][3])]
+                self.assertEqual(under, [], ("the box on the page's content", what))
+
+
+    def test_a_pick_right_after_comment_in_a_page_just_opened_is_never_lost(self):
+        # V6e: the header's Comment and a click 0 ms after it in a page just opened: slides 4/13, doc 2/4, sheet 4/4
+        # made no draft; a design none until its artboards had loaded (~1.5 s). The click is held until the page
+        # says its click picks, then picked there.
+        ex = D.ROOT / "examples"
+        cases = (
+            (store.publish(path=str(ex / "doc"), title="Doc", type="doc")["id"], 'document.querySelectorAll(".doc-blk")[1]', (0.1, 0.5), r"^#"),
+            (store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [{"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"],
+             '[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels")', (0.5, 0.5), r"."),
+            (store.publish(path=str(ex / "slides"), title="Deck", type="slides")["id"], 'document.querySelector(".sl-clip .sl-canvas h1")', (0.2, 0.5), r"."),
+            (store.publish(path=str(ex / "design"), title="Lumen", type="design")["id"], '__design.boards["Main.dc.html"].el.querySelector("iframe")', (0.3, 0.15), r"^Main\.dc\.html#\d+:"),
+        )
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        for aid, el, (fx, fy), sel in cases:
+            for attempt in range(2):
+                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}; await api.size(1300, 800);" + """
+                  await api.go(URL, 400)
+                  for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+                  await api.top(`(async () => { const { M, R, jsx, ctx } = window.H; M.$list.set((await ctx.rest('/artifacts')).artifacts)
+                    M.openArtifact(ctx, ${JSON.stringify(AID)}); R.mount(() => jsx(M.Viewer, { ctx }), document.getElementById('root')) })()`)
+                  let q = null
+                  for (let i = 0; i < 200 && !q; i++) { try { q = await api.frame(""" + json.dumps(f'(() => {{ const e = {el}; if (!e) return null; const r = e.getBoundingClientRect(); return r.width ? [r.left + r.width * {fx}, r.top + r.height * {fy}] : null }})()') + """) } catch (_) {} if (!q) await api.sleep(25) }
+                  const f = await api.top('(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top] })()')
+                  const b = await api.top('(() => { const b = [...document.querySelectorAll("button")].find(b => b.title === "Comment" || b.getAttribute("aria-label") === "Comment"); const q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2] })()')
+                  await api.mouse(b[0], b[1]); await api.mouse(f[0] + q[0], f[1] + q[1])
+                  for (let i = 0; i < 40 && !(await api.top('Boolean(window.H.M.$draft.get())')); i++) await api.sleep(100)
+                  return { draft: await api.top('window.H.M.$draft.get()'), picking: await api.top('window.H.M.$picking.get()') }""", timeout=240)
+                self.assertIsNone(r.get("err"), r)
+                o, what = r["out"], (aid, attempt, r["out"])
+                self.assertTrue(o["draft"] and o["draft"]["anchor"], ("the pick was lost", what))
+                self.assertRegex(o["draft"]["anchor"]["selector"], sel, what)
+                self.assertFalse(o["picking"], what)
+
+
+    def test_the_comment_button_keeps_no_ring_after_esc_or_cancel_ends_picking(self):
+        # V6e: Comment clicked, Esc: the button showed its focus ring (a key pressed makes Chromium's :focus-visible
+        # match the button the click focused). Hermes' buttons ring only for the keyboard's focus.
+        aid = store.publish(path=str(D.ROOT / "examples" / "doc"), title="Doc", type="doc")["id"]
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        ring = ('(() => { const b = [...document.querySelectorAll("button")].find(b => b.title === "Comment" || b.getAttribute("aria-label") === "Comment")'
+                '; return [document.activeElement === b, b.matches(":focus-visible"), window.H.M.$picking.get()] })()')
+        at = ('(() => { const b = [...document.querySelectorAll("button")].find(b => b.title === "@" || b.getAttribute("aria-label") === "@" || b.textContent.trim() === "@")'
+              '; const q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2] })()')
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = 'document.querySelector(\".doc-blk\")', SETTLE = 1500; await api.size(1300, 800);" + BOOT_ANY + f"""
+          const o = {{}}, ring = () => api.top({json.dumps(ring)})
+          let b = await api.top({json.dumps(at.replace("@", "Comment"))}); await api.mouse(b[0], b[1]); await api.sleep(300); o.armed = await ring()
+          await api.key('Escape', 'Escape', 27); await api.sleep(300); o.esc = await ring()
+          await api.mouse(b[0], b[1]); await api.sleep(300)
+          const c = await api.top({json.dumps(at.replace("@", "Cancel"))}); await api.mouse(c[0], c[1]); await api.sleep(300)
+          await api.key('Shift', 'ShiftLeft', 16); await api.sleep(200); o.cancel = await ring()
+          return o""", timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertEqual(o["armed"][2], True, o)
+        self.assertEqual(o["esc"][1:], [False, False], o)  # picking over, no ring
+        self.assertEqual(o["cancel"][1:], [False, False], o)
 
 
 if __name__ == "__main__":

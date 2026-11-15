@@ -694,6 +694,7 @@
         if (st.pick && !st.pickCss) { st.pickCss = document.createElement("style"); st.pickCss.textContent = "*{cursor:crosshair!important}"; document.head.appendChild(st.pickCss); }
         if (!st.pick && st.pickCss) { st.pickCss.remove(); st.pickCss = null; }
         break;
+      case "pickAt": if (st.pick) post(where(pick(document.elementFromPoint(m.x, m.y)), st.pick.k, 0)); break; // a click the host held
       case "where": var we = elementsOf(m.tid)[0]; if (we) post(where(we, +m.k || 1)); break;
       case "ds": setDs(m.css); if (installSystems(m.scripts) && st.inst) mount(); break;
       case "theme": setTheme(m.theme); break;

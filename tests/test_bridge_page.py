@@ -373,8 +373,8 @@ class BridgePageTests(unittest.TestCase):
             raise AssertionError("node failed:\n" + r.stderr[-4000:])
         cls.out = json.loads(r.stdout.strip().splitlines()[-1])
 
-    def test_hello_names_protocol_3(self):
-        self.assertEqual(self.out["helloV"], 3)
+    def test_hello_names_protocol_4(self):
+        self.assertEqual(self.out["helloV"], 4)  # 4: says when picking is on ("pick-ready")
 
     def test_a_page_listening_late_still_hears_that_picking_is_on(self):
         # every type's own pick (a deck's blank, a design's artboards, a film's point, a model's view) arms from it
