@@ -353,6 +353,23 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P.port.onmessage({ data: { event: 'comment-mode', detail: { on: false } } }); await P.tick(10)
   out.lateModeListener = heard
 
+  // --- V6g: a click that reaches the page itself while picking is on, before its ready (no host cover over it: 7 of
+  // 12 such clicks in a sheet just opened picked nothing): held, and picked once the page says its click picks
+  P = page(); P.connect(3); P.dcl()
+  const dispatched = []
+  P.doc.elementFromPoint = (x, y) => ({ dispatchEvent(e) { dispatched.push([x, y, e.type]) } })
+  P.sb.MouseEvent = function (type, init) { this.type = type; Object.assign(this, init) }
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: true } } })
+  const click = (x, y) => ({ type: 'click', isTrusted: true, clientX: x, clientY: y, target: { closest: () => null }, prevented: false, stopped: false,
+    preventDefault() { this.prevented = true }, stopImmediatePropagation() { this.stopped = true } })
+  const first = click(40, 70), second = click(90, 20)
+  P.sb._fire('click', first); P.sb._fire('click', second)
+  const early = P.events('pick-ready').length
+  P.load(); await P.tick(3000)
+  const after = click(5, 5); P.sb._fire('click', after) // the page picks now: the click is its own
+  out.heldClick = { early, held: [first.prevented && first.stopped, second.prevented && second.stopped], ready: P.events('pick-ready').length,
+    dispatched, afterLeft: !after.prevented && !after.stopped }
+
   console.log(JSON.stringify(out))
 })().catch(e => { console.error(e && e.stack || e); process.exit(1) })
 """
@@ -379,6 +396,14 @@ class BridgePageTests(unittest.TestCase):
     def test_a_page_listening_late_still_hears_that_picking_is_on(self):
         # every type's own pick (a deck's blank, a design's artboards, a film's point, a model's view) arms from it
         self.assertEqual(self.out["lateModeListener"], [True, False])
+
+    def test_a_click_in_the_page_before_its_ready_is_held_and_picked_at_ready(self):
+        o = self.out["heldClick"]
+        self.assertEqual(o["early"], 0, o)  # not ready yet: its click does not pick
+        self.assertEqual(o["held"], [True, True], o)  # neither reaches the page's own handlers
+        self.assertEqual(o["ready"], 1, o)
+        self.assertEqual(o["dispatched"], [[40, 70, "click"]], o)  # the first one, picked at ready
+        self.assertTrue(o["afterLeft"], o)
 
     def test_ready_by_default_at_load_plus_two_frames_once(self):
         o = self.out

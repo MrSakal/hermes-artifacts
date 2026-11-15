@@ -75,7 +75,7 @@ class PopupFitTests(unittest.TestCase):
         for name in ("function CardMenu(", "function FilterMenu(", "function NewMenu(", "function TileDsMenu(", "function TitleMenu("):
             start = SRC.index(name)
             self.assertIn("jsx(PopMenu,", SRC[start:start + 6000], name)
-        self.assertIn("commentLayout(draft.rect, bw, bh, boxH, cover)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover)", section("function CommentPopover(", "function DockView("))
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -312,21 +312,31 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("$panelCover.set(mode.cover)", panel)
         self.assertIn("$panelCover.set(0)", panel)  # closed or gone: nothing covered
         self.assertIn("top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, background: C.bg", section("function panelStyle(", "/** Whether the new comment's box"))  # opaque, all of it
-        self.assertIn("commentLayout(draft.rect, bw, bh, boxH, cover)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover)", section("function CommentPopover(", "function DockView("))
         # in the pane beside a chat too (it had no box at all: the stage there has no id)
         self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage })", section("function Viewer(", "function Toast("))
 
-    def test_an_element_scrolled_out_of_the_frame_has_no_pin(self):
+    def test_an_element_scrolled_out_of_the_frame_keeps_its_pin_at_the_nearest_edge(self):
+        # V6g: zoomed off screen, a design's draft lost its pin and the box parked in the bottom-right corner. The pin
+        # stays at the stage's edge nearest the element (its middle held inside), the box by it as for any pin.
         body = """
         const L = r => m.commentLayout(r, 1000, 700, 170, 0)
-        console.log(JSON.stringify([L({ x: 100, y: -80, w: 200, h: 40 }).pin, L({ x: 100, y: 720, w: 200, h: 40 }).pin,
-          L({ x: -300, y: 100, w: 200, h: 40 }).pin, L({ x: 100, y: -20, w: 200, h: 40 }).pin !== null, L({ x: 100, y: 720, w: 200, h: 40 }).box !== null]))
+        const gap = ({ pin, box }) => Math.max(pin.x - (box.x + m.COMMENT_W), box.x - (pin.x + pin.s), pin.y - (box.y + Math.min(170, box.maxH)), box.y - (pin.y + pin.s))
+        const cases = [L({ x: 100, y: -80, w: 200, h: 40 }), L({ x: 100, y: 720, w: 200, h: 40 }), L({ x: -300, y: 100, w: 200, h: 40 }), L({ x: 100, y: -20, w: 200, h: 40 })]
+        console.log(JSON.stringify(cases.map(c => ({ pin: c.pin, gap: gap(c) }))))
         """
-        self.assertEqual(run_node(stub_module(EXPORTS), body), [None, None, None, True, True])  # partly in view: still pinned
+        top, bottom, left, part = run_node(stub_module(EXPORTS), body)
+        self.assertEqual((top["pin"]["x"], top["pin"]["y"]), (200 - 13, 4))
+        self.assertEqual((bottom["pin"]["x"], bottom["pin"]["y"]), (200 - 13, 700 - 4 - 26))
+        self.assertEqual((left["pin"]["x"], left["pin"]["y"]), (4, 120 - 13))
+        self.assertIsNotNone(part["pin"])  # partly in view: pinned beside it
+        for o in (top, bottom, left, part):
+            self.assertEqual(o["gap"], 8, o)  # the box by its pin
 
-    def test_a_draft_whose_element_is_out_of_sight_waits_in_the_bottom_right_corner(self):
-        # Round V1: scrolled out of view, the box jumped to x 310-630 over a doc's contents down its left. Now it
-        # waits in the bottom-right corner of the band between the page's bars, whatever the stage and the list.
+    def test_a_draft_whose_element_is_out_of_sight_stays_by_its_pin_inside_the_band(self):
+        # Round V1: scrolled out of view, the box jumped over a doc's contents down its left; V6g: parked in the
+        # bottom-right corner with no pin it read as attached to nothing. The pin at the band's edge nearest the
+        # element, the box by it, both inside the band between the page's bars, whatever the stage and the list.
         body = '''
         const out = []
         for (const [bw, bh, cover] of [[1500, 860, 0], [1000, 700, 0], [700, 520, 0], [1000, 700, 0]])
@@ -334,12 +344,14 @@ class CommentPinTests(unittest.TestCase):
             for (const h0 of [120, 170, 400]) {
               const { pin, box } = m.commentLayout(rect, bw, bh, h0, cover)
               const vt = rect.vt || 0, vb = rect.vb || bh, h = Math.min(h0, box.maxH)
-              out.push([pin, box.x + m.COMMENT_W === bw - cover - 8, box.y + h === vb - 8, box.y >= vt + 8])
+              const gap = Math.max(pin.x - (box.x + m.COMMENT_W), box.x - (pin.x + pin.s), pin.y - (box.y + h), box.y - (pin.y + pin.s))
+              const edge = Math.min(pin.y - vt, vb - pin.y - pin.s)
+              out.push([gap >= 8 && gap <= 24, edge === 4, box.y >= vt + 8 && box.y + h <= vb - 8, box.x >= 8 && box.x + m.COMMENT_W <= bw - cover - 8])
             }
         console.log(JSON.stringify(out))
         '''
-        for pin, right, bottom, under_bar in run_node(stub_module(EXPORTS), body):
-            self.assertEqual((pin, right, bottom, under_bar), (None, True, True, True))
+        for o in run_node(stub_module(EXPORTS), body):
+            self.assertEqual(o, [True, True, True, True])
 
     def test_the_page_bars_are_kept_clear_and_an_element_under_them_has_no_pin(self):
         # Round 1, docked at 1500: a doc's list item scrolled up under the doc's own sticky toolbar kept its pin,
@@ -356,16 +368,17 @@ class CommentPinTests(unittest.TestCase):
         console.log(JSON.stringify({ under, below, part, foot, thin, back }))
         """
         o = run_node(stub_module(EXPORTS), body)
-        self.assertIsNone(o["under"]["pin"])
+        self.assertEqual(o["under"]["pin"]["y"], 44 + 4)  # V6g: at the band's top edge, never on the toolbar
         self.assertGreaterEqual(o["under"]["box"]["y"], 44 + 8)  # the form stays, off the toolbar
-        self.assertIsNone(o["below"]["pin"])
+        self.assertEqual(o["below"]["pin"]["y"], 44 + 4)
         self.assertGreaterEqual(o["part"]["pin"]["y"], 44 + 4)  # partly seen: pinned, inside the band
         self.assertGreaterEqual(o["part"]["box"]["y"], 44 + 8)
         self.assertLessEqual(o["foot"]["box"]["y"] + min(170, o["foot"]["box"]["maxH"]), 650 - 8)  # off a bottom bar too
         self.assertLessEqual(o["foot"]["box"]["y"] + 170, 560)  # over its element, which leaves room there
         self.assertIsNotNone(o["thin"]["pin"])
         self.assertIsNotNone(o["back"]["pin"])  # scrolled back into view: the pin is back
-        self.assertEqual(o["back"]["box"]["y"], 300 + 34 + 8)  # under its element
+        b, p = o["back"]["box"], o["back"]["pin"]  # by its pin (V6g: the nearest free spot)
+        self.assertEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 170), b["y"] - (p["y"] + 26)), 8, o["back"])
 
     def test_the_box_never_covers_its_element_when_there_is_room(self):
         # Round 1: the box sat on the picked element (a checklist item, a KPI tile, a sheet cell) or right beside
@@ -399,12 +412,10 @@ class CommentPinTests(unittest.TestCase):
             self.assertFalse(o["overPin"], o)
             if o["room"]:
                 self.assertFalse(o["overEl"], o)  # box ∩ picked rect = ∅
-            else:
-                self.assertEqual(o["box"]["y"] + min(o["h0"], o["box"]["maxH"]), o["bh"] - 8, o)  # at the bottom edge
         self.assertTrue(any(not o["room"] for o in out))  # the element filling the stage is among them
         cell = [o for o in out if o["bw"] == 1568 and o["rect"]["w"] == 63 and o["h0"] == 170][0]
-        self.assertEqual(cell["box"]["y"], 453 + 42 + 8)  # the reported sheet cell: under it, from its left
-        self.assertEqual(cell["box"]["x"], 640)
+        b, p = cell["box"], cell["pin"]  # the reported sheet cell: the box by its pin (V6g: the nearest free spot)
+        self.assertEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 170), b["y"] - (p["y"] + 26)), 8, cell)
 
     def test_the_page_stops_following_when_the_comment_closes(self):
         viewer = section("function Viewer(", "function Toast(")

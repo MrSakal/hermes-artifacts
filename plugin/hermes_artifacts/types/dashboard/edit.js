@@ -93,7 +93,7 @@
       if (tools) { tools.remove(); tools = null; }
       if (!c) return;
       var r = c.getBoundingClientRect();
-      tools = h("div", { "class": "dash-edit-tools", style: "left:" + Math.max(8, r.right - 140) + "px;top:" + Math.max(52, r.top - 34) + "px" }, [
+      tools = h("div", { "class": "dash-edit-tools", "data-comment-keep": "", style: "left:" + Math.max(8, r.right - 140) + "px;top:" + Math.max(52, r.top - 34) + "px" }, [
         kit.button("", "prev", function () { move(c, -1); }, T.editEarlier),
         kit.button("", "next", function () { move(c, 1); }, T.editLater),
         kit.button("", "trash", function () { remove(c); }, T.editDelete)

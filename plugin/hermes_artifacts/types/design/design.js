@@ -405,7 +405,8 @@
     // kept off every artboard went 235 px from a strip, and stayed on the empty canvas as the canvas zoomed)
     b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
-    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
+    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [b.grip = h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
+      h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
     b.playBtn = sbtn("play", T.play, function () { setPlay(b, !b.playing); });
     b.full = sbtn("expand", T.expand, function () { openFocus(p); });
@@ -865,7 +866,16 @@
     // never wider than the canvas: Ask Hermes and Comment keep their icons and drop their words when it would be
     tools.classList.remove("is-compact");
     if (tools.offsetWidth > v.width - 12) tools.classList.add("is-compact");
-    var w = tools.offsetWidth, hh = tools.offsetHeight, spot = toolSpot(r, v, w, hh);
+    var spot = toolSpot(r, v, tools.offsetWidth, tools.offsetHeight, true);
+    // No room by the selection for the whole toolbar: its icons alone where they fit by it (V6g: the landing page's
+    // Group went 106 px off to the canvas's top where the artboard's shorter toolbar sat 10 px under it).
+    if (!spot && !tools.classList.contains("is-compact")) {
+      tools.classList.add("is-compact");
+      spot = toolSpot(r, v, tools.offsetWidth, tools.offsetHeight, true);
+      if (!spot) tools.classList.remove("is-compact");
+    }
+    var w = tools.offsetWidth, hh = tools.offsetHeight;
+    if (!spot) spot = toolSpot(r, v, w, hh, false);
     if (!spot) {
       var top = r.top - hh - 10;
       if (top < v.top + 4) top = r.bottom + 10;
@@ -880,8 +890,8 @@
    *  (the board's rule: the first free spot near it). A selection the stage cannot show whole (V6e: the
    *  landing page's Group at 1510 and 999 px, its toolbar on the palette): in the stage in sight, under or over a
    *  pill, over the selection then, other frames kept clear where they can be, the controls always. Null when none
-   *  is free in the canvas (the toolbar then goes just above the selection, as before). */
-  function toolSpot(r, v, w, hh) {
+   *  is free in the canvas (the toolbar then goes just above the selection, as before). byIt: only the first kind. */
+  function toolSpot(r, v, w, hh, byIt) {
     var own = sel.path || selBoard, me = { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, others = [], strips = [], oe = null, os = null;
     Object.keys(boards).forEach(function (p) {
       var b = boards[p];
@@ -918,7 +928,7 @@
         first([r.top], [r.right + 10, r.left - w - 10], list);
     };
     var all = keep.concat(ctl), spot = near(all);
-    if (spot) return spot;
+    if (spot || byIt) return spot; // byIt: only a spot by it, clear of everything
     // Still by it, on another frame, never on a control, the selection, a strip or the canvas's words (V6f: a logo at
     // the canvas's top got its toolbar under its whole artboard, 460 px off); else above its frame's strip or under
     // its frame, clear of everything.
@@ -1574,7 +1584,7 @@
       // words (V6e: a point before the buttons put the pin on the name's end, the box 7 px off the strip)
       window.hermes.comment(anchor, { el: strip.strip, box: function () {
         if (!strip.strip.isConnected || !strip.strip.getClientRects().length) return null;
-        var s = strip.strip.getBoundingClientRect(), end = [strip.name, strip.tw, strip.playBtn, strip.full]
+        var s = strip.strip.getBoundingClientRect(), end = [strip.grip, strip.name, strip.tw, strip.playBtn, strip.full]
           .filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().right; });
         // beside the strip is a neighbour's strip or the gap to it: the pin goes after the buttons, else above or under
         // the strip's end (V6f: no room after them on a phone's strip, the pin went left of it, onto the landing page's)

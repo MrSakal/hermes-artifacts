@@ -219,12 +219,13 @@
         if (f.all !== false) allLabels[f.param] = f.all || allOf(f.label || f.param);
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }
+      ctl.setAttribute("data-comment-keep", ""); // the page's own control: a new comment's box keeps off it (V6g: Reset)
       lab.appendChild(ctl);
       bar.appendChild(lab);
       controls.push({ f: f, ctl: ctl });
     });
     if (b.reset !== false) {
-      bar.appendChild(h("button", { type: "button", "class": "c-btn", text: w("Reset", "Alaphelyzet"),
+      bar.appendChild(h("button", { type: "button", "class": "c-btn", "data-comment-keep": "", text: w("Reset", "Alaphelyzet"),
         onclick: function () { window.dash.resetParams(); } }));
     }
     return { el: bar, draw: function () {

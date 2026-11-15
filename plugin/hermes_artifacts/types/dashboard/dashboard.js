@@ -1412,7 +1412,7 @@
       var canEdit = !!(window.dashEdit && window.hermes && window.hermes.save) && !showingDraft();
       var edit = canEdit ? h("button", { "class": "dash-ask-sel-b", type: "button", title: T.editPage, "aria-label": T.editPage,
         html: kit.icon("pencil") + "<span>" + kit.esc(T.editAsk) + "</span>" }) : null;
-      askBtn = h("div", { "class": "dash-ask-sel", role: "toolbar", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 260)) + "px;top:" + Math.max(8, r.top - 40) + "px" },
+      askBtn = h("div", { "class": "dash-ask-sel", "data-comment-keep": "", role: "toolbar", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 260)) + "px;top:" + Math.max(8, r.top - 40) + "px" },
         [ask, edit]);
       if (edit) edit.addEventListener("click", function () {
         hideAsk();

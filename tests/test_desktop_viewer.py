@@ -8,6 +8,7 @@ it stepped aside, so the item closed it), and the Comment button only started pi
 Skipped without Chrome or node."""
 
 import json
+import sys
 import unittest
 
 import _browser as B
@@ -1024,6 +1025,364 @@ class RoundV6fViewer(unittest.TestCase):
           o.after = await api.top('{title}.getAttribute("aria-expanded")')
           return o""")
         self.assertEqual(o, {"open": "true", "after": "false"})
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6gPicks(unittest.TestCase):
+    """Live round V6g (8b4afe7): a deck just opened, the header's Comment, the slide's blank clicked at once: 2 of 16
+    made no draft. The page said its click picks as the frame was revealed; the cover over the stage went, but the
+    frame was still inert (React drops it in a passive effect, after the paint), so the press hit the inert frame and
+    went nowhere. Here React's passive effects run a task later (__passiveMs), as they do live."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive(self, aid, sel, body, w, h=764, settle=2500):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, SETTLE = {settle}; await api.size({w}, {h});" + BOOT_ANY + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    DRAFT = ("(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*=\"z-index: 27\"]')"
+             "; const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%')"
+             "; return { box: card ? box(card) : null, pin: pin ? box(pin) : null, stage: box(document.querySelector('iframe')) } })()")
+
+    def test_a_press_held_for_a_page_not_ready_shows_it_was_taken(self):
+        # V6g N6: a sheet's draft came 1.7-2.9 s after a pick made as it opened, nothing seen meanwhile. The held press
+        # shows at once as the new comment's pin to be, pulsing, "Loading…" its name, at the point pressed.
+        aid = store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [{"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        o = self.drive(aid, 'document.querySelector("#sh-grid .sh-c")', """
+          // the page does not say its click picks yet (its pick-ready held back)
+          await api.frame('(() => { const po = MessagePort.prototype.postMessage; window.__po = po; MessagePort.prototype.postMessage = function (m, ...r) { if (m && m.event === "pick-ready") return; return po.call(this, m, ...r) } })()')
+          await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+          const f = await frameAt(); await api.mouse(f[0] + 200, f[1] + 150); await api.sleep(300)
+          const o = await api.top('(() => { const m = document.querySelector("[data-pick-hold] [role=status]"); if (!m) return null; const b = m.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, label: m.getAttribute("aria-label"), cls: m.className } })()')
+          return { mark: o, at: [f[0] + 200, f[1] + 150], draft: await api.top('Boolean(window.H.M.$draft.get())') }""", 1250, 764, 1500)
+        m = o["mark"]
+        self.assertTrue(m, o)
+        self.assertLessEqual(abs(m["x"] - o["at"][0]), 1, o)
+        self.assertLessEqual(abs(m["y"] - o["at"][1]), 1, o)
+        self.assertEqual((m["w"], m["label"], m["cls"]), (26, "Loading…", "animate-pulse"), o)
+        self.assertFalse(o["draft"], o)
+
+    def test_a_designs_draft_keeps_by_its_pin_through_a_zoom_and_off_screen_keeps_its_pin_at_the_edge(self):
+        # V6g N3: a design's element commented on, then zoomed: the box 72 px from its pin at first, 17-37 px after;
+        # zoomed until the element left the stage, the pin went and the box parked in the bottom-right corner. The box
+        # by its pin at every step; the element out of sight, the pin at the stage's edge nearest it, the box by it.
+        aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
+        board = '__design.boards["Main.dc.html"].el'
+        o = self.drive(aid, board, f"""
+          const pick = await api.frame('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + r.height * 0.35] }})()')
+          await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+          let off = await frameAt(); await api.mouse(off[0] + pick[0], off[1] + pick[1]); await api.sleep(1200)
+          const steps = [await api.top({json.dumps(self.DRAFT)})]
+          // zoomed in far from it (it leaves the stage), then back out
+          for (const dy of [-240, -240, -240, -240, 480, 480]) {{
+            await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaY: ${{dy}}, ctrlKey: true, clientX: innerWidth - 40, clientY: innerHeight - 120, bubbles: true, cancelable: true }}))`); await api.sleep(700)
+            const s = await api.top({json.dumps(self.DRAFT)})
+            s.el = await api.frame('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()')
+            steps.push(s)
+          }}
+          return steps""", 1250, 764, 3000)
+        out_of_sight = 0
+        for s in o:
+            self.assertTrue(s["box"] and s["pin"], ("no box or no pin", s, o))
+            b, p, st = s["box"], s["pin"], s["stage"]
+            gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
+            self.assertTrue(8 - 0.5 <= gap <= 24, ("box away from its pin", gap, s))
+            el = s.get("el")
+            if el and (el[2] + st[0] < st[0] or el[0] + st[0] > st[2] or el[3] + st[1] < st[1] or el[1] + st[1] > st[3]):
+                out_of_sight += 1
+                edge = min(p[0] - st[0], st[2] - p[2], p[1] - st[1], st[3] - p[3])
+                self.assertLessEqual(edge, 4.5, ("pin not at the stage's edge", s))
+        self.assertGreater(out_of_sight, 0, ("the zoom never took the artboard out of sight", o))
+
+    def test_a_strip_cut_by_the_window_has_its_pin_off_its_name(self):
+        # V6g N9: the window narrowed (no refit), a design's strip partly past the stage's edge picked: the pin on its
+        # name. Never on the name, its buttons or another strip: over or under the strip's part in sight.
+        aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
+        strips = ('[...Object.values(__design.boards)].map(b => b.strip).filter(s => getComputedStyle(s).visibility === "visible" && s.getClientRects().length)'
+                  '.map(s => { const r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
+                  '; const clip = q => [Math.max(q.left, 0), q.top, Math.min(q.right, innerWidth), q.bottom]'
+                  '; return { r: [r.left, r.top, r.right, r.bottom], parts: [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(clip).filter(q => q[2] > q[0]) } })')
+        o = self.drive(aid, '__design.boards["Main.dc.html"].el', f"""
+          await api.size(1000, 764); await api.sleep(800)
+          // pan until the poster's strip straddles the stage's right edge, its name in sight
+          for (let i = 0; i < 4; i++) {{
+            const d = await api.frame('(() => {{ const s = __design.boards["Poster.dc.html"].strip.getBoundingClientRect(); return s.left - (innerWidth - 90) }})()')
+            await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaX: ${{d}}, deltaY: 0, clientX: 200, clientY: 200, bubbles: true, cancelable: true }}))`); await api.sleep(300)
+          }}
+          const all = await api.frame({json.dumps(strips)}), off = await frameAt(), w = await api.frame('innerWidth')
+          const i = all.findIndex(s => s.r[0] < w - 20 && s.r[2] > w)
+          if (i < 0) return {{ none: all, w }}
+          const s = all[i]
+          await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+          await api.mouse(off[0] + s.r[0] + 12, off[1] + (s.r[1] + s.r[3]) / 2); await api.sleep(1200)
+          const d = await api.top({json.dumps(self.DRAFT)})
+          const mv = q => [q[0] + off[0], q[1] + off[1], q[2] + off[0], q[3] + off[1]]
+          return {{ ...d, strip: mv(s.r), parts: s.parts.map(mv), others: all.filter((x, j) => j !== i).map(x => mv(x.r)) }}""", 1250, 764, 3000)
+        self.assertNotIn("none", o, o)
+        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        p, st = o["pin"], o["stage"]
+        self.assertTrue(p and o["box"], o)
+        self.assertTrue(st[0] <= p[0] and p[2] <= st[2] and st[1] <= p[1] and p[3] <= st[3], ("pin out of the stage", o))
+        for q in o["parts"] + o["others"]:
+            self.assertFalse(meet(p, q), ("pin on the name, a button or another strip", q, o))
+        self.assertTrue(o["strip"][0] - 0.5 <= (p[0] + p[2]) / 2 <= o["strip"][2] + 0.5, ("pin not over or under its strip", o))
+
+    def test_a_decks_blank_picked_as_it_shows_is_never_lost_in_40_opens(self):
+        aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        # the tester's point: the slide's blank over the title (frame-local 460,158 of 1250 x 716)
+        where = '(() => { const c = document.querySelector(".sl-clip .sl-canvas"); if (!c) return null; const r = c.getBoundingClientRect(); return r.width ? [r.left + r.width * 0.12, r.top + r.height * 0.1] : null })()'
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, WHERE = {json.dumps(where)}; await api.size(1250, 764);" + """
+          await api.go(URL, 400)
+          for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+          await api.top('window.__passiveMs = 100')
+          const open = () => api.top(`(() => { const { M, ctx } = window.H; M.openArtifact(ctx, ${JSON.stringify(AID)}) })()`)
+          await api.top(`(async () => { const { M, R, jsx, ctx } = window.H; M.$list.set((await ctx.rest('/artifacts')).artifacts)
+            M.openArtifact(ctx, ${JSON.stringify(AID)}); R.mount(() => jsx(M.Viewer, { ctx }), document.getElementById('root')) })()`)
+          let q = null
+          for (let i = 0; i < 200 && !q; i++) { try { q = await api.frame(WHERE) } catch (_) {} if (!q) await api.sleep(50) }
+          await api.sleep(600); q = await api.frame(WHERE)
+          const f = await api.top('(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top] })()')
+          const button = '(() => { const b = [...document.querySelectorAll("button")].find(b => b.title === "Comment" || b.getAttribute("aria-label") === "Comment"); if (!b) return null; const q = b.getBoundingClientRect(); return q.width ? [q.left + q.width / 2, q.top + q.height / 2] : null })()'
+          const out = []
+          for (let n = 0; n < 40; n++) {
+            await api.top('window.H.M.closeArtifact()')
+            for (let i = 0; i < 100 && (await api.top('document.querySelectorAll("iframe").length')); i++) await api.sleep(20)
+            await open()
+            let b = null
+            for (let i = 0; i < 400 && !b; i++) { b = await api.top(button); if (!b) await api.sleep(5) }
+            await api.mouse(b[0], b[1])
+            // the click at once after Comment, or the moment the stage's cover goes (the page said its click picks)
+            await api.pointer('mouseMoved', f[0] + q[0], f[1] + q[1], false)
+            if (n % 2) await api.top('new Promise(r => { const h = document.querySelector("[data-pick-hold]"); if (!h || h.style.display === "none") return r(); const mo = new MutationObserver(() => { if (h.style.display === "none") { mo.disconnect(); r() } }); mo.observe(h, { attributes: true }); setTimeout(r, 4000) })')
+            await api.pointer('mousePressed', f[0] + q[0], f[1] + q[1], true); await api.pointer('mouseReleased', f[0] + q[0], f[1] + q[1], false)
+            let d = null
+            for (let i = 0; i < 70 && !d; i++) { d = await api.top('window.H.M.$draft.get()'); if (!d) await api.sleep(100) }
+            out.push({ n, draft: Boolean(d && d.anchor), title: d && d.anchor && d.anchor.label, picking: await api.top('window.H.M.$picking.get()') })
+            await api.top('(() => { window.H.M.$draft.set(null); window.H.M.$picking.set(false) })()')
+          }
+          return out""", timeout=900)
+        self.assertIsNone(r.get("err"), r)
+        lost = [o for o in r["out"] if not o["draft"] or o["picking"]]
+        self.assertEqual(len(r["out"]), 40)
+        self.assertFalse(lost, ("picks lost", lost))
+
+
+# The part picked, the page's own controls and its content, in the frame, after a pick (frame JS).
+PLACED = r"""(() => { const box = q => [q.left, q.top, q.right, q.bottom]
+  const seen = e => { for (let n = e; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === 'hidden' || cs.display === 'none') return false } return true }
+  const keep = [...document.querySelectorAll('[data-comment-keep]')].filter(e => e.getClientRects().length && seen(e)).map(e => box(e.getBoundingClientRect()))
+  const skip = n => n.closest('[data-hermes-ui], [data-comment-under], [data-comment-hide], script, style')
+  const content = [], rg = document.createRange(), w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  for (let n; (n = w.nextNode());) { if (!/\S/.test(n.nodeValue) || skip(n.parentElement) || !seen(n.parentElement)) continue; rg.selectNodeContents(n)
+    for (const q of rg.getClientRects()) if (q.width >= 1 && q.height >= 1 && q.bottom > 0 && q.top < innerHeight && q.right > 0 && q.left < innerWidth) content.push(box(q)) }
+  for (const e of document.querySelectorAll('input, button, select, textarea, svg, canvas, img, video, iframe')) { if (skip(e) || !seen(e)) continue; const q = e.getBoundingClientRect(); if (q.width >= 1 && q.height >= 1 && q.bottom > 0 && q.top < innerHeight) content.push(box(q)) }
+  return { keep, content } })()"""
+# What the host drew for the draft (its box and pin), the bridge's rect of the part picked, and the stage.
+DRAWN = r"""(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }
+  const ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*="z-index: 27"]')
+  if (!card) return null
+  const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%'), d = window.H.M.$draft.get()
+  return { box: box(card), pin: pin ? box(pin) : null, rect: d && d.rect, stage: box(document.querySelector('[data-frame="shown"] iframe') || document.querySelector('iframe')) } })()"""
+# Points to pick in the frame: each part's first line (an element) or the point itself ([x, y]); none on a control.
+POINTS = r"""(els => { const out = [], keep = [...document.querySelectorAll('[data-comment-keep]')]
+  for (const e of els) { if (Array.isArray(e)) { out.push(e); continue }
+    const r = [...e.getClientRects()].find(q => q.width >= 6 && q.height >= 6); if (!r) continue
+    const x = r.left + Math.min(r.width / 2, 30), y = r.top + Math.min(r.height / 2, 10)
+    if (x < 4 || y < 4 || x > innerWidth - 4 || y > innerHeight - 4) continue
+    const at = document.elementFromPoint(x, y); if (!at || keep.some(k => k.contains(at))) continue
+    out.push([x, y]) }
+  return out })"""
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class CommentPlacementProperty(unittest.TestCase):
+    """Live round V6g (8b4afe7), the fourth on the new comment's box: on a deck's thumbnails (B2), a dashboard's Reset
+    (B3), a doc's block handles and comment marks (N1, N2), far from its pin with room by it (N4: 72-345 px). One
+    ordered rule (plugin.js placeCommentBox), checked here as a property over many picks per type with the real
+    rects: every part the page names (or its words, cells, blocks, points: at most CAP) at four stage sizes
+    (Hermes' 1523 px window: a 1250 x 716 frame; with the comments list: 906; the 1000 px window: 740; 400). Hard:
+    inside the stage, off the pin and the part picked (8 px), off every one of the page's own controls (4 px),
+    whenever any spot keeps them all. Near: a box more than 24 px from both its pin and its part only where no spot
+    that close keeps the hard rules with none of the page's content under it (and, the box being off the part the
+    page named, off it too)."""
+
+    CAP = 16
+    STAGES = ((1250, 716), (906, 716), (740, 716), (400, 700))
+    W, GAP, KEEP, M, NEAR = 320, 8, 4, 8, 24
+
+    @classmethod
+    def setUpClass(cls):
+        from test_models import PANEL
+        from test_type_pages_browser import DASH2, DASH2_CSV
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+        ex = D.ROOT / "examples"
+        board = {"title": "Test board", "items": [{"id": "t", "type": "text", "text": "Release flow"}, {"id": "a", "type": "box", "text": "Draft"},
+                                                  {"id": "b", "type": "box", "text": "Ship", "near": "a"}, {"id": "n", "type": "note", "text": "Owner: Anna", "near": "b"}]}
+        sheet = {"title": "Costs", "sheets": [{"name": "Costs", "rows": [["Item", "Unit price", "Qty", "Total"], ["Wall panels", 2000, 3, 6000], ["Rails", 300, 10, 3000], ["Total"]]}]}
+        grid = lambda sel: f'(() => {{ const r = {sel}.getBoundingClientRect(), o = []; for (const fx of [0.15, 0.5, 0.85]) for (const fy of [0.15, 0.5, 0.85]) o.push([r.left + r.width * fx, r.top + r.height * fy]); return o }})()'
+        cls.fixtures = {
+            "page": (store.publish(title="Test page", type="page", html=BRIDGE_PAGE)["id"], 'document.querySelector("main")', '[...document.querySelectorAll("h1, p, input, button")]'),
+            "doc": (store.publish(path=str(ex / "doc"), title="Test doc", type="doc")["id"], 'document.querySelector(".doc-blk")', '[...document.querySelectorAll(".doc-blk, .doc-blk td")]'),
+            "sheet": (store.publish(title="Costs", type="sheet", files={"sheet.json": sheet})["id"], 'document.querySelector("#sh-grid .sh-c")',
+                      '[...document.querySelectorAll("#sh-grid .sh-c")].filter(c => c.textContent.trim())'),
+            "board": (store.publish(title="Test board", type="board", files={"board.json": board})["id"], 'document.querySelector(".bd-it")', '[...document.querySelectorAll("[data-comment-label]")]'),
+            "dashboard": (store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"], 'document.querySelector(".c-kpi")',
+                          '[...document.querySelectorAll("[data-comment-label], .c-kpi > *, select")]'),
+            "slides": (store.publish(path=str(ex / "slides"), title="Test slides", type="slides")["id"], 'document.querySelector(".sl-clip .sl-canvas h1")',
+                       '[...document.querySelectorAll(".sl-clip .sl-canvas section > *:not(aside)")].concat(' + grid('document.querySelector(".sl-clip .sl-canvas")') + ')'),
+            "design": (store.publish(path=str(ex / "design"), title="Test design", type="design")["id"], '__design.boards["Main.dc.html"].el',
+                       '[...Object.values(__design.boards)].filter(b => b.el.getClientRects().length).flatMap(b => { const r = b.el.querySelector("iframe").getBoundingClientRect(); return [[r.left + r.width * 0.3, r.top + r.height * 0.12], [r.left + r.width * 0.5, r.top + r.height * 0.5]] })'),
+            "design-system": (store.publish(path=str(ex / "design-system"), title="Kiln", type="design-system")["id"], 'document.querySelector(".ds-cover")',
+                              '[...document.querySelectorAll("[data-comment-label], #ds-main h1, #ds-main h2, #ds-main p")]'),
+            "film": (store.publish(path=str(ex / "motion"), title="Harbor film", type="motion")["id"], 'document.getElementById("mo-frame")', grid('document.getElementById("mo-frame")')),
+            "model": (store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], 'document.querySelector(".md-canvas")', grid('document.querySelector(".md-canvas")')),
+        }
+        # open threads on two of the doc's blocks: their comment marks beside them are the page's own controls (N2)
+        blocks = docs.read(cls.fixtures["doc"][0])["blocks"]
+        for blk in (blocks[1], blocks[4]):
+            api.handle("POST", f"artifacts/{cls.fixtures['doc'][0]}/comments", {}, {"text": "note", "anchor": {"selector": f"#blk-{blk['id']}", "text": "x", "label": "text"}})
+        cls.far = {}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def picks(self, kind, w, h):
+        aid, sel, parts = self.fixtures[kind]
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, SETTLE = 2000; await api.size({w}, {h + 48});" + BOOT_ANY + f"""
+          let pts = await api.frame('(' + {json.dumps(POINTS)} + ')(' + {json.dumps(parts)} + ')')
+          const step = Math.max(1, pts.length / {self.CAP}); pts = pts.filter((p, i) => Math.floor(i % step) === 0).slice(0, {self.CAP})
+          const out = []
+          for (const [x, y] of pts) {{
+            await api.top('window.H.M.$picking.set(true)')
+            for (let i = 0; i < 100 && await api.top('(() => {{ const h = document.querySelector("[data-pick-hold]"); return !!h && h.style.display !== "none" }})()'); i++) await api.sleep(20)
+            const off = await frameAt()
+            await api.mouse(off[0] + x, off[1] + y)
+            let o = null
+            for (let i = 0; i < 40 && !o; i++) {{ await api.sleep(60); o = await api.top({json.dumps(DRAWN)}) }}
+            if (o) {{ await api.sleep(120); o = await api.top({json.dumps(DRAWN)}); o.page = await api.frame({json.dumps(PLACED)}); o.off = off; o.at = [x, y] }}
+            out.push(o || {{ at: [x, y], none: true }})
+            await api.top('(() => {{ window.H.M.$draft.set(null); window.H.M.$picking.set(false) }})()'); await api.sleep(150)
+          }}
+          return out""", timeout=600)
+        self.assertIsNone(r.get("err"), (kind, w, r))
+        return r["out"]
+
+    @staticmethod
+    def gap(a, b):
+        return max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
+
+    @staticmethod
+    def meet(a, b, pad):
+        return a[0] < b[2] + pad - 0.5 and b[0] - pad + 0.5 < a[2] and a[1] < b[3] + pad - 0.5 and b[1] - pad + 0.5 < a[3]
+
+    def hard(self, b, s, p, e, keep):
+        return (b[0] >= s[0] + self.M - 0.5 and b[2] <= s[2] - self.M + 0.5 and b[1] >= s[1] + self.M - 0.5 and b[3] <= s[3] - self.M + 0.5
+                and (p is None or not self.meet(b, p, self.GAP)) and not self.meet(b, e, self.GAP) and not any(self.meet(b, k, self.KEEP) for k in keep))
+
+    def spots(self, s, bh, around=None):
+        """Box spots (left, top) over the stage every 8 px, or only those 8-NEAR px off `around`."""
+        W = self.W
+        if around is None:
+            xs, ys = range(int(s[0]) + self.M, int(s[2]) - self.M - W + 1, 8), range(int(s[1]) + self.M, int(s[3] - self.M - bh) + 1, 8)
+            return [(x, y) for x in xs for y in ys]
+        out = []
+        for d in range(self.GAP, self.NEAR + 1, 4):
+            for x in range(int(around[0] - W - d), int(around[2] + d) + 1, 8):
+                out += [(x, around[1] - d - bh), (x, around[3] + d)]
+            for y in range(int(around[1] - bh - d), int(around[3] + d) + 1, 8):
+                out += [(around[0] - d - W, y), (around[2] + d, y)]
+        return out
+
+    def check(self, kind):
+        worst = 0
+        for w, h in self.STAGES:
+            out = self.picks(kind, w, h)
+            made = [o for o in out if not o.get("none")]
+            self.assertGreaterEqual(len(made), max(1, len(out) // 2), (kind, w, "picks made no draft", out))
+            for o in made:
+                ox, oy = o["off"]
+                mv = lambda q: [q[0] + ox, q[1] + oy, q[2] + ox, q[3] + oy]
+                r = o["rect"]
+                e = [r["x"] + ox, r["y"] + oy, r["x"] + r["w"] + ox, r["y"] + r["h"] + oy]
+                b, p, s = o["box"], o["pin"], o["stage"]
+                keep = [mv(k) for k in o["page"]["keep"] if not (k[0] <= r["x"] and r["x"] + r["w"] <= k[2] and k[1] <= r["y"] and r["y"] + r["h"] <= k[3])]
+                content = [mv(c) for c in o["page"]["content"] if not (r["x"] - 0.5 <= c[0] and c[2] <= r["x"] + r["w"] + 0.5 and r["y"] - 0.5 <= c[1] and c[3] <= r["y"] + r["h"] + 0.5)]
+                bh = b[3] - b[1]
+                what = (kind, w, h, o["at"], {"box": b, "pin": p, "el": e})
+                ok = self.hard(b, s, p, e, keep)
+                if not ok:  # only where some spot keeps them all
+                    can = next(((x, y) for x, y in self.spots(s, bh) if self.hard([x, y, x + self.W, y + bh], s, p, e, keep)), None)
+                    self.assertIsNone(can, ("the box breaks a hard rule with a spot that keeps them", can, keep, what))
+                d = self.gap(b, p) if p else self.gap(b, e)
+                worst = max(worst, d)
+                if p and min(self.gap(b, p), self.gap(b, e)) > self.NEAR:
+                    pb = r.get("pb")
+                    pb = [pb[0] + ox, pb[1] + oy, pb[2] + ox, pb[3] + oy] if pb else None
+                    off_pb = pb is None or not self.meet(b, pb, 0)
+                    for x, y in self.spots(s, bh, p):
+                        a = [x, y, x + self.W, y + bh]
+                        if (self.hard(a, s, p, e, keep) and not any(self.meet(a, c, 5) for c in content) and (not off_pb or pb is None or not self.meet(a, pb, 0))):
+                            self.fail(("the box is far from its pin while a free spot by it keeps the rules", a, d, what))
+        type(self).far[kind] = worst
+        print(f"\n{kind}: max pin-box gap {worst:.0f} px", file=sys.stderr)
+
+    def test_the_pages_own_controls_are_marked(self):
+        # V6g B3, N2: a filter row's Reset (the box 9 px on it) and a doc's comment marks beside their blocks were not
+        # marked as the page's own controls, so nothing kept the box off them. Every one shown is marked.
+        cases = (("dashboard", '[...document.querySelectorAll(".c-filters select, .c-filters input, .c-filters button")]'),
+                 ("doc", '[...document.querySelectorAll(".doc-card")]'))
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        for kind, sel in cases:
+            for w in (1250, 740):
+                aid, ready, _ = self.fixtures[kind]
+                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(ready)}, SETTLE = 2000; await api.size({w}, 764);" + BOOT_ANY
+                            + f"return await api.frame('({sel}).filter(e => e.getClientRects().length).map(e => e.hasAttribute(\"data-comment-keep\"))')", timeout=240)
+                self.assertIsNone(r.get("err"), r)
+                self.assertTrue(r["out"], (kind, w, "none shown"))
+                self.assertTrue(all(r["out"]), (kind, w, r["out"]))
+
+    def test_page(self):
+        self.check("page")
+
+    def test_doc(self):
+        self.check("doc")
+
+    def test_sheet(self):
+        self.check("sheet")
+
+    def test_board(self):
+        self.check("board")
+
+    def test_dashboard(self):
+        self.check("dashboard")
+
+    def test_slides(self):
+        self.check("slides")
+
+    def test_design(self):
+        self.check("design")
+
+    def test_design_system(self):
+        self.check("design-system")
+
+    def test_film(self):
+        self.check("film")
+
+    def test_model(self):
+        self.check("model")
 
 
 if __name__ == "__main__":

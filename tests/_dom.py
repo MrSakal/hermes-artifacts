@@ -119,6 +119,7 @@ function build(el, path, svg) {
 }
 function renderAll() {
   if (!rootEl) return
+  if (passive.length) flushPassive() // React flushes the last commit's passive effects before the next render
   seen = new Set(); nodesSeen = new Set(); focusNew = []
   place(rootEl, build(rootFn(), '', false))
   for (const [p, inst] of insts) if (!seen.has(p)) {
@@ -128,7 +129,18 @@ function renderAll() {
   for (const p of [...nodes.keys()]) if (!nodesSeen.has(p)) nodes.delete(p)
   for (const n of focusNew) n.focus()
   const run = effects; effects = []
-  for (const e of run.filter(e => e.layout).concat(run.filter(e => !e.layout))) {
+  // As React: layout effects with the commit; passive ones (useEffect) after the paint where a test asks for it
+  // (window.__passiveMs: React runs them in a later task, and a press can come between), else at once.
+  const ms = typeof window.__passiveMs === 'number' ? window.__passiveMs : null
+  runEffects(run.filter(e => e.layout))
+  if (ms === null) return runEffects(run.filter(e => !e.layout))
+  passive.push(...run.filter(e => !e.layout))
+  if (!passiveTimer) passiveTimer = setTimeout(flushPassive, ms)
+}
+let passive = [], passiveTimer = 0
+function flushPassive() { clearTimeout(passiveTimer); passiveTimer = 0; const p = passive; passive = []; runEffects(p) }
+function runEffects(list) {
+  for (const e of list) {
     if (e.s.cleanup) { try { e.s.cleanup() } catch (x) { console.error(x) } }
     const c = e.fn()
     e.s.cleanup = typeof c === 'function' ? c : null

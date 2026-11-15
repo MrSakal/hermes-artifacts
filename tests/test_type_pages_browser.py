@@ -1953,3 +1953,103 @@ class RoundV6fPages(unittest.TestCase):
                 self.assertIn(vals, (0, bars), (w, r["out"]))
                 seen.add(vals == bars)
         self.assertEqual(seen, {True, False}, "both cases met: a wide chart shows them all, a narrow one none")
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6gPages(unittest.TestCase):
+    """Live round V6g (8b4afe7)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive_page(self, aid, body, w=1250, hh=716, settle=1500):
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep({settle})\n" + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_a_docs_block_handles_are_not_shown_while_a_comment_is_picked_or_written(self):
+        # V6g N1: a table cell picked at 1523 px: the box lay on "Add a block below" and "Drag to move", the handles the
+        # pointer had brought up beside the block. They are hover-only edit affordances: hidden while picking and while
+        # the new comment is written, back after (and never reported as the page's content).
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        seen = '[...document.querySelectorAll(".doc-gutter button")].some(b => b.getClientRects().length && getComputedStyle(b).visibility === "visible")'
+        out = self.drive_page(aid, f"""
+          const cell = await api.frame('(() => {{ const r = document.querySelector(".doc-blk td").getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2] }})()')
+          await api.pointer('mouseMoved', cell[0], cell[1], false); await api.sleep(300)
+          const o = {{ hover: await api.frame({json.dumps(seen)}) }}
+          await api.top('window.__post("comment-mode", {{on: true}})'); await api.sleep(300)
+          await api.pointer('mouseMoved', cell[0] + 4, cell[1], false); await api.sleep(300); o.picking = await api.frame({json.dumps(seen)})
+          await api.mouse(cell[0], cell[1]); await api.sleep(500)
+          await api.top('window.__post("comment-mode", {{on: false}})'); await api.sleep(200) // the host: picked, its draft open
+          await api.pointer('mouseMoved', cell[0] + 8, cell[1], false); await api.sleep(300); o.writing = await api.frame({json.dumps(seen)})
+          o.picked = await api.top('window.__events.filter(e => e.event === "picked").length')
+          await api.top('window.__post("pick-follow", {{on: false}})'); await api.sleep(200)
+          await api.pointer('mouseMoved', cell[0] + 2, cell[1], false); await api.sleep(300); o.after = await api.frame({json.dumps(seen)})
+          return o""")
+        self.assertEqual(out, {"hover": True, "picking": False, "writing": False, "picked": 1, "after": True})
+
+    def design(self, w, hh, then):
+        if not hasattr(self, "design_id"):
+            type(self).design_id = self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        return self.drive_page(self.design_id, then, w, hh, settle=3000)
+
+    def test_the_design_toolbar_stays_by_a_selection_the_crumbs_climbed_to(self):
+        # V6g N5 (1523 px window, Properties open: a 1250 x 716 frame): the landing page's Group selected by its crumb
+        # got its toolbar at the canvas's top, 106 px off; its artboard's (fewer actions) sat 10 px under it. Where the
+        # whole toolbar has no room by the selection, its icons alone do, before any spot farther off.
+        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        probe = ("(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, t = document.querySelector('.dc-tools')"
+                 "; return { tools: !t.hidden && t.getClientRects().length ? box(t) : null, sel: [...document.querySelectorAll('.dc-selbox')].map(box), crumbs: [...document.querySelectorAll('.dc-crumbs button')].map(b => b.textContent),"
+                 " ctl: [...document.querySelectorAll('.dc-pill, .dc-strip, #dc-panel')].filter(e => !e.hidden && getComputedStyle(e).visibility !== 'hidden' && e.getClientRects().length).map(box) } })()")
+        at = "(() => { const r = __design.boards['Main.dc.html'].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + r.height * 0.15] })()"
+        o = self.design(1250, 716, f"""
+          const q = await api.frame({json.dumps(at)}); await api.mouse(q[0], q[1]); await api.sleep(1000)
+          await api.frame('document.querySelectorAll(".dc-crumbs button")[0].click()'); await api.sleep(900); const o = {{ board: await api.frame({json.dumps(probe)}) }}
+          await api.mouse(q[0], q[1]); await api.sleep(1000); await api.frame('document.querySelectorAll(".dc-crumbs button")[1].click()'); await api.sleep(900)
+          o.group = await api.frame({json.dumps(probe)}); return o""")
+        for k in ("board", "group"):
+            s = o[k]
+            self.assertTrue(s["tools"] and s["sel"], (k, o))
+            self.assertTrue(any(c[0] > 900 for c in s["ctl"]), ("Properties open", k, o))
+            t, sel = s["tools"], s["sel"][0]
+            gap = max(t[0] - sel[2], sel[0] - t[2], t[1] - sel[3], sel[1] - t[3])
+            self.assertTrue(0 <= gap <= 24, ("toolbar away from its selection", k, gap, o))
+            for c in s["ctl"]:
+                self.assertFalse(meet(t, c), ("toolbar on a control", k, c, o))
+        self.assertEqual(o["group"]["crumbs"][-1], "Group", o)
+
+    def test_every_shown_strip_reads_as_a_strip_at_every_width(self):
+        # V6g N8 (1000 px window: a 739 px frame): "Tag (component)"'s strip was 35 px wide and empty, neither name nor
+        # buttons. A strip shown has its name (cut with an ellipsis, never mid-glyph) or, too narrow for that, the
+        # frame's handle, wholly inside it; none meets another.
+        probe = r"""(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }
+          return [...Object.values(__design.boards)].map(b => b.strip).filter(s => s.getClientRects().length && getComputedStyle(s).visibility !== 'hidden').map(s => {
+            const vis = e => e && e.getClientRects().length && getComputedStyle(e).display !== 'none'
+            const name = s.querySelector('.dc-name'), grip = s.querySelector('.dc-grip')
+            return { title: s.title, strip: box(s), name: vis(name) && name.getBoundingClientRect().width > 8 ? { box: box(name), ellipsis: getComputedStyle(name).textOverflow } : null,
+              grip: vis(grip) ? box(grip) : null } }) })()"""
+        for w in (1250, 739, 400):
+            o = self.design(w, 716, f"return await api.frame({json.dumps(probe)})")
+            self.assertTrue(o, w)
+            for s in o:
+                what = (w, s)
+                self.assertTrue(s["name"] or s["grip"], ("an empty strip", what))
+                if s["name"]:
+                    self.assertEqual(s["name"]["ellipsis"], "ellipsis", what)
+                if s["grip"]:
+                    g, st = s["grip"], s["strip"]
+                    self.assertTrue(st[0] - 0.5 <= g[0] and g[2] <= st[2] + 0.5 and st[1] - 0.5 <= g[1] and g[3] <= st[3] + 0.5, ("the handle cut", what))
+            for i, a in enumerate(o):
+                for b in o[i + 1:]:
+                    sa, sb = a["strip"], b["strip"]
+                    self.assertFalse(sa[0] < sb[2] - 0.5 and sb[0] < sa[2] - 0.5 and sa[1] < sb[3] - 0.5 and sb[1] < sa[3] - 0.5, (w, a, b))
+            if w == 739:
+                tag = [s for s in o if s["title"].startswith("Tag")]
+                self.assertTrue(tag and tag[0]["grip"], ("Tag (component) shows its handle", o))

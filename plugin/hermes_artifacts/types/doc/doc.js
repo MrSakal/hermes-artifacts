@@ -1332,7 +1332,7 @@
   var PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>';
   var GRIP_V = '<svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></svg>';
   function uiBtn(cls, label, html) {
-    var b = h("button", { type: "button", "class": "doc-tui " + cls, title: label, "aria-label": label, html: html || "", hidden: true });
+    var b = h("button", { type: "button", "class": "doc-tui " + cls, "data-comment-hide": "", title: label, "aria-label": label, html: html || "", hidden: true });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); });
     document.body.appendChild(b);
     return b;
@@ -1386,7 +1386,8 @@
   var drag = null, dropLine = h("div", { "class": "doc-dropline", hidden: true });
   document.body.appendChild(dropLine);
   // ⋮⋮ and + beside every block, as in Notion: + adds a block below and opens the / menu; ⋮⋮ drags it or opens its menu.
-  var gut = { el: h("div", { "class": "doc-gutter", hidden: true }), id: null };
+  // data-comment-hide: hover-only, not shown while a comment is picked or written (bridge.js)
+  var gut = { el: h("div", { "class": "doc-gutter", "data-comment-hide": "", hidden: true }), id: null };
   gut.plus = h("button", { type: "button", "class": "doc-g-plus", title: T.addBelow, "aria-label": T.addBelow, html: PLUS });
   gut.grip = h("button", { type: "button", "class": "doc-g-grip", title: T.blockMenu, "aria-label": T.blockMenu, html: GRIP_V });
   gut.el.append(gut.plus, gut.grip);
@@ -2175,7 +2176,7 @@
     suggestions.forEach(function (sg) {
       var anchor = sg.kind === "insert" ? page.querySelector('[data-sug="' + sg.id + '"]') : blockEl(sg.block);
       if (!anchor) return;
-      cards.push({ el: anchor, node: h("div", { "class": "doc-card is-sug" }, [
+      cards.push({ el: anchor, node: h("div", { "class": "doc-card is-sug", "data-comment-keep": "" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (sg.by === "hermes" ? " is-hermes" : ""), text: sg.by === "hermes" ? T.byH : T.byYou }),
           h("span", { "class": "doc-card-when", text: sg.at ? kit.date(sg.at, true) : "" }),
@@ -2190,7 +2191,7 @@
     pins.forEach(function (p) {
       var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
       if (!anchor) return;
-      var node = h("div", { "class": "doc-card", tabindex: "0", role: "button" }, [
+      var node = h("div", { "class": "doc-card", "data-comment-keep": "", tabindex: "0", role: "button" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (p.author === "hermes" ? " is-hermes" : ""), text: p.author === "hermes" ? T.byH : T.byYou }),
           h("span", { "class": "doc-card-when", text: p.at ? kit.date(p.at, true) : "" })]),

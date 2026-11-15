@@ -25,9 +25,13 @@ body { overflow: hidden; }
    round dot a comment's pin could be taken for */
 .dc-dot { display: none; width: 6px; height: 8px; background: var(--dc-play); clip-path: polygon(0 0, 100% 50%, 0 100%); margin-right: 5px; flex-shrink: 0; }
 .dc-board.is-interactive .dc-dot { display: inline-block; }
-/* too narrow for six letters of a longer name: nothing at all, its mark neither (not "A…", not a lone mark; the
-   frame's outline is enough, the strip's tooltip and the selection name it) */
-@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name, .dc-board.is-interactive .dc-strip:not([data-short]) .dc-dot { display: none; } }
+/* too narrow for six letters of a longer name: not "A…" nor a lone play mark, but the frame's handle (V6g: a 35 px
+   strip showed nothing and read as no strip at all); its name in the strip's tooltip. Under 16 px, nothing. */
+.dc-grip { display: none; width: 14px; height: 14px; align-items: center; justify-content: center; flex-shrink: 0; }
+.dc-grip svg { width: 12px; height: 12px; }
+@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name, .dc-board.is-interactive .dc-strip:not([data-short]) .dc-dot { display: none; }
+  .dc-strip:not([data-short]) .dc-grip { display: inline-flex; } }
+@container (max-width: 15px) { .dc-strip .dc-grip { display: none; } }
 .dc-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px;
   background: transparent; color: var(--color-fg-muted); cursor: pointer; flex-shrink: 0; }
 .dc-sbtn:hover { background: var(--color-hover); color: var(--color-fg); }

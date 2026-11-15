@@ -4044,7 +4044,7 @@
     commitIfEditing();
     if (C.thumb) return;
     if (!rpEl) {
-      rpEl = h("aside", { "class": "sh-rp", "aria-label": T.cfTitle });
+      rpEl = h("aside", { "class": "sh-rp", "data-comment-keep": "", "aria-label": T.cfTitle });
       document.body.appendChild(rpEl);
       rpEl.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); if (rpView === "edit") rpList(); else closeRules(); } });
       if (window.ResizeObserver) new ResizeObserver(rpPlace).observe(grid);

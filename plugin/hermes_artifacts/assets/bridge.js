@@ -733,7 +733,7 @@
     try {
       var w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
         if (n.nodeType === 3) return /\S/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-        if (n.hasAttribute("data-hermes-ui") || n.hasAttribute("data-comment-under") || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
+        if (n.hasAttribute("data-hermes-ui") || n.hasAttribute("data-comment-under") || n.hasAttribute("data-comment-hide") || /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
         var q = n.getBoundingClientRect(); // a box out of sight, or of no size, holds nothing seen (an overflow aside)
         if (!inSight(q) && getComputedStyle(n).overflow !== "visible") return NodeFilter.FILTER_REJECT;
         return SOLID.test(n.tagName) && inSight(q) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
@@ -845,22 +845,33 @@
   function follow(p) {
     if (!picked) { window.addEventListener("scroll", pickedMoved, true); window.addEventListener("resize", pickedMoved); }
     picked = p;
+    document.documentElement.setAttribute("data-comment-draft", ""); // its comment is being written (hideStyle)
   }
   function unfollow() {
     if (!picked) return;
     picked = null;
+    document.documentElement.removeAttribute("data-comment-draft");
     if (pickedTimer) { clearTimeout(pickedTimer); pickedTimer = 0; }
     window.removeEventListener("scroll", pickedMoved, true); window.removeEventListener("resize", pickedMoved);
   }
   on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });
   // While picking, a crosshair over all of the page (its own cursors, a link's hand or a text's caret, would say
   // a click does what it always does there); gone with pick mode.
-  var pickStyle = null;
+  var pickStyle = null, hideStyle = null;
   function setPicking(on) {
     picking = !!on;
+    if (!picking) heldPick = null;
     if (picking) unfollow();
     document.documentElement.style.cursor = picking ? "crosshair" : "";
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
+    // A page's hover-only affordances ([data-comment-hide]: a doc's block handles) are not shown while a part is
+    // picked or its new comment written: nothing to use then, and they came out beside the box (V6g).
+    if (picking && !hideStyle) {
+      hideStyle = document.createElement("style");
+      hideStyle.setAttribute("data-hermes-ui", "");
+      hideStyle.textContent = "html[data-commenting] [data-comment-hide],html[data-comment-draft] [data-comment-hide]{visibility:hidden!important}";
+      document.documentElement.appendChild(hideStyle);
+    }
     if (picking && !pickStyle) {
       pickStyle = document.createElement("style");
       pickStyle.setAttribute("data-hermes-ui", "");
@@ -904,10 +915,26 @@
   // Never before the page's first real render (its "ready": V6f, a sheet said so as its port came, before its grid
   // was laid out, and the click held for it, or one made then, hit nothing).
   var framesPick = false; // a data-pick-later page said its frames pick (hermes.pickReady), this pick mode
+  var heldPick = null; // a click made in the page while picking, before its click picks: {x, y}
+  function pickOn() { return picking && !!rd.msg && !(document.documentElement.hasAttribute("data-pick-later") && !framesPick); }
   function sayPickReady() {
-    if (!picking || !rd.msg || (document.documentElement.hasAttribute("data-pick-later") && !framesPick)) return;
+    if (!pickOn()) return;
     emit("pick-ready", {});
+    if (heldPick) { var q = heldPick; heldPick = null; pickAt(q.x, q.y); }
   }
+  function pickAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y }));
+  }
+  // A click that reaches the page itself while picking is on but before its click picks (no host cover over it: a
+  // touch, a press sent to the frame; V6g, 7 of 12 such clicks in a sheet just opened picked nothing): held, the
+  // first one, and picked once the page is ready, as the host's pick-at. First of the page's click listeners.
+  window.addEventListener("click", function (e) {
+    if (!picking || pickOn() || !e.isTrusted) return;
+    if (e.target && e.target.closest && e.target.closest("[data-hermes-ui]")) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!heldPick) heldPick = { x: e.clientX, y: e.clientY };
+  }, true);
   on("comment-mode", function (d) {
     setPicking(d && d.on);
     framesPick = false;
@@ -915,8 +942,7 @@
   });
   on("pick-at", function (d) {
     if (!picking || !d || !isFinite(d.x) || !isFinite(d.y)) return;
-    var el = document.elementFromPoint(d.x, d.y);
-    if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, clientX: d.x, clientY: d.y }));
+    pickAt(d.x, d.y);
   });
   on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
     pins.forEach(function (p) { p.remove(); }); pins = [];
