@@ -5,6 +5,7 @@ undo history; the error bar showed once on open and never followed the count; th
 selection moved (Insert, Sort, Freeze jumped ~110 px); a restored state drew a broken grid until reopened."""
 
 import json
+import re
 import unittest
 
 import _browser as B
@@ -159,6 +160,78 @@ class SheetInTheBrowser(unittest.TestCase):
         self.assertEqual(sorted(c.split(":", 1)[1] for c in fresh["cells"]), ["Item", "Price", "Qty", "Total"])
         self.assertEqual(fresh["charts"], [])
         self.assertIsNone(fresh["bar"])
+
+    def test_a_drag_held_at_or_past_an_edge_scrolls_and_grows_the_selection(self):
+        # V6: a selection dragged to the grid's right or bottom edge and held there did not scroll (only the last
+        # 4 px or the scrollbar did, at one speed)
+        def col(c):
+            s = ""
+            c += 1
+            while c:
+                c, m = divmod(c - 1, 26)
+                s = chr(65 + m) + s
+            return s
+        aid = self.pub([[f"{col(c)}{r + 1}" for c in range(40)] for r in range(200)])
+        # the pane's box, its scroll, the name box, the last column and row in sight, and how far any cell in
+        # sight sits from its column letter and row number
+        probe = r"""(() => {
+          const g = document.getElementById("sh-grid"), v = g.querySelector(".sh-vp").getBoundingClientRect()
+          const shown = e => { const b = e.getBoundingClientRect(); return e.offsetParent && b.left + b.width / 2 > v.left && b.left + b.width / 2 < v.right && b.top + b.height / 2 > v.top && b.top + b.height / 2 < v.bottom }
+          const ci = t => [...t].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0)
+          const cols = {}, rows = {}
+          document.querySelectorAll("#sh-grid .sh-h.col").forEach(h => { if (shown(h)) cols[h.textContent.trim()] = h.getBoundingClientRect() })
+          document.querySelectorAll("#sh-grid .sh-h.row").forEach(h => { if (shown(h)) rows[h.textContent.trim()] = h.getBoundingClientRect() })
+          let n = 0, off = 0
+          document.querySelectorAll("#sh-grid .sh-c").forEach(c => {
+            const m = /^([A-Z]+)(\d+)$/.exec(c.textContent.trim()); if (!m || !shown(c) || !cols[m[1]] || !rows[m[2]]) return
+            const b = c.getBoundingClientRect(); n++
+            off = Math.max(off, Math.abs(b.left - cols[m[1]].left), Math.abs(b.top - rows[m[2]].top))
+          })
+          return { l: v.left, t: v.top, r: v.right, b: v.bottom, iw: innerWidth, ih: innerHeight, sl: g.scrollLeft, st: g.scrollTop,
+            sel: document.querySelector(".sh-name").value, lastCol: Math.max(...Object.keys(cols).map(ci)), lastRow: Math.max(...Object.keys(rows).map(Number)), n, off }
+        })()"""
+        o = self.run_page(aid, """
+          const out = {}, geo = () => api.frame(%s)
+          const hold = async (x, y) => { await api.pointer('mouseMoved', x, y, true); await api.sleep(700) }
+          const at = t => api.frame('(() => { const c = [...document.querySelectorAll("#sh-grid .sh-c, #sh-grid .sh-h.row")].find(x => x.textContent.trim() === ' + JSON.stringify(t) + '); const b = c.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()')
+          out.start = await geo()
+          const s = out.start, p = await at('C3')
+          await api.pointer('mouseMoved', p[0], p[1], false); await api.pointer('mousePressed', p[0], p[1], true)
+          for (let i = 1; i <= 6; i++) await api.pointer('mouseMoved', p[0] + (s.r - 30 - p[0]) * i / 6, p[1], true)
+          await hold(s.r - 8, p[1]); out.nearRight = await geo()
+          await hold(Math.min(s.r + 12, s.iw - 1), p[1]); out.right = await geo()
+          await hold(s.r - 30, s.b - 8); out.nearBottom = await geo()
+          await hold(s.r - 30, Math.min(s.b + 12, s.ih - 1)); out.bottom = await geo()
+          await api.pointer('mouseReleased', s.r - 30, Math.min(s.b + 12, s.ih - 1), false); await api.sleep(150); out.released = await geo()
+          await api.sleep(600); out.after = await geo()
+          // a row number dragged down past the bottom: the rows follow
+          await api.frame('document.getElementById("sh-grid").scrollTop = 0'); await api.sleep(300)
+          const q = await at('5')
+          await api.pointer('mouseMoved', q[0], q[1], false); await api.pointer('mousePressed', q[0], q[1], true)
+          await api.pointer('mouseMoved', q[0], s.b - 10, true); await hold(q[0], Math.min(s.b + 12, s.ih - 1)); out.rows = await geo()
+          await api.pointer('mouseReleased', q[0], Math.min(s.b + 12, s.ih - 1), false); await api.sleep(150)
+          return out
+        """ % json.dumps(probe), w=900)
+        s, nr, right, nb, bottom = o["start"], o["nearRight"], o["right"], o["nearBottom"], o["bottom"]
+        end = lambda g: re.match(r"C3:([A-Z]+)(\d+)$", g["sel"]).groups()
+        ci = lambda t: sum((ord(ch) - 64) * 26 ** i for i, ch in enumerate(reversed(t)))
+        self.assertEqual((s["sl"], s["st"]), (0, 0), s)
+        self.assertGreater(nr["sl"], 0, nr)                                   # held at the right edge: it scrolled
+        self.assertGreater(ci(end(nr)[0]), s["lastCol"], nr)                  # and the selection took columns out of sight before
+        self.assertGreater(right["sl"], nr["sl"], right)                      # past it: on
+        self.assertGreater(ci(end(right)[0]), ci(end(nr)[0]), right)
+        self.assertGreater(nb["st"], 0, nb)                                   # at the bottom
+        self.assertGreater(int(end(nb)[1]), s["lastRow"], nb)
+        self.assertGreater(bottom["st"], nb["st"], bottom)                    # past it
+        self.assertGreater(int(end(bottom)[1]), int(end(nb)[1]), bottom)
+        for g in (s, nr, right, nb, bottom, o["after"]):
+            self.assertGreater(g["n"], 10, g)
+            self.assertLessEqual(g["off"], 1, g)                              # every cell under its letter and number
+        self.assertEqual((o["released"]["sl"], o["released"]["st"]), (o["after"]["sl"], o["after"]["st"]))   # let go: it stops
+        self.assertEqual(o["after"]["sel"], o["released"]["sel"])
+        self.assertGreater(o["rows"]["st"], 0, o["rows"])
+        self.assertRegex(o["rows"]["sel"], r"^A5:[A-Z]+\d+$")
+        self.assertGreater(int(re.search(r"(\d+)$", o["rows"]["sel"]).group(1)), s["lastRow"], o["rows"])
 
 
 if __name__ == "__main__":

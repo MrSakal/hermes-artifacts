@@ -1076,29 +1076,43 @@
     return -1;
   }
   function startDrag(kind, extra) {
-    drag = { kind: kind };
+    drag = { kind: kind, x0: lastPt.x, y0: lastPt.y };
     for (var k in extra || {}) drag[k] = extra[k];
     document.addEventListener("mousemove", dragMove);
     document.addEventListener("mouseup", dragEnd);
-    clearInterval(dragTimer);
-    dragTimer = setInterval(autoScroll, 50);
+    cancelAnimationFrame(dragTimer);
+    if (kind !== "resize") dragTimer = requestAnimationFrame(autoScroll);
   }
-  function autoScroll() {
-    if (!drag || !lastPt || drag.kind === "resize") return;
-    var b = vp.getBoundingClientRect(), dx = 0, dy = 0;
-    if (lastPt.x > b.right - 4) dx = 30; else if (lastPt.x < b.left + HW + FW && drag.kind !== "rows" && sl > 0) dx = -30;
-    if (lastPt.y > b.bottom - 4) dy = RH * 2; else if (lastPt.y < b.top + HH + FH && drag.kind !== "cols" && st > 0) dy = -RH * 2;
-    if (dx || dy) { grid.scrollLeft += dx; grid.scrollTop += dy; sl = grid.scrollLeft; st = grid.scrollTop; dragMove({ clientX: lastPt.x, clientY: lastPt.y }); }
+  // A drag held within one row's height of the scrolling pane's edge, or past it, scrolls that way, faster the
+  // further out it is, and the selection follows the cell under the pointer; only once the pointer has moved
+  // (a click near the edge selects, it does not scroll). Rows scroll down and up, columns sideways.
+  function autoScroll(now) {
+    if (!drag) return;
+    dragTimer = requestAnimationFrame(autoScroll);
+    var dt = Math.min(100, now - (drag.t || now)), b = vp.getBoundingClientRect(), dx = 0, dy = 0;
+    drag.t = now;
+    if (!drag.moved) return;
+    var x = lastPt.x, y = lastPt.y, x1 = b.left + HW + FW + RH, y1 = b.top + HH + FH + RH;
+    if (drag.kind !== "rows") { if (x > b.right - RH) dx = x - b.right + RH; else if (x < x1 && sl > 0) dx = x - x1; }
+    if (drag.kind !== "cols") { if (y > b.bottom - RH) dy = y - b.bottom + RH; else if (y < y1 && st > 0) dy = y - y1; }
+    function step(d) { return Math.round(clamp(d, -240, 240) / 2 * dt / 16); }
+    if (!step(dx) && !step(dy)) return;
+    grid.scrollLeft += step(dx); grid.scrollTop += step(dy);
+    if (grid.scrollLeft === sl && grid.scrollTop === st) return;
+    sl = grid.scrollLeft; st = grid.scrollTop; translate(); renderAll(false);
+    dragMove({ clientX: x, clientY: y, buttons: 1 });
   }
   function dragMove(e) {
     if (!drag) return;
+    if (!(e.buttons & 1)) return dragEnd();  // let go where the page did not hear it
     lastPt = { x: e.clientX, y: e.clientY };
+    if (Math.abs(lastPt.x - drag.x0) + Math.abs(lastPt.y - drag.y0) > 4) drag.moved = true;
     var b = vp.getBoundingClientRect();
     var p = hit(clamp(e.clientX, b.left + HW + 1, b.right - 2), clamp(e.clientY, b.top + HH + 1, b.bottom - 2));
     if (drag.kind === "resize") {
       var x0 = cellBox(0, drag.col).x, w = clamp(Math.round(e.clientX - b.left - x0), 40, 800);
       drag.w = w; resizeLine.hidden = false; resizeLine.style.left = x0 + w - 1 + "px";
-    } else if (drag.kind === "sel") { if (p.r !== er || p.c !== ec) { er = p.r; ec = p.c; afterSel(); ensureVisible(er, ec); } }
+    } else if (drag.kind === "sel") { if (p.r !== er || p.c !== ec) { er = p.r; ec = p.c; afterSel(); } }
     else if (drag.kind === "rows") { if (p.r !== er) { er = p.r; afterSel(); } }
     else if (drag.kind === "cols") { if (p.c !== ec) { ec = p.c; afterSel(); } }
     else if (drag.kind === "point" && ed) {
@@ -1109,7 +1123,7 @@
   function dragEnd() {
     document.removeEventListener("mousemove", dragMove);
     document.removeEventListener("mouseup", dragEnd);
-    clearInterval(dragTimer);
+    cancelAnimationFrame(dragTimer);
     var d = drag; drag = null; lastPt = null;
     if (!d) return;
     if (d.kind === "resize") { resizeLine.hidden = true; if (d.w) setColWidth(S(), d.col, Math.round(d.w / ZM)); }

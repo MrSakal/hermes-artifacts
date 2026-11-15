@@ -1835,7 +1835,26 @@ function Icon({ name, size = 16, stroke = 1.6 }) {
 
 function useHover() {
   const [h, setH] = useState(false)
-  return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }]
+  return [h, { onMouseEnter: () => setH(true), onMouseLeave: () => setH(false) }, setH]
+}
+
+/** A hover that shows something over other things (a tile's tooltip) must not outlive the pointer: no mouseleave
+ *  comes when the page scrolls or a wheel turns elsewhere with the pointer still, nor when the window loses the
+ *  pointer. While `on`, a wheel or a move whose target is outside `ref`, a scroll that leaves the last pointer
+ *  spot off it, the pointer leaving the window, or the window's blur call `off`. */
+function useHoverGuard(ref, on, off) {
+  useEffect(() => {
+    if (!on) return undefined
+    let at = null
+    const outside = t => !(t instanceof Node) || !ref.current?.contains(t)
+    const move = e => { at = [e.clientX, e.clientY]; if (outside(e.target)) off() }
+    const wheel = e => { if (outside(e.target)) off() }
+    const scroll = () => { if (!at || outside(document.elementFromPoint(at[0], at[1]))) off() }
+    const leave = e => { if (!e.relatedTarget) off() }
+    const offs = [listen(CTX, window, 'pointermove', move, true), listen(CTX, window, 'wheel', wheel, { capture: true, passive: true }),
+      listen(CTX, window, 'scroll', scroll, true), listen(CTX, document, 'mouseout', leave), listen(CTX, window, 'blur', off)]
+    return () => offs.forEach(f => f?.())
+  }, [on])
 }
 
 /** Whether the keyboard's focus is inside the element (its buttons that show on hover show for the keyboard
@@ -2226,13 +2245,14 @@ function TileTip({ kind, x, width, top }) {
 
 function NewTile({ ctx, kind }) {
   const t = usePluginI18n(ID)
-  const [h, hp] = useHover()
+  const [h, hp, setH] = useHover()
   const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false)
   const popups = useValue($popups)
   const ds = DS_KINDS.includes(kind)
   // The tooltip is wider than its tile: centred under it, but kept inside what is visible (the first clipping parent, else the window).
   const wrap = useRef(null)
+  useHoverGuard(wrap, h, () => setH(false))
   const [tipX, setTipX] = useState(null)
   const [tipTop, setTipTop] = useState(132) // under the tile and its name (measured)
   const TIP_W = 230
@@ -2916,6 +2936,7 @@ function FolderChip({ ctx, name, active, count }) {
 }
 
 const CHIP_BAR = 'data-chip-bar' // the folder chips' row: their menus hang from it
+const CHIP_FADE = 24 // the fade over a cut end of the chips' row
 /** The folder chips in one row that scrolls sideways when they do not fit (as Hermes' own tab and profile rows:
  *  no scrollbar, a cut end faded, the wheel scrolls it), the chip shown kept in sight. */
 function ChipRow({ children, shown }) {
@@ -2940,10 +2961,17 @@ function ChipRow({ children, shown }) {
     try { ro = new ResizeObserver(measure); ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild) } catch {}
     return () => { el.removeEventListener('scroll', measure); el.removeEventListener('wheel', wheel); ro?.disconnect() }
   }, [])
+  // The chip shown, scrolled into sight clear of the faded ends (CHIP_FADE): never under a fade; one too wide
+  // for the room between them is centred (both ends cut alike).
   useLayoutEffect(() => {
-    ref.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    const el = ref.current, chip = el?.querySelector('[aria-pressed="true"]')
+    if (!chip) return
+    const s = el.getBoundingClientRect(), c = chip.getBoundingClientRect()
+    if (c.width > s.width - 2 * CHIP_FADE) el.scrollLeft += (c.left + c.right - s.left - s.right) / 2
+    else if (c.left < s.left + CHIP_FADE) el.scrollLeft -= s.left + CHIP_FADE - c.left
+    else if (c.right > s.right - CHIP_FADE) el.scrollLeft += c.right - (s.right - CHIP_FADE)
   }, [shown])
-  const fade = side => jsx('div', { style: { position: 'absolute', top: 0, bottom: 0, [side]: 0, width: 24, pointerEvents: 'none', background: `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, ${C.bg}, transparent)` } })
+  const fade = side => jsx('div', { style: { position: 'absolute', top: 0, bottom: 0, [side]: 0, width: CHIP_FADE, pointerEvents: 'none', background: `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, ${C.bg}, transparent)` } })
   // Not itself the scroller: a folder's menu hangs from here (CHIP_BAR) and is not cut by the scrolling row.
   return jsxs('div', {
     [CHIP_BAR]: '',
@@ -3013,6 +3041,9 @@ function VersionNotice() {
 
 const NEW_KINDS = ['doc', 'sheet', 'board', 'slides', 'design', 'model', 'dashboard', 'motion', 'design-system', 'page']
 const GALLERY_PAD = 28 // the gallery's side padding
+// The search field stays on the toolbar's row from this width of it: the folders keep at least ~150 px beside a
+// 160-240 px field and the four tools; narrower, it takes a row of its own under the toolbar.
+const SEARCH_INLINE = 560
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
@@ -3033,7 +3064,9 @@ function Gallery({ ctx, pageRef }) {
   const [open, setOpen] = useState(null) // 'filter' | 'new'
   // The rows' columns follow the list's width (its box less the padding).
   const content = useRef(null)
-  const cols = listCols(Math.max(0, useWidth(content) - 2 * GALLERY_PAD))
+  const barW = Math.max(0, useWidth(content) - 2 * GALLERY_PAD)
+  const cols = listCols(barW)
+  const field = useRef(null)
 
   const q = query.trim().toLowerCase()
   const inView = list
@@ -3068,6 +3101,25 @@ function Gallery({ ctx, pageRef }) {
       q ? jsx(IconButton, { icon: 'close', label: t('clearSearch'), title: t('clearSearch'), onClick: () => ($query.set(''), setSearching(false)) }) : null
     ]
   })
+
+  // The search field: on the toolbar's row from SEARCH_INLINE px of it, else on its own row
+  // under it (the toolbar stays one row, its search button pressed meanwhile).
+  const searchBelow = barW > 0 && barW < SEARCH_INLINE
+  const searchField = searching
+    ? jsx('input', {
+        ref: field,
+        autoFocus: true,
+        value: query,
+        placeholder: t('searchArtifacts'),
+        onChange: e => $query.set(e.target.value),
+        onBlur: () => !query && setSearching(false),
+        onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
+        'aria-label': t('searchArtifacts'),
+        className: INPUT,
+        // 240 px where there is room; it gives way, down to 160, after the folders did. On its own row: the whole width.
+        style: { ...font, boxSizing: 'border-box', height: 30, ...(searchBelow ? { width: '100%' } : { width: 240, flex: '0 1 240px', minWidth: 160 }), padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
+      })
+    : null
 
   const body = err
     ? jsx('p', { style: { fontSize: 13, color: C.text3 }, children: t('backendDown', err) })
@@ -3106,7 +3158,7 @@ function Gallery({ ctx, pageRef }) {
             // The toolbar, one row at every width: the folders on the left (a row that scrolls sideways when
             // they do not fit: ChipRow), the tools on the right, whole.
             jsxs('div', {
-              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 26 },
+              style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: searching && searchBelow ? 8 : 26 },
               children: [
                 jsx(ChipRow, {
                   shown: `${folder}:${inTrash}`,
@@ -3125,20 +3177,9 @@ function Gallery({ ctx, pageRef }) {
                 jsxs('div', {
                   style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: '0 1 auto', minWidth: 0, marginLeft: 'auto' },
                   children: [
-                    searching
-                      ? jsx('input', {
-                          autoFocus: true,
-                          value: query,
-                          placeholder: t('searchArtifacts'),
-                          onChange: e => $query.set(e.target.value),
-                          onBlur: () => !query && setSearching(false),
-                          onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
-                          'aria-label': t('searchArtifacts'),
-                          className: INPUT,
-                          // 240 px where there is room; it gives way, down to 120, after the folders did.
-                          style: { ...font, boxSizing: 'border-box', height: 30, width: 240, flex: '0 1 240px', minWidth: 120, padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
-                        })
-                      : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), onClick: () => setSearching(true) }),
+                    searching && !searchBelow
+                      ? searchField
+                      : jsx(IconButton, { icon: 'search', title: t('searchArtifacts'), active: searching, pressed: searching, onClick: () => (searching ? field.current?.focus() : setSearching(true)) }),
                     jsxs('div', {
                       style: { position: 'relative' },
                       children: [
@@ -3166,6 +3207,7 @@ function Gallery({ ctx, pageRef }) {
                 })
               ]
             }),
+            searching && searchBelow ? jsx('div', { style: { display: 'flex', marginBottom: 26 }, children: searchField }) : null,
             // While a search is on, its results come first (the tiles would push them below the window).
             inTrash || q ? null : jsx('div', { style: { fontSize: 14, color: C.text2, marginBottom: 12 }, children: t('makeNew') }),
             inTrash || q
@@ -4005,28 +4047,25 @@ function FrameBand({ F }) {
   })
 }
 
-/** Picking an element for a new comment is on: a band under the header (FrameBand's: it covers nothing of the
- *  page nor of its toolbars) says so and how to leave it, wherever picking started (the header's Comment with the
- *  list closed, the list's Comment, the pane beside a chat, the whole-stage list that steps aside for it). Esc
- *  (here, or in the page: bridge.js pick-cancel), its Cancel, or Comment again ends it; the pointer over the
- *  page is a crosshair meanwhile (bridge.js). */
-function PickBand() {
+/** Picking an element for a new comment is on: the header says so and how to leave it, in the title's place
+ *  (PickHint), wherever picking started (the header's Comment with the list closed, the list's Comment, the pane
+ *  beside a chat, the whole-stage list that steps aside for it). Not a band of its own: one would take its height
+ *  from the frame while picking and give it back as the new comment opens, and a frame resized under an open
+ *  comment left its page laid out for the smaller frame (V6c, a film: its pin off the point clicked). Esc (here,
+ *  or in the page: bridge.js pick-cancel), its Cancel, or Comment again ends it; the pointer over the page is a
+ *  crosshair meanwhile (bridge.js). */
+function PickHint() {
   const t = usePluginI18n(ID)
-  const picking = useValue($picking)
   const [h, hp] = useHover()
-  useEffect(() => {
-    if (!picking) return undefined
-    return listen(CTX, window, 'keydown', e => { if (e.key === 'Escape' && !e.isComposing) $picking.set(false) })
-  }, [picking])
-  if (!picking) return null
+  useEffect(() => listen(CTX, window, 'keydown', e => { if (e.key === 'Escape' && !e.isComposing) $picking.set(false) }), [])
   return jsxs('div', {
     role: 'status',
     'aria-live': 'polite',
     'data-ha-pick-hint': '',
-    style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, padding: '6px 12px', fontSize: 12, color: C.text2, borderBottom: `1px solid ${C.line}` },
+    style: { display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 0', minWidth: 0, padding: '0 2px', fontSize: 12, color: C.text2 },
     children: [
       jsx('span', { style: { display: 'flex', color: C.accent, flexShrink: 0 }, children: jsx(Icon, { name: 'comment', size: 14 }) }),
-      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0, lineHeight: '20px' }, title: t('pickHint'), children: t('pickHint') }),
+      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto', minWidth: 0, lineHeight: '20px' }, title: t('pickHint'), children: t('pickHint') }),
       jsx('button', {
         type: 'button',
         onClick: () => $picking.set(false),
@@ -4245,7 +4284,7 @@ function onPageEvent(event, detail) {
     $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null, ...(rect ? { rect } : {}) })
     return
   }
-  if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickBand)
+  if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickHint)
   if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
     const d = $draft.get(), r = pickedRect(detail && detail.rect)
     if (d?.rect && r && Object.keys(r).some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: r })
@@ -5017,12 +5056,16 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
 
 // ---------------------------------------------------------------- header (Claude's: title menu, Chat, Comment, close)
 
-/** The part of the window `el` can be seen in: the window, cut by every ancestor that clips (overflow other
- *  than visible: a scrolled gallery, a pane). */
+/** The part of the window `el` can be seen in: the window, cut by every ancestor that clips it (overflow other
+ *  than visible: a scrolled gallery, a pane). An absolutely placed box is clipped only from its containing block
+ *  out: a box between them that scrolls (the folder chips' row, its menu hung from outside it) does not cut it. */
 function visibleBox(el) {
   let box = { top: 0, left: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 }
+  let holder = el && getComputedStyle(el).position === 'absolute' ? el.offsetParent : null
   for (let p = el?.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    if (holder && p !== holder) continue
     const cs = getComputedStyle(p)
+    holder = cs.position === 'absolute' ? p.offsetParent : null
     if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue
     const b = p.getBoundingClientRect()
     box = { top: Math.max(box.top, b.top), left: Math.max(box.left, b.left), right: Math.min(box.right, b.right), bottom: Math.min(box.bottom, b.bottom) }
@@ -5110,7 +5153,9 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
     // Armed after this press; a menu gone before then must not leave the listener behind.
     let offDown = null
     const disarm = later(CTX, () => { offDown = listen(CTX, window, 'mousedown', off) }, 0)
-    const offEsc = listen(CTX, window, 'keydown', esc)
+    // Before anything under it (the capture phase): a handler of the host's or the page's own that stops the
+    // press never keeps the menu open.
+    const offEsc = listen(CTX, window, 'keydown', esc, true)
     return () => {
       disarm()
       offDown?.()
@@ -5383,9 +5428,10 @@ function Header({ ctx, art, v, portRef, docked }) {
     ref: row,
     style: { display: 'flex', alignItems: 'center', gap: 4, height: 48, flexShrink: 0, padding: '0 10px', borderBottom: `1px solid ${C.line}` },
     children: [
-      jsx(TitleButton, { ctx, art, v, portRef, docked }, art.id),
+      // While an element is being picked, the title's place says so (PickHint): the frame keeps its size.
+      picking ? jsx(PickHint, {}) : jsx(TitleButton, { ctx, art, v, portRef, docked }, art.id),
       // At least 8 px (with the gaps) between the title and the buttons.
-      jsx('div', { style: { flex: '1 0 0', minWidth: 0 } }),
+      jsx('div', { style: { flex: picking ? '0 0 4px' : '1 0 0', minWidth: 0 } }),
       // The two chat layouts as one switch: Chat (its chat with the artifact beside it) | Pop out chat.
       docked
         ? null
@@ -5491,6 +5537,7 @@ function placeCommentBox(rect, bw, bh, h) {
   const pin = pinSpot(rect, bw, bh)
   const cut = (a, ah, bx, by, bw2, bh2) => a.x < bx + bw2 && bx < a.x + W && a.y < by + bh2 && by < a.y + ah
   const onPin = (b, bh2) => cut(b, bh2, pin.x, pin.y, PIN, PIN)
+  const nearPin = (b, bh2) => cut(b, bh2, pin.x - GAP, pin.y - GAP, PIN + 2 * GAP, PIN + 2 * GAP) // within GAP of it
   const keep = rect.kp || []
   const clear = (b, bh2) => !keep.some(([l, t, r, bt]) => cut(b, bh2, l, t, r - l, bt - t))
   const x0 = clamp(rect.x, M, Math.max(M, bw - W - M))
@@ -5514,10 +5561,11 @@ function placeCommentBox(rect, bw, bh, h) {
     const xs = [x0, ...keep.flatMap(([l, , r]) => [l, r - W, r + GAP, l - GAP - W])]
     const spots = keep.flatMap(([l, t, r, bt]) => xs.flatMap(x => [{ x, y: t - GAP - h }, { x, y: bt + GAP }, { x, y: clamp(t, M, bh - h - M) }]))
       .map(b => ({ x: clamp(b.x, M, Math.max(M, bw - W - M)), y: b.y }))
-      .filter(b => fits(b) && clear(b, h) && !onPin(b, h))
+      .filter(b => fits(b) && clear(b, h) && !nearPin(b, h))
     const far = b => Math.hypot(Math.max(0, pin.x - (b.x + W), b.x - (pin.x + PIN)), Math.max(0, pin.y - (b.y + h), b.y - (pin.y + PIN)))
     const near = list => list.reduce((a, b) => (!a || far(b) < far(a) ? b : a), null)
-    const off = near(spots.filter(b => !cut(b, h, rect.x, rect.y, rect.w, rect.h)))
+    // off the element by GAP at least (V6c: a box beside a strip's end sat flush on the artboard commented on)
+    const off = near(spots.filter(b => !cut(b, h, rect.x - GAP, rect.y - GAP, rect.w + 2 * GAP, rect.h + 2 * GAP)))
     if (off) return placed(off)
     const below = bh - M - yb, above = ya + h - M
     const room = below >= above ? { x: x0, y: yb, maxH: below } : { x: x0, y: M, maxH: above }
@@ -5571,7 +5619,8 @@ const BAND_MIN = 2 * BOX_M + BOX_MIN_H + 30 // a band between the page's own bar
  *  covers: placed in the width left of the list (placeCommentBox), never under it, and between the page's own
  *  bars (rect.vt, rect.vb: a type page's sticky toolbar; pickedRect), never over them. box null: the box is in
  *  the list (commentDocks). pin null: its element cannot be seen (scrolled out of the frame or of its box,
- *  under the page's bars: rect.vis false), or the list leaves no room for it; an element behind the list gets
+ *  under the page's bars: rect.vis false), it would lie on the page's own controls (rect.kp), or the list
+ *  leaves no room for it; an element behind the list gets
  *  its pin at the list's edge, on its own line. An element out of sight puts the box in the band's
  *  bottom-right corner (off the page's navigation down its left, a doc's contents), where it waits until the
  *  element is back. Pure. */
@@ -5586,7 +5635,10 @@ function commentLayout(rect, bw, bh, h, cover = 0) {
   const { pin, box } = placeCommentBox(inBand, free, b0 - t0, h)
   const band = b0 - t0, M = BOX_M
   const parked = { x: Math.max(M, free - COMMENT_W - M), y: Math.max(M, band - M - Math.min(h, band - 2 * M)), maxH: band - 2 * M }
-  return { pin: off || free < PIN + 8 ? null : { x: pin.x, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : off ? { ...parked, y: parked.y + t0 } : { ...box, y: box.y + t0 } }
+  // A pin that would lie on the page's own controls (a canvas's palette over the element after a pan) is not
+  // drawn: the page's controls stay on top, as the element under them is.
+  const underControls = (rect.kp || []).some(([l, t, r, b]) => pin.x < r && l < pin.x + PIN && pin.y + t0 < b && t < pin.y + t0 + PIN)
+  return { pin: off || underControls || free < PIN + 8 ? null : { x: pin.x, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : off ? { ...parked, y: parked.y + t0 } : { ...box, y: box.y + t0 } }
 }
 
 /** Claude's in-place comment: a box beside the element clicked, empty, Send to Hermes on (its checkbox). */
@@ -6156,7 +6208,6 @@ function Viewer({ ctx, docked = false }) {
       jsx(Header, { ctx, art, v: hv, portRef, docked }),
       making ? jsx(MakingLine, { ctx, m: making, band: true }) : null,
       jsx(FrameBand, { F }),
-      jsx(PickBand, {}),
       jsxs('div', {
         style: VIEW_ROW,
         children: [

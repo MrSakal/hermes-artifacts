@@ -305,30 +305,50 @@
     tip.style.top = (y + 14) + "px";
   }
 
-  /** A bar chart's values, drawn (their boxes measured): each keeps VALUE_GAP screen px, its halo included, off
-   *  the dashed reference line's stroke at ry (null: none): above the line when its bar reaches it, else below it,
-   *  between the line and the bar, where there is room for it, else above the line too (a bar just under the line:
-   *  live, "97.9" under a target of 100 kept its place with the line broken behind it, its ink 3 px from the
-   *  dashes); only one with no room above in the chart keeps its place, the line broken behind it, VALUE_GAP px
-   *  past its halo either side. Values closer than VALUE_GAP px to a neighbour: every
+  /** A bar chart's values, drawn (their boxes measured), beside their bars (the rects, in the values' order): each
+   *  keeps VALUE_GAP screen px, its halo included, off the dashed reference line's stroke at ry (null: none): above
+   *  the line when its bar reaches it, else below it, between the line and the bar, where there is room for it,
+   *  else inside its bar's top (live, "88", "97.9" and "92.4" moved above the line read as cut off their bars):
+   *  IN_PAD px inside the bar, IN_GAP px under the line's stroke, in the theme's text or ground colour, whichever
+   *  reads on the bar (4.5:1, the value being small text); only a bar too narrow or short for it, or one no token
+   *  reads on, has its value above the line. One with no room above in the chart keeps its place, the line broken
+   *  behind it, VALUE_GAP px past its halo either side. Values closer than VALUE_GAP px to a neighbour: every
    *  second one is shown (or third…), the rest are in their bars' tooltips. Never a label touching the line or
    *  another. Measured in the chart's own units (its viewBox), the px turned into them at the size it is drawn;
    *  drawn again when a font arrives (dashboard.js), the boxes being the font's. */
   var VALUE_GAP = 4, REF_HALF = 0.75, HALO = 1.75; // the line's half stroke, a value's half halo (dashboard.css .c-ref, .c-value)
-  function fitValues(svg, ry, x1, x2) {
-    var items = svg.selectAll("g.c-values text").nodes().map(function (t) {
+  var IN_PAD = 4, IN_GAP = 6;
+  function inkOn(fill, el) {
+    var K = window.dashDesignKit, bg = K && K.rgb(fill), cs = getComputedStyle(el), best = null, most = 0;
+    if (bg) ["--color-fg", "--color-bg"].forEach(function (v) {
+      var c = K.rgb(cs.getPropertyValue(v).trim()), k = c && c.a >= 1 ? K.contrast(c, bg) : 0;
+      if (k > most) { most = k; best = v; }
+    });
+    return most >= 4.5 ? "var(" + best + ")" : null;
+  }
+  function fitValues(svg, ry, x1, x2, bars) {
+    var items = svg.selectAll("g.c-values text").nodes().map(function (t, i) {
       var bb = t.getBBox();
-      return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5 };
+      return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5, rect: bars[i] };
     });
     if (!items.length) return;
     var node = svg.node(), vb = node.viewBox && node.viewBox.baseVal, drawn = node.getBoundingClientRect().width;
     var u = vb && vb.width && drawn ? vb.width / drawn : 1; // one screen px in the chart's units
     var off = (VALUE_GAP + REF_HALF + HALO) * u, side = (VALUE_GAP + HALO) * u; // from the line's middle; past a value's box
+    var pad = IN_PAD * u, under = ry + (REF_HALF + IN_GAP) * u;
     if (ry != null) items.forEach(function (o) {
       if (o.y - off >= ry || o.y + o.h + off <= ry) return;
-      var up = ry - off - (o.y + o.h), down = ry + off - o.y;
-      var dy = o.bar > ry && o.bar - 1 - (ry + off) >= o.h ? down // below the line, over its bar
-        : o.y + up >= 0 ? up : null; // above it: its bar up to it or past it, or no room between
+      var up = ry - off - (o.y + o.h), down = ry + off - o.y, dy = null;
+      if (o.bar > ry && o.bar - 1 - (ry + off) >= o.h) dy = down; // below the line, over its bar
+      else if (o.bar > ry && o.rect) { // inside its bar's top, under the line
+        var r = o.rect.getBBox(), top = Math.max(o.bar + pad, under), ink;
+        if (o.x >= r.x + pad && o.x + o.w <= r.x + r.width - pad && top + o.h <= r.y + r.height - pad && (ink = inkOn(o.rect.getAttribute("fill"), o.t))) {
+          dy = top - o.y;
+          o.t.classList.add("c-value-in");
+          o.t.style.fill = ink;
+        }
+      }
+      if (dy == null && o.y + up >= 0) dy = up; // above it: its bar up to it or past it, or no room under it
       if (dy == null) { o.cut = true; return; }
       o.y += dy;
       o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
@@ -428,15 +448,16 @@
         .call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickFormat(function (v, i) { return i % every ? "" : fx(v); }))
         .call(function (g) { g.select(".domain").remove(); });
       if (kind === "bar") {
-        var sub = d3.scaleBand(ys, [0, x.bandwidth()]).padding(0.08);
+        var sub = d3.scaleBand(ys, [0, x.bandwidth()]).padding(0.08), bars = [];
         ys.forEach(function (yk, j) {
-          svg.append("g").selectAll("rect").data(rows).join("rect")
+          var sel = svg.append("g").selectAll("rect").data(rows).join("rect")
             .attr("x", function (d) { return x(String(d[b.x])) + sub(yk); }).attr("width", sub.bandwidth())
             .attr("y", function (d) { return y(Math.max(0, num(d[yk]) || 0)); })
             .attr("height", function (d) { return y(0) - y(Math.max(0, num(d[yk]) || 0)); })
             .attr("rx", 3).attr("fill", colors[j % colors.length])
             .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) })].concat(ys.map(function (k) { return h("div", { text: k + ": " + fy(d[k]) }); }))); })
             .on("mouseleave", function () { tooltip(false); });
+          if (!j) bars = sel.nodes();
         });
         if (rows.length <= 16 && ys.length === 1) {
           svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
@@ -477,7 +498,7 @@
         });
       }
       box.replaceChildren(svg.node());
-      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, M.l, W - M.r);
+      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, M.l, W - M.r, bars);
       // a category's name whole when its slot has room for it; cut (the whole name in its tooltip) only when it has not
       var slot = x.step() * every - 6;
       svg.selectAll(".c-axis .tick text").each(function () {

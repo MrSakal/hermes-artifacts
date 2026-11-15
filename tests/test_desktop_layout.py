@@ -178,8 +178,9 @@ class LayoutTests(unittest.TestCase):
             R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
             %s
             if (searching && !root.querySelector('input')) { root.querySelector('button[aria-label="Search artifacts…"]').click(); %s }
-            const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children
-            out.push({ w, searching, bar: box(bar), chips: [box(chips)], tools: [...tools.children].map(c => ({ ...box(c), tag: c.tagName })) })  // the chips' row (it scrolls)
+            const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children, input = root.querySelector('input')
+            out.push({ w, searching, bar: box(bar), chips: [box(chips)], tools: [...tools.children].map(c => ({ ...box(c), tag: c.tagName })),  // the chips' row (it scrolls)
+              input: input && box(input) })
           }
           R.unmount()
           return out
@@ -188,7 +189,15 @@ class LayoutTests(unittest.TestCase):
         for o in out:
             msg = f"toolbar at {o['w']} px{', searching' if o['searching'] else ''}"
             bar, tools, all_ = o["bar"], o["tools"], o["chips"] + o["tools"]
-            self.assertEqual([t["tag"] for t in tools][0], "INPUT" if o["searching"] else "BUTTON", msg)
+            # searching: the field on the toolbar where the folders keep their room beside it, else on its own row
+            # under the toolbar, as wide as it (V6c at 406 px: the folders were 56 px, "All" alone)
+            inline = o["searching"] and bar["w"] >= 560
+            self.assertEqual([t["tag"] for t in tools][0], "INPUT" if inline else "BUTTON", msg)
+            if o["searching"]:
+                self.assertGreaterEqual(o["chips"][0]["w"] if not inline else 150, 150, msg)
+                if not inline:
+                    self.assertGreaterEqual(o["input"]["t"], bar["b"], msg)
+                    self.assertAlmostEqual(o["input"]["w"], bar["w"], delta=0.5, msg=msg)
             for b in all_:
                 self.assertGreater(b["w"], 0, msg)
                 self.assertGreaterEqual(b["l"], bar["l"] - 0.5, msg)
@@ -199,7 +208,7 @@ class LayoutTests(unittest.TestCase):
             # the tools stay one row, right-aligned (on the folders' row, or whole on the next)
             self.assertEqual(len({round(t["t"]) for t in tools}), 1, msg)
             self.assertAlmostEqual(max(t["r"] for t in tools), bar["r"], delta=0.5, msg=msg)
-            if o["searching"]:
+            if inline:
                 self.assertGreaterEqual(tools[0]["w"], 160, msg)
 
     def test_the_new_tiles_end_where_the_toolbar_ends(self):
@@ -427,7 +436,7 @@ class LayoutTests(unittest.TestCase):
             const longChip = [...bar.firstElementChild.querySelectorAll('button')].find(c => c.textContent === %s)
             out.push({ n, w, searching, barH: b.height, chipTops: [...new Set(chips.map(c => Math.round(c.top)))], toolTops: [...new Set(tools.map(c => Math.round(c.top)))],
               toolsIn: tools.every(t => t.left >= b.left - 0.5 && t.right <= b.right + 0.5), longW: longChip ? longChip.getBoundingClientRect().width : 0,
-              scrollbar: (() => { const s = bar.firstElementChild.firstElementChild; return s.offsetHeight - s.clientHeight })() })
+              scrollbar: (() => { const s = bar.firstElementChild.firstElementChild; return s.offsetHeight - s.clientHeight })(), chipsW: bar.firstElementChild.getBoundingClientRect().width })
             R.unmount()
           }
           M.$query.set(''); M.$trash.set([])
@@ -440,6 +449,8 @@ class LayoutTests(unittest.TestCase):
             self.assertLessEqual(o["barH"], 31, o)  # a single row
             self.assertLessEqual(o["longW"], 160 + 0.5, o)  # the whole chip within the cap
             self.assertEqual(o["scrollbar"], 0, o)  # no scrollbar under the chips
+            if o["n"] >= 4:
+                self.assertGreaterEqual(o["chipsW"], 150, o)  # V6c: searching at 406 px the folders had 56 px, "All" alone
 
     def test_a_search_shows_its_results_without_scrolling(self):
         # V6 at ~406 px: the results (and "Nothing matches.") sat under the eleven template tiles, at y ≈ 1008
@@ -461,6 +472,106 @@ class LayoutTests(unittest.TestCase):
             self.assertIsNotNone(o["top"], (k, out))
             self.assertLess(o["top"], 400, (k, out))  # in the first screen
             self.assertFalse(o["tiles"], (k, out))
+
+    # Live round V6c.
+    def test_a_folder_chips_menu_shows_its_items_whole_and_esc_closes_it(self):
+        # V6c at 406 and 1500 px: the folder chip's Rename / Delete folder menu was a 260 x 14 px sliver (max-height
+        # 0: its room was measured inside the chips' scrolling row, which does not cut it), and Esc left it open
+        names = ["Alpha", "Beta", "Gamma", "Quarterly review of the northern region", "Delta", "Epsilon"]
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '100%%'
+          const now = Date.now() / 1000
+          M.$list.set([{ id: 'a2', title: 'Facade budget', type: 'sheet', version: 1, versions: [1], updated: now - 3600, folder: %s }])
+          M.$folders.set(%s); M.$folder.set(%s); M.$layout.set('grid'); M.$query.set(''); M.$trash.set([])
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        probe = """(() => { const items = [...document.querySelectorAll('button')].filter(b => /^(Rename|Delete folder)/.test(b.textContent.trim()))
+          if (!items.length) return null
+          const menu = items[0].parentElement, m = menu.getBoundingClientRect()
+          // seen, not cut by an ancestor's overflow: each corner of an item (2 px in) shows that item
+          const seen = i => { const r = i.getBoundingClientRect(); return [[r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]]
+            .every(([x, y]) => { const e = document.elementFromPoint(x, y); return !!e && i.contains(e) }) }
+          return { menu: [m.left, m.top, m.right, m.bottom], items: items.map(i => { const r = i.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }),
+            scroll: menu.scrollHeight - menu.clientHeight, seen: items.map(seen), win: [innerWidth, innerHeight] } })()"""
+        chip = ("(() => { const b = document.querySelector('button[aria-haspopup=\"menu\"]');"  # the folder shown: its chevron opens its menu
+                " const r = b.getBoundingClientRect(); return [r.right - 12, r.top + r.height / 2] })()")
+        for w in (406, 1500):
+            for shown in (names[0], names[3], names[5]):
+                r = self.page.drive(f"""
+                  await api.size({w}, 900); await api.top({json.dumps(setup % (json.dumps(shown), json.dumps(names), json.dumps(shown)))}); await api.sleep(400)
+                  const c = await api.top({json.dumps(chip)}); await api.sleep(200); await api.mouse(c[0], c[1]); await api.sleep(400)
+                  const open = await api.top({json.dumps(probe)})
+                  await api.key('Escape', 'Escape', 27); await api.sleep(300)
+                  return {{ open, after: await api.top({json.dumps(probe)}) }}""")
+                self.assertIsNone(r.get("err"), r)
+                o, msg = r["out"]["open"], (w, shown, r["out"])
+                self.assertIsNotNone(o, msg)
+                m = o["menu"]
+                self.assertGreater(m[3] - m[1], 60, msg)  # not a sliver
+                self.assertEqual(o["scroll"], 0, msg)  # nothing of it scrolled away
+                for it in o["items"]:  # each item whole inside the menu, the window and what clips it
+                    self.assertGreater(it[3] - it[1], 20, msg)
+                    self.assertTrue(m[0] - 0.5 <= it[0] and it[2] <= m[2] + 0.5 and m[1] - 0.5 <= it[1] and it[3] <= m[3] + 0.5, msg)
+                    self.assertTrue(0 <= it[0] and it[2] <= o["win"][0] and 0 <= it[1] and it[3] <= o["win"][1], msg)
+                self.assertEqual(o["seen"], [True] * len(o["items"]), msg)
+                self.assertIsNone(r["out"]["after"], msg)  # Esc closed it
+
+
+    def test_the_chip_shown_is_scrolled_clear_of_the_faded_ends(self):
+        # V6c at 406 px: the chosen chip ("Q…") was scrolled flush to the row's end, under its 24 px fade
+        names = ["Alpha", "Beta", "Gamma", "Quarterly review of the northern region", *[f"Folder {i}" for i in range(1, 9)]]
+        out = self.gallery("""
+          const names = %s, out = []
+          M.$folders.set(names); M.$trash.set([])
+          for (const w of [400, 406, 480]) {
+            root.style.width = w + 'px'; M.$folder.set(null)
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            for (const n of [names[11], names[3], names[0], names[7], names[11]]) {
+              M.$folder.set(n); %s
+              const row = root.querySelector('[data-chip-bar]').firstElementChild, s = row.getBoundingClientRect()
+              const c = [...row.querySelectorAll('button')].find(b => b.textContent === n).getBoundingClientRect()
+              out.push({ w, n, l: c.left - s.left, r: s.right - c.right, start: row.scrollLeft <= 1, end: row.scrollLeft + row.clientWidth >= row.scrollWidth - 1, wide: c.width > s.width - 48 })
+            }
+            R.unmount()
+          }
+          M.$folder.set(null)
+          return out
+        """ % (json.dumps(names), NEXT, NEXT))
+        for o in out:
+            if o["wide"]:  # too wide for the room between the fades: centred
+                self.assertAlmostEqual(o["l"], o["r"], delta=1, msg=o)
+                continue
+            self.assertGreaterEqual(o["l"], -0.5 if o["start"] else 24 - 0.5, o)  # clear of the left fade (none at the start)
+            self.assertGreaterEqual(o["r"], -0.5 if o["end"] else 24 - 0.5, o)
+
+
+    def test_a_tiles_tooltip_goes_when_the_pointer_is_no_longer_on_it(self):
+        # V6c at 406 px: the 3D tile's tooltip stayed up after a wheel turned over the folder chips (no mouseleave
+        # comes for a wheel, a scroll or a window that loses the pointer)
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '900px'; root.style.width = '406px'
+          M.$list.set([]); M.$folders.set(['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta']); M.$folder.set(null); M.$query.set(''); M.$trash.set([])
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        at = lambda js: "(() => { const b = %s; const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()" % js
+        tile = at("[...document.querySelectorAll('button')].find(b => b.textContent === '3D').firstElementChild")
+        chips = at("document.querySelector('[data-chip-bar]')")
+        # the 3D tile's tooltip up (another tile's, now under a pointer that did not move, may be)
+        tip = "[...document.querySelectorAll('[role=tooltip]')].some(t => t.parentElement.textContent.startsWith('3D'))"
+        r = self.page.drive(f"""
+          await api.size(406, 900); await api.top({json.dumps(setup)}); await api.sleep(400)
+          const hover = async () => {{ const t = await api.top({json.dumps(tile)}); await api.pointer('mouseMoved', 2, 2); await api.sleep(100); await api.pointer('mouseMoved', t[0], t[1]); await api.sleep(250); return api.top({json.dumps(tip)}) }}
+          const o = {{ shown: await hover() }}
+          const c = await api.top({json.dumps(chips)}); await api.wheel(c[0], c[1], 0, 120); await api.sleep(300); o.wheel = await api.top({json.dumps(tip)})
+          o.shownAgain = await hover()
+          await api.top('document.getElementById("root").firstElementChild.firstElementChild.scrollTop += 200'); await api.sleep(300)
+          o.scroll = await api.top({json.dumps(tip)}); o.scrolled = await api.top('document.getElementById("root").firstElementChild.firstElementChild.scrollTop > 0')
+          await api.top('window.scrollTo(0, 0); document.getElementById("root").firstElementChild.firstElementChild.scrollTop = 0'); await api.sleep(200)
+          o.shownThird = await hover()
+          await api.top('window.dispatchEvent(new Event("blur"))'); await api.sleep(200); o.blur = await api.top({json.dumps(tip)})
+          return o""")
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["out"], {"shown": True, "wheel": False, "shownAgain": True, "scroll": False, "scrolled": True, "shownThird": True, "blur": False})
+
 
 class ListColsTests(unittest.TestCase):
     def test_columns_by_width(self):

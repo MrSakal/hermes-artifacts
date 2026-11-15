@@ -1039,8 +1039,8 @@ class RoundV3Layout(unittest.TestCase):
           const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, half = 0.75 * k, ly = segs[0].top + segs[0].height / 2
           const vals = [...document.querySelectorAll('.c-chart text.c-value')].map(t => { const r = t.getBoundingClientRect(), cs = getComputedStyle(t), halo = parseFloat(cs.strokeWidth) / 2 * k
             return { v: t.textContent, l: r.left - halo, r: r.right + halo, t: r.top - halo, b: r.bottom + halo, fl: r.left, fr: r.right, ft: r.top, fb: r.bottom,
-                     halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none' } })
-          const line = vals.map(v => ({ v: v.v, gap: Math.max(v.t - ly, ly - v.b) - half, under: segs.some(s => s.left < v.r + 3.9 && s.right > v.l - 3.9), halo: v.halo }))
+                     halo: /^stroke/.test(cs.paintOrder) && parseFloat(cs.strokeWidth) >= 2 && cs.stroke !== 'none', inside: t.classList.contains('c-value-in') } })
+          const line = vals.map(v => ({ v: v.v, gap: Math.max(v.t - ly, ly - v.b) - half, under: segs.some(s => s.left < v.r + 3.9 && s.right > v.l - 3.9), halo: v.halo, inside: v.inside }))
           const near = vals.slice(1).map((c, i) => { const a = vals[i]; return Math.max(c.fl - a.fr, a.fl - c.fr, c.ft - a.fb, a.ft - c.fb) })
           return { line, near, n: vals.length, w: innerWidth } })()"""
         widths = (1500, 1246, 1100, 1000, 760, 560, 400)
@@ -1055,7 +1055,7 @@ class RoundV3Layout(unittest.TestCase):
         for w, o in out.items():
             self.assertTrue(o and o["n"] >= 4, (w, o))
             for v in o["line"]:
-                self.assertTrue(v["halo"], (w, v))
+                self.assertTrue(v["halo"] or v["inside"], (w, v))  # on the card: its halo; inside its bar (V6c): none
                 self.assertTrue(v["gap"] >= 4 - 0.05 or not v["under"], (w, v, o))  # clear of the line, or the line broken there
             self.assertTrue(all(g >= 4 - 0.05 for g in o["near"]), (w, o))
         self.assertEqual(out["1500"]["n"], 10, out["1500"])  # room for every value
@@ -1463,6 +1463,68 @@ class RoundV6Pages(unittest.TestCase):
             for v in o["vals"]:
                 self.assertGreaterEqual(v["d"], 6, (k, v, o))
 
+    def test_test_dash2_values_stay_with_their_bars_never_across_the_target_line(self):
+        # V6c: "88", "97.9" and "92.4" (bars just under the target of 100) were moved above the line, the line between
+        # each and its bar. A value is over its bar under the line, or inside its bar's top (its ink in the bar, 6 px
+        # under the line's stroke, at 4.5:1 on the bar: 11 px is small text), or above a bar that reaches the line;
+        # across the line from its bar only where neither of the first two has room (the value's own box measured).
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        probe = r"""(() => { const svg = [...document.querySelectorAll('.c-chart svg')].find(s => s.querySelector('line.c-ref')); if (!svg) return null
+          const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, m0 = svg.getScreenCTM()
+          const ly = m0.f + (+svg.querySelector('line.c-ref').getAttribute('y1')) * k, half = 0.75 * k
+          const bars = [...svg.querySelectorAll('rect')].filter(r => !r.closest('.c-axis, .c-grid') && r.getAttribute('fill') !== 'transparent')
+            .map(r => { const b = r.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, fill: getComputedStyle(r).fill } })
+          const cs0 = getComputedStyle(svg), probe = document.createElement('i'); svg.parentNode.appendChild(probe)
+          const tok = ['--color-fg', '--color-bg'].map(v => { probe.style.color = cs0.getPropertyValue(v).trim(); return getComputedStyle(probe).color }); probe.remove()
+          const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
+          return { ly, half, tok, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+            const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
+            const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k, box = t.getBoundingClientRect()
+            const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
+            return { v: t.textContent, ink, w: box.width, h: box.height, fill: cs.fill, bar: bars.find(b => b.l <= x && x <= b.r) } }) } })()"""
+
+        def rgb(s):
+            return [float(c) for c in s[s.index("(") + 1:s.index(")")].split(",")[:3]]
+
+        def contrast(a, b):
+            def lum(c):
+                f = [x / 255 for x in rgb(c)]
+                f = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in f]
+                return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
+            x, y = lum(a), lum(b)
+            return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+
+        out = {}
+        for theme in (HERMES_DARK, HERMES_LIGHT):
+            for w in (400, 1500):
+                r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=theme, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
+                            f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
+                self.assertIsNone(r.get("err"), r)
+                out[(theme["mode"], w)] = r["out"]
+        inside = 0
+        for k, o in out.items():
+            self.assertTrue(o and o["vals"], (k, o))
+            ly, below = o["ly"], o["ly"] + o["half"]
+            readable = max(contrast(t, o["vals"][0]["bar"]["fill"]) for t in o["tok"]) >= 4.5
+            for v in o["vals"]:
+                ink, bar = v["ink"], v["bar"]
+                self.assertIsNotNone(bar, (k, v))
+                where = (k, v["v"], ink, bar, ly)
+                if bar["t"] <= ly:  # its bar reaches the line: the value over the bar
+                    self.assertLessEqual(ink["b"], bar["t"], where)
+                elif ink["b"] <= bar["t"] and ink["t"] > ly:  # between its bar and the line
+                    pass
+                elif ink["t"] > ly:  # inside its bar's top
+                    inside += 1
+                    self.assertTrue(bar["l"] <= ink["l"] and ink["r"] <= bar["r"] and bar["t"] <= ink["t"] and ink["b"] <= bar["b"], where)
+                    self.assertGreaterEqual(ink["t"] - below, 6, where)
+                    self.assertGreaterEqual(contrast(v["fill"], bar["fill"]), 4.5, where)
+                else:  # across the line from its bar: only with no room between nor inside
+                    between = bar["t"] - ly >= v["h"] + 8
+                    within = readable and bar["r"] - bar["l"] >= v["w"] + 8 and bar["b"] - max(bar["t"] + 4, below + 6) >= v["h"] + 4
+                    self.assertFalse(between or within, ("separated from its bar by the line", where))
+        self.assertGreater(inside, 0, out)  # at 1500 "88", "97.9" and "92.4" are in their bars
+
     def test_a_click_from_one_artboard_into_another_keeps_its_selection_and_toolbar(self):
         # V6: the landing page's element selected, then one in the phone: the phone's selection was wiped (the landing
         # page's answer to its deselect came after it), so no toolbar and no properties
@@ -1501,3 +1563,71 @@ class RoundV6Pages(unittest.TestCase):
         self.assertIsNone(r.get("err"), r)
         for k, o in r["out"].items():
             self.assertEqual(o, {"panes": 0, "dx": 0}, (k, r["out"]))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class DesignCrumbsAndSheet(unittest.TestCase):
+    """Live round V6 (3404f5e): a design's breadcrumb ("Cupping night poster › div › div › h1") sat at the canvas's
+    bottom left over the landing page's content and named the parts by their tags; with the Properties sheet open
+    (a 739 px frame: Hermes' 1000 px window) the selection's toolbar steps aside, and its actions (Ask, Comment,
+    Duplicate...) were nowhere. The frame widths are the tester's 1500 and 1000 px windows beside Hermes' sidebar."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+        cls.aid = store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    AT = "(() => {{ const r = __design.boards[{p}].el.querySelector('iframe').getBoundingClientRect(); return [r.left + r.width * {x}, r.top + r.height * {y}] }})()"
+    CRUMBS = r"""(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }
+      const c = document.querySelector('.dc-crumbs'), t = document.querySelector('.dc-tools')
+      return { path: __design.state().sel.path, crumbs: c.hidden || !c.getClientRects().length ? null : box(c), names: [...c.querySelectorAll('button')].map(b => b.textContent),
+        tools: !t.hidden && t.getClientRects().length ? box(t) : null, sel: [...document.querySelectorAll('.dc-selbox')].map(box),
+        frames: [...document.querySelectorAll('.dc-board')].filter(b => b.getClientRects().length).map(box),
+        strips: [...document.querySelectorAll('.dc-strip')].filter(s => s.getClientRects().length && getComputedStyle(s).visibility !== 'hidden').map(box) } })()"""
+
+    def pick(self, w, path, fx, fy, then, lang="en"):
+        r = B.drive(f"await api.size({w}, 830); await api.go({json.dumps(self.host.url(self.aid, theme=HERMES_DARK, lang=lang))}, 800); {READY}\n await api.sleep(3000)\n"
+                    f"const q = await api.frame({json.dumps(self.AT.format(p=json.dumps(path), x=fx, y=fy))}); await api.mouse(q[0], q[1]); await api.sleep(1200)\n" + then)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_the_breadcrumb_names_parts_and_covers_neither_the_selection_its_toolbar_nor_a_frame(self):
+        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        cases = (("Poster.dc.html", 0.2, 0.42, ["Cupping night poster", "Group", "Group", "Cupping night"]),  # the tester's poster title
+                 ("Main.dc.html", 0.5, 0.967, ["Landing page", "Group", "Lumen Coffee Roasters"]))  # the landing page's foot, by the old spot
+        for w in (1243, 739):
+            for path, fx, fy, names in cases:
+                o = self.pick(w, path, fx, fy, f"return await api.frame({json.dumps(self.CRUMBS)})")
+                what = (w, path, o)
+                self.assertEqual(o["path"], path, what)
+                self.assertEqual(o["names"], names, what)  # V6: "div", "div", "h1"
+                self.assertTrue(o["crumbs"], what)
+                # V6: over the landing page at 1243; never over the selection or its toolbar, nor a frame where a corner is free
+                for q in o["sel"] + ([o["tools"]] if o["tools"] else []) + o["frames"] + o["strips"]:
+                    self.assertFalse(meet(o["crumbs"], q), (q, what))
+        o = self.pick(1243, "Poster.dc.html", 0.2, 0.42, f"return await api.frame({json.dumps(self.CRUMBS)})", lang="hu")
+        self.assertEqual(o["names"], ["Cupping night poster", "Csoport", "Csoport", "Cupping night"], o)
+
+    def test_the_properties_sheet_offers_the_actions_of_the_toolbar_it_covers(self):
+        labels = "sel => [...document.querySelectorAll(sel + ' button')].filter(b => b.getClientRects().length).map(b => b.getAttribute('aria-label'))"
+        o = self.pick(739, "Main.dc.html", 0.3, 0.15, f"""
+          const labels = {labels}, o = {{ tools: await api.frame('(' + labels + ')(".dc-tools")') }}
+          await api.frame({json.dumps(PROPS)}); await api.sleep(600)
+          o.sheet = await api.frame('[(' + labels + ')(".dc-tools"), (' + labels + ')(".dc-sheet-acts")]')
+          await api.frame('[...document.querySelectorAll(".dc-sheet-acts button")].filter(b => b.getAttribute("aria-label") === "Comment").forEach(b => b.click())'); await api.sleep(900)
+          o.after = await api.frame('[document.getElementById("dc-panel").hidden, document.querySelector(".dc-tools").getClientRects().length > 0]')
+          o.comments = await api.top('window.__events.filter(e => e.event === "comment").map(e => [e.detail.selector, !!e.detail.rect])')
+          return o""")
+        self.assertIn("Comment", o["tools"], o)
+        self.assertEqual(o["sheet"][0], [], o)  # the toolbar steps aside under the sheet (the rule at < 760 px)
+        self.assertEqual(o["sheet"][1], o["tools"], o)  # V6: none of its actions were in the sheet
+        self.assertEqual(o["after"], [True, True], o)  # one taken: back to the canvas, its toolbar there
+        self.assertEqual(len(o["comments"]), 1, o)
+        self.assertRegex(o["comments"][0][0], r"^Main\.dc\.html#\d+:")
+        self.assertTrue(o["comments"][0][1], o)  # beside its element, with its pin

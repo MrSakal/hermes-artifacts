@@ -55,7 +55,7 @@ body { overflow: hidden; }
 .dc-selbox.is-editing { outline-style: dashed; }
 .dc-hover { outline: calc(1px * var(--inv)) solid color-mix(in srgb, var(--dc-sel) 70%, transparent); }
 .dc-hover[hidden] { display: none; }
-.dc-crumbs { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 200px);
+.dc-crumbs { position: absolute; left: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 200px);
   overflow: hidden; padding: 3px; border-radius: 8px; background: var(--color-panel); box-shadow: var(--shadow-popover); font-size: 12px; }
 .dc-crumbs[hidden] { display: none; }
 .dc-crumbs button { border: 0; background: none; padding: 3px 6px; border-radius: 5px; color: var(--color-fg-secondary); font: inherit; cursor: pointer; white-space: nowrap; }
@@ -199,8 +199,8 @@ html[data-thumb] .dc-pill { display: none; }
 /* The element toolbar's words never wrap; when it would be wider than the canvas they go and the icons stay. */
 .dc-tools .kit-btn { flex: none; white-space: nowrap; }
 .dc-tools.is-compact .kit-btn span { display: none; }
-/* The breadcrumb sits above the drawing tools, never under them. */
-#dc-view:has(.dc-pill-b) .dc-crumbs { bottom: 64px; max-width: calc(100% - 24px); }
+/* The breadcrumb is placed by the page (design.js placeCrumbs): by the pills, never under them, off the selection. */
+#dc-view:has(.dc-pill-b) .dc-crumbs { max-width: calc(100% - 24px); }
 /* The full-window view is above the canvas's pills; its own head row has Back, the title, Previous / Next.
    The canvas-only chrome (pills, the element toolbar, the breadcrumb) hides while it is open. */
 #dc-focus { z-index: 45; }
@@ -216,3 +216,6 @@ html[data-thumb] .dc-pill { display: none; }
   #dc-app.is-sheet .dc-pill-l, #dc-app.is-sheet .dc-pill-r { display: none; }
   #dc-app.is-sheet #dc-panel { z-index: 40; padding-top: 10px; }
 }
+/* the selection's actions in the sheet (its toolbar steps aside while the sheet is open) */
+.dc-sheet-acts { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border-line); }
+.dc-sheet-acts .kit-btn { flex: none; }

@@ -38,7 +38,8 @@
       bad: "canvas.json is missing or not valid JSON.", empty: "This canvas has no artboards yet.", missing: "Missing file",
       error: "Error", noLib: "The export library didn't load (open the canvas in Hermes Desktop)", tooBig: "Images up to 8 MB",
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
-      comment: "Comment", kinds: { image: "Image", text: "Text", shape: "Shape", line: "Line", other: "Element" }, editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
+      comment: "Comment", kinds: { image: "Image", text: "Text", shape: "Shape", line: "Line", other: "Element" },
+      roles: { group: "Group", text: "Text", heading: "Heading", picture: "Picture", button: "Button", link: "Link", list: "List", field: "Field", shape: "Shape", component: "Component" }, editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
       exp: "Export", png: "This artboard (PNG)", pdf: "This artboard (PDF)", pdfAll: "All artboards (PDF)", html: "This artboard (HTML)",
       dupEl: "Duplicate", group: "Group", ungroup: "Ungroup", forward: "Bring forward", backward: "Send backward",
       text: "Text", color: "Color", size: "Size", weight: "Weight", align: "Align", fill: "Fill", background: "Background",
@@ -60,7 +61,8 @@
       bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
       error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
-      comment: "Megjegyzés", kinds: { image: "Kép", text: "Szöveg", shape: "Alakzat", line: "Vonal", other: "Elem" }, editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
+      comment: "Megjegyzés", kinds: { image: "Kép", text: "Szöveg", shape: "Alakzat", line: "Vonal", other: "Elem" },
+      roles: { group: "Csoport", text: "Szöveg", heading: "Címsor", picture: "Kép", button: "Gomb", link: "Hivatkozás", list: "Lista", field: "Mező", shape: "Alakzat", component: "Összetevő" }, editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
       fixIt: "Kérd meg a Hermest, hogy javítsa",
       dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
@@ -328,6 +330,7 @@
       var crowded = others.some(hit) || shown.some(hit);
       if (crowded) b.strip.style.visibility = "hidden"; else shown.push(r);
     });
+    placeCrumbs(); // the strips it keeps off are the ones shown now
   }
   function vrect() { return viewEl.getBoundingClientRect(); }
   function zoomAt(f, sx, sy) {
@@ -740,6 +743,28 @@
     for (var p = n; p && p.nodeType === 1; p = p.parentNode) if (!/^(sc-for|sc-if)$/.test(p.localName)) out.unshift(p);
     return out;
   }
+  /** A part as a person calls it, never its tag: the name its source gives it (a component's, an aria-label, a
+   *  picture's alt, a title, an id), else its own words (a heading's, a link's), else its role ("Group"). */
+  function partName(n) {
+    if (n.localName === "dc-import") return n.getAttribute("name") || T.roles.component;
+    var given = n.getAttribute("aria-label") || (n.localName === "img" && n.getAttribute("alt")) || n.getAttribute("title") || n.id;
+    if (given && given.indexOf("{{") < 0) return clipWords(given, 24);
+    var own = Array.prototype.filter.call(n.childNodes, function (c) { return c.nodeType === 3; }).map(function (c) { return c.nodeValue; }).join(" ");
+    if (own.trim() && own.indexOf("{{") < 0) return clipWords(own, 24);
+    return T.roles[roleOf(n)];
+  }
+  function roleOf(n) {
+    var t = n.localName;
+    if (/^h[1-6]$/.test(t)) return "heading";
+    if (/^(img|picture|video|canvas)$/.test(t)) return "picture";
+    if (t === "button") return "button";
+    if (t === "a") return "link";
+    if (/^(ul|ol|dl)$/.test(t)) return "list";
+    if (/^(input|textarea|select)$/.test(t)) return "field";
+    if (n.namespaceURI !== "http://www.w3.org/1999/xhtml") return "shape";
+    if (/^(p|span|label|b|strong|em|i|small|blockquote|figcaption|dt|dd)$/.test(t)) return "text";
+    return "group";
+  }
   function drawCrumbs() {
     crumbs.replaceChildren();
     var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[sel.tids.length - 1]) : null;
@@ -749,8 +774,35 @@
     crumbs.appendChild(h("button", { type: "button", text: titleOf(bp), onclick: function () { selectBoard(bp); } }));
     if (n) ancestors(n).forEach(function (a) {
       crumbs.appendChild(h("span", { "class": "dc-crumb-sep", text: "›", "aria-hidden": "true" }));
-      crumbs.appendChild(h("button", { type: "button", "class": a === n ? "is-on" : null, text: tagLabel(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
+      crumbs.appendChild(h("button", { type: "button", "class": a === n ? "is-on" : null, text: partName(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
     });
+    placeCrumbs();
+  }
+  /** The breadcrumb's place, the first of the canvas's corners by its pills (over the drawing tools at the left, then
+   *  at the right; under the top pills at the left, then at the right) that covers neither the selection nor its
+   *  toolbar and, where one does, no frame, name strip or note (the toolbar's rule: toolSpot); none away from the
+   *  selection and its toolbar: not shown. */
+  function placeCrumbs() {
+    crumbs.style.display = ""; crumbs.style.left = ""; // measured at its CSS left: its whole width
+    if (crumbs.hidden || !crumbs.getClientRects().length) return;
+    var v = vrect(), cw = crumbs.offsetWidth, ch = crumbs.offsetHeight;
+    var edge = function (p, top) { return p && p.isConnected && p.getClientRects().length ? (top ? p.getBoundingClientRect().top : p.getBoundingClientRect().bottom) : null; };
+    var foot = edge(toolPill, true), headL = edge(pagesPill), headR = edge(viewPill);
+    var low = (foot == null ? v.bottom - 4 : foot) - 8 - ch, xl = v.left + 12, xr = v.right - 12 - cw;
+    var spots = [[xl, low], [xr, low], [xl, (headL == null ? v.top + 4 : headL) + 8], [xr, (headR == null ? v.top + 4 : headR) + 8]];
+    var must = [selScreenRect()], content = [];
+    if (!tools.hidden && tools.getClientRects().length) must.push(tools.getBoundingClientRect());
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (!b.el.isConnected || !b.el.getClientRects().length) return;
+      content.push(b.el.getBoundingClientRect());
+      if (b.strip.style.visibility !== "hidden" && b.strip.getClientRects().length) content.push(b.strip.getBoundingClientRect());
+    });
+    notesLayer.querySelectorAll(".dc-note").forEach(function (n) { content.push(n.getBoundingClientRect()); });
+    var hits = function (s, list) { return list.some(function (q) { return q && s[0] < q.right && q.left < s[0] + cw && s[1] < q.bottom && q.top < s[1] + ch; }); };
+    var ok = spots.filter(function (s) { return !hits(s, must); }), at = ok.filter(function (s) { return !hits(s, content); })[0] || ok[0];
+    if (!at) { crumbs.style.display = "none"; return; }
+    crumbs.style.left = at[0] - v.left + "px"; crumbs.style.top = at[1] - v.top + "px";
   }
 
   // ------------------------------------------------------------------ element toolbar
@@ -762,21 +814,25 @@
     b.addEventListener("click", fn);
     return b;
   }
+  /** The selection's actions, each made by make(icon, label, fn, withText): the toolbar's buttons, and the
+   *  Properties sheet's while the sheet is open and the toolbar steps aside (renderPanel). */
+  function selActions(make) {
+    var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null, kids = [];
+    if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(make("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
+    if (n && n.localName === "img") kids.push(make("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
+    kids.push(make("sparkle", T.ask, askAbout, true), make("comment", T.comment, commentOn, true));
+    if (n && !editing) {
+      kids.push(make("copy", T.dupEl, dupSel), make("front", T.forward, function () { reorderSel(1); }), make("back", T.backward, function () { reorderSel(-1); }));
+      if (sameParent().length > 1) kids.push(make("grid", T.group, groupSel));
+      else if (n.localName === "div" && n.children.length && n.parentNode && n.parentNode.nodeType === 1) kids.push(make("panel", T.ungroup, ungroupSel));
+      kids.push(make("trash", T.del, removeSel));
+    }
+    return kids;
+  }
   function drawTools() {
-    var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null;
     // every selection has its toolbar (an element the source does not name: Ask and Comment, on its artboard)
     if (!editable || (!sel.path && !selBoard) || focus) { tools.hidden = true; return; }
-    var kids = [];
-    if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(tbtn("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
-    if (n && n.localName === "img") kids.push(tbtn("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
-    kids.push(tbtn("sparkle", T.ask, askAbout, true), tbtn("comment", T.comment, commentOn, true));
-    if (n && !editing) {
-      kids.push(tbtn("copy", T.dupEl, dupSel), tbtn("front", T.forward, function () { reorderSel(1); }), tbtn("back", T.backward, function () { reorderSel(-1); }));
-      if (sameParent().length > 1) kids.push(tbtn("grid", T.group, groupSel));
-      else if (n.localName === "div" && n.children.length && n.parentNode && n.parentNode.nodeType === 1) kids.push(tbtn("panel", T.ungroup, ungroupSel));
-      kids.push(tbtn("trash", T.del, removeSel));
-    }
-    tools.replaceChildren.apply(tools, kids);
+    tools.replaceChildren.apply(tools, selActions(tbtn));
     tools.hidden = false;
     placeTools();
   }
@@ -792,7 +848,10 @@
     return null;
   }
   function placeTools() {
-    if (tools.hidden) return;
+    if (!tools.hidden) placeToolbar();
+    placeCrumbs(); // off the selection and its toolbar, wherever they went
+  }
+  function placeToolbar() {
     var r = selScreenRect();
     if (!r) { tools.hidden = true; return; }
     var v = vrect();
@@ -1090,7 +1149,12 @@
       } })]);
     var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
       : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
-    panelEl.replaceChildren(tabs, body);
+    // The sheet covers the selection's toolbar (it steps aside: design.css): its actions are here, under the tabs.
+    // One taken closes the sheet, back to the canvas where it acts (Ask's field, the comment's box, the edit).
+    var acts = narrow() && bp ? h("div", { "class": "dc-sheet-acts", role: "toolbar" }, selActions(function (icon, label, fn) {
+      return tbtn(icon, label, function () { sheetAsked = false; renderPanel(); drawTools(); fn(); });
+    })) : null;
+    panelEl.replaceChildren.apply(panelEl, acts ? [tabs, acts, body] : [tabs, body]);
   }
   /** Outline: the page's notes, then each artboard and (for the open one) its elements; a click selects. */
   var openOutline = {};
@@ -1149,7 +1213,7 @@
     var n = nodeOf(sel.path, sel.tids[0]), out = h("div", { "class": "dc-pbody" });
     if (!n) return out;
     var disp = inline("display") || computed("display");
-    out.appendChild(h("div", { "class": "dc-ptitle", text: tagLabel(n) + (sel.tids.length > 1 ? " +" + (sel.tids.length - 1) : "") }));
+    out.appendChild(h("div", { "class": "dc-ptitle", text: partName(n) + (sel.tids.length > 1 ? " +" + (sel.tids.length - 1) : "") }));
     if (n.localName === "img") out.appendChild(section(T.image.replace("…", ""), [h("button", { type: "button", "class": "kit-btn dc-wide", text: T.image, onclick: function () { pickImage(sel.path, sel.tids[0]); } })]));
     var textRows = [row(T.color, colorField("color", "color")), row(T.size, textField("font-size", computed("fontSize"))),
       row(T.weight, selectField("font-weight", ["300", "400", "500", "600", "700", "800", "900"])),

@@ -480,5 +480,119 @@ class GalleryThumbs(unittest.TestCase):
         self.assertEqual(out["soon"]["shown"], 0, out)  # its load not heard: hidden for now
         self.assertGreaterEqual(out["later"]["shown"], 3, out)  # V6: dark for good; now the first slots' after THUMB_LOAD_MS
 
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class SlideBlankPickPinsThePoint(unittest.TestCase):
+    """Live round V6 (3404f5e): a pick on a slide's blank pinned the whole slide, the pin right of the slide's edge
+    (beside its first line) and the box at the window's edge. The pin is on the point clicked, inside the slide (at
+    the same share of it while the comment is open), the box 8 px off the pin and the stage's edges."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+        cls.aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_the_pin_is_on_the_point_clicked_and_the_box_keeps_its_gaps(self):
+        canvas = 'document.querySelector(".sl-clip .sl-canvas")'
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        for w in (1500, 400):
+            # the tester's: the blank over the title, right of it; the blank corner at the bottom right; the top left
+            for fx, fy in ((0.75, 0.25), (0.97, 0.97), (0.04, 0.06)):
+                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.aid)}, SEL = {json.dumps(canvas)}, SETTLE = 2500; await api.size({w}, 900);" + BOOT_ANY + f"""
+                  const o = await pickAt('(() => {{ const r = {canvas}.getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * {fy}] }})()', '[...document.querySelectorAll("#sl-strip, .sl-pill")]')
+                  // the slide and the point as they are now (the band gone, the frame taller), and the stage
+                  const s = await api.frame('(() => {{ const r = {canvas}.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()')
+                  o.slide = [s[0] + o.off[0], s[1] + o.off[1], s[2] + o.off[0], s[3] + o.off[1]]
+                  o.at = [o.slide[0] + (o.slide[2] - o.slide[0]) * {fx}, o.slide[1] + (o.slide[3] - o.slide[1]) * {fy}]
+                  o.stage = await api.top('(() => {{ const b = document.querySelector("iframe").parentElement.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }})()')
+                  return o""", timeout=240)
+                self.assertIsNone(r.get("err"), r)
+                o, what = r["out"], (w, fx, fy, r["out"])
+                self.assertIn(o["title"], ("Slide 1", "Dia 1"), what)
+                p, b, s, st = o["pin"], o["box"], o["slide"], o["stage"]
+                self.assertTrue(p and b, what)
+                # V6: the pin sat right of the slide's edge, level with its first line
+                self.assertAlmostEqual((p["l"] + p["r"]) / 2, o["at"][0], delta=2, msg=what)
+                self.assertAlmostEqual((p["t"] + p["b"]) / 2, o["at"][1], delta=2, msg=what)
+                self.assertTrue(s[0] - 0.5 <= (p["l"] + p["r"]) / 2 <= s[2] + 0.5 and s[1] - 0.5 <= (p["t"] + p["b"]) / 2 <= s[3] + 0.5, what)
+                # the box: 8 px off the pin, 8 px inside the stage
+                gap = max(p["l"] - b["r"], b["l"] - p["r"], p["t"] - b["b"], b["t"] - p["b"])
+                self.assertGreaterEqual(gap, 7.5, what)
+                self.assertTrue(b["l"] >= st[0] + 7.5 and b["r"] <= st[2] - 7.5 and b["t"] >= st[1] + 7.5 and b["b"] <= st[3] - 7.5, what)
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PickKeepsTheFrame(unittest.TestCase):
+    """Live round V6c (3404f5e): picking put a band under the header that took 33 px from the frame, and gave them
+    back as the new comment opened. Live, a film's page stayed laid out for the smaller frame (innerHeight 706 in a
+    738 px frame, the picture 1062 -> 1004 px, an empty strip under it) and its pin was 33 px off the point clicked
+    until the comment was discarded. The header says it is picking in the title's place: the frame keeps its size
+    from before picking to the open comment, in every type, and the pin stays on what was picked."""
+
+    @classmethod
+    def setUpClass(cls):
+        from test_models import PANEL
+        from test_type_pages_browser import PICK_DASH, PICK_PAGE
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+        ex = D.ROOT / "examples"
+        cls.types = [
+            # (artifact, frame JS: the part clicked, where on it, a point (the pin on it) or a part (the pin beside it))
+            (store.publish(path=str(ex / "motion"), title="Harbor film", type="motion")["id"], 'document.getElementById("mo-frame")', (0.4, 0.85), True),
+            (store.publish(path=str(ex / "doc"), title="Quote process", type="doc")["id"], 'document.querySelectorAll(".doc-blk")[1]', (0.1, 0.5), False),
+            (store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [{"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"],
+             '[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels")', (0.5, 0.5), False),
+            (store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}, {"id": "n", "type": "note", "text": "", "near": "a"}]}})["id"],
+             'document.querySelector(".bd-it[data-id=n]")', (0.5, 0.5), False),
+            (store.publish(title="Orders", type="dashboard", files={"dashboard.json": PICK_DASH})["id"], 'document.querySelector(".c-kpi")', (0.9, 0.15), False),
+            (store.publish(path=str(ex / "slides"), title="Deck", type="slides")["id"], 'document.querySelector(".sl-clip .sl-canvas h1")', (0.2, 0.5), False),
+            (store.publish(path=str(ex / "design"), title="Test design", type="design")["id"], '__design.boards["Main.dc.html"].el.querySelector("iframe")', (0.25, 0.35), False),
+            (store.publish(path=str(ex / "design-system"), title="Kiln", type="design-system")["id"], 'document.querySelector(".ds-cover")', (0.5, 0.5), False),
+            (store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], 'document.querySelector(".md-canvas")', (0.5, 0.5), False),
+            (store.publish(title="Plain", type="page", html=PICK_PAGE)["id"], 'document.getElementById("p")', (0.1, 0.5), False),
+        ]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_the_frame_keeps_its_size_from_picking_to_the_open_comment_and_the_pin_stays_on_its_part(self):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        size = '(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top, r.width, r.height] })()'
+        for aid, el, (fx, fy), point in self.types:
+            for w in (1500, 400):
+                part = f'(() => {{ const r = ({el}).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()'
+                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(el)}, SETTLE = 2500; await api.size({w}, 900);" + BOOT_ANY + f"""
+                  const o = {{ before: [await api.top({json.dumps(size)}), await api.frame('innerHeight')] }}
+                  await api.top('window.H.M.$picking.set(true)'); await api.sleep(400)
+                  o.picking = [await api.top({json.dumps(size)}), await api.frame('innerHeight')]
+                  const q = await api.frame({json.dumps(f'(() => {{ const r = ({el}).getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * {fy}] }})()')})
+                  let off = await frameAt(); await api.mouse(off[0] + q[0], off[1] + q[1]); await api.sleep(1200)
+                  o.open = [await api.top({json.dumps(size)}), await api.frame('innerHeight')]
+                  off = await frameAt()
+                  const p = await api.frame({json.dumps(part)}); o.part = [p[0] + off[0], p[1] + off[1], p[2] + off[0], p[3] + off[1]]
+                  o.at = [o.part[0] + (o.part[2] - o.part[0]) * {fx}, o.part[1] + (o.part[3] - o.part[1]) * {fy}]
+                  o.pin = await api.top('(() => {{ const d = [...document.querySelectorAll("div")].find(d => d.style.zIndex === "28" && d.style.borderRadius === "50%"); if (!d) return null; const b = d.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }})()')
+                  return o""", timeout=240)
+                self.assertIsNone(r.get("err"), r)
+                o, what = r["out"], (aid, el, w, r["out"])
+                self.assertEqual(o["picking"], o["before"], what)  # picking takes nothing from the frame
+                self.assertEqual(o["open"], o["before"], what)  # nor does the comment opening
+                pin = o["pin"]
+                self.assertTrue(pin, what)
+                cx, cy = (pin[0] + pin[2]) / 2, (pin[1] + pin[3]) / 2
+                if point:  # on the point clicked
+                    self.assertLessEqual(abs(cx - o["at"][0]), 4, what)
+                    self.assertLessEqual(abs(cy - o["at"][1]), 4, what)
+                else:  # beside the part (pinSpot: PIN_GAP 6 off it) or on it
+                    pt = o["part"]
+                    self.assertTrue(pin[2] >= pt[0] - 7 and pin[0] <= pt[2] + 7 and pin[3] >= pt[1] - 7 and pin[1] <= pt[3] + 7, what)
+
+
 if __name__ == "__main__":
     unittest.main()

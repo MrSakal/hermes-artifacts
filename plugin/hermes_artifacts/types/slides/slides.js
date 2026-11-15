@@ -1388,6 +1388,26 @@
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { if (pres) endPresent(); });
   window.addEventListener("resize", function () { fit(); if (pres) paint(null); });
 
+  // The host's comment pick on the slide's blank (none of its parts under the click): a comment on the slide with
+  // its pin on the point clicked, at the same share of the slide after a resize or a zoom. The bridge's own pick
+  // would take the whole slide and pin it beside its edge, out of the slide.
+  var commentPicking = false;
+  if (window.hermes && window.hermes.on) window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });
+  window.addEventListener("click", function (e) {
+    var cv = clip.firstChild, sec = curSec();
+    if (!commentPicking || !cv || !sec || (e.target !== cv && e.target !== sec) || !window.hermes.comment) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    commentPicking = false;
+    var r = cv.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    window.hermes.comment({ selector: selectorOf(sec), text: (sec.innerText || sec.textContent).replace(/\s+/g, " ").trim().slice(0, 200),
+      label: cv.getAttribute("data-comment-label") },
+      { el: cv, box: function () {
+        if (!cv.isConnected) return null;
+        var q = cv.getBoundingClientRect();
+        return { x: q.left + q.width * fx, y: q.top + q.height * fy, w: 0, h: 0, point: true };
+      } });
+  }, true);
+
   document.addEventListener("keydown", function (e) {
     if (pres) return;
     var k = e.key, mod = e.ctrlKey || e.metaKey;

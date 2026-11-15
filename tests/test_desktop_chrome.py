@@ -100,6 +100,33 @@ class CommentPinTests(unittest.TestCase):
         self.assertTrue(out[-1]["apart"])  # the reported doc paragraph: the box goes under the pin
         self.assertTrue(out[-1]["inside"])
 
+    def test_a_box_beside_a_control_keeps_its_gap_from_the_element(self):
+        # V6c, a design's name strip picked at 1500 px (stage 1243 x 780, the page's own report): the box went beside
+        # the Cupping strip, at x 487, flush on the artboard commented on (its right edge 486.58)
+        rect = {"x": 73.43, "y": 160.83, "w": 413.15, "h": 555.17, "ly": 160.83, "lh": 24, "vt": 0, "vb": 780, "fr": False, "fl": True,
+                "fa": True, "fb": True, "vis": True,
+                "kp": [[73, 132, 487, 161], [512, 132, 639, 161], [664, 132, 790, 161], [815, 132, 1080, 161], [1105, 132, 1170, 161],
+                       [12, 10, 74, 50], [1069, 10, 1231, 50], [496, 726, 747, 766]]}
+        out = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, 1243, 780, 141)))")
+        b, p = out["box"], out["pin"]
+        r = rect
+        gap = max(r["x"] - (b["x"] + 320), b["x"] - (r["x"] + r["w"]), r["y"] - (b["y"] + 141), b["y"] - (r["y"] + r["h"]))
+        self.assertGreaterEqual(gap, 8 - 0.01, out)
+        if p:
+            self.assertGreaterEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 8 - 0.01, out)
+
+    def test_a_pin_that_would_lie_on_the_pages_controls_is_not_drawn(self):
+        # V6c, a design panned at 1500 px: the element's pin drew over the bottom palette's tools
+        body = """
+        const kp = [[496, 726, 747, 766]]  // the palette
+        const under = m.commentLayout({ x: 520, y: 720, w: 120, h: 40, ly: 720, lh: 20, vis: true, fr: true, fl: true, fa: true, fb: true, kp }, 1243, 780, 141)
+        const clear = m.commentLayout({ x: 520, y: 300, w: 120, h: 40, ly: 300, lh: 20, vis: true, fr: true, fl: true, fa: true, fb: true, kp }, 1243, 780, 141)
+        console.log(JSON.stringify({ under: under.pin, clear: clear.pin }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        self.assertIsNone(out["under"], out)  # its spot beside the element is on the palette
+        self.assertIsNotNone(out["clear"], out)
+
     def test_near_every_edge_pin_and_box_stay_apart_and_inside(self):
         # The bridge's rect ends where the element's words end (a short line far left, a long one to the
         # right edge), at the top, the bottom, both sides and the corners of a pane and of the full page.

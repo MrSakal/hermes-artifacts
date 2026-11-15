@@ -213,6 +213,10 @@ async function main() {
       for (let i = 1; i <= 8; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (x1 - x0) * i / 8, y: y0 + (y1 - y0) * i / 8, button: 'left', buttons: 1 })
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', buttons: 0, clickCount: 1 })
     },
+    /** One mouse event at x, y of the window ('mouseMoved', 'mousePressed' or 'mouseReleased'), the left button held or not: a drag held still. */
+    pointer: (type, x, y, held) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: held ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }),
+    /** A wheel turned at x, y of the window (as a mouse's: no move before it). */
+    wheel: (x, y, dx, dy) => send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: dx, deltaY: dy }),
     /** A real click (mouse press and release) on the frame's element that sel finds (a JS expression). */
     clickIn: async (sel) => {
       const r = await api.frame('(() => { const el = ' + sel + '; if (!el) return null; el.scrollIntoView({block: "center"}); const b = el.getBoundingClientRect(); return [b.left + Math.min(20, b.width / 2), b.top + b.height / 2] })()')

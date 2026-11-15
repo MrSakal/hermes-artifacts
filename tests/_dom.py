@@ -68,9 +68,11 @@ function setProps(n, props, svg) {
     }
     if (k === 'value' && 'value' in n && !svg) { if (n.value !== String(v ?? '')) n.value = v ?? ''; continue }
     if ((k === 'checked' || k === 'disabled') && !svg) { n[k] = Boolean(v); continue }
-    if (v == null || v === false) continue
+    // React writes a boolean aria-*/data-* as its word ("true", "false"); another attribute true as present
+    const word = /^(aria|data)-/.test(k)
+    if (v == null || (v === false && !word)) continue
     const name = k === 'className' ? 'class' : k === 'tabIndex' ? 'tabindex' : k === 'htmlFor' ? 'for' : svg && k !== 'viewBox' ? k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()) : k
-    const val = v === true ? '' : String(v)
+    const val = v === true && !word ? '' : String(v)
     if (n.getAttribute(name) !== val) n.setAttribute(name, val)
     now.push(name)
   }
