@@ -266,10 +266,10 @@
   var statusEl = h("span", { "class": "md-status", "aria-live": "polite" });
   var saveBtn = btn(null, T.saveKey, function () { save(); }, "md-save");
   saveBtn.textContent = T.save; saveBtn.hidden = true;
-  var pillL = h("div", { "class": "md-pill md-pill-l", role: "toolbar", "aria-label": T.views });
-  var pillR = h("div", { "class": "md-pill md-pill-r", role: "toolbar", "aria-label": T.exp });
-  var pillB = h("div", { "class": "md-pill md-pill-b md-wide-only", role: "toolbar", "aria-label": T.select });
-  var pillS = h("div", { "class": "md-pill md-pill-s", role: "toolbar", "aria-label": T.props, hidden: true });
+  var pillL = h("div", { "class": "md-pill md-pill-l", "data-comment-keep": "", role: "toolbar", "aria-label": T.views });
+  var pillR = h("div", { "class": "md-pill md-pill-r", "data-comment-keep": "", role: "toolbar", "aria-label": T.exp });
+  var pillB = h("div", { "class": "md-pill md-pill-b md-wide-only", "data-comment-keep": "", role: "toolbar", "aria-label": T.select });
+  var pillS = h("div", { "class": "md-pill md-pill-s", "data-comment-keep": "", role: "toolbar", "aria-label": T.props, hidden: true });
   var secCard = h("div", { "class": "md-card", hidden: true }), measCard = h("div", { "class": "md-card", hidden: true, "aria-live": "polite" });
   // above the tools: the measure and section cards, then the selection's pill
   var dock = h("div", { "class": "md-dock" }, [measCard, secCard, pillS]);
@@ -821,7 +821,7 @@
     renderer.toneMapping = THREE.NeutralToneMapping != null ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
     canvas = renderer.domElement;
     canvas.className = "md-canvas kit-surface"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
-    canvas.setAttribute("data-comment-label", T.view3d); // a comment pick on the view where no part is
+    canvas.id = "md-view"; // a comment on the view where no part is (its pick: commentPicking)
     viewEl.insertBefore(canvas, viewEl.firstChild);
     scene = new THREE.Scene();
     scene.environment = makeEnv();
@@ -1838,16 +1838,14 @@
       drawSelPill();
     });
   }
-  // The host's comment pick on the view: the part under the click (its pin on the point clicked); where there is
-  // none, the bridge picks the view itself ("3D view").
+  // The host's comment pick on the view: the part under the click, or the view itself ("3D view") where there is
+  // none, its pin on the point clicked (V6d: the view's pin went to its top right corner, over the Panel pill).
   var commentPicking = false;
   window.addEventListener("click", function (e) {
     if (!commentPicking || !canvas || e.target !== canvas || !window.hermes || !window.hermes.comment) return;
-    var p = pick(e.clientX, e.clientY), f = p && find(p.id);
-    if (!f) return;
+    var p = pick(e.clientX, e.clientY), f = p && find(p.id), name = f ? label(f.part) : T.view3d;
     e.preventDefault(); e.stopImmediatePropagation();
-    var name = label(f.part);
-    window.hermes.comment({ selector: "part:" + p.id, text: name.slice(0, 200), label: name.slice(0, 40) },
+    window.hermes.comment({ selector: f ? "part:" + p.id : "#" + canvas.id, text: f ? name.slice(0, 200) : "", label: name.slice(0, 40) },
       { el: canvas, box: { x: e.clientX, y: e.clientY, w: 0, h: 0, point: true } });
   }, true);
   if (window.hermes && window.hermes.on) {

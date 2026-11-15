@@ -190,5 +190,5 @@
     return out;
   }
 
-  window.dashDesignKit = { LOOKS: LOOKS, rgb: rgb, contrast: contrast, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles, draftFiles: draftFiles };
+  window.dashDesignKit = { LOOKS: LOOKS, rgb: rgb, contrast: contrast, flat: flat, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles, draftFiles: draftFiles };
 })();

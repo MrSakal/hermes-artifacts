@@ -262,6 +262,7 @@ const STRINGS = {
     comments: 'Comments',
     addComment: 'Comment',
     pickHint: 'Click what you want to comment on · Esc to cancel',
+    pickShort: 'Click a part · Esc',
     cancel: 'Cancel',
     discard: 'Discard',
     save: 'Save',
@@ -533,6 +534,7 @@ const STRINGS = {
     comments: 'Kommentek',
     addComment: 'Komment',
     pickHint: 'Kattints arra, amihez kommentet írnál · Esc: mégse',
+    pickShort: 'Kattints egy részre · Esc',
     cancel: 'Mégse',
     discard: 'Elvetés',
     save: 'Mentés',
@@ -2245,7 +2247,10 @@ function TileTip({ kind, x, width, top }) {
 
 function NewTile({ ctx, kind }) {
   const t = usePluginI18n(ID)
-  const [h, hp, setH] = useHover()
+  // Hovered by a real move of the pointer onto it: a scroll that brings it under a still pointer makes the browser's
+  // own mouseenter, with no movement (V6d: another tile's tooltip up within 100 ms of a wheel turn).
+  const [h, setH] = useState(false)
+  const hp = { onMouseMove: e => { if (!h && (e.movementX || e.movementY)) setH(true) }, onMouseLeave: () => setH(false) }
   const [f, fp] = useFocusWithin()
   const [menu, setMenu] = useState(false)
   const popups = useValue($popups)
@@ -2939,7 +2944,7 @@ const CHIP_BAR = 'data-chip-bar' // the folder chips' row: their menus hang from
 const CHIP_FADE = 24 // the fade over a cut end of the chips' row
 /** The folder chips in one row that scrolls sideways when they do not fit (as Hermes' own tab and profile rows:
  *  no scrollbar, a cut end faded, the wheel scrolls it), the chip shown kept in sight. */
-function ChipRow({ children, shown }) {
+function ChipRow({ children, shown, contentRef = null }) {
   const ref = useRef(null)
   const [ends, setEnds] = useState([false, false]) // chips past the left end, the right end
   useLayoutEffect(() => {
@@ -2980,7 +2985,7 @@ function ChipRow({ children, shown }) {
       jsx('div', {
         ref,
         style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none' },
-        children: jsx('div', { style: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }, children })
+        children: jsx('div', { ref: contentRef, style: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }, children })
       }),
       ends[0] ? fade('left') : null,
       ends[1] ? fade('right') : null
@@ -3041,9 +3046,7 @@ function VersionNotice() {
 
 const NEW_KINDS = ['doc', 'sheet', 'board', 'slides', 'design', 'model', 'dashboard', 'motion', 'design-system', 'page']
 const GALLERY_PAD = 28 // the gallery's side padding
-// The search field stays on the toolbar's row from this width of it: the folders keep at least ~150 px beside a
-// 160-240 px field and the four tools; narrower, it takes a row of its own under the toolbar.
-const SEARCH_INLINE = 560
+const SEARCH_MIN = 160 // the search field on the toolbar's row gives way down to this
 
 function Gallery({ ctx, pageRef }) {
   const t = usePluginI18n(ID)
@@ -3102,9 +3105,20 @@ function Gallery({ ctx, pageRef }) {
     ]
   })
 
-  // The search field: on the toolbar's row from SEARCH_INLINE px of it, else on its own row
-  // under it (the toolbar stays one row, its search button pressed meanwhile).
-  const searchBelow = barW > 0 && barW < SEARCH_INLINE
+  // The search field: on the toolbar's row while every folder chip stays whole beside it (at SEARCH_MIN) and the
+  // other tools, measured; else on its own row under it (the toolbar stays one row, its search button pressed
+  // meanwhile). V6d: a fixed 560 px put it inline at ~900 px windows with the Trash chip cut off, no fade over it.
+  // Inline, the field is as wide as that room (up to 240 px): it gives way before the chips do.
+  const chipsRef = useRef(null), toolsRef = useRef(null)
+  const [fieldRoom, setFieldRoom] = useState(240)
+  useLayoutEffect(() => {
+    const chips = chipsRef.current, tools = toolsRef.current
+    if (!chips || !tools || tools.children.length < 2) return
+    const rest = [...tools.children].slice(1), a = rest[0].getBoundingClientRect(), b = rest[rest.length - 1].getBoundingClientRect()
+    const room = Math.min(240, Math.floor(barW - chips.scrollWidth - 8 - (b.right - a.left)))
+    if (room !== fieldRoom) setFieldRoom(room)
+  })
+  const searchBelow = barW > 0 && fieldRoom < SEARCH_MIN
   const searchField = searching
     ? jsx('input', {
         ref: field,
@@ -3116,8 +3130,8 @@ function Gallery({ ctx, pageRef }) {
         onKeyDown: e => e.key === 'Escape' && ($query.set(''), setSearching(false)),
         'aria-label': t('searchArtifacts'),
         className: INPUT,
-        // 240 px where there is room; it gives way, down to 160, after the folders did. On its own row: the whole width.
-        style: { ...font, boxSizing: 'border-box', height: 30, ...(searchBelow ? { width: '100%' } : { width: 240, flex: '0 1 240px', minWidth: 160 }), padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
+        // As wide as the room beside the whole chips, at most 240 px. On its own row: the whole width.
+        style: { ...font, boxSizing: 'border-box', height: 30, ...(searchBelow ? { width: '100%' } : { width: fieldRoom, flex: 'none' }), padding: '0 12px', borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13 }
       })
     : null
 
@@ -3162,6 +3176,7 @@ function Gallery({ ctx, pageRef }) {
               children: [
                 jsx(ChipRow, {
                   shown: `${folder}:${inTrash}`,
+                  contentRef: chipsRef,
                   children: [
                     jsx(Chip, { label: t('all'), active: !folder && !inTrash, onClick: () => showFolder(null) }),
                     ...folders.map(f => jsx(FolderChip, { ctx, name: f, active: folder === f && !inTrash, count: list.filter(a => a.folder === f).length }, f)),
@@ -3175,6 +3190,7 @@ function Gallery({ ctx, pageRef }) {
                   ]
                 }),
                 jsxs('div', {
+                  ref: toolsRef,
                   style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: '0 1 auto', minWidth: 0, marginLeft: 'auto' },
                   children: [
                     searching && !searchBelow
@@ -4058,14 +4074,28 @@ function PickHint() {
   const t = usePluginI18n(ID)
   const [h, hp] = useHover()
   useEffect(() => listen(CTX, window, 'keydown', e => { if (e.key === 'Escape' && !e.isComposing) $picking.set(false) }), [])
+  // The words the room takes, never cut mid-word (V6d at 406 px: "Click what you wa…", the Esc lost): the whole
+  // hint, else its short form, else none (the icon and Cancel; the whole hint in the tooltip). Measured again
+  // whenever the header's width changes.
+  const box = useRef(null), words = useRef(null)
+  const width = useWidth(box)
+  const [fit, setFit] = useState({ width: -1, tier: 0 })
+  const tier = fit.width === width ? fit.tier : 0
+  useLayoutEffect(() => {
+    const el = words.current
+    if (el && tier < 2 && el.scrollWidth > el.clientWidth + 0.5) setFit({ width, tier: tier + 1 })
+    else if (fit.width !== width) setFit({ width, tier })
+  })
+  const text = [t('pickHint'), t('pickShort'), ''][tier]
   return jsxs('div', {
+    ref: box,
     role: 'status',
     'aria-live': 'polite',
     'data-ha-pick-hint': '',
     style: { display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 0', minWidth: 0, padding: '0 2px', fontSize: 12, color: C.text2 },
     children: [
       jsx('span', { style: { display: 'flex', color: C.accent, flexShrink: 0 }, children: jsx(Icon, { name: 'comment', size: 14 }) }),
-      jsx('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto', minWidth: 0, lineHeight: '20px' }, title: t('pickHint'), children: t('pickHint') }),
+      jsx('span', { ref: words, style: { overflow: 'hidden', whiteSpace: 'nowrap', flex: '0 1 auto', minWidth: 0, lineHeight: '20px' }, title: t('pickHint'), children: text }),
       jsx('button', {
         type: 'button',
         onClick: () => $picking.set(false),
@@ -4246,9 +4276,12 @@ function pickedRect(r) {
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
   for (const k of ['lr', 'vt', 'vb']) if (Number.isFinite(r[k])) out[k] = r[k]
   for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis', 'pt']) if (typeof r[k] === 'boolean') out[k] = r[k]
-  // The page's own controls the box keeps off (bridge.js keeps): [l, t, r, b] each, at most 24.
-  const kp = Array.isArray(r.kp) ? r.kp.slice(0, 24).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
-  if (kp.length) out.kp = kp
+  // The page's own controls the box keeps off (bridge.js keeps), and the words it asks to (keptWords): [l, t, r, b]
+  // each, at most 24 of each.
+  for (const k of ['kp', 'kw']) {
+    const list = Array.isArray(r[k]) ? r[k].slice(0, 24).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
+    if (list.length) out[k] = list
+  }
   return out
 }
 
@@ -5148,18 +5181,30 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
     // The button that opened it toggles it: a press there is left to its click, so the menu
     // closes instead of closing on mousedown and reopening on click.
     const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null
-    const off = e => !ref.current?.contains(e.target) && !(opener && opener.contains(e.target)) && onClose()
+    // A press outside only closes the menu: it and its click reach nothing under it (V6d: a template tile under
+    // the folder chip's menu started a new chat). The click it makes is caught once, as its mouseup ends.
+    let offClick = null
+    const off = e => {
+      if (ref.current?.contains(e.target) || (opener && opener.contains(e.target))) return
+      e.preventDefault(); e.stopPropagation()
+      const swallow = c => { c.preventDefault(); c.stopPropagation() }
+      const offC = listen(CTX, window, 'click', swallow, true), offUp = listen(CTX, window, 'mouseup', () => { offUp(); later(CTX, offC, 0) }, true)
+      offClick = () => { offC(); offUp() }
+      onClose()
+    }
     const esc = e => e.key === 'Escape' && onClose()
-    // Armed after this press; a menu gone before then must not leave the listener behind.
+    // Armed after this press; a menu gone before then must not leave the listener behind. Before anything under
+    // it (the capture phase): a handler of the host's or the page's own that stops the press or the key never
+    // keeps the menu open.
     let offDown = null
-    const disarm = later(CTX, () => { offDown = listen(CTX, window, 'mousedown', off) }, 0)
-    // Before anything under it (the capture phase): a handler of the host's or the page's own that stops the
-    // press never keeps the menu open.
+    const disarm = later(CTX, () => { offDown = listen(CTX, window, 'mousedown', off, true) }, 0)
     const offEsc = listen(CTX, window, 'keydown', esc, true)
     return () => {
       disarm()
       offDown?.()
       offEsc()
+      // the press that closed it still has its click to come: that listener outlives the menu until then
+      if (offClick) later(CTX, offClick, 1000)
     }
   }, [])
   return jsx('div', {
@@ -5494,7 +5539,8 @@ const PIN_EDGE = 4 // the least room between the pin and the stage's edge (bridg
 /** Where the new comment's pin goes for the element clicked, so it never covers the element's words or a
  *  neighbour's. Tried in turn, each only where it fits the stage and the bridge found it free (fr, fl, fw,
  *  fa, fb: no other element's words, picture or control under it): right of the box, then left of it,
- *  centred on its first line; right after that line's words (lr; a narrow table cell); above, then below
+ *  centred on its first line; right after that line's words (lr; a narrow table cell; first where the line ends
+ *  over two pins short of the box); above, then below
  *  the box's right end. Only when none is free (or the element fills the stage) it goes over the element, in
  *  its top right corner. Pure. */
 function pinSpot(rect, bw, bh) {
@@ -5507,10 +5553,15 @@ function pinSpot(rect, bw, bh) {
   const lh = Number.isFinite(rect.lh) && rect.lh > 0 ? rect.lh : Math.min(rect.h, 24)
   const y = clamp(ly + lh / 2 - PIN / 2, PIN_EDGE, bh - PIN - PIN_EDGE)
   const end = rect.x + rect.w - PIN
+  const after = Number.isFinite(rect.lr) ? [[rect.fw === true, rect.lr + PIN_GAP, y]] : []
+  // A line ending far short of its box (a slide's title in a full-width block: V6d, the pin 560 px from the
+  // words): the pin after its words first.
+  const short = after.length && rect.x + rect.w - rect.lr > 2 * PIN
   const spots = [
+    ...(short ? after : []),
     [rect.fr, rect.x + rect.w + PIN_GAP, y],
     [rect.fl, rect.x - PIN_GAP - PIN, y],
-    ...(Number.isFinite(rect.lr) ? [[rect.fw === true, rect.lr + PIN_GAP, y]] : []),
+    ...(short ? [] : after),
     [rect.fa === true, end, rect.y - PIN_GAP - PIN],
     [rect.fb === true, end, rect.y + rect.h + PIN_GAP]
   ]
@@ -5538,7 +5589,7 @@ function placeCommentBox(rect, bw, bh, h) {
   const cut = (a, ah, bx, by, bw2, bh2) => a.x < bx + bw2 && bx < a.x + W && a.y < by + bh2 && by < a.y + ah
   const onPin = (b, bh2) => cut(b, bh2, pin.x, pin.y, PIN, PIN)
   const nearPin = (b, bh2) => cut(b, bh2, pin.x - GAP, pin.y - GAP, PIN + 2 * GAP, PIN + 2 * GAP) // within GAP of it
-  const keep = rect.kp || []
+  const keep = [...(rect.kp || []), ...(rect.kw || [])] // the page's controls, and its words where it asks (a slide's)
   const clear = (b, bh2) => !keep.some(([l, t, r, bt]) => cut(b, bh2, l, t, r - l, bt - t))
   const x0 = clamp(rect.x, M, Math.max(M, bw - W - M))
   // Under and over: past the element, and past its pin where the pin is in the way.
@@ -5631,7 +5682,8 @@ function commentLayout(rect, bw, bh, h, cover = 0) {
   if (b0 - t0 < BAND_MIN) [t0, b0] = [0, bh]
   const off = rect.vis === false || rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
   const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}),
-    ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
+    ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
+    ...(rect.kw ? { kw: rect.kw.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
   const { pin, box } = placeCommentBox(inBand, free, b0 - t0, h)
   const band = b0 - t0, M = BOX_M
   const parked = { x: Math.max(M, free - COMMENT_W - M), y: Math.max(M, band - M - Math.min(h, band - 2 * M)), maxH: band - 2 * M }

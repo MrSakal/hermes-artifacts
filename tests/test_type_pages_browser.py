@@ -1138,6 +1138,22 @@ class RoundV3Layout(unittest.TestCase):
         self.assertFalse(out["other"]["fontsFocused"] or out["other"]["fontsRing"], out)
         self.assertLessEqual(out["other"]["rings"], 1, out)
 
+    def test_a_press_that_closes_a_kit_menu_activates_nothing_under_it(self):
+        # V6d (the Desktop's menus, and the kit's the same): a press outside an open menu closed it AND acted on what
+        # was under it. Fonts open, Editing pressed: only the menu goes; Editing pressed again opens its own.
+        aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
+        menus = "[...document.querySelectorAll('.kit-menu')].map(m => m.textContent.slice(0, 40))"
+        out = self.drive(aid, f"""
+          const o = {{}}
+          await api.clickIn('document.querySelector(".doc-tt").closest("button")'); await api.sleep(300); o.fonts = await api.frame({json.dumps(menus)})
+          await api.clickIn('document.querySelector(".doc-mode")'); await api.sleep(300); o.pressed = await api.frame({json.dumps(menus)})
+          await api.clickIn('document.querySelector(".doc-mode")'); await api.sleep(300); o.again = await api.frame({json.dumps(menus)})
+          return o""", w=1000)
+        self.assertEqual(len(out["fonts"]), 1, out)
+        self.assertEqual(out["pressed"], [], out)
+        self.assertEqual(len(out["again"]), 1, out)
+        self.assertNotEqual(out["again"], out["fonts"], out)
+
 
 PICK_DASH = {"title": "Orders", "params": {"region": ""},
              "datasets": {"r": {"title": "Regions", "source": {"kind": "rows", "rows": [
@@ -1405,10 +1421,17 @@ DASH2_CSV = 'month,orders,value,target\n2026-01,6,71.5,80\n2026-02,7,88.0,80\n20
 # Hermes Desktop's own font (its --font-sans, styles.css --dt-font-sans), as its theme hands it to a page.
 HERMES_FONT = ("'Segoe WPC', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif, 'Apple Color Emoji',"
                " 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', emoji")
-HERMES_DARK = {"mode": "dark", "vars": {"bg": "rgb(13, 17, 23)", "panel": "rgb(22, 27, 34)", "fg": "rgb(230, 237, 243)", "fg2": "rgb(201, 209, 217)",
-                                        "muted": "rgb(139, 148, 158)", "line": "rgb(48, 54, 61)", "accent": "rgb(74, 132, 254)", "font": HERMES_FONT}}
-HERMES_LIGHT = {"mode": "light", "vars": {"bg": "rgb(255, 255, 255)", "panel": "rgb(246, 248, 250)", "fg": "rgb(31, 35, 40)", "fg2": "rgb(68, 76, 86)",
-                                          "muted": "rgb(101, 109, 118)", "line": "rgb(208, 215, 222)", "accent": "rgb(74, 132, 254)", "font": HERMES_FONT}}
+# Its theme as the staging Desktop hands it to a page (read over CDP, V6d): the text tokens are the theme's
+# foreground at 94/74/54% alpha (styles.css --ui-text-primary: color-mix(... 94%, transparent)), never opaque.
+HERMES_DARK = {"mode": "dark", "vars": {"bg": "rgb(13, 16, 21)", "panel": "rgb(22, 24, 29)", "fg": "rgba(230, 237, 243, 0.94)",
+                                        "fg2": "rgba(230, 237, 243, 0.74)", "muted": "rgba(230, 237, 243, 0.54)", "line": "rgba(116, 160, 251, 0.219)",
+                                        "accent": "rgb(74, 132, 254)", "font": HERMES_FONT}}
+HERMES_LIGHT = {"mode": "light", "vars": {"bg": "rgb(255, 255, 255)", "panel": "rgb(246, 248, 250)", "fg": "rgba(31, 35, 40, 0.94)",
+                                          "fg2": "rgba(31, 35, 40, 0.74)", "muted": "rgba(31, 35, 40, 0.54)", "line": "rgb(208, 215, 222)",
+                                          "accent": "rgb(0, 83, 253)", "font": HERMES_FONT}}
+# The frame widths "Test dash2" was seen at: 906 is a 1500 px window with the comments panel open (its chart 377 px,
+# its bars 20 px: where V6d's "88", "97.9" and "92.4" sat above the line), 1246 without it.
+DASH2_FRAMES = (906, 1246, 1500)
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
@@ -1451,13 +1474,13 @@ class RoundV6Pages(unittest.TestCase):
             return { v: t.textContent, d: Math.round(d * 10) / 10 } }) } })()"""
         out = {}
         for theme in (HERMES_DARK, HERMES_LIGHT):
-            for w in (1246, 1500):
+            for w in DASH2_FRAMES:
                 r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=theme, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
                             f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
                 self.assertIsNone(r.get("err"), r)
                 out[(theme["mode"], w)] = r["out"]
         for k, o in out.items():
-            self.assertTrue(o and len(o["vals"]) >= 8, (k, o))
+            self.assertTrue(o and len(o["vals"]) >= 5, (k, o))
             self.assertIn("Segoe", o["font"], k)  # Hermes' font reached the chart
             self.assertTrue("97.9" in [v["v"] for v in o["vals"]], (k, o))
             for v in o["vals"]:
@@ -1465,65 +1488,110 @@ class RoundV6Pages(unittest.TestCase):
 
     def test_test_dash2_values_stay_with_their_bars_never_across_the_target_line(self):
         # V6c: "88", "97.9" and "92.4" (bars just under the target of 100) were moved above the line, the line between
-        # each and its bar. A value is over its bar under the line, or inside its bar's top (its ink in the bar, 6 px
-        # under the line's stroke, at 4.5:1 on the bar: 11 px is small text), or above a bar that reaches the line;
-        # across the line from its bar only where neither of the first two has room (the value's own box measured).
+        # each and its bar; V6d: still so where the bars are 20 px (a 906 px frame) and in Hermes' real colours (its
+        # text token is 94% alpha). Judged as the eye sees it, never by the drawing's own rule: a value sits over its
+        # bar (its ink ending at most 8 px above the bar's top), or under the line inside its bar's top (ink in the
+        # bar, 6 px under the line's stroke, at 4.5:1 on the bar, the token's alpha laid over it); its ink 6 px off
+        # every dash drawn. Never on the far side of the line from its bar.
         aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
         probe = r"""(() => { const svg = [...document.querySelectorAll('.c-chart svg')].find(s => s.querySelector('line.c-ref')); if (!svg) return null
           const k = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width, m0 = svg.getScreenCTM()
           const ly = m0.f + (+svg.querySelector('line.c-ref').getAttribute('y1')) * k, half = 0.75 * k
+          const segs = [...svg.querySelectorAll('line.c-ref')].map(l => l.getBoundingClientRect())
           const bars = [...svg.querySelectorAll('rect')].filter(r => !r.closest('.c-axis, .c-grid') && r.getAttribute('fill') !== 'transparent')
             .map(r => { const b = r.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, fill: getComputedStyle(r).fill } })
-          const cs0 = getComputedStyle(svg), probe = document.createElement('i'); svg.parentNode.appendChild(probe)
-          const tok = ['--color-fg', '--color-bg'].map(v => { probe.style.color = cs0.getPropertyValue(v).trim(); return getComputedStyle(probe).color }); probe.remove()
           const cv = document.createElement('canvas').getContext('2d'); cv.textAlign = 'center'
-          return { ly, half, tok, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
+          return { ly, half, vals: [...svg.querySelectorAll('text.c-value')].map(t => {
             const cs = getComputedStyle(t); cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; const m = cv.measureText(t.textContent)
-            const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k, box = t.getBoundingClientRect()
+            const x = m0.e + (+t.getAttribute('x')) * k, y = m0.f + (+t.getAttribute('y')) * k
             const ink = { l: x - m.actualBoundingBoxLeft * k, r: x + m.actualBoundingBoxRight * k, t: y - m.actualBoundingBoxAscent * k, b: y + m.actualBoundingBoxDescent * k }
-            return { v: t.textContent, ink, w: box.width, h: box.height, fill: cs.fill, bar: bars.find(b => b.l <= x && x <= b.r) } }) } })()"""
+            const d = Math.min(...segs.map(s => Math.hypot(Math.max(0, s.left - ink.r, ink.l - s.right), Math.max(0, s.top - ink.b, ink.t - s.bottom))))
+            return { v: t.textContent, ink, d, fill: cs.fill, bar: bars.find(b => b.l <= x && x <= b.r) } }) } })()"""
 
-        def rgb(s):
-            return [float(c) for c in s[s.index("(") + 1:s.index(")")].split(",")[:3]]
+        def rgba(s):
+            v = [float(c) for c in s[s.index("(") + 1:s.index(")")].split(",")]
+            return v[:3], (v[3] if len(v) > 3 else 1.0)
 
-        def contrast(a, b):
+        def contrast(a, b):  # a (maybe with alpha) drawn on b
+            (fa, al), (fb, _) = rgba(a), rgba(b)
+            fa = [al * x + (1 - al) * y for x, y in zip(fa, fb)]
+
             def lum(c):
-                f = [x / 255 for x in rgb(c)]
+                f = [x / 255 for x in c]
                 f = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in f]
                 return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
-            x, y = lum(a), lum(b)
+            x, y = lum(fa), lum(fb)
             return (max(x, y) + 0.05) / (min(x, y) + 0.05)
 
         out = {}
         for theme in (HERMES_DARK, HERMES_LIGHT):
-            for w in (400, 1500):
+            for w in (400,) + DASH2_FRAMES:
                 r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=theme, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
                             f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
                 self.assertIsNone(r.get("err"), r)
                 out[(theme["mode"], w)] = r["out"]
-        inside = 0
+        inside = set()
         for k, o in out.items():
             self.assertTrue(o and o["vals"], (k, o))
             ly, below = o["ly"], o["ly"] + o["half"]
-            readable = max(contrast(t, o["vals"][0]["bar"]["fill"]) for t in o["tok"]) >= 4.5
             for v in o["vals"]:
                 ink, bar = v["ink"], v["bar"]
                 self.assertIsNotNone(bar, (k, v))
                 where = (k, v["v"], ink, bar, ly)
-                if bar["t"] <= ly:  # its bar reaches the line: the value over the bar
-                    self.assertLessEqual(ink["b"], bar["t"], where)
-                elif ink["b"] <= bar["t"] and ink["t"] > ly:  # between its bar and the line
-                    pass
-                elif ink["t"] > ly:  # inside its bar's top
-                    inside += 1
-                    self.assertTrue(bar["l"] <= ink["l"] and ink["r"] <= bar["r"] and bar["t"] <= ink["t"] and ink["b"] <= bar["b"], where)
+                self.assertGreaterEqual(v["d"], 6, ("ink near a dash", where))
+                if ink["t"] >= bar["t"]:  # inside its bar's top, under the line
+                    inside.add(k)
+                    self.assertTrue(bar["l"] <= ink["l"] and ink["r"] <= bar["r"] and ink["b"] <= bar["b"], where)
                     self.assertGreaterEqual(ink["t"] - below, 6, where)
                     self.assertGreaterEqual(contrast(v["fill"], bar["fill"]), 4.5, where)
-                else:  # across the line from its bar: only with no room between nor inside
-                    between = bar["t"] - ly >= v["h"] + 8
-                    within = readable and bar["r"] - bar["l"] >= v["w"] + 8 and bar["b"] - max(bar["t"] + 4, below + 6) >= v["h"] + 4
-                    self.assertFalse(between or within, ("separated from its bar by the line", where))
-        self.assertGreater(inside, 0, out)  # at 1500 "88", "97.9" and "92.4" are in their bars
+                else:  # over its bar, close to it: never the line between them
+                    self.assertLessEqual(ink["b"], bar["t"], where)
+                    self.assertLessEqual(bar["t"] - ink["b"], 8, ("away from its bar", where))
+        for w in DASH2_FRAMES:  # "88" fits in its bar wherever the window is 1500 px
+            self.assertTrue({("dark", w), ("light", w)} <= inside, (w, inside))
+
+    def test_every_types_own_controls_are_marked_for_the_comment_to_keep_off(self):
+        # V6d: a 3D view's pick had its pin on the page's own Panel pill (its pills were not marked). The bars, pills
+        # and palettes of every type are [data-comment-keep] (a dashboard's filters are content; a plain page has none)
+        from test_models import PANEL
+        cases = {
+            "doc": (self.store.publish(path=str(EX / "doc"), title="Doc", type="doc")["id"], ["#doc-bar"]),
+            "sheet": (self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [{"name": "Budget", "rows": [["Item", "Cost"]]}]}})["id"],
+                      ["#sh-bar", "#sh-fbar", "#sh-foot"]),
+            "board": (self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}]}})["id"],
+                      [".bd-tools", ".bd-zoom", ".bd-top"]),
+            "design-system": (self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"], ["#ds-bar"]),
+            "model": (self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], [".md-pill-l", ".md-pill-r"]),
+        }
+        for kind, (aid, sels) in cases.items():
+            probe = json.dumps(sels) + ".map(s => { const e = document.querySelector(s); return e ? e.hasAttribute('data-comment-keep') : null })"
+            r = B.drive(f"await api.size(1200, 800); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK))}, 800); {READY}\n await api.sleep(2500)\n"
+                        f"return await api.frame({json.dumps(probe)})")
+            self.assertIsNone(r.get("err"), r)
+            self.assertEqual(r["out"], [True] * len(sels), (kind, sels, r["out"]))
+
+    def test_test_dash2_axis_names_are_whole_at_every_width(self):
+        # V6d: at 406 the bar chart's "May 2026" read "May 20…". A category's name is never cut: fewer are shown
+        # (every second, third…), each whole, apart from its neighbours and inside its chart, in every chart kind.
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        probe = r"""[...document.querySelectorAll('.c-chart svg')].filter(svg => svg.querySelector('.c-axis')).map(svg => { const s = svg.getBoundingClientRect()
+          const t = [...svg.querySelectorAll('.c-axis .tick text')].filter(x => x.textContent).map(x => { const b = x.getBoundingClientRect(); return { t: x.textContent, l: b.left, r: b.right, y: b.top, b: b.bottom } })
+          return { w: s.width, l: s.left, r: s.right, t } })"""
+        months = ["Jan 2026", "Feb 2026", "Mar 2026", "Apr 2026", "May 2026", "Jun 2026", "Jul 2026", "Aug 2026", "Sep 2026", "Oct 2026"]
+        for w in (400, 406, 600, 906, 1246, 1600):
+            r = B.drive(f"await api.size({w}, 900); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(2500)\n"
+                        f"await api.frame('document.fonts.ready.then(() => 1)'); await api.sleep(300); return await api.frame({json.dumps(probe)})")
+            self.assertIsNone(r.get("err"), r)
+            self.assertEqual(len(r["out"]), 3, (w, r["out"]))  # bar, line, hbar (the donut has a legend)
+            for c in r["out"]:
+                self.assertTrue(c["t"], (w, c))
+                for i, t in enumerate(c["t"]):
+                    self.assertNotIn("…", t["t"], (w, c))
+                    self.assertTrue(t["t"] in months or t["t"] in ("North", "South", "East", "West"), (w, t))
+                    self.assertTrue(c["l"] - 0.5 <= t["l"] and t["r"] <= c["r"] + 0.5, ("outside its chart", w, t, c))
+                    if i:
+                        p = c["t"][i - 1]
+                        self.assertGreaterEqual(max(t["l"] - p["r"], t["y"] - p["b"]), 2, ("touching", w, c["t"]))
 
     def test_a_click_from_one_artboard_into_another_keeps_its_selection_and_toolbar(self):
         # V6: the landing page's element selected, then one in the phone: the phone's selection was wiped (the landing
@@ -1613,6 +1681,19 @@ class DesignCrumbsAndSheet(unittest.TestCase):
                     self.assertFalse(meet(o["crumbs"], q), (q, what))
         o = self.pick(1243, "Poster.dc.html", 0.2, 0.42, f"return await api.frame({json.dumps(self.CRUMBS)})", lang="hu")
         self.assertEqual(o["names"], ["Cupping night poster", "Csoport", "Csoport", "Cupping night"], o)
+
+    def test_the_toolbar_never_lies_on_the_properties_panel_after_a_crumb_selects_the_artboard(self):
+        # V6d: a heading in "App: your order" selected, its crumb "App: your order" clicked: the panel was hidden and shown
+        # again in one task, the toolbar measured in the wide canvas between, and it lay over the panel's "Title" label.
+        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        then = r"""await api.frame('document.querySelector(".dc-crumbs button").click()'); await api.sleep(900)
+          return await api.frame('(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, t = document.querySelector(".dc-tools"), p = document.getElementById("dc-panel")'
+            + '; return { board: __design.state().board || null, tools: !t.hidden && t.getClientRects().length ? box(t) : null, panel: p.hidden ? null : box(p), title: document.querySelector(".dc-crumbs button").textContent } })()')"""
+        for w in (906, 1243):
+            o = self.pick(w, "Checkout.dc.html", 0.3, 0.12, then)
+            self.assertTrue(o["tools"] and o["panel"], (w, o))
+            self.assertEqual(o["title"], "App: your order", (w, o))
+            self.assertFalse(meet(o["tools"], o["panel"]), ("toolbar over the panel", w, o))
 
     def test_the_properties_sheet_offers_the_actions_of_the_toolbar_it_covers(self):
         labels = "sel => [...document.querySelectorAll(sel + ' button')].filter(b => b.getClientRects().length).map(b => b.getAttribute('aria-label'))"

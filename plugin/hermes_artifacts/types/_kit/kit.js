@@ -198,12 +198,24 @@
     m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
     function close() {
       m.remove(); openMenu = null; menuAnchor = null;
-      document.removeEventListener("mousedown", out, true); document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", out, true); document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close);
       if (onClose) { var f = onClose; onClose = null; f(); }
     }
     function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
-    function out(e) { if (!m.contains(e.target) && !(anchor.contains && anchor.contains(e.target))) close(); }
+    // A press outside only closes it: neither it nor its click reaches what is under it (a canvas would select, a
+    // button would act). The click is caught once, as the press ends.
+    function out(e) {
+      if (m.contains(e.target) || (anchor.contains && anchor.contains(e.target))) return;
+      e.preventDefault(); e.stopPropagation();
+      var swallow = function (c) { c.preventDefault(); c.stopPropagation(); };
+      var up = function () {
+        window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true);
+        setTimeout(function () { window.removeEventListener("click", swallow, true); }, 0);
+      };
+      window.addEventListener("click", swallow, true); window.addEventListener("pointerup", up, true); window.addEventListener("pointercancel", up, true);
+      close();
+    }
     // Esc closes it (the focus back on its button); the arrows walk its items
     function onKey(e) {
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); if (anchor.focus) anchor.focus(); return; }
@@ -213,7 +225,7 @@
       e.preventDefault();
       bs[i < 0 ? (e.key === "ArrowDown" ? 0 : bs.length - 1) : (i + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % bs.length].focus();
     }
-    setTimeout(function () { document.addEventListener("mousedown", out, true); document.addEventListener("keydown", onKey, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", out, true); document.addEventListener("keydown", onKey, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
     m.close = close;
     openMenu = m; menuAnchor = anchor;
   }

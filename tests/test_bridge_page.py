@@ -343,6 +343,16 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
       ownPrevented: own.prevented, lateTimeout: late, hello: P.hello.length }
   }
 
+  // --- the host's pick armed before the page's own script listens (V6d: a deck opened, its header Comment at once,
+  // the slide's blank clicked: no draft; the bridge's own listener had taken "comment-mode", the deck never heard it)
+  P = page(); P.connect(3); P.dcl()
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: true } } })
+  const heard = []
+  P.sb.__heard = d => heard.push(d && d.on)
+  P.run('hermes.on("comment-mode", function (d) { __heard(d) })'); await P.tick(10)
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: false } } }); await P.tick(10)
+  out.lateModeListener = heard
+
   console.log(JSON.stringify(out))
 })().catch(e => { console.error(e && e.stack || e); process.exit(1) })
 """
@@ -365,6 +375,10 @@ class BridgePageTests(unittest.TestCase):
 
     def test_hello_names_protocol_3(self):
         self.assertEqual(self.out["helloV"], 3)
+
+    def test_a_page_listening_late_still_hears_that_picking_is_on(self):
+        # every type's own pick (a deck's blank, a design's artboards, a film's point, a model's view) arms from it
+        self.assertEqual(self.out["lateModeListener"], [True, False])
 
     def test_ready_by_default_at_load_plus_two_frames_once(self):
         o = self.out

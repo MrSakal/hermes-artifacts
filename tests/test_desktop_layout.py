@@ -179,8 +179,9 @@ class LayoutTests(unittest.TestCase):
             %s
             if (searching && !root.querySelector('input')) { root.querySelector('button[aria-label="Search artifacts…"]').click(); %s }
             const bar = root.querySelector('h1').nextElementSibling, [chips, tools] = bar.children, input = root.querySelector('input')
+            const sc = chips.firstElementChild
             out.push({ w, searching, bar: box(bar), chips: [box(chips)], tools: [...tools.children].map(c => ({ ...box(c), tag: c.tagName })),  // the chips' row (it scrolls)
-              input: input && box(input) })
+              input: input && box(input), chipsCut: sc.scrollWidth > sc.clientWidth + 1 })
           }
           R.unmount()
           return out
@@ -189,10 +190,16 @@ class LayoutTests(unittest.TestCase):
         for o in out:
             msg = f"toolbar at {o['w']} px{', searching' if o['searching'] else ''}"
             bar, tools, all_ = o["bar"], o["tools"], o["chips"] + o["tools"]
-            # searching: the field on the toolbar where the folders keep their room beside it, else on its own row
-            # under the toolbar, as wide as it (V6c at 406 px: the folders were 56 px, "All" alone)
-            inline = o["searching"] and bar["w"] >= 560
-            self.assertEqual([t["tag"] for t in tools][0], "INPUT" if inline else "BUTTON", msg)
+            # searching: the field on the toolbar where every folder chip stays whole beside it, else on its own row
+            # under the toolbar, as wide as it (V6c at 406 px: the folders were 56 px, "All" alone; V6d: inline from a
+            # fixed 560 px, a chip cut off behind it)
+            inline = o["searching"] and tools[0]["tag"] == "INPUT"
+            if not o["searching"]:
+                self.assertEqual(tools[0]["tag"], "BUTTON", msg)
+            if inline:
+                self.assertFalse(o["chipsCut"], msg)
+            if o["w"] >= 1200:
+                self.assertEqual(inline, o["searching"], msg)  # room enough: on the toolbar's row
             if o["searching"]:
                 self.assertGreaterEqual(o["chips"][0]["w"] if not inline else 150, 150, msg)
                 if not inline:
@@ -473,6 +480,34 @@ class LayoutTests(unittest.TestCase):
             self.assertLess(o["top"], 400, (k, out))  # in the first screen
             self.assertFalse(o["tiles"], (k, out))
 
+    def test_the_search_field_is_inline_only_where_every_chip_stays_whole_beside_it(self):
+        # V6d at ~900-980 px windows (a 600-700 px gallery): the field inline from a fixed 560 px, the Trash chip
+        # cut off behind it with no fade over it. Inline only while all the chips are whole; else on its own row.
+        out = self.gallery("""
+          const out = []
+          M.$folders.set(['Alpha', 'Beta', 'Gamma']); M.$folder.set(null)
+          M.$trash.set([1, 2, 3].map(i => ({ name: 't' + i, id: 't' + i, title: 'Gone ' + i, type: 'doc', deleted_at: now - 120, days_left: 30 })))
+          for (const w of [406, 560, 600, 650, 690, 720, 800, 1000, 1200]) {
+            M.$query.set(''); root.style.width = w + 'px'
+            R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root)
+            %s
+            root.querySelector('button[aria-label="Search artifacts…"]').click(); %s
+            const bar = root.querySelector('[data-chip-bar]'), sc = bar.firstElementChild.getBoundingClientRect(), f = root.querySelector('input').getBoundingClientRect()
+            const chips = [...bar.querySelectorAll('button')].map(c => { const r = c.getBoundingClientRect(); return { t: c.textContent, l: r.left, r: r.right } })
+            out.push({ w, below: f.top >= bar.getBoundingClientRect().bottom, cut: chips.filter(c => c.l < sc.left - 0.5 || c.r > sc.right + 0.5).map(c => c.t),
+              meet: chips.some(c => c.l < f.right && f.left < c.r) && f.top < bar.getBoundingClientRect().bottom })
+            R.unmount()
+          }
+          M.$query.set(''); M.$trash.set([])
+          return out
+        """ % (NEXT, NEXT))
+        for o in out:
+            self.assertFalse(o["meet"], o)
+            if not o["below"]:
+                self.assertEqual(o["cut"], [], o)  # inline: every chip whole
+        self.assertTrue(any(not o["below"] for o in out), out)  # wide: inline still
+        self.assertTrue(any(o["below"] for o in out), out)
+
     # Live round V6c.
     def test_a_folder_chips_menu_shows_its_items_whole_and_esc_closes_it(self):
         # V6c at 406 and 1500 px: the folder chip's Rename / Delete folder menu was a 260 x 14 px sliver (max-height
@@ -515,6 +550,59 @@ class LayoutTests(unittest.TestCase):
                 self.assertEqual(o["seen"], [True] * len(o["items"]), msg)
                 self.assertIsNone(r["out"]["after"], msg)  # Esc closed it
 
+
+    def test_the_folder_delete_confirm_counts_what_the_folder_holds(self):
+        # V6d asked once more: "The artifact in it moves to No folder" with a folder holding one; two and three say so
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '100%%'; root.style.width = ''
+          const now = Date.now() / 1000, a = (id, folder) => ({ id, title: 'Item ' + id, type: 'doc', version: 1, versions: [1], updated: now - 60, folder })
+          M.$list.set([a('1', 'Alpha'), a('2', 'Alpha'), a('3', 'Beta'), a('4', 'Gamma'), a('5', 'Gamma'), a('6', 'Gamma'), a('7', null)])
+          M.$folders.set(['Alpha', 'Beta', 'Gamma']); M.$folder.set(%s); M.$layout.set('grid'); M.$query.set(''); M.$trash.set([])
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        chip = ("(() => { const b = document.querySelector('button[aria-haspopup=\"menu\"]');"
+                " const r = b.getBoundingClientRect(); return [r.right - 12, r.top + r.height / 2] })()")
+        item = "(() => { const b = [...document.querySelectorAll('button')].find(x => x.textContent.trim().startsWith('Delete folder')); const r = b.getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] })()"
+        said = "[...document.querySelectorAll('button')].filter(x => /No folder/.test(x.textContent)).map(x => x.textContent)"
+        out = {}
+        for name in ("Alpha", "Beta", "Gamma"):
+            r = self.page.drive(f"""
+              await api.size(1500, 900); await api.top({json.dumps(setup % json.dumps(name))}); await api.sleep(400)
+              const c = await api.top({json.dumps(chip)}); await api.mouse(c[0], c[1]); await api.sleep(400)
+              const i = await api.top({json.dumps(item)}); await api.mouse(i[0], i[1]); await api.sleep(300)
+              return await api.top({json.dumps(said)})""")
+            self.assertIsNone(r.get("err"), r)
+            out[name] = r["out"]
+        self.assertTrue(any("The 2 artifacts in it move to No folder" in s for s in out["Alpha"]), out)
+        self.assertTrue(any("The artifact in it moves to No folder" in s for s in out["Beta"]), out)
+        self.assertTrue(any("The 3 artifacts in it move to No folder" in s for s in out["Gamma"]), out)
+
+    def test_a_press_that_closes_a_menu_activates_nothing_under_it(self):
+        # V6d: the folder chip's menu open, a click on a template tile closed the menu AND started a new chat
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '100%%'; root.style.width = ''
+          M.$list.set([]); M.$folders.set(['Alpha', 'Beta']); M.$folder.set('Alpha'); M.$layout.set('grid'); M.$query.set(''); M.$trash.set([])
+          window.__newChats = 0
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        chip = ("(() => { const b = document.querySelector('button[aria-haspopup=\"menu\"]');"
+                " const r = b.getBoundingClientRect(); return [r.right - 12, r.top + r.height / 2] })()")
+        # a tile's picture clear of the open menu (the menu: the box holding Rename)
+        tile = """(() => { const items = [...document.querySelectorAll('button')].filter(b => /^Rename/.test(b.textContent.trim())); const m = items.length ? items[0].parentElement.getBoundingClientRect() : null
+          const t = [...document.querySelectorAll('button')].filter(b => ['Docs', 'Sheets', 'Slides', 'Design', '3D', 'Motion', 'Whiteboard', 'Dashboard'].includes(b.textContent))
+            .map(b => b.firstElementChild.getBoundingClientRect()).find(r => r.width && r.bottom < innerHeight && (!m || r.right < m.left || m.right < r.left || r.bottom < m.top || m.bottom < r.top))
+          return t ? [t.left + t.width / 2, t.top + t.height / 2] : null })()"""
+        menu = "[...document.querySelectorAll('button')].some(b => /^Rename/.test(b.textContent.trim()))"
+        for w in (406, 1500):
+            r = self.page.drive(f"""
+              await api.size({w}, 900); await api.top({json.dumps(setup)}); await api.sleep(400)
+              const c = await api.top({json.dumps(chip)}); await api.mouse(c[0], c[1]); await api.sleep(400)
+              const o = {{ open: await api.top({json.dumps(menu)}) }}
+              const t = await api.top({json.dumps(tile)}); o.tile = !!t
+              await api.mouse(t[0], t[1]); await api.sleep(400)
+              o.closed = !(await api.top({json.dumps(menu)})); o.chats = await api.top('window.__newChats')
+              await api.mouse(t[0], t[1]); await api.sleep(400); o.chatsAfter = await api.top('window.__newChats')  // the menu gone, a click starts one
+              return o""")
+            self.assertIsNone(r.get("err"), r)
+            self.assertEqual(r["out"], {"open": True, "tile": True, "closed": True, "chats": 0, "chatsAfter": 1}, w)
 
     def test_the_chip_shown_is_scrolled_clear_of_the_faded_ends(self):
         # V6c at 406 px: the chosen chip ("Q…") was scrolled flush to the row's end, under its 24 px fade
@@ -571,6 +659,42 @@ class LayoutTests(unittest.TestCase):
           return o""")
         self.assertIsNone(r.get("err"), r)
         self.assertEqual(r["out"], {"shown": True, "wheel": False, "shownAgain": True, "scroll": False, "scrolled": True, "shownThird": True, "blur": False})
+
+    def test_a_tile_brought_under_a_still_pointer_shows_no_tooltip_until_the_pointer_moves(self):
+        # V6d at 406 px: a 60 px scroll put another tile under the pointer and its tooltip showed within 100 ms, the
+        # pointer never moved (the browser's own mouseenter after a scroll)
+        setup = """(() => { const { M, R, jsx } = window.H, root = document.getElementById('root'); root.style.height = '900px'; root.style.width = '406px'
+          M.$list.set([]); M.$folders.set([]); M.$folder.set(null); M.$query.set(''); M.$trash.set([])
+          const ctx = { rest: async () => ({}), storage: { get: () => null, set() {} } }
+          R.mount(() => jsx(M.Gallery, { ctx, pageRef: { current: null } }), root) })()"""
+        # a point on the 3D tile's picture that, the list scrolled as far as it goes (at most a row), is on the picture of
+        # the tile under it: [x, y, the scroll]
+        where = """(() => { const s = document.getElementById('root').firstElementChild.firstElementChild
+          const pic = n => [...document.querySelectorAll('button')].find(b => b.textContent === n).firstElementChild.getBoundingClientRect()
+          const a = pic('3D'), b = [...document.querySelectorAll('button')].filter(x => x.firstElementChild && x.firstElementChild.style.height === '96px').map(x => x.firstElementChild.getBoundingClientRect())
+            .find(r => Math.abs(r.left - a.left) < 1 && r.top > a.bottom)
+          if (!b) return null
+          const d = Math.min(b.top - a.top, s.scrollHeight - s.clientHeight - s.scrollTop), lo = Math.max(a.top, b.top - d), hi = Math.min(a.bottom, b.bottom - d)
+          return hi - lo > 10 ? [a.left + a.width / 2, (lo + hi) / 2, d] : null })()"""
+        tips = "[...document.querySelectorAll('[role=tooltip]')].map(t => t.parentElement.textContent.slice(0, 12))"
+        scroller = 'document.getElementById("root").firstElementChild.firstElementChild'
+        r = self.page.drive(f"""
+          await api.size(406, 900); await api.top({json.dumps(setup)}); await api.sleep(400)
+          const p = await api.top({json.dumps(where)}); const o = {{ found: !!p }}
+          await api.pointer('mouseMoved', 2, 2); await api.sleep(100); await api.pointer('mouseMoved', p[0], p[1]); await api.sleep(250)
+          o.first = await api.top({json.dumps(tips)})
+          await api.top('{scroller}.scrollTop += ' + p[2]); await api.sleep(400)
+          o.scrolled = await api.top({json.dumps(tips)})
+          await api.pointer('mouseMoved', p[0] + 3, p[1] + 2); await api.sleep(250)
+          o.moved = await api.top({json.dumps(tips)})
+          return o""")
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        self.assertTrue(o["found"], o)
+        self.assertEqual(len(o["first"]), 1, o)
+        self.assertEqual(o["scrolled"], [], o)  # the tile now under the still pointer: no tooltip
+        self.assertEqual(len(o["moved"]), 1, o)
+        self.assertNotEqual(o["moved"], o["first"], o)  # a real move onto it: its own
 
 
 class ListColsTests(unittest.TestCase):

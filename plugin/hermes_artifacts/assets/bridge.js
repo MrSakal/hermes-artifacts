@@ -89,8 +89,10 @@
   // is kept, and the first listener for it gets the last one. A state the host sends once and again only
   // when it changes (STICKY: the comment threads) goes to every listener that comes later too: this bridge
   // listens to "pins" itself from the start, so a page's own listener (a doc's margin) would never get
-  // threads sent before its script ran.
-  var early = {}, last = {}, STICKY = { pins: 1 };
+  // threads sent before its script ran. Nor would a page's own pick (a deck's blank, a design's artboards) hear
+  // that picking is on when the host armed it right after the frame opened ("comment-mode": the bridge listens
+  // to it from the start too; V6d, the first pick of a deck just opened made no draft).
+  var early = {}, last = {}, STICKY = { pins: 1, "comment-mode": 1 };
   function on(name, fn) {
     (listeners[name] = listeners[name] || []).push(fn);
     var has = Object.prototype.hasOwnProperty;
@@ -702,8 +704,28 @@
       out.lr = line.right;
       out.fw = free("fw", wb) && (given || !ownWords(el, wb));
     }
-    var kp = keeps(el);
+    var kp = keeps(el), kw = keptWords(el);
     if (kp.length) out.kp = kp;
+    if (kw.length) out.kw = kw;
+    return out;
+  }
+  /** The words the comment's box keeps off where there is room, besides the page's controls (kw: never a reason to
+   *  hide the pin): in a part of the page that asks for it ([data-comment-keep-words]: a deck's slide, V6d's box
+   *  over the eyebrow line of the title picked), each text's own extent, [left, top, right, bottom] in the window,
+   *  those in sight and not el's own (all of them where el is that part: its blank picked), at most KEEP_MAX. */
+  function keptWords(el) {
+    var wk = el.closest && el.closest("[data-comment-keep-words]"), out = [];
+    if (!wk) return out;
+    try {
+      var w = document.createTreeWalker(wk, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
+      for (var i = 0; (n = w.nextNode()) && i < 400 && out.length < KEEP_MAX; i++) {
+        if (!/\S/.test(n.nodeValue) || (el !== wk && el.contains(n)) || (n.parentElement && n.parentElement.closest("[data-hermes-ui]"))) continue;
+        rg.selectNodeContents(n);
+        var q = rg.getBoundingClientRect();
+        if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight) continue;
+        out.push([Math.floor(q.left), Math.floor(q.top), Math.ceil(q.right), Math.ceil(q.bottom)]);
+      }
+    } catch (_) {}
     return out;
   }
   /** The page's own controls the comment's box keeps off where there is room ([data-comment-keep]: a film's

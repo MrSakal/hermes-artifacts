@@ -146,12 +146,13 @@ class ViewerComments(unittest.TestCase):
     # Live round V4.
     HINT = ('(() => { const h = document.querySelector("[data-ha-pick-hint]"); if (!h) return null; const r = h.getBoundingClientRect(), f = document.querySelector("iframe").getBoundingClientRect();'
             ' const over = [...document.querySelectorAll("button, iframe")].filter(b => !h.contains(b)).some(b => { const q = b.getBoundingClientRect(); return q.width && q.left < r.right && r.left < q.right && q.top < r.bottom && r.top < q.bottom });'
-            ' return { text: h.textContent, over, above: r.bottom <= f.top + 0.5, picking: window.H.M.$picking.get() } })()')
+            ' return { text: h.textContent, over, above: r.bottom <= f.top + 0.5, picking: window.H.M.$picking.get(),'
+            ' cut: [...h.querySelectorAll("span")].some(s => s.scrollWidth > s.clientWidth + 0.5) } })()')
     CURSOR = 'getComputedStyle(document.querySelector(".doc-blk a, .doc-blk")).cursor'
 
     def test_picking_says_so_in_a_band_over_nothing_and_esc_or_cancel_ends_it(self):
         # V4: the header's Comment (the list closed, docked) armed picking with nothing shown but its own highlight
-        for w in (1300, 400):
+        for w in (1300, 406, 400):
             out = self.drive(f"""
               const o = {{}}, hint = () => api.top({json.dumps(self.HINT)})
               await btn('Comment')
@@ -170,6 +171,9 @@ class ViewerComments(unittest.TestCase):
             on = out["on"]
             self.assertTrue(on and on["picking"], (w, out))
             self.assertIn("Esc", on["text"], (w, out))
+            # V6d at 406 px: "Click what you wa…", the Esc advice lost: the whole hint or its short form, never cut
+            self.assertIn(on["text"], ("Click what you want to comment on · Esc to cancelCancel", "Click a part · EscCancel"), (w, out))
+            self.assertFalse(on["cut"], (w, out))
             self.assertFalse(on["over"], (w, out))  # over no button and not over the page
             self.assertTrue(on["above"], (w, out))
             self.assertEqual(out["cursor"], "crosshair", (w, out))
@@ -416,8 +420,15 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
               for (let i = 0; i < 12 && await api.frame('getComputedStyle({board}.querySelector(".dc-strip")).visibility !== "visible"'); i++) {{
                 await api.frame('(() => {{ const r = {board}.getBoundingClientRect(); document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaY: -120, ctrlKey: true, clientX: r.left + 10, clientY: r.top + 10, bubbles: true, cancelable: true }})) }})()'); await api.sleep(250)
               }}
-              return await pickAt('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left + Math.min(30, r.width / 3), r.top + r.height / 2] }})()', {json.dumps(chrome)})""", w, settle=3000)
+              const o = await pickAt('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left + Math.min(30, r.width / 3), r.top + r.height / 2] }})()', {json.dumps(chrome)})
+              const s = await api.frame('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()')
+              o.strip = [s[0] + o.off[0], s[1] + o.off[1], s[2] + o.off[0], s[3] + o.off[1]]
+              return o""", w, settle=3000)
             self.clear(o, (w, "strip"))
+            # V6d: the pin lay 6 px left of the artboard, off it: on the strip picked
+            self.assertTrue(o["pin"], (w, o))
+            cx, cy = (o["pin"]["l"] + o["pin"]["r"]) / 2, (o["pin"]["t"] + o["pin"]["b"]) / 2
+            self.assertTrue(o["strip"][0] <= cx <= o["strip"][2] and o["strip"][1] <= cy <= o["strip"][3], ("pin off the strip", w, o))
 
     def test_a_decks_blank_pick_keeps_the_box_off_the_thumbnails(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
@@ -524,6 +535,69 @@ class SlideBlankPickPinsThePoint(unittest.TestCase):
                 gap = max(p["l"] - b["r"], b["l"] - p["r"], p["t"] - b["b"], b["t"] - p["b"])
                 self.assertGreaterEqual(gap, 7.5, what)
                 self.assertTrue(b["l"] >= st[0] + 7.5 and b["r"] <= st[2] - 7.5 and b["t"] >= st[1] + 7.5 and b["b"] <= st[3] - 7.5, what)
+
+    def test_a_title_picked_has_its_pin_after_its_words_and_the_box_off_the_slides_other_words(self):
+        # V6d: "Q4 sales pipeline" (a full-width block) picked: the pin at the block's right end, 560 px from the words,
+        # and the box over the eyebrow line "QUARTERLY REVIEW". The pin right after the title's first line; the box
+        # off every other line of the slide (the room above the eyebrow is there at these widths).
+        h1 = 'document.querySelector(".sl-clip .sl-canvas h1")'
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        words = r"""(() => { const rg = document.createRange(), out = []; const w = document.createTreeWalker(document.querySelector('.sl-clip .sl-canvas'), NodeFilter.SHOW_TEXT)
+          for (let n; (n = w.nextNode());) { if (!/\S/.test(n.nodeValue) || n.parentElement.closest('aside')) continue; rg.selectNodeContents(n); const q = rg.getBoundingClientRect(); out.push({ t: n.nodeValue.trim(), l: q.left, t0: q.top, r: q.right, b: q.bottom, own: n.parentElement.tagName === 'H1' }) }
+          const t = [...document.querySelector('.sl-clip .sl-canvas h1').childNodes].find(n => n.nodeType === 3); rg.selectNodeContents(t); const first = rg.getClientRects()[0]
+          return { words: out, end: first.right, mid: (first.top + first.bottom) / 2 } })()"""
+        for w in (1500, 1000):
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.aid)}, SEL = {json.dumps(h1)}, SETTLE = 2500; await api.size({w}, 900);" + BOOT_ANY + f"""
+              const o = await pickAt('(() => {{ const r = {h1}.getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] }})()', '[]')
+              o.w = await api.frame({json.dumps(words)}); return o""", timeout=240)
+            self.assertIsNone(r.get("err"), r)
+            o = r["out"]
+            off, p, b = o["off"], o["pin"], o["box"]
+            what = (w, o)
+            self.assertTrue(p and b, what)
+            end, mid = o["w"]["end"] + off[0], o["w"]["mid"] + off[1]
+            self.assertTrue(0 <= p["l"] - end <= 8, ("pin away from the title's words", what))  # PIN_GAP after them
+            self.assertLessEqual(abs((p["t"] + p["b"]) / 2 - mid), 2, what)
+            for q in o["w"]["words"]:
+                if q["own"]:
+                    continue
+                l, t, rr, bb = q["l"] + off[0], q["t0"] + off[1], q["r"] + off[0], q["b"] + off[1]
+                self.assertFalse(b["l"] < rr and l < b["r"] and b["t"] < bb and t < b["b"], ("box over", q["t"], what))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class ModelViewPickPinsThePoint(unittest.TestCase):
+    """Live round V6d: a 3D view picked where no part is ("3D view") had its pin in the view's top right corner, on
+    the page's own Panel pill. The pin is on the point clicked, and never on the page's pills."""
+
+    def test_the_views_pin_is_on_the_point_clicked_off_the_pills(self):
+        from test_models import PANEL
+        host = B.Host()
+        try:
+            host.files.update(D.viewer_files(EXPORTS))
+            aid = store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+            url = f"http://127.0.0.1:{host.port}/dom/index.html"
+            # a point of the view with no part under it, nearest the top right (the tester's), no pill over it
+            spot = ("(() => { const c = document.querySelector('.md-canvas'), r = c.getBoundingClientRect();"
+                    " for (let j = 2; j < 20; j++) for (let i = 18; i > 1; i--) { const x = r.left + r.width * i / 20, y = r.top + r.height * j / 20;"
+                    " if (document.elementFromPoint(x, y) === c && !__model.pick(x, y)) return [x, y] } return null })()")
+            pills = '[...document.querySelectorAll("[data-comment-keep]")]'
+            for w in (1500, 400):
+                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = 'document.querySelector(\".md-canvas\")', SETTLE = 3000; await api.size({w}, 900);" + BOOT_ANY + f"""
+                  const at = await api.frame({json.dumps(spot)}); if (!at) return null
+                  const o = await pickAt({json.dumps(spot)}, {json.dumps(pills)})
+                  o.at = [at[0] + o.off[0], at[1] + o.off[1]]; return o""", timeout=240)
+                self.assertIsNone(r.get("err"), r)
+                o, what = r["out"], (w, r["out"])
+                self.assertTrue(o and o["pin"], what)
+                p = o["pin"]
+                self.assertLessEqual(abs((p["l"] + p["r"]) / 2 - o["at"][0]), 2, what)
+                self.assertLessEqual(abs((p["t"] + p["b"]) / 2 - o["at"][1]), 2, what)
+                self.assertTrue(o["kept"], what)
+                for k in o["kept"]:
+                    self.assertFalse(p["l"] < k["r"] and k["l"] < p["r"] and p["t"] < k["b"] and k["t"] < p["b"], (k, what))
+        finally:
+            host.close()
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")

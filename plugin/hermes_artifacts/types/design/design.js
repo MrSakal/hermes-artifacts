@@ -1131,8 +1131,15 @@
     return inp;
   }
   function section(title, rows) { return h("section", { "class": "dc-sec" }, [h("h3", { text: title })].concat(rows)); }
+  /** The panel drawn, then the toolbar and breadcrumb placed in the canvas it leaves: a selection's change can hide
+   *  the panel and show it again in one task (the crumb "App: your order" after a heading), a size the canvas's
+   *  ResizeObserver never sees change, and the toolbar measured in between lay over the Properties sheet (V6d). */
   function renderPanel() {
     if (!editable) return;
+    fillPanel();
+    placeTools();
+  }
+  function fillPanel() {
     var bp = sel.path || selBoard;
     // Under 760 px the panel is a sheet over the canvas: open only when asked (the Properties button), so a pick
     // leaves the canvas, its element toolbar and breadcrumb in view.
@@ -1505,14 +1512,27 @@
     return (i > n * 0.4 ? c.slice(0, i) : c).replace(/[\s,;:.·–-]+$/, "") + "…";
   }
   /** A comment on what a frame picked (m: frame.js where(); tid null: the artboard), beside it with its pin: its
-   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). */
-  function framePicked(f, m) {
+   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). The
+   *  artboard picked by its name strip (strip: its board) has its pin on the strip, after the name (V6d: left of
+   *  the artboard, off it). */
+  var PIN_HALF = 13; // the host's pin (plugin.js PIN) is 26 px
+  function framePicked(f, m, strip) {
     if (!window.hermes || !window.hermes.comment) return;
     var p = f.path, n = m.tid != null ? nodeOf(p, m.tid) : null, name = titleOf(p);
     var anchor = n ? { selector: selId(p, m.tid), text: String(m.text || labelOf(n) || "").slice(0, 200),
                        label: clipWords(name + " · " + (labelOf(n) || T.kinds[kindOf(n)] || T.kinds.other), 40) }
                    : { selector: enc(p), text: name.slice(0, 200), label: clipWords(name, 40) };
     if (!anchor.selector) return;
+    if (strip) {
+      window.hermes.comment(anchor, { el: strip.strip, box: function () {
+        if (!strip.strip.isConnected || !strip.strip.getClientRects().length) return null;
+        var s = strip.strip.getBoundingClientRect(), nr = strip.name.getBoundingClientRect();
+        var stop = [strip.tw, strip.playBtn, strip.full].filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().left; });
+        var x = Math.max(s.left + PIN_HALF, Math.min(nr.right + 4 + PIN_HALF, Math.min.apply(null, stop.concat(s.right)) - PIN_HALF));
+        return { x: x - 1, y: s.top + s.height / 2 - 1, w: 2, h: 2, point: true };
+      } });
+      return;
+    }
     var inner = m.rect;
     window.hermes.comment(anchor, { el: f.iframe, box: function () {
       if (!f.iframe.isConnected) return null;
@@ -1534,7 +1554,7 @@
     var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
     if (!b || !b.frame) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    framePicked(b.frame, { t: "picked", tid: null });
+    framePicked(b.frame, { t: "picked", tid: null }, e.target.closest(".dc-strip") ? b : null);
   }, true);
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.

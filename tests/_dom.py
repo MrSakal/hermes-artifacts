@@ -140,7 +140,7 @@ export default { memo }
 SDK = r"""
 import { useState, useEffect } from './react.mjs'
 export const atom = v => { let x = v; const ls = new Set(); return { get: () => x, set: n => { x = n; [...ls].forEach(f => f(n)) }, listen: f => (ls.add(f), () => ls.delete(f)) } }
-export const host = { state: { busy: atom(false), busyBySession: atom({}), focusedStoredSessionId: atom(null) }, request: async () => ({}), composer: { setDraft: async () => true }, navigate() {}, newChat() {} }
+export const host = { state: { busy: atom(false), busyBySession: atom({}), focusedStoredSessionId: atom(null) }, request: async () => ({}), composer: { setDraft: async () => true }, navigate() {}, newChat() { window.__newChats = (window.__newChats || 0) + 1 } }
 export const ROUTES_AREA = 'routes', SIDEBAR_NAV_AREA = 'nav', SIDEBAR_NAV_PREFS_AREA = 'prefs'
 export const STATUSBAR_AREAS = { left: 'l', right: 'r' }
 export const SandboxedFrame = () => null

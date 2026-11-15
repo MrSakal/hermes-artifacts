@@ -353,7 +353,7 @@
   var view = h("div", { "class": "bd-view kit-surface", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
   var world = h("div", { "class": "bd-world" }), ui = h("div", { "class": "bd-ui" });
   var draftSvg = svgEl("svg", { "class": "bd-draft", "aria-hidden": "true" });  // in board units: a line being drawn, snapping guides
-  var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", role: "toolbar", "aria-label": T.more, hidden: true });
+  var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", "data-comment-keep": "", role: "toolbar", "aria-label": T.more, hidden: true });
   var liveEl = h("div", { "class": "bd-sr", "aria-live": "polite" });
   world.appendChild(draftSvg); ui.append(uiSel, ctx); view.append(world, ui); root.append(view, liveEl);
   var cam = { x: 0, y: 0, z: 1 }, vw = 1, vh = 1, vrc = { left: 0, top: 0 }, camRaf = 0;
@@ -1656,7 +1656,7 @@
   }
 
   // ------------------------------------------------------------------ the tools (a pill at the bottom), the zoom pill, the top corner
-  var toolBtn = {}, toolsEl = h("div", { "class": "bd-tools bd-chrome", role: "toolbar", "aria-label": T.board });
+  var toolBtn = {}, toolsEl = h("div", { "class": "bd-tools bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.board });
   var TOOLS = [["select", T.select, "V", "cursor"], ["hand", T.hand, "H", "hand"], ["text", T.text, "T", "text"], ["section", T.section, "A", "frame"],
     ["sticky", T.sticky, "S", "sticky"], ["draw", T.draw, "L", ""], ["shape", T.shapes, "", ""], ["image", T.image, "", "image"]];
   var TOOLKEY = { v: "select", h: "hand", t: "text", a: "section", s: "sticky", l: "draw" };
@@ -1707,12 +1707,12 @@
       .concat([{ sep: true }, { on: !!prefs.keys, label: T.keys, onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
   } });
   var undoBtn = kit.button("", "undo", function () { undo(); }, T.undo + " (Ctrl+Z)"), redoBtn = kit.button("", "redo", function () { redo(); }, T.redo + " (Ctrl+Shift+Z)");
-  var zoomEl = h("div", { "class": "bd-zoom bd-chrome", role: "toolbar", "aria-label": T.zoom }, [
+  var zoomEl = h("div", { "class": "bd-zoom bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.zoom }, [
     kit.button("", "minus", function () { zoomStep(-1); }, T.zoomOut + " (Ctrl+−)"), zoomLbl, kit.button("", "plus", function () { zoomStep(1); }, T.zoomIn + " (Ctrl++)"),
     h("span", { "class": "bd-sep" }), undoBtn, redoBtn]);
   var histBtn = kit.button("", "history", function (e) { openHistory(histBtn); }, T.hist);
   var expBtn = kit.button("", "download", function () { menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); }, T.exp);
-  var topEl = h("div", { "class": "bd-top bd-chrome", role: "toolbar", "aria-label": T.more }, [histBtn, expBtn]);
+  var topEl = h("div", { "class": "bd-top bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.more }, [histBtn, expBtn]);
   var banner = h("div", { "class": "bd-banner", hidden: true });
   function zoomSync() { zoomLbl.textContent = rnd(cam.z * 100) + "%"; }
   function undoSync() {
