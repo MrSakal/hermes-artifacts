@@ -130,7 +130,10 @@ class CommentPinTests(unittest.TestCase):
         self.assertIsNotNone(u, out)  # beside the element is on the palette: above it
         self.assertFalse(u["x"] < 747 and 496 < u["x"] + 26 and u["y"] < 766 and 726 < u["y"] + 26, out)
         self.assertIsNotNone(out["clear"], out)
-        self.assertIsNone(out["none"], out)  # its corner fallback is on the palette too: not drawn
+        # V6h: neither above nor below its right end: above its left end, PIN_EDGE off the palette
+        n = out["none"]
+        self.assertEqual((n["x"], n["y"]), (520, 720 - 6 - 26), out)
+        self.assertLessEqual(n["y"] + 26 + 4, 726, out)
 
     def test_near_every_edge_pin_and_box_stay_apart_and_inside(self):
         # The bridge's rect ends where the element's words end (a short line far left, a long one to the
@@ -176,9 +179,10 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])", section("function CommentsPanel(", "function Viewer("))
         self.assertNotIn("'@Hermes '", SRC)
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
-        self.assertIn('emit("picked-rect", { rect: b ? boxRect(picked.el, b) : pickRect(picked.el) });', bridge)
-        self.assertIn('window.addEventListener("scroll", pickedMoved, true);', bridge)
-        self.assertIn('window.addEventListener("resize", pickedMoved);', bridge)
+        # watched every frame (a scroll, a resize, a pan, a re-layout), gone when no longer drawn (V6h)
+        self.assertIn('emit("picked-rect", { rect: picked.box ? boxRect(picked.el, picked.box()) : pickRect(picked.el) });', bridge)
+        self.assertIn('if (!w) { emit("picked-rect", { gone: true }); return; }', bridge)
+        self.assertIn("if (picked || pins.length) watchRaf = requestAnimationFrame(watch);", bridge)
 
     def test_the_pin_never_covers_its_element_when_there_is_room(self):
         # 0.20 click-through: the pin sat on the last letters of "Site survey" and the line above. Now it goes
@@ -218,10 +222,21 @@ class CommentPinTests(unittest.TestCase):
         console.log(JSON.stringify([m.pinSpot({ ...cell, fw: true }, 1500, 900), m.pinSpot({ ...cell, fw: false, fa: true }, 1500, 900),
           m.pinSpot({ ...cell, fw: false, fa: false, fb: true }, 1500, 900), m.pinSpot({ ...cell, fw: false }, 1500, 900)]))
         """
-        words, above, below, corner = run_node(stub_module(EXPORTS), body)
+        words, above, below, left = run_node(stub_module(EXPORTS), body)
         self.assertEqual(words, {"x": 672 + 6, "y": 462 + 12 - 13, "s": 26})
         self.assertEqual(above, {"x": 703 - 26, "y": 453 - 6 - 26, "s": 26})
         self.assertEqual(below, {"x": 703 - 26, "y": 453 + 42 + 6, "s": 26})
+        # V6h: none of those, above its left end (the page's content there: kc), never over it
+        self.assertEqual(left, {"x": 640, "y": 453 - 6 - 26, "s": 26})
+        # all its sides and corners on the page's words: beside it on its line (a part under two pins tall is never
+        # covered by its pin), else, a bigger one, its corner
+        body = """
+        const cell = { x: 640, y: 453, w: 63, h: 42, ly: 462, lh: 24, lr: 672, fr: false, fl: false, fw: false, kc: [[500, 380, 900, 452], [500, 496, 900, 560], [560, 440, 639, 520], [704, 440, 900, 520]] }
+        const big = { ...cell, h: 80, kc: [[500, 380, 900, 452], [500, 534, 900, 600], [560, 440, 639, 560], [704, 440, 900, 560]] }
+        console.log(JSON.stringify([m.pinSpot(cell, 1500, 900), m.pinSpot(big, 1500, 900)]))
+        """
+        small, corner = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(small, {"x": 703 + 6, "y": 462 + 12 - 13, "s": 26})
         self.assertEqual(corner, {"x": 703 - 26 - 4, "y": 453 + 4, "s": 26})
 
     def test_a_pages_own_comment_with_its_rect_opens_beside_it_and_a_point_is_pinned_on(self):
@@ -435,6 +450,80 @@ class CommentPinTests(unittest.TestCase):
 
 
 @unittest.skipIf(NODE is None, "node not installed")
+@unittest.skipUnless(NODE, "node is not installed")
+class RoundV6hPlacement(unittest.TestCase):
+    """Live round V6h (0440f61): the box far from its pin on dense pages (N1: 65-227 px), on the other side of a design
+    strip from its pin (N4: 39-42 px), 7.9 px against 8 (N12), an edge pin 2 px under a design's pill (B3), a pin on
+    an element no longer drawn."""
+
+    def test_nearness_wins_the_box_by_its_pin_over_neighbouring_words(self):
+        # N1: a dashboard's Reset picked, words all round it; a spot by the pin covering some, one 225 px off covering
+        # none: the one by the pin. N4: a strip with a neighbour's below it, its pin above it: the box above the pin.
+        body = """
+        const words = []
+        for (let y = 60; y < 700; y += 22) for (let x = 20; x < 1200; x += 140) words.push([x, y, x + 110, y + 16])
+        const reset = m.commentLayout({ x: 600, y: 300, w: 60, h: 28, ly: 300, lh: 28, fr: true, fl: true, kc: words.filter(k => !(k[0] < 660 && 600 < k[2] && k[1] < 328 && 300 < k[3])) }, 1250, 716, 150)
+        const strip = { x: 300, y: 400, w: 200, h: 26, ly: 400, lh: 26, lr: 480, fw: false, fr: false, fl: false, fa: true, fb: true,
+          kp: [[300, 400, 500, 426], [300, 446, 500, 472]] }
+        console.log(JSON.stringify({ reset, strip: m.commentLayout(strip, 1250, 716, 150) }))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        gap = lambda b, p, h: max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + p["s"]), p["y"] - (b["y"] + h), b["y"] - (p["y"] + p["s"]))
+        r = out["reset"]
+        self.assertLessEqual(gap(r["box"], r["pin"], 150), 24, out)
+        s = out["strip"]
+        self.assertLess(s["pin"]["y"], 400, s)  # its pin above the strip (fa), the box on the same side
+        self.assertTrue(8 <= gap(s["box"], s["pin"], 150) <= 24, s)
+        self.assertLessEqual(s["box"]["y"] + 150, s["pin"]["y"] + 26, s)
+
+    def test_gaps_hold_in_whole_px_against_fractional_parts(self):
+        # N12: the box at element + 8 with the element's edge at .4 px measured 7.9 after layout.
+        body = """
+        const out = []
+        for (const f of [0.1, 0.33, 0.5, 0.66, 0.9]) {
+          const r = { x: 400 + f, y: 300 + f, w: 120.37, h: 40.21, ly: 300 + f, lh: 20, fr: true, fl: true, kp: [[100 + f, 10, 300.6, 40.2]] }
+          out.push({ r, ...m.commentLayout(r, 1250, 716, 150) })
+        }
+        console.log(JSON.stringify(out))
+        """
+        for o in run_node(stub_module(EXPORTS), body):
+            b, p, r = o["box"], o["pin"], o["r"]
+            self.assertEqual((b["x"], b["y"]), (round(b["x"]), round(b["y"])), o)
+            gap = lambda q: max(q[0] - (b["x"] + 320), b["x"] - q[2], q[1] - (b["y"] + 150), b["y"] - q[3])
+            self.assertGreaterEqual(gap([r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]), 8, o)
+            self.assertGreaterEqual(gap([p["x"], p["y"], p["x"] + 26, p["y"] + 26]), 8, o)
+            self.assertGreaterEqual(gap(r["kp"][0]), 4, o)
+
+    def test_an_edge_pin_keeps_off_the_pages_controls(self):
+        # B3: a design's headline zoomed out of sight left: its pin at the stage's left edge, 2 px under the pill; the
+        # box 56 px from it. The pin PIN_EDGE off the pill (along the edge), the box by it.
+        body = """
+        const r = { x: -900, y: 120, w: 600, h: 60, ly: 120, lh: 40, vis: false, kp: [[12, 10, 74, 50], [1069, 10, 1231, 50], [496, 680, 747, 712]] }
+        console.log(JSON.stringify(m.commentLayout({ ...r, y: 20 }, 1250, 716, 150)))
+        """
+        o = run_node(stub_module(EXPORTS), body)
+        p, b = o["pin"], o["box"]
+        self.assertIsNotNone(p, o)
+        self.assertLessEqual(p["x"], 4, o)
+        self.assertGreaterEqual(p["y"], 50 + 4, o)  # past the pill
+        gap = max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 150), b["y"] - (p["y"] + 26))
+        self.assertTrue(8 <= gap <= 24, o)
+
+    def test_a_part_no_longer_drawn_takes_its_pin_away_and_back(self):
+        body = """
+        m.$draft.set({ anchor: { selector: '#a' }, rect: { x: 600, y: 560, w: 120, h: 30 } })
+        m.onPageEvent('picked-rect', { gone: true })
+        const gone = m.$draft.get()
+        m.onPageEvent('picked-rect', { rect: { x: 610, y: 500, w: 120, h: 30 } })
+        const back = m.$draft.get()
+        m.$draft.set(null)
+        console.log(JSON.stringify({ gone: gone.gone, rect: gone.rect, back: back.gone, again: back.rect }))
+        """
+        o = run_node(stub_module(EXPORTS), body)
+        self.assertEqual(o, {"gone": True, "rect": {"x": 600, "y": 560, "w": 120, "h": 30}, "back": False, "again": {"x": 610, "y": 500, "w": 120, "h": 30}})
+        self.assertIn("pin = draft.gone ? null : placed.current.v.pin", SRC)
+
+
 class CommentsPanelLayoutTests(unittest.TestCase):
     """0.20 live: at a ~986 px window the comments list covered the sheet's right (its note, "Ask Herm…") while
     the page kept laying out for the whole row. Docked, the list takes its width from the stage: the frame

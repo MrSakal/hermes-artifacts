@@ -3295,6 +3295,27 @@ function watchRun() {
  *  (its style and data-hermes-* attributes) and a skin's <style> in <head>; both are only read here, and
  *  when the resolved theme differs, every open page gets it again. */
 const themePorts = new Set() // every mounted page's port: the theme and Hermes' runs reach them all
+/** A button of the plugin's that a press focused keeps no ring after Esc (V6h: one clicked, then Esc, rang as if
+ *  the keyboard had reached it); one the keyboard reached keeps its focus and its ring. The type pages do the same
+ *  (kit.js). Returns its disposer. */
+function watchPressFocus(ctx) {
+  let pressed = null, focus = null
+  const offs = [
+    listen(ctx, document, 'pointerdown', e => {
+      pressed = e.target
+      const a = document.activeElement // pressed again where it already is: by a press now
+      if (a && a !== document.body && a.contains?.(e.target) && a.closest?.(`[${CHAT_ROOT}]`)) focus = a
+    }, true),
+    listen(ctx, document, 'focusin', e => { focus = pressed && e.target?.contains?.(pressed) && e.target.closest?.(`[${CHAT_ROOT}]`) ? e.target : null; pressed = null }, true),
+    listen(ctx, document, 'keydown', e => {
+      const a = focus
+      if (e.key !== 'Escape' || !a || document.activeElement !== a || !(a instanceof HTMLButtonElement)) return
+      later(ctx, () => { if (document.activeElement === a) a.blur() }, 0)
+    }, true)
+  ]
+  return () => offs.forEach(off => off?.())
+}
+
 let themeWatch = null
 let unwatchTheme = () => {}
 function watchTheme() {
@@ -3798,7 +3819,6 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
       if (event === 'ready') return F.ready(rec, detail?.threw === true, detail?.blank === true)
       if (event === 'diag') return F.diag(rec, detail)
       if (event === 'alive') return F.beat(rec)
-      if (event === 'press') return framePress.forEach(fn => fn()) // the host's menus close (PopMenu)
       if (F.hidden(rec)) return // out of sight and inert: nothing the person did there
       if (event === 'pick-ready') {
         // A frame about to give way to one loading behind it (the same artifact opened again, a new version) keeps
@@ -3809,10 +3829,8 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
         const go = () => {
           if (!$picking.get() || F.hidden(rec) || !F.live(rec)) return
           $pickOn.set(true)
-          const q = $pickHeld.get(), f = ref.current?.getBoundingClientRect()
-          $pickHeld.set(null)
           // to this frame's own port: it may say so before it is revealed (the shown port then is none: V6f, a design's)
-          if (q && f) postToPage({ current: rec.port }, 'pick-at', { x: q.x - f.left, y: q.y - f.top })
+          if ($pickHeld.get()) giveHeld(rec.port, () => ref.current?.getBoundingClientRect())
         }
         const takes = n => {
           const w = ref.current?.closest('[data-frame]')
@@ -4320,11 +4338,11 @@ function pickedRect(r) {
   for (const k of ['lr', 'vt', 'vb', 'px']) if (Number.isFinite(r[k])) out[k] = r[k]
   for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis', 'pt']) if (typeof r[k] === 'boolean') out[k] = r[k]
   // The page's own controls the box keeps off (bridge.js keeps), and the words it asks to (keptWords): [l, t, r, b]
-  // each, at most 24 of each; the page's content in sight (kc: its words' lines and pictures, contentIn), at most
-  // KC_MAX.
+  // each, at most KEEP_MAX of each; the page's content in sight (kc: its words' lines and pictures, contentIn), at
+  // most KC_MAX.
   if (Array.isArray(r.pb) && r.pb.length === 4 && r.pb.every(Number.isFinite) && r.pb[2] > r.pb[0] && r.pb[3] > r.pb[1]) out.pb = r.pb.slice()
   for (const k of ['kp', 'kw', 'kc']) {
-    const list = Array.isArray(r[k]) ? r[k].slice(0, k === 'kc' ? KC_MAX : 24).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
+    const list = Array.isArray(r[k]) ? r[k].slice(0, k === 'kc' ? KC_MAX : KEEP_MAX).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
     if (list.length) out[k] = list
   }
   return out
@@ -4363,9 +4381,12 @@ function onPageEvent(event, detail) {
     return
   }
   if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickHint)
-  if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize)
+  if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize, a pan), or is gone
     const d = $draft.get(), r = pickedRect(detail && detail.rect)
-    if (d?.rect && r && Object.keys(r).some(k => r[k] !== d.rect[k])) $draft.set({ ...d, rect: r })
+    if (!d?.rect) return
+    // no longer drawn (removed, a slide not shown): its pin goes until it is back; the box and its words stay
+    if (detail?.gone === true) return d.gone ? undefined : $draft.set({ ...d, gone: true })
+    if (r && (d.gone || Object.keys(r).some(k => r[k] !== d.rect[k]))) $draft.set({ ...d, rect: r, gone: false })
     return
   }
   if (event === 'picked' && $picking.get()) {
@@ -5217,8 +5238,14 @@ function useFit(ref, below, gap = 6) {
   }, [below])
 }
 
-/** What a press in a shown page does in the host (bridge.js "press"): its open menus close. */
-const framePress = new Set()
+/** The host's menus open now (PopMenu): while any is, MenuCover lies over the artifact's page. */
+const $hostMenus = atom(0)
+/** Over the stage while a menu of the host's is open: a press there only closes the menu (PopMenu's press outside),
+ *  as anywhere else outside it; the page under it gets nothing (V6h: the title menu closed and the doc's block got
+ *  the caret). */
+function MenuCover() {
+  return useValue($hostMenus) > 0 ? jsx('div', { 'data-menu-cover': '', style: { position: 'absolute', inset: 0, zIndex: 26 } }) : null
+}
 
 function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
   const ref = useRef(null)
@@ -5241,9 +5268,8 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
       onClose()
     }
     const esc = e => e.key === 'Escape' && onClose()
-    // A press in the artifact's page is outside it too (that document's events never reach this one).
-    const inPage = () => onClose()
-    framePress.add(inPage)
+    // A press in the artifact's page is outside it too: MenuCover takes it in this document.
+    $hostMenus.set($hostMenus.get() + 1)
     // Armed after this press; a menu gone before then must not leave the listener behind. Before anything under
     // it (the capture phase): a handler of the host's or the page's own that stops the press or the key never
     // keeps the menu open.
@@ -5251,7 +5277,7 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
     const disarm = later(CTX, () => { offDown = listen(CTX, window, 'mousedown', off, true) }, 0)
     const offEsc = listen(CTX, window, 'keydown', esc, true)
     return () => {
-      framePress.delete(inPage)
+      $hostMenus.set($hostMenus.get() - 1)
       disarm()
       offDown?.()
       offEsc()
@@ -5604,17 +5630,18 @@ function pinSpot(rect, bw, bh) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
   const fitsX = x => x >= PIN_EDGE && x + PIN <= bw - PIN_EDGE
   const fitsY = y => y >= PIN_EDGE && y + PIN <= bh - PIN_EDGE
-  const onCtl = (x, sy) => (rect.kp || []).find(([l, t, r, b]) => x < r && l < x + PIN && sy < b && t < sy + PIN)
-  // A point (a film's picture clicked, a part out of sight at the stage's edge: pt): the pin on it; under the
-  // page's own controls, the nearest spot just past them.
+  // on the page's own controls or within PIN_EDGE of them (V6h: an edge pin 2 px under a design's pill)
+  const onCtl = (x, sy) => (rect.kp || []).find(([l, t, r, b]) => x < r + PIN_EDGE && l - PIN_EDGE < x + PIN && sy < b + PIN_EDGE && t - PIN_EDGE < sy + PIN)
+  // A point (a film's picture clicked, a part out of sight at the stage's edge: pt): the pin on it; on or by the
+  // page's own controls, the nearest spot PIN_EDGE past them (along the stage's edge for an edge pin).
   if (rect.pt) {
     const x = clamp(rect.x + rect.w / 2 - PIN / 2, PIN_EDGE, bw - PIN - PIN_EDGE), y = clamp(rect.y + rect.h / 2 - PIN / 2, PIN_EDGE, bh - PIN - PIN_EDGE)
-    const k = onCtl(x, y)
-    if (!k) return { x, y, s: PIN }
-    const past = [[x, k[3] + PIN_EDGE], [x, k[1] - PIN_EDGE - PIN], [k[2] + PIN_EDGE, y], [k[0] - PIN_EDGE - PIN, y]]
-      .filter(([px, py]) => fitsX(px) && fitsY(py) && !onCtl(px, py))
+    if (!onCtl(x, y)) return { x, y, s: PIN }
+    const past = []
+    for (const k of rect.kp) past.push([x, Math.ceil(k[3] + PIN_EDGE)], [x, Math.floor(k[1] - PIN_EDGE - PIN)], [Math.ceil(k[2] + PIN_EDGE), y], [Math.floor(k[0] - PIN_EDGE - PIN), y])
+    const ok = past.filter(([px, py]) => fitsX(px) && fitsY(py) && !onCtl(px, py))
       .sort((a, b) => Math.hypot(a[0] - x, a[1] - y) - Math.hypot(b[0] - x, b[1] - y))
-    return past.length ? { x: past[0][0], y: past[0][1], s: PIN } : { x, y, s: PIN }
+    return ok.length ? { x: ok[0][0], y: ok[0][1], s: PIN } : { x, y, s: PIN }
   }
   const ly = Number.isFinite(rect.ly) ? rect.ly : rect.y
   const lh = Number.isFinite(rect.lh) && rect.lh > 0 ? rect.lh : Math.min(rect.h, 24)
@@ -5640,11 +5667,24 @@ function pinSpot(rect, bw, bh) {
   ]
   // never on the page's own controls (rect.kp: a design's other name strips; V6f, a pin there was not drawn at all)
   for (const [free, x, sy] of spots) if (free !== false && fitsX(x) && fitsY(sy) && !onCtl(x, sy)) return { x, y: sy, s: PIN }
+  // None of those: the part's other ends and its corners outside it, over none of the page's other content (kc:
+  // words, pictures, controls) (V6h: a design's Group pinned on the landing page's "Order ahead", a tiny artboard
+  // covered whole by its pin).
+  const E = [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
+  const others = (rect.kc || []).filter(k => !(k[0] >= E[0] - 0.5 && k[2] <= E[2] + 0.5 && k[1] >= E[1] - 0.5 && k[3] <= E[3] + 0.5))
+  const onInk = (x, sy) => others.some(([l, t, r, b]) => x < r && l < x + PIN && sy < b && t < sy + PIN)
+  const R = E[2] + PIN_GAP, L = E[0] - PIN_GAP - PIN, A = E[1] - PIN_GAP - PIN, U = E[3] + PIN_GAP
+  for (const [x, sy] of [[rect.x, A], [rect.x, U], [R, A], [L, A], [R, U], [L, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy) && !onInk(x, sy)) return { x, y: sy, s: PIN }
+  // A part under two pins wide or tall is never covered by its pin: beside it on another part's words before that.
+  if (rect.w < 2 * PIN || rect.h < 2 * PIN) {
+    for (const [x, sy] of [[R, y], [L, y], [end, A], [end, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy)) return { x, y: sy, s: PIN }
+  }
   return { x: clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE), s: PIN }
 }
 
 const KC_MAX = 160 // the page's content boxes a pick brings (bridge.js KC_MAX)
-const BOX_REACH = 240 // a spot with none of the page's content under it within this of the pin comes before one covering some
+const KEEP_MAX = 48 // and of its own controls, and of the words it asks the box to keep off (bridge.js KEEP_MAX)
+const BOX_REACH = 240 // the farthest of the box's distance bands from its pin (BOX_BANDS)
 const KC_PAD = 4 // the room kept around the page's words and pictures when measuring what a spot covers
 const KEEP_PAD = 4 // the least room between the box and the page's own controls
 const BOX_STEP = 16 // the spots tried over the whole stage: every BOX_STEP px
@@ -5653,21 +5693,19 @@ const BOX_M = 8 // the least room between the new comment's box and the stage's 
 const BOX_GAP = 8 // between the box and the element (or its pin)
 const BOX_NEAR = 24 // a box this close to its pin or element reads as by it: spots every 4 px from BOX_GAP to here
 const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep its hard rules
+const BOX_BANDS = [BOX_NEAR, 80, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w, h in
  *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box, by
- *  ONE ordered rule for every type (V6g, after four rounds of special cases):
+ *  ONE ordered rule for every type:
  *  1. Hard, never broken while any spot keeps them all: inside the stage (BOX_M off its edges), BOX_GAP off the
  *     pin and off the element picked, KEEP_PAD off every one of the page's own controls in sight (rect.kp:
  *     data-comment-keep: toolbars, pills, palettes, a deck's thumbnails, a film's playback bar, a filter row's
- *     fields and Reset, a doc's comment cards, a design's strips and panel).
- *  2. Among the spots that keep them (pin distance: the gap between the box and the pin):
- *     a. off the whole part the page named that holds the element (rect.pb: a KPI whose number was picked), where
- *        such a spot is within BOX_REACH of the pin;
- *     b. with none of the page's content under it (rect.kc, rect.kw, KC_PAD round each) within BOX_REACH: the
- *        nearest the pin, so it lies adjacent (BOX_GAP) wherever an adjacent spot is free;
- *     c. else, within BOX_REACH, the one covering the least content, the nearest of equals: some neighbouring
- *        words by the pin are better than a box far away;
- *     d. else (nothing within BOX_REACH keeps 1) the nearest, then the least covering.
+ *     fields and Reset, a doc's comment cards, a design's strips and panel). In whole px, rounded away from each.
+ *  2. Among the spots that keep them, nearness wins (V6h: a box 65-227 px off its pin over other content read as
+ *     lost): the nearest of the distance bands from the pin (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first);
+ *     in a band the one covering the least of the page's content (rect.kc, rect.kw, KC_PAD round each: some
+ *     neighbouring words by the pin are better than a box far away), then off the whole part the page named that
+ *     holds the element (rect.pb: a KPI whose number was picked), then the nearest.
  *  3. None keeps 1 at the box's height: cut (it scrolls) down to BOX_MIN_H; then the element's own room is given
  *     up (the element fills the stage: the box over it), then the controls'; the stage and the pin never.
  *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
@@ -5689,11 +5727,14 @@ function boxSpot(rect, pin, bw, bh, h) {
     const xs = new Set([M, bw - M - W]), ys = new Set([M, bh - M - hh])
     for (let x = M; x + W <= bw - M; x += BOX_STEP) xs.add(x)
     for (let y = M; y + hh <= bh - M; y += BOX_STEP) ys.add(y)
+    // Whole px, rounded away from what they keep off: a gap measured after layout is never under the rule (V6h:
+    // 7.9 against 8, 3.9 against 4).
+    const up = v => Math.ceil(v - 1e-6), down = v => Math.floor(v + 1e-6)
     for (const R of [P, E]) {
-      xs.add(R[0]); xs.add(R[2] - W); ys.add(R[1]); ys.add(R[3] - hh)
-      for (let g = G; g <= BOX_NEAR; g += 4) { xs.add(R[2] + g); xs.add(R[0] - g - W); ys.add(R[3] + g); ys.add(R[1] - g - hh) } // adjacent, then a little off
+      xs.add(up(R[0])); xs.add(down(R[2] - W)); ys.add(up(R[1])); ys.add(down(R[3] - hh))
+      for (let g = G; g <= BOX_NEAR; g += 4) { xs.add(up(R[2] + g)); xs.add(down(R[0] - g - W)); ys.add(up(R[3] + g)); ys.add(down(R[1] - g - hh)) } // adjacent, then a little off
     }
-    for (const k of kp) { xs.add(k[2] + KEEP_PAD); xs.add(k[0] - KEEP_PAD - W); ys.add(k[3] + KEEP_PAD); ys.add(k[1] - KEEP_PAD - hh) }
+    for (const k of kp) { xs.add(up(k[2] + KEEP_PAD)); xs.add(down(k[0] - KEEP_PAD - W)); ys.add(up(k[3] + KEEP_PAD)); ys.add(down(k[1] - KEEP_PAD - hh)) }
     for (let x = P[0] - W; x <= P[2]; x += BOX_SLIDE) xs.add(Math.round(x))
     for (let y = P[1] - hh; y <= P[3]; y += BOX_SLIDE) ys.add(Math.round(y))
     let top = null
@@ -5703,8 +5744,8 @@ function boxSpot(rect, pin, bw, bh, h) {
         if (y < M || y + hh > bh - M) continue
         const a = [x, y, x + W, y + hh]
         if (near(a, P, G) || (level < 2 && kp.some(k => near(a, k, KEEP_PAD))) || (level < 1 && near(a, E, G))) continue
-        const d = gap(a, P), reach = d <= BOX_REACH, c = covers(a)
-        const key = [pb && !(reach && !near(a, pb, 0)) ? 1 : 0, reach ? (c ? 1 : 0) : 2, reach ? c : 0, d, c]
+        const d = gap(a, P), c = covers(a)
+        const key = [BOX_BANDS.findIndex(b => d <= b), c, pb && near(a, pb, 0) ? 1 : 0, d]
         if (!top || less(key, top.key)) top = { x, y, key }
       }
     }
@@ -5800,26 +5841,58 @@ function PickHold({ F, stageRef, portRef }) {
   }
   useLayoutEffect(sync)
   useLayoutEffect(() => {
-    const offs = [$picking.listen(() => { $pickOn.set(false); $pickHeld.set(null); sync() }), $pickOn.listen(sync)]
+    const offs = [$picking.listen(() => { $pickOn.set(false); dropHeld(); sync() }), $pickOn.listen(sync)]
     return () => offs.forEach(off => off())
   }, [])
   // Held in the window's px: the frame may not be there yet (a page still loading); the frame's px when given.
   const hold = e => {
     e.preventDefault(); e.stopPropagation()
     if ($pickHeld.get()) return
-    if (!$pickOn.get()) return $pickHeld.set({ x: e.clientX, y: e.clientY })
-    const st = stageRef.current, f = (st?.querySelector('[data-frame="shown"] iframe') || st?.querySelector('[data-frame] iframe'))?.getBoundingClientRect()
-    if (f) postToPage(portRef, 'pick-at', { x: e.clientX - f.left, y: e.clientY - f.top }) // it said so before this cover went
+    $pickHeld.set({ x: e.clientX, y: e.clientY, n: ++heldN })
+    const st = stageRef.current, frame = () => (st?.querySelector('[data-frame="shown"] iframe') || st?.querySelector('[data-frame] iframe'))?.getBoundingClientRect()
+    if ($pickOn.get()) giveHeld(portRef.current, frame) // it said so before this cover went
   }
-  // The press held shows it was taken (V6g: a sheet's draft came up to 2.9 s after it, nothing seen meanwhile): the
-  // new comment's pin to be, pulsing at the point pressed (core's animate-pulse), "Loading…" for its name.
+  // The press held shows it was taken (V6g: a sheet's draft came up to 2.9 s after it, nothing seen meanwhile): at
+  // the point pressed, a ring turning (core's animate-spin), "Loading…" for its name: busy, not a comment's pin.
   const box = held && ref.current ? ref.current.getBoundingClientRect() : null
   return jsx('div', {
     ref, 'data-pick-hold': '', onPointerDown: hold, onClick: e => (e.preventDefault(), e.stopPropagation()),
     style: { position: 'absolute', inset: 0, zIndex: 2, cursor: 'crosshair', display: 'none' },
-    children: box ? jsx('div', { role: 'status', 'aria-label': t('loading'), title: t('loading'), className: 'animate-pulse', style: { position: 'absolute', left: held.x - box.left - PIN / 2, top: held.y - box.top - PIN / 2,
-      width: PIN, height: PIN, borderRadius: '50%', background: C.accent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', pointerEvents: 'none' } }) : null
+    children: box ? jsx('div', { role: 'status', 'aria-label': t('loading'), title: t('loading'), className: 'animate-spin', style: { position: 'absolute', left: held.x - box.left - PIN / 2, top: held.y - box.top - PIN / 2,
+      width: PIN, height: PIN, borderRadius: '50%', border: `3px solid ${C.accent}`, borderTopColor: 'transparent', boxSizing: 'border-box', pointerEvents: 'none' } }) : null
   })
+}
+
+// A press held for the page ($pickHeld) is given to it (bridge "pick-at", with its n) and KEPT until a pick comes
+// of it (the page's "picked" or "comment": picking then ends, dropHeld): given again every HOLD_AGAIN_MS (the page
+// re-laid out, its node under the point replaced, a frame replaced by another: V6h, 1 of 22 picks of a deck's
+// title lost), and after HOLD_MAX_MS with none, the point pressed is commented on (a point pin): never lost. The
+// page picks one n once. Given again to whichever frame says next that its click picks (useBridge).
+const HOLD_AGAIN_MS = 500
+const HOLD_MAX_MS = 3000
+let heldN = 0, heldTo = null, heldT0 = 0, heldTimer = 0
+function giveHeld(port, frame) {
+  heldTo = { port, frame }
+  if (!heldT0) heldT0 = Date.now()
+  sendHeld()
+}
+function sendHeld() {
+  clearTimeout(heldTimer)
+  heldTimer = 0
+  const q = $pickHeld.get(), f = heldTo?.frame()
+  if (!q || !f || !$picking.get()) return
+  if (Date.now() - heldT0 >= HOLD_MAX_MS) {
+    $picking.set(false)
+    $draft.set({ anchor: null, rect: { x: q.x - f.left - 0.5, y: q.y - f.top - 0.5, w: 1, h: 1, pt: true } })
+    return
+  }
+  postToPage({ current: heldTo.port }, 'pick-at', { x: q.x - f.left, y: q.y - f.top, n: q.n })
+  heldTimer = setTimeout(sendHeld, HOLD_AGAIN_MS)
+}
+function dropHeld() {
+  clearTimeout(heldTimer)
+  heldTimer = 0; heldTo = null; heldT0 = 0
+  $pickHeld.set(null)
 }
 
 /** Claude's in-place comment: a box beside the element clicked, empty, Send to Hermes on (its checkbox). */
@@ -5861,7 +5934,7 @@ function CommentPopover({ ctx, art, stageRef }) {
   const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(be.scrollHeight + be.offsetHeight - be.clientHeight)) || boxH
   const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover])
   if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover) }
-  const { pin, box } = placed.current.v
+  const { box } = placed.current.v, pin = draft.gone ? null : placed.current.v.pin
   const label = anchorTitle(draft.anchor, t('selectedPart'))
   return jsxs('div', {
     children: [
@@ -6417,6 +6490,7 @@ function Viewer({ ctx, docked = false }) {
                       : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') })
                   }),
               jsx(PickHold, { F, stageRef: stage, portRef }),
+              jsx(MenuCover, {}),
               jsx(CommentPopover, { ctx, art, stageRef: stage }),
               jsx(ConfirmSend, {}),
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
@@ -6531,6 +6605,7 @@ export default {
     if (Array.isArray(savedClosed)) savedClosed.forEach(s => typeof s === 'string' && closedIn.add(s))
     const stopTool = watchChatArtifactTool(ctx)
     const stopRun = watchRun()
+    const stopFocus = watchPressFocus(ctx)
     const offTile = [$selected, $list, $dockMaking, $makings].map(a => a.listen(() => syncTileTitle(ctx)))
     // The card in the transcript, where this Hermes Desktop has the directive area.
     ctx.register({ id: 'chat-card', area: SDK.TRANSCRIPT_DIRECTIVE_AREA || 'transcript.directives',
@@ -6629,7 +6704,7 @@ export default {
     const dispose = () => {
       if (disposed) return
       disposed = true
-      for (const fn of [stopTool, stopRun, ...offTile, ...offs, unwatchTheme, () => syncBack(false)]) {
+      for (const fn of [stopTool, stopRun, stopFocus, ...offTile, ...offs, unwatchTheme, () => syncBack(false)]) {
         try { fn?.() } catch {}
       }
       if (KEY && window[KEY] === redirectCore) delete window[KEY]

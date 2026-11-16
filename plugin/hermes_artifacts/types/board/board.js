@@ -538,6 +538,8 @@
       // what a comment pick on it is titled (its words follow: "Sticky note · Six weeks")
       el.setAttribute("data-comment-label", { note: T.sticky, text: T.text, section: T.section, image: T.image, arrow: T.arrow, pen: T.pen,
         table: T.table, embed: T.embed }[it.type] || T.shape);
+      // drawn as one: its words are not a part of their own (a table's cells and an embed's page are)
+      if (it.type !== "table" && it.type !== "embed") el.setAttribute("data-comment-whole", "");
       if (old) old.replaceWith(el); else world.insertBefore(el, draftSvg);
       n.el = el;
     }

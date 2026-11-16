@@ -1845,8 +1845,16 @@
     if (!commentPicking || !canvas || e.target !== canvas || !window.hermes || !window.hermes.comment) return;
     var p = pick(e.clientX, e.clientY), f = p && find(p.id), name = f ? label(f.part) : T.view3d;
     e.preventDefault(); e.stopImmediatePropagation();
+    // A part's pin is on the point of it clicked, wherever an orbit, a pan or a zoom takes that point (behind the
+    // camera: not drawn); the view's on the point of the view clicked.
+    var at = f && p.hit && p.hit.point ? p.hit.point.clone() : null;
     window.hermes.comment({ selector: f ? "part:" + p.id : "#" + canvas.id, text: f ? name.slice(0, 200) : "", label: name.slice(0, 40) },
-      { el: canvas, box: { x: e.clientX, y: e.clientY, w: 0, h: 0, point: true } });
+      { el: canvas, box: at ? function () {
+        if (!canvas.isConnected || !camera) return null;
+        var q = at.clone().project(camera), r = canvas.getBoundingClientRect();
+        if (q.z > 1 || q.z < -1) return null;
+        return { x: r.left + (q.x + 1) / 2 * r.width, y: r.top + (1 - q.y) / 2 * r.height, w: 0, h: 0, point: true };
+      } : { x: e.clientX, y: e.clientY, w: 0, h: 0, point: true } });
   }, true);
   if (window.hermes && window.hermes.on) {
     window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });

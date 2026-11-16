@@ -1408,9 +1408,11 @@
     gut.el.style.left = (r.left - (roomy ? 45 : 22) - GAP) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
   }
   function addBelow(id) {
-    insertBlock(id, "", "end");
+    var made = insertBlock(id, "", "end");
     var el = document.activeElement && document.activeElement.closest && document.activeElement.closest(".doc-blk");
-    if (el) setTimeout(function () { slash.show(el, "/", true); }, 0); // after this click has passed the page's close-on-click
+    // after this click has passed the page's close-on-click; Esc on that menu takes the block back while it is
+    // still empty (V6h: an empty paragraph left behind)
+    if (el) setTimeout(function () { slash.show(el, "/", true); slash.made = mode === "suggest" ? null : { made: made, after: id }; }, 0);
   }
   gut.plus.addEventListener("click", function () { var id = gut.id; if (!id) return; hideGutter(); addBelow(id); });
   gut.grip.addEventListener("mousedown", function (e) {
@@ -2046,7 +2048,16 @@
     key: function (e) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); this.idx = (this.idx + (e.key === "ArrowDown" ? 1 : this.items.length - 1)) % this.items.length; this.update(); return true; }
       if (e.key === "Enter") { e.preventDefault(); this.pick(this.idx); return true; }
-      if (e.key === "Escape") { e.preventDefault(); this.close(); return true; }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        var made = this.made, el = this.block;
+        this.close();
+        if (made && el) made.made.then(function (nid) {
+          var bid = nid || el.getAttribute("data-block"), be = bid && blockEl(bid);
+          if (be && !be.textContent.trim() && !be.querySelector("[data-md],img")) { removeBlock(bid); focusBlock(made.after, true); }
+        });
+        return true;
+      }
       return false;
     },
     pick: function (i) {
@@ -2066,7 +2077,8 @@
       scheduleSave(el);
       applyItem(it, el, false);
     },
-    close: function () { this.open = false; this.bare = false; if (this.el) this.el.hidden = true; }
+    made: null, // the block + made, the menu opened on it: {made: its insert, after: the block before it}
+    close: function () { this.open = false; this.bare = false; this.made = null; if (this.el) this.el.hidden = true; }
   };
 
   // ------------------------------------------------------------------ pictures: insert, paste, drop

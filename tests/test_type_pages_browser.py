@@ -1069,7 +1069,16 @@ class RoundV3Layout(unittest.TestCase):
         clear = "(() => { const ta = document.querySelector('.bd-edit'); ta.value = ''; ta.dispatchEvent(new Event('input', {bubbles: true})) })()"
         long = "Line one of the note\\n" * 14
         out = self.drive(aid, f"""
-          const out = {{}}, open = async () => {{ const p = await api.frame({json.dumps(at)}); await api.mouse(p[0], p[1]); await api.sleep(60); await api.mouse(p[0], p[1]); await api.sleep(400) }}
+          // the note's editor waited for, not assumed (a run with the board still settling found none: null textarea)
+          const edits = () => api.frame('!!document.querySelector(".bd-edit")')
+          const out = {{}}, open = async () => {{
+            for (let k = 0; k < 3 && !(await edits()); k++) {{
+              const p = await api.frame({json.dumps(at)}); await api.mouse(p[0], p[1]); await api.sleep(60); await api.mouse(p[0], p[1])
+              for (let i = 0; i < 30 && !(await edits()); i++) await api.sleep(100)
+            }}
+            if (!(await edits())) throw new Error('the note never opened its editor')
+            await api.sleep(150)
+          }}
           const done = async () => {{ await api.key('Tab', 'Tab', 9); await api.sleep(1800) }}
           await open(); await api.frame('document.querySelector(".bd-edit").setSelectionRange(9999, 9999)'); await api.type("{long}"); await done(); out.grown = await api.frame({json.dumps(h)})
           await open(); await api.frame({json.dumps(clear)}); await done(); out.cleared = await api.frame({json.dumps(h)})
@@ -1222,7 +1231,7 @@ class PickInEveryType(unittest.TestCase):
         aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
             {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
         ev, _ = self.pick(aid, at('[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels")'), settle=2500)
-        self.assertEqual(ev["detail"]["label"], "Panels")
+        self.assertEqual(ev["detail"]["label"], "A2 · Panels")  # V6h N7: the cell's address, its value after
 
     def test_board_note(self):
         aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [
@@ -1258,7 +1267,7 @@ class PickInEveryType(unittest.TestCase):
     def test_design_element_on_the_canvas_and_in_an_opened_artboard(self):
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
         board = ('(() => { const f = document.querySelector("[data-path=\\"Main.dc.html\\"] iframe"), b = f.getBoundingClientRect();'
-                 ' return [b.left + b.width * 0.25, b.top + b.height * 0.35, b.left, b.top, b.right, b.bottom] })()')
+                 ' return [b.left + b.width * 0.25, b.top + b.height * 0.35, b.left, b.top, b.right, b.bottom, [...document.querySelectorAll("[data-path] iframe, .dc-strip")].filter(e => e !== f && e.getClientRects().length).map(e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom] })] })()')
         ev, q = self.pick(aid, board, settle=3000)
         d = ev["detail"]
         self.assertRegex(d["selector"], r"^Main\.dc\.html#\d+:")
@@ -1267,7 +1276,8 @@ class PickInEveryType(unittest.TestCase):
         self.assertTrue(r["x"] - 1 <= q[0] <= r["x"] + r["w"] + 1 and r["y"] - 1 <= q[1] <= r["y"] + r["h"] + 1, (q, r))
         self.assertTrue(q[2] - 1 <= r["x"] and r["x"] + r["w"] <= q[4] + 1 and q[3] - 1 <= r["y"] and r["y"] + r["h"] <= q[5] + 1, (q, r))
         # V5: the pin sat 90 px right of the picture, over the next frame: every spot the host may take (plugin.js
-        # pinSpot: right, left, after the words, above, below) is inside this artboard, or marked taken
+        # pinSpot: right, left, after the words, above, below) is inside this artboard, or marked taken, or (V6h: past
+        # the artboard the canvas looks) on none of the other frames nor their strips
         P, G = 26, 6
         y = max(4, (r.get("ly", r["y"]) + r.get("lh", min(r["h"], 24)) / 2) - P / 2)
         spots = {"fr": (r["x"] + r["w"] + G, y), "fl": (r["x"] - G - P, y), "fa": (r["x"] + r["w"] - P, r["y"] - G - P),
@@ -1276,7 +1286,9 @@ class PickInEveryType(unittest.TestCase):
             spots["fw"] = (r["lr"] + G, y)
         for k, (sx, sy) in spots.items():
             if r.get(k):
-                self.assertTrue(q[2] - 0.5 <= sx and sx + P <= q[4] + 0.5 and q[3] - 0.5 <= sy and sy + P <= q[5] + 0.5, (k, sx, sy, q, r))
+                inside = q[2] - 0.5 <= sx and sx + P <= q[4] + 0.5 and q[3] - 0.5 <= sy and sy + P <= q[5] + 0.5
+                on = [o for o in q[6] if sx < o[2] and o[0] < sx + P and sy < o[3] and o[1] < sy + P]
+                self.assertTrue(inside or not on, (k, sx, sy, q[:6], on, r))
         ev, q = self.pick(aid, at('document.querySelector(".dc-fbox iframe")', 0.3, 0.3),
                           before="await api.frame('__design.openFocus(\"Main.dc.html\")'); await api.sleep(1500)", settle=3000)
         r = ev["detail"]["rect"]
@@ -2053,3 +2065,123 @@ class RoundV6gPages(unittest.TestCase):
             if w == 739:
                 tag = [s for s in o if s["title"].startswith("Tag")]
                 self.assertTrue(tag and tag[0]["grip"], ("Tag (component) shows its handle", o))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6hPages(unittest.TestCase):
+    """Live round V6h (0440f61)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive_page(self, aid, body, w=1250, hh=716, settle=1500):
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep({settle})\n" + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    RING = """
+      const ring = async (sel, keyboard) => {
+        const q = await api.frame(`(() => { const b = ${sel}; if (!b) return null; const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()`)
+        if (!q) return null
+        if (keyboard) { await api.key('Tab', 'Tab', 9); await api.frame(`${sel}.focus()`) } else await api.mouse(q[0], q[1])
+        await api.sleep(250)
+        await api.key('Escape', 'Escape', 27); await api.sleep(250)
+        return await api.frame(`(() => { const b = ${sel}, a = document.activeElement; return a === b && b.matches(':focus-visible') })()`)
+      }
+"""
+
+    def test_a_button_a_press_focused_keeps_no_ring_after_esc_one_the_keyboard_reached_keeps_it(self):
+        # N13: a design's Properties pill clicked shut, then Esc: a thick ring as if the keyboard had reached it. One
+        # rule for every page's buttons (kit.js): by a press, no ring left; by the keyboard, the focus and the ring.
+        cases = (("design", self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"],
+                  '[...document.querySelectorAll(".dc-pill button")].find(b => /propert/i.test(b.getAttribute("aria-label") || b.title))'),
+                 ("model", self.store.publish(title="Panel", type="model", files={"model.json": __import__("test_models").PANEL})["id"],
+                  '[...document.querySelectorAll(".md-pill-l button")].pop()'),
+                 ("doc", self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nWords."})["id"],
+                  '[...document.querySelectorAll("#doc-bar button")].filter(b => !b.disabled && b.getClientRects().length).pop()'))
+        for kind, aid, sel in cases:
+            o = self.drive_page(aid, self.RING + f"const keys = await ring({json.dumps(sel)}, true); return {{ mouse: await ring({json.dumps(sel)}, false), keys }}", settle=2500)
+            self.assertEqual(o, {"mouse": False, "keys": True}, (kind, o))
+
+    def test_a_strip_cut_by_the_canvas_edge_shows_its_name_in_the_part_in_sight(self):
+        # N6: a strip cut by the canvas's left edge showed an empty 26 px sliver (its name off screen). Its name, or
+        # its handle, is in the part in sight.
+        aid = self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        o = self.drive_page(aid, """
+          const out = []
+          for (const keep of [26, 60, 140]) {
+            const d = await api.frame(`(() => { const s = __design.boards["Main.dc.html"].strip.getBoundingClientRect(), v = document.getElementById("dc-view").getBoundingClientRect(); return s.right - (v.left + ${keep}) })()`)
+            await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaX: ${d}, deltaY: 0, clientX: 300, clientY: 300, bubbles: true, cancelable: true }))`); await api.sleep(400)
+            out.push(await api.frame(`(() => { const b = __design.boards["Main.dc.html"], v = document.getElementById("dc-view").getBoundingClientRect(), s = b.strip.getBoundingClientRect()
+              const shown = [b.name, b.grip].filter(e => e.getClientRects().length && getComputedStyle(e).display !== "none").map(e => { const r = e.getBoundingClientRect(); return [Math.max(r.left, v.left), Math.min(r.right, s.right)] }).filter(([l, r]) => r - l >= 10)
+              return { keep: ${keep}, sliver: [Math.max(s.left, v.left), s.right], shown, title: b.strip.title } })()`))
+          }
+          return out""", settle=3000)
+        for s in o:
+            self.assertTrue(s["shown"], s)
+            self.assertTrue(all(s["sliver"][0] - 0.5 <= l and r <= s["sliver"][1] + 0.5 for l, r in s["shown"]), s)
+            self.assertTrue(s["title"], s)
+
+    def test_esc_on_the_menu_of_a_block_just_added_takes_it_back(self):
+        # N10: "Add a block below" makes an empty paragraph and opens the block menu on it (as on main 414fa59); Esc
+        # on that menu left the empty paragraph behind. It takes it back while still empty; a block typed in stays.
+        aid = self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nFirst paragraph.\n\nSecond paragraph."})["id"]
+        o = self.drive_page(aid, """
+          const n = () => api.frame('document.querySelectorAll(".doc-blk").length')
+          const plus = async () => {
+            const b = await api.frame('(() => { const r = document.querySelectorAll(".doc-blk")[1].getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] })()')
+            await api.pointer('mouseMoved', b[0], b[1], false); await api.sleep(300)
+            const p = await api.frame('(() => { const e = document.querySelector(".doc-g-plus"); if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+            await api.mouse(p[0], p[1]); await api.sleep(700)
+          }
+          const o = { before: await n() }
+          await plus(); o.added = await n(); o.menu = await api.frame('!!document.querySelector(".doc-slash:not([hidden])")')
+          await api.key('Escape', 'Escape', 27); await api.sleep(900); o.esc = await n()
+          await plus(); await api.type('kept'); await api.sleep(300); await api.key('Escape', 'Escape', 27); await api.sleep(900); o.typed = await n()
+          return o""")
+        self.assertEqual(o, {"before": 3, "added": 4, "menu": True, "esc": 3, "typed": 4}, o)
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6hBoardPick(unittest.TestCase):
+    """V6h B2: a board's shape picked on its words ("Ship"): the part picked was the words inside the pill, so the box
+    kept 8 px off them and lay 5 px off the pill drawn round them. A board item is picked whole, its strokes counted."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_a_board_item_picked_on_its_words_is_the_whole_item(self):
+        board = {"title": "B", "items": [{"id": "a", "type": "box", "text": "Draft"}, {"id": "b", "type": "box", "text": "Ship", "near": "a"},
+                                          {"id": "n", "type": "note", "text": "Owner: Anna", "near": "b"}]}
+        aid = self.store.publish(title="B", type="board", files={"board.json": board})["id"]
+        out = []
+        for word in ("Ship", "Owner"):
+            r = B.drive(f"await api.size(1250, 716); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(1500)\n" + f"""
+              const w = await api.frame(`(() => {{ const it = [...document.querySelectorAll(".bd-it")].find(e => e.textContent.includes({json.dumps(word)})), rg = document.createRange()
+                const t = document.createTreeWalker(it, NodeFilter.SHOW_TEXT); let n; while ((n = t.nextNode()) && !n.nodeValue.trim()); rg.selectNodeContents(n)
+                const q = rg.getBoundingClientRect(), b = it.getBoundingClientRect(); return {{ at: [q.left + q.width / 2, q.top + q.height / 2], item: [b.left, b.top, b.right, b.bottom] }} }})()`)
+              await api.top('window.__post("comment-mode", {{on: true}})'); await api.sleep(300)
+              await api.mouse(w.at[0], w.at[1]); await api.sleep(500)
+              const ev = await api.top('window.__events.filter(e => e.event === "picked").pop()')
+              return {{ item: w.item, rect: ev && ev.detail.rect, label: ev && ev.detail.label }}""", timeout=200)
+            self.assertIsNone(r.get("err"), r)
+            out.append(r["out"])
+        for o in out:
+            r, it = o["rect"], o["item"]
+            self.assertTrue(r, o)
+            self.assertTrue(r["x"] <= it[0] + 0.5 and r["y"] <= it[1] + 0.5 and r["x"] + r["w"] >= it[2] - 0.5 and r["y"] + r["h"] >= it[3] - 0.5, o)
+        self.assertEqual([o["label"] for o in out], ["Shape · Ship", "Sticky note · Owner: Anna"], out)

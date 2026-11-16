@@ -670,6 +670,7 @@
           if (flashSet[k]) cls += " hf";
           if (mg) put(el2, cls, colX[mg.c1], rowY(mg.r1), w, rowY(mg.r2 + 1) - rowY(mg.r1), css, txt, html === "" ? null : html);
           else put(el2, cls, colX[c2], r2 * RH, w, RH, css, txt, html === "" ? null : html);
+          el2._k = k; // the cell it shows now (cellWhere)
         }
         for (c3 = cc[1] + 1; c3 < cc[0] + W; c3++) hide(q.pool[base + c3 % W]);
       }
@@ -2952,7 +2953,54 @@
     // comment itself is what the user types there, and an empty one is never sent (the form and the
     // server both refuse it).
     var s = book[cur], k = key(sr, sc), shown = String(display(s, k, valueOf(s, k)) || "").trim();
-    hm.comment({ selector: "cell:" + s.id + "!" + k, text: (shown ? k + ": " + shown : k).slice(0, 200), label: (s.name + " · " + k).slice(0, 40) });
+    hm.comment({ selector: "cell:" + s.id + "!" + k, text: (shown ? k + ": " + shown : k).slice(0, 200), label: cellLabel(s, k, shown) });
+  }
+  // The host's comment pick on a cell: the comment is on the cell (cell:<sheet>!<address>, as Comment in the bar),
+  // titled by its address (the sheet's name first where there are more; its value after: V6h, an empty cell came
+  // as "Selected part"), its pin following the cell through scrolls and frozen panes. The grid's boxes are made
+  // again as it scrolls: the bridge's own pick would follow a box that then shows another cell.
+  var cellPicking = false;
+  function cellLabel(s, k, shown) {
+    var name = (book.length > 1 ? s.name + " · " : "") + k;
+    return (shown ? name + " · " + shown : name).slice(0, 40);
+  }
+  /** Where cell (r, c) of sheet s is in the window for the comment's pin: its box and the line of its words (the
+   *  box showing it now); out of sight in its pane (scrolled under the frozen rows, past the grid), the point of
+   *  that pane nearest it; null while another sheet is shown. */
+  function cellWhere(s, r, c) {
+    if (book[cur] !== s) return null;
+    var v = vp.getBoundingClientRect(), b = cellBox(r, c), m = mergeAt(s, r, c);
+    if (m) { var b2 = cellBox(m.r2, m.c2); b.w = b2.x + b2.w - b.x; b.h = b2.y + b2.h - b.y; }
+    var x0 = c < fc ? HW : HW + FW, x1 = c < fc ? HW + FW : vpW, y0 = r < fr ? HH : HH + FH, y1 = r < fr ? HH + FH : vpH;
+    if (b.x + b.w <= x0 || b.x >= x1 || b.y + b.h <= y0 || b.y >= y1) {
+      return { x: v.left + Math.max(x0, Math.min(x1 - 1, b.x + b.w / 2)), y: v.top + Math.max(y0, Math.min(y1 - 1, b.y + b.h / 2)), w: 0, h: 0, point: true };
+    }
+    var out = { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h }, k = key(m ? m.r1 : r, m ? m.c1 : c);
+    for (var i = 0; i < cellQ.length; i++) {
+      var pool = cellQ[i].pool;
+      for (var j in pool) {
+        var el = pool[j];
+        if (el._k !== k || el._s === null || !el.firstChild) continue;
+        var rg = document.createRange(); rg.selectNodeContents(el);
+        var q = rg.getBoundingClientRect();
+        if (q.width > 0) { out.ly = q.top; out.lh = q.height; out.lr = q.right; out.ll = q.left; }
+        return out;
+      }
+    }
+    return out;
+  }
+  if (canComment && hm.on) {
+    hm.on("comment-mode", function (d) { cellPicking = !!(d && d.on); });
+    window.addEventListener("click", function (e) {
+      if (!cellPicking || !vp.contains(e.target)) return;
+      var p = hit(e.clientX, e.clientY);
+      if (p.r < 0 || p.c < 0) return; // a header: the bridge's own pick
+      e.preventDefault(); e.stopImmediatePropagation();
+      cellPicking = false;
+      var s = book[cur], k = key(p.r, p.c), shown = String(display(s, k, valueOf(s, k)) || "").trim(), r = p.r, c = p.c;
+      hm.comment({ selector: "cell:" + s.id + "!" + k, text: (shown ? k + ": " + shown : k).slice(0, 200), label: cellLabel(s, k, shown) },
+        { el: vp, box: function () { return cellWhere(s, r, c); } });
+    }, true);
   }
   function askSel() {
     commitIfEditing();

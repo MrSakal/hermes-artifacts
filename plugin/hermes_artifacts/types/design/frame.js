@@ -396,7 +396,10 @@
     return false;
   }
   function free(el, b, ownToo) {
-    if (b.l < 0 || b.t < 0 || b.r > innerWidth || b.b > innerHeight) return false; // never outside its artboard
+    // Past its artboard this frame sees nothing (undefined: the canvas looks there, V6h: a Group at the artboard's
+    // edge, every side "taken", pinned over its own nav); the part inside it, here.
+    b = { l: Math.max(0, b.l), t: Math.max(0, b.t), r: Math.min(innerWidth, b.r), b: Math.min(innerHeight, b.b) };
+    if (b.r - b.l < 2 || b.b - b.t < 2) return undefined;
     if (ownToo && wordsIn(el, b)) return false;
     var pts = [[(b.l + b.r) / 2, (b.t + b.b) / 2], [b.l + 1, b.t + 1], [b.r - 1, b.t + 1], [b.l + 1, b.b - 1], [b.r - 1, b.b - 1]], seen = [];
     for (var p = 0; p < pts.length; p++) {

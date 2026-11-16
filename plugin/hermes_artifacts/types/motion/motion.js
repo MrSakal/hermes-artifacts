@@ -1005,11 +1005,16 @@
     pause();
     var r = frame.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
     var sc = custom ? null : sceneAt(cur);
-    // The pin on the point clicked (and on it again after a resize: the same share of the picture).
+    // The pin on the point clicked (and on it again after a resize: the same share of the picture), while the
+    // picture is that moment's: played or sought elsewhere, the pin is away until the film is back at it.
+    var t0 = cur;
     window.hermes.comment({ selector: "@t=" + secs(unmap(cur)) + " @xy=" + x.toFixed(2) + "%," + y.toFixed(2) + "%",
       label: ((sc ? sc.name + " · " : "") + fmtShort(cur)).slice(0, 40),
       text: "at " + secs(unmap(cur)) + " s, x " + x.toFixed(2) + "% y " + y.toFixed(2) + "%" + (sc ? " · " + sc.name : "") },
-      { el: frame, box: function () { var q = frame.getBoundingClientRect(); return { x: q.left + q.width * x / 100, y: q.top + q.height * y / 100, w: 0, h: 0, point: true }; } });
+      { el: frame, box: function () {
+        if (Math.abs(cur - t0) > 0.05) return null;
+        var q = frame.getBoundingClientRect(); return { x: q.left + q.width * x / 100, y: q.top + q.height * y / 100, w: 0, h: 0, point: true };
+      } });
     picking = false; view.classList.remove("picking");
   }, true);
   var pins = [];

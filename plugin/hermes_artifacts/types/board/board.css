@@ -59,7 +59,8 @@ html[data-thumb] .bd-view { cursor: default; }
 
 /* ---- items */
 .bd-it { position: absolute; box-sizing: border-box; }
-.bd-off { display: none !important; }
+/* out of view: not drawn, its box kept (a comment's pin on it goes to the stage's edge nearest it, V6h) */
+.bd-off { visibility: hidden !important; content-visibility: hidden; pointer-events: none !important; }
 .bd-box, .bd-note, .bd-section, .bd-arrow, .bd-pen { pointer-events: none; }
 .bd-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 .bd-shape path { stroke-width: 1.5; stroke-linejoin: round; pointer-events: auto; }

@@ -321,7 +321,7 @@
     var others = [];
     Object.keys(boards).forEach(function (p) { var b = boards[p]; if (!b.el.hidden) others.push(b.wrap.getBoundingClientRect()); });
     notesLayer.querySelectorAll(".dc-note").forEach(function (n) { others.push(n.getBoundingClientRect()); });
-    var shown = [];
+    var shown = [], left = vrect().left;
     Object.keys(boards).forEach(function (p) {
       var b = boards[p];
       if (b.el.hidden) return;
@@ -329,6 +329,10 @@
       var r = b.strip.getBoundingClientRect(), hit = function (o) { return o.width && r.left + 1 < o.right && o.left < r.right - 1 && r.top + 1 < o.bottom && o.top < r.bottom - 1; };
       var crowded = others.some(hit) || shown.some(hit);
       if (crowded) b.strip.style.visibility = "hidden"; else shown.push(r);
+      // cut by the canvas's left edge: its name (or handle) in the part in sight, at that edge (V6h: an empty
+      // 26 px sliver read as no strip at all); its full name in its tooltip
+      var cut = Math.max(0, Math.min(r.width, left - r.left)), pad = cut >= 1 ? Math.round(cut) + "px" : "";
+      if (b.strip.style.paddingLeft !== pad) b.strip.style.paddingLeft = pad;
     });
     placeCrumbs(); // the strips it keeps off are the ones shown now
   }

@@ -1402,12 +1402,15 @@
     e.preventDefault(); e.stopImmediatePropagation();
     commentPicking = false;
     var r = cv.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    // the slide's canvas is made again when it is shown again: the point is on whichever holds the slide (none
+    // while another slide is shown: its pin is away until this one is back)
     window.hermes.comment({ selector: selectorOf(sec), text: (sec.innerText || sec.textContent).replace(/\s+/g, " ").trim().slice(0, 200),
       label: cv.getAttribute("data-comment-label") },
       { el: cv, box: function () {
-        if (!cv.isConnected) return null;
-        var q = cv.getBoundingClientRect();
-        return { x: q.left + q.width * fx, y: q.top + q.height * fy, w: 0, h: 0, point: true };
+        var c = sec.isConnected && sec.parentElement;
+        if (!c) return null;
+        var q = c.getBoundingClientRect();
+        return { x: q.left + q.width * fx, y: q.top + q.height * fy, w: 0, h: 0, point: true, el: c };
       } });
   }, true);
 

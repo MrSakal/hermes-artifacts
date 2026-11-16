@@ -87,9 +87,6 @@
     else if (queuedEvents < MAX_QUEUED_EVENTS) { queuedEvents++; queue.push(msg); }
   }
   function send(msg) { try { if (port) port.postMessage(msg); } catch (_) {} }
-  // First of the page's listeners: a press the page or the pick stops still reaches the host (V6f: the title's menu
-  // stayed open over a press in the page).
-  window.addEventListener("pointerdown", function () { send({ event: "press", detail: null }); }, true);
   // An event that comes before anyone listens (the port can arrive while the page is still loading)
   // is kept, and the first listener for it gets the last one. A state the host sends once and again only
   // when it changes (STICKY: the comment threads) goes to every listener that comes later too: this bridge
@@ -537,9 +534,12 @@
     b.style.left = r.left - 2 + "px"; b.style.top = r.top - 2 + "px";
     b.style.width = r.width + "px"; b.style.height = r.height + "px";
   }
+  /** What a click on t picks: t, or the part drawn as one that holds it ([data-comment-whole]: a board's sticky or
+   *  shape, whose words inside are not a part of their own: V6h, the box 5 px off the pill drawn round "Ship"). */
+  function wholeOf(t) { return (t && t.closest && t.closest("[data-comment-whole]")) || t; }
   function onMove(e) {
     if (!picking) return;
-    var el = e.target;
+    var el = wholeOf(e.target);
     if (!el || el.hasAttribute("data-hermes-ui")) return;
     hoverBox = hoverBox || box(mark());
     // What a click there would pick: nothing on the page's blank (no box), else the element.
@@ -680,16 +680,31 @@
    *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
    *  vb: band()); in a grid that keeps pins in its parts, where in it the pin goes (px: pinIn). A spot is free
    *  when no other element's words, picture or control is under it (fw: nor the element's own words). */
-  function pickRect(el) { return rectOf(el, el.getBoundingClientRect(), firstLine(el), null); }
+  function pickRect(el) { return rectOf(el, inkRect(el), firstLine(el), null); }
+  /** el's box as drawn: its own, and the strokes of the shapes drawn in it (an SVG's outline reaches half its
+   *  width past the shape's box), so what keeps off it keeps off what is seen. */
+  function inkRect(el) {
+    var r = el.getBoundingClientRect(), l = r.left, t = r.top, rt = r.right, b = r.bottom;
+    var list = [el].concat(Array.prototype.slice.call(el.querySelectorAll ? el.querySelectorAll("svg *") : [], 0, 200));
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (!(typeof SVGGeometryElement !== "undefined" && n instanceof SVGGeometryElement)) continue;
+      var cs = getComputedStyle(n), q = n.getBoundingClientRect();
+      if (cs.display === "none" || cs.visibility === "hidden" || !cs.stroke || cs.stroke === "none" || /^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.stroke) || !(q.width || q.height)) continue;
+      var m = n.getScreenCTM && n.getScreenCTM(), pad = (parseFloat(cs.strokeWidth) || 0) / 2 * (m ? Math.hypot(m.a, m.b) : 1);
+      l = Math.min(l, q.left - pad); t = Math.min(t, q.top - pad); rt = Math.max(rt, q.right + pad); b = Math.max(b, q.bottom + pad);
+    }
+    return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+  }
   /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
    *  frame, a point of a film's picture), in `el` (what holds it there: the frame, the picture). The page may say
-   *  where its first line is (ly, lh, lr) and which pin spots are taken inside el (fr, fl, fw, fa, fb: false,
+   *  where its first line is (ly, lh, lr, and ll where its words start) and which pin spots are taken inside el (fr, fl, fw, fa, fb: false,
    *  where it alone can see); point: true pins it on the box's middle (a point, not a part), seen when that
    *  point is (a box of no size is never "seen": the pin and the box went to the corner). */
   function boxRect(el, b) {
     var r = b.point ? { left: b.x + b.w / 2 - 0.5, top: b.y + b.h / 2 - 0.5, width: 1, height: 1 } : { left: b.x, top: b.y, width: b.w, height: b.h };
     r.right = r.left + r.width; r.bottom = r.top + r.height;
-    var line = isFinite(b.ly) && isFinite(b.lh) && b.lh > 0 ? { top: b.ly, height: b.lh, right: isFinite(b.lr) ? b.lr : r.right } : null;
+    var line = isFinite(b.ly) && isFinite(b.lh) && b.lh > 0 ? { top: b.ly, height: b.lh, right: isFinite(b.lr) ? b.lr : r.right, left: isFinite(b.ll) ? b.ll : r.left } : null;
     var out = rectOf(el, r, line, b);
     if (!isFinite(b.lr)) { delete out.lr; delete out.fw; }
     if (b.point) out.pt = true;
@@ -780,14 +795,20 @@
   /** The page's own controls the comment's box keeps off where there is room ([data-comment-keep]: a film's
    *  playback bar and scenes, a canvas's floating tools, a design's frame names, a deck's thumbnails), each
    *  [left, top, right, bottom] in the window: those in sight, not one holding el, at most KEEP_MAX. */
-  var KEEP_MAX = 24;
+  // One holding el (a design system's nav, an item of it picked): its other controls each (V6h: the box on the
+  // nav's "Assets" next to the item picked).
+  var KEEP_MAX = 48, CONTROL = "a[href], button, input, select, textarea, [role=button], [role=tab], [role=link]";
   function keeps(el) {
     var out = [], ns = document.querySelectorAll("[data-comment-keep]");
-    for (var i = 0; i < ns.length && out.length < KEEP_MAX; i++) {
-      if (ns[i].contains(el)) continue;
-      var q = ns[i].getBoundingClientRect();
-      if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight) continue;
+    var push = function (n) {
+      var q = n.getBoundingClientRect();
+      if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight) return;
       out.push([Math.floor(q.left), Math.floor(q.top), Math.ceil(q.right), Math.ceil(q.bottom)]);
+    };
+    for (var i = 0; i < ns.length && out.length < KEEP_MAX; i++) {
+      if (!ns[i].contains(el)) { push(ns[i]); continue; }
+      var cs = ns[i].querySelectorAll(CONTROL);
+      for (var j = 0; j < cs.length && out.length < KEEP_MAX; j++) if (!cs[j].contains(el) && !el.contains(cs[j])) push(cs[j]);
     }
     return out;
   }
@@ -819,32 +840,66 @@
   function onPick(e) {
     if (!picking) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    var el = e.target;
+    var el = wholeOf(e.target);
     if (blank(el, e.clientX, e.clientY)) return;
     var text = wordsOf(el).trim().replace(/\s+/g, " ");
-    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el), rect: pickRect(el) });
-    follow({ el: el });
+    atDone = true;
+    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(e.target), rect: pickRect(el) });
+    follow({ el: el, sel: selectorOf(el) });
   }
-  // The element picked last, while its new comment is open: when the page scrolls or the frame is resized its
-  // new rect goes to the host (at most every PICKED_GAP_MS), so the comment's pin and form stay at it. The host
-  // says when the comment closes (pick-follow off); the next pick mode forgets it too. Listening only meanwhile.
-  // picked: {el} (the bridge's own pick), or {el, box} where box() measures a page's own part again (null: gone).
+  // The element picked last, while its new comment is open, and the open threads' marks: wherever they move
+  // (a scroll, a resize, a canvas panned or zoomed, a re-layout) the pin goes with them. Watched every frame
+  // while there is one (only its box is read; the host is told at most every PICKED_GAP_MS). An element the page
+  // drew again is found again by its selector; one no longer drawn (removed, a slide not shown) is "gone": the
+  // host takes its pin away until it is back. The host says when the comment closes (pick-follow off); the next
+  // pick mode forgets it too. picked: {el, sel} (a pick), or {el, box} where box() measures a page's own part
+  // again (null: gone).
   var PICKED_GAP_MS = 40;
-  var picked = null, pickedTimer = 0, pickedAt = 0;
+  var picked = null, pickedTimer = 0, pickedAt = 0, watchRaf = 0;
+  function where(p) {
+    if (p.box) {
+      var b = p.box();
+      if (b && b.el && b.el.nodeType === 1) p.el = b.el; // what holds the part now (a slide's canvas made again)
+      return b ? [b.x, b.y, b.w, b.h] : null;
+    }
+    if (!p.el.isConnected && p.sel) {
+      var did = p.el.getAttribute("data-id"), again = null;
+      try { again = (did && window.CSS && CSS.escape ? document.querySelector("[data-id=\"" + CSS.escape(did) + "\"]") : null) || document.querySelector(p.sel); } catch (_) {}
+      if (again && same(again, p.el)) p.el = again;
+    }
+    if (!p.el.isConnected || !p.el.getClientRects().length) return null;
+    var r = p.el.getBoundingClientRect();
+    return [r.left, r.top, r.width, r.height];
+  }
+  /** Whether a drawn-again element is the one that was there: the same id (a board item's data-id, an id); an
+   *  element with neither is not looked for again (a selector by place would find another slide's title). */
+  function same(a, b) {
+    var id = b.getAttribute("data-id") || b.id;
+    return !!id && a.tagName === b.tagName && (a.getAttribute("data-id") || a.id) === id;
+  }
+  function keyOf(p) { var w = where(p); return w ? w.map(function (v) { return Math.round(v * 2) / 2; }).join() + "," + innerWidth + "," + innerHeight : "gone"; }
+  function watch() {
+    watchRaf = 0;
+    if (picked) { var k = keyOf(picked); if (k !== picked.key) { picked.key = k; pickedMoved(); } }
+    placePins();
+    if (picked || pins.length) watchRaf = requestAnimationFrame(watch);
+  }
+  function watchOn() { if (!watchRaf) watchRaf = requestAnimationFrame(watch); }
   function pickedMoved() {
     if (!picked || pickedTimer) return;
     pickedTimer = setTimeout(function () {
       pickedTimer = 0;
-      if (!picked || !picked.el.isConnected) return;
+      if (!picked) return;
       pickedAt = Date.now();
-      var b = picked.box ? picked.box() : null;
-      if (picked.box && !b) return;
-      emit("picked-rect", { rect: b ? boxRect(picked.el, b) : pickRect(picked.el) });
+      var w = where(picked);
+      if (!w) { emit("picked-rect", { gone: true }); return; }
+      emit("picked-rect", { rect: picked.box ? boxRect(picked.el, picked.box()) : pickRect(picked.el) });
     }, Math.max(0, PICKED_GAP_MS - (Date.now() - pickedAt)));
   }
   function follow(p) {
-    if (!picked) { window.addEventListener("scroll", pickedMoved, true); window.addEventListener("resize", pickedMoved); }
     picked = p;
+    p.key = keyOf(p);
+    watchOn();
     document.documentElement.setAttribute("data-comment-draft", ""); // its comment is being written (hideStyle)
   }
   function unfollow() {
@@ -852,7 +907,6 @@
     picked = null;
     document.documentElement.removeAttribute("data-comment-draft");
     if (pickedTimer) { clearTimeout(pickedTimer); pickedTimer = 0; }
-    window.removeEventListener("scroll", pickedMoved, true); window.removeEventListener("resize", pickedMoved);
   }
   on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });
   // While picking, a crosshair over all of the page (its own cursors, a link's hand or a text's caret, would say
@@ -940,17 +994,33 @@
     framesPick = false;
     sayPickReady();
   });
+  // The host keeps a held press until a pick comes of it and sends it again (the same n) when none has yet: a
+  // press this page already picked is not picked twice.
+  var atN = 0, atDone = false;
   on("pick-at", function (d) {
     if (!picking || !d || !isFinite(d.x) || !isFinite(d.y)) return;
+    if (d.n && d.n === atN && atDone) return;
+    atN = d.n || 0; atDone = false;
     pickAt(d.x, d.y);
   });
+  /** An open thread's mark at its element's top right, kept there (watch); hidden while the element is not drawn. */
+  function placePins() {
+    for (var i = 0; i < pins.length; i++) {
+      var p = pins[i];
+      var w = where(p), k = w ? w.join() : "gone";
+      if (k === p.key) continue;
+      p.key = k;
+      p.b.style.display = w ? "" : "none";
+      if (w) { p.b.style.left = w[0] + w[2] + window.scrollX - 9 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
+    }
+  }
   on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
-    pins.forEach(function (p) { p.remove(); }); pins = [];
+    pins.forEach(function (p) { p.b.remove(); }); pins = [];
     if (document.documentElement.hasAttribute("data-own-pins")) return; // the page draws its own (a doc's margin cards)
     (items || []).forEach(function (it) {
       var el; try { el = document.querySelector(it.selector); } catch (_) {}
       if (!el) return;
-      var r = el.getBoundingClientRect(), b = document.createElement("div");
+      var b = document.createElement("div");
       b.setAttribute("data-hermes-ui", "");
       b.textContent = String(it.n);
       b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
@@ -958,9 +1028,10 @@
         "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
       b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
       b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
-      b.style.left = r.right + window.scrollX - 9 + "px"; b.style.top = r.top + window.scrollY - 9 + "px";
-      document.body.appendChild(b); pins.push(b);
+      document.body.appendChild(b); pins.push({ b: b, el: el, sel: it.selector, key: "" });
     });
+    placePins();
+    watchOn();
   });
   /** The flashed box kept off the page's own comment marks (the children of a [data-flash-keep]: a doc's margin
    *  icons beside its blocks): its side towards a mark it would cover, or come within 4 px of (its 3 px halo
@@ -1083,7 +1154,8 @@
     fullscreen: function (on) { return call("present", { on: on !== false }); },
     /** Start a comment on a part of the page (the host opens its comment form there). where (optional): the
      *  element it is on, or {el, box} for a part the page measures itself (box: {x, y, w, h} in the window, or a
-     *  function giving it again after a scroll or a resize; boxRect says what more it may carry): the host then
+     *  function giving it again wherever it moves, with the element that holds it now as el when that one was made
+     *  again; null while it is not drawn; boxRect says what more it may carry): the host then
      *  opens the form beside it with its pin, as for a pick, and not in its panel. */
     comment: function (anchor, where) {
       var a = Object.assign({}, anchor || {}), el = where && (where.nodeType === 1 ? where : where.el);
@@ -1093,9 +1165,10 @@
         var b = box ? box() : null;
         if (!box || b) {
           a.rect = b ? boxRect(el, b) : pickRect(el);
-          follow(box ? { el: el, box: box } : { el: el });
+          follow(box ? { el: el, box: box } : { el: el, sel: selectorOf(el) });
         }
       }
+      atDone = true;
       emit("comment", a);
     },
     /** A page that moved what was commented on without a scroll (a canvas panned or zoomed): its pin follows. */
