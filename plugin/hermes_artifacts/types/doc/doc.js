@@ -517,8 +517,11 @@
   }
   // An empty block "+" made (addBelow) stays here, unsent, until something is written in it or names it: its
   // insert goes then, with its words (a replace of it), or first (another edit naming it); a delete of it sends
-  // nothing (V6j: "+" then Esc saved an insert and a delete, and the doc's time moved with nothing changed).
-  var unsent = {}; // tmp id -> { after, aprevs }
+  // nothing (V6j: "+" then Esc saved an insert and a delete, and the doc's time moved with nothing changed). A type
+  // chosen for it with nothing in it yet (a heading's "## ", a bullet's "- ") is no words: it stays unsent, and is
+  // taken back when left empty (commit; V6j: an empty heading saved, drawn 0 px high).
+  var unsent = {}; // tmp id -> { after, aprevs, md }
+  function bare(m) { return !String(m || "").replace(/^[ \t]*(#{1,6}|[-*+]([ \t]+\[[ xX]\])?|\d+[.)]|>)(?=\s|$)/gm, "").trim(); }
   function claim(id, md) { // the insert of an unsent block, now going out
     var v = id && unsent[id];
     if (!v) return null;
@@ -529,6 +532,7 @@
     var out = [];
     ops.forEach(function (o) {
       if (o.op === "delete" && unsent[o.block]) { delete unsent[o.block]; return; }
+      if (o.op === "replace" && unsent[o.block] && bare(o.md)) { unsent[o.block].md = o.md; return; }
       var c = o.op === "replace" && claim(o.block, o.md);
       if (c) { out.push(c); return; }
       [o.block, o.after].forEach(function (id) { var c2 = claim(id); if (c2) out.push(c2); });
@@ -858,9 +862,10 @@
   function redrawOne(id) { var b = blockOf(id), el = blockEl(id); if (b && el && !(focused && focused.id === id)) { drawBlock(b, el); drawToc(); } }
   function commit() {
     if (!focused) return;
-    var f = focused;
+    var f = focused, el0 = blockEl(f.id);
     save(false);
     focused = null;
+    if (unsent[f.id] && el0 && bare(mdOf(el0)) && !el0.querySelector("img,[data-md],table,hr,pre")) { removeBlock(f.id); return; } // left empty
     if (f.sug) { var b0 = blockOf(f.id); if (b0 && f.theirs != null) b0.md = f.theirs; pull(true); } // now it shows Hermes' text and the person's suggestion on it
     redrawOne(f.id);
     ast = md.parse(fullText());
@@ -2356,7 +2361,7 @@
     }
     var was = t.blocks;
     t.srv = full.blocks.map(function (b) { return b.id; }); // what the server has: an edit it refuses is made to fit it (mend)
-    var held = Object.keys(unsent).map(function (id) { return { via: "edit", ops: [{ op: "insert", after: unsent[id].after, md: "", tmp: id, _aprevs: unsent[id].aprevs }] }; });
+    var held = Object.keys(unsent).map(function (id) { return { via: "edit", ops: [{ op: "insert", after: unsent[id].after, md: unsent[id].md || "", tmp: id, _aprevs: unsent[id].aprevs }] }; });
     var m = mergeBlocks(replayOps(full.blocks, outbox.concat(held), realIds), was, keepMd);
     t.blocks = m.blocks;
     m.back.forEach(function (x) { if (x.id === mine) f.sug = false; }); // gone there: its words go back in as a new block

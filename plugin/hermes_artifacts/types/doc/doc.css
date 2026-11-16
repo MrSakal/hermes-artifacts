@@ -39,6 +39,7 @@ html[data-thumb] #doc-view { padding-top: 32px; }
 /* live doc: blocks edited in place, Hermes' changes, asks */
 .doc-blk { position: relative; border-radius: var(--kit-r-sm, 6px); margin: 0 -10px; padding: 0 10px; cursor: text; transition: background .6s; }
 .doc-blk > :last-child { margin-bottom: 14px; }
+.doc-blk > :is(h1, h2, h3, h4, h5, h6):empty { min-height: 1lh; } /* an empty heading stored still takes its line (V6k: 0 px high) */
 .doc-blk.by-hermes { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
 .doc-blk.is-pending { opacity: .6; }
 .doc-src { display: block; width: 100%; box-sizing: border-box; padding: 6px 0 10px; margin: 0 0 4px; border: 0; resize: none; outline: none;

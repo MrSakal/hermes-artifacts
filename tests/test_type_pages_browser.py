@@ -2175,6 +2175,30 @@ class RoundV6hPages(unittest.TestCase):
         r = docs.read(aid)
         self.assertGreater(r["rev"], rev0)
         self.assertEqual([b["md"] for b in r["blocks"]], ["# Doc", "First paragraph.", "kept", "Second paragraph."])
+        # V6k: a type chosen on that menu (Heading 2, Bulleted list) and nothing typed: Esc, or a click elsewhere,
+        # left the empty block saved ("##" drawn 0 px high). It stays unsent while empty and goes when left.
+        rev1 = r["rev"]
+        pick = "const it = await api.frame('(() => { const b = [...document.querySelectorAll(\".doc-slash .doc-rm-item\")].find(b => b.textContent.trim() === %s); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()'); await api.mouse(it[0], it[1]); await api.sleep(500)"
+        for label, leave in (("Heading 2", "await api.key('Escape', 'Escape', 27)"), ("Bulleted list", "await api.key('Escape', 'Escape', 27)"),
+                             ("Heading 2", "const t = await api.frame('(() => { const r = document.querySelectorAll(\".doc-blk\")[0].getBoundingClientRect(); return [r.left + 30, r.top + r.height / 2] })()'); await api.mouse(t[0], t[1])")):
+            o = self.drive_page(aid, plus + f"""
+              await plus(); {pick % json.dumps(json.dumps(label))[1:-1]}
+              const o = {{ chosen: await n() }}
+              {leave}; await api.sleep(3200); o.left = await n()
+              return o""")
+            self.assertEqual(o, {"chosen": 5, "left": 4}, (label, o))
+            self.assertEqual(docs.read(aid)["rev"], rev1, (label, "an empty block was sent"))
+        o = self.drive_page(aid, plus + f"""
+          await plus(); {pick % json.dumps(json.dumps("Heading 2"))[1:-1]}
+          await api.type('Kept head'); await api.sleep(300); await api.key('Escape', 'Escape', 27); await api.sleep(2500)
+          return {{ n: await n() }}""")
+        self.assertEqual([b["md"] for b in docs.read(aid)["blocks"]], ["# Doc", "First paragraph.", "## Kept head", "kept", "Second paragraph."], o)
+
+    def test_an_empty_heading_stored_is_drawn_a_line_high(self):
+        aid = self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nFirst.\n\n##\n\nLast."})["id"]
+        o = self.drive_page(aid, "return await api.frame('[...document.querySelectorAll(\".doc-blk\")].map(b => Math.round(b.getBoundingClientRect().height))')")
+        self.assertEqual(len(o), 4, o)
+        self.assertGreaterEqual(o[2], 20, o)
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
