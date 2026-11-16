@@ -1049,6 +1049,15 @@
     if (e.key !== "Escape" || !a || document.activeElement !== a || !a.matches("button, [role=button], [role=tab]")) return;
     setTimeout(function () { if (document.activeElement === a) a.blur(); }, 0);
   }, true);
+  // A press in the page takes the keys here too: one whose own press keeps the focus where it is (a toolbar's
+  // button, mousedown cancelled) left them with the host, and Esc never reached the menu it opened (V6l: a doc's
+  // Fonts, on a doc just opened). Not while picking or a new comment's box is open (their presses stop above).
+  document.addEventListener("pointerdown", function () { if (!document.hasFocus()) try { window.focus(); } catch (_) {} }, true);
+  // Esc pressed in the host while nothing of its own wants it ("key"): as if pressed here, where the focus is.
+  on("key", function (d) {
+    if (!d || d.key !== "Escape") return;
+    (document.activeElement || document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }));
+  });
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("click", onPick, true);
   // Picking on: the host is told when a click picks (it holds one made sooner: V6e, a pick 0 ms after Comment in a

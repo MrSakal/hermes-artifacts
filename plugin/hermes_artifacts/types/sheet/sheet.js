@@ -2453,7 +2453,8 @@
 
   // ------------------------------------------------------------------ small popovers: a question, colours
   var pop = null;
-  function closePop() { if (!pop) return; var p = pop; pop = null; p.el.remove(); document.removeEventListener("mousedown", p.out, true); if (p.done) p.done(null); }
+  function dropPop(p) { p.el.remove(); document.removeEventListener("mousedown", p.out, true); document.removeEventListener("keydown", p.esc, true); }
+  function closePop() { if (!pop) return; var p = pop; pop = null; dropPop(p); if (p.done) p.done(null); }
   function openPop(el, anchor, done) {
     closePop(); if (kit.menu && document.querySelector(".kit-menu")) document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     document.body.appendChild(el);
@@ -2463,9 +2464,11 @@
       el.style.left = Math.max(8, Math.min(r.left, innerWidth - el.offsetWidth - 8)) + "px";
     }
     var out = function (e) { if (!el.contains(e.target) && !(anchor && anchor.contains(e.target))) closePop(); };
-    pop = { el: el, out: out, done: done };
+    // Esc closes it wherever the focus is (V6l: the colour popover, nothing in it focused, stayed open)
+    var esc = function (e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePop(); grid.focus(); } };
+    pop = { el: el, out: out, esc: esc, done: done };
     setTimeout(function () { if (pop && pop.el === el) document.addEventListener("mousedown", out, true); }, 0);
-    el.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closePop(); grid.focus(); } });
+    document.addEventListener("keydown", esc, true);
   }
   /** A question asked in the page (the frame is sandboxed: no prompt()). Resolves the text, or null. */
   function ask(label, value, multiline) {
@@ -2474,7 +2477,7 @@
       input.value = value || "";
       var ok = h("button", { type: "button", "class": "sh-b pri", text: multiline ? T.send : T.ok }), no = h("button", { type: "button", "class": "sh-b", text: T.cancel });
       var el = h("div", { "class": "sh-pop sh-dlg", role: "dialog", "aria-label": label }, [h("div", { "class": "sh-dlg-q", text: label }), input, h("div", { "class": "sh-dlg-bar" }, [no, ok])]);
-      var finish = function () { var v = input.value.trim(); var p = pop; pop = null; if (p) { p.el.remove(); document.removeEventListener("mousedown", p.out, true); } done(v || null); grid.focus(); };
+      var finish = function () { var v = input.value.trim(); var p = pop; pop = null; if (p) dropPop(p); done(v || null); grid.focus(); };
       ok.addEventListener("click", finish);
       no.addEventListener("click", function () { closePop(); grid.focus(); });
       input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !(multiline && e.shiftKey)) { e.preventDefault(); finish(); } });

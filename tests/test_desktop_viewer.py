@@ -1475,6 +1475,37 @@ class CommentPopoverCloses(unittest.TestCase):
             host.close()
 
 
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PageMenusCloseOnEsc(unittest.TestCase):
+    """Live loop V6l: on a doc just opened, Fonts mouse-pressed opened its menu but Esc left it open: the toolbar's
+    button keeps the focus where it is (mousedown cancelled), so the frame never took the keys. A press in the page
+    takes them; an Esc that lands in the host anyway (nothing of its own focused) is the page's."""
+
+    def test_a_doc_toolbar_menu_closes_on_esc_in_the_frame_or_in_the_host(self):
+        host = B.Host()
+        try:
+            host.files.update(D.viewer_files(EXPORTS))
+            aid = store.publish(path=str(D.ROOT / "examples" / "doc"), title="Test doc", type="doc")["id"]
+            url = f"http://127.0.0.1:{host.port}/dom/index.html"
+            fonts = '[...document.querySelectorAll("button")].find(b => (b.getAttribute("aria-label") || b.title || b.textContent.trim()) === "Fonts")'
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(fonts)}, SETTLE = 1500; await api.size(1250, 764);" + BOOT_ANY + f"""
+              const open = () => api.frame('!!document.querySelector(".kit-menu")')
+              const press = async () => {{ const off = await frameAt(), q = await api.frame('(() => {{ const r = ({fonts}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] }})()'); await api.mouse(off[0] + q[0], off[1] + q[1]); await api.sleep(400) }}
+              const out = {{}}
+              await api.top('document.body.focus()'); await press(); out.opened = await open()
+              await api.key('Escape', 'Escape', 27); await api.sleep(300); out.afterEsc = await open()
+              await press(); out.again = await open()
+              await api.top('(() => {{ document.body.tabIndex = -1; document.body.focus(); document.body.removeAttribute("tabindex") }})()'); await api.sleep(100)
+              out.hostHasKeys = await api.top('document.hasFocus() && document.activeElement === document.body')
+              await api.key('Escape', 'Escape', 27); await api.sleep(300); out.afterHostEsc = await open()
+              return out""", timeout=240)
+            self.assertIsNone(r.get("err"), r)
+            o = r["out"]
+            self.assertEqual((o["opened"], o["afterEsc"], o["again"], o["afterHostEsc"]), (True, False, True, False), o)
+        finally:
+            host.close()
+
+
 LONG_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui;background:#1d1d1b;color:#eee}main{padding:24px;width:1800px}"
              "h2{margin:30px 0 10px}</style><main>" + "".join(f"<h2 id=s{i}>Section {i}</h2><p>Words of section {i}, a line of them.</p>" for i in range(30)) + "</main>")
 # Driver JS: what the host drew for the draft (pin, box, the stage) in the window.

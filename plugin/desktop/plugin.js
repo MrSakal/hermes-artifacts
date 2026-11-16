@@ -6463,6 +6463,13 @@ function Viewer({ ctx, docked = false }) {
   // Comment mode and the pins reach the page whether or not the comments list is open.
   useEffect(() => { postToPage(portRef, 'comment-mode', { on: picking }) }, [picking]) // $pickOn, $pickHeld: PickHold
   useEffect(() => sendPins(portRef), [comments])
+  // Esc pressed here with none of the host's own controls focused, no menu of its own open and nothing picked: the
+  // page's (its menu open while its frame never took the keys: V6l, a doc's Fonts on a doc just opened).
+  useEffect(() => listen(CTX, window, 'keydown', e => {
+    const a = document.activeElement
+    if (e.key !== 'Escape' || e.defaultPrevented || $hostMenus.get() > 0 || $picking.get() || (a && a !== document.body && !stage.current?.contains(a))) return
+    postToPage(portRef, 'key', { key: 'Escape' })
+  }), [])
   // The new comment's box closed (sent, cancelled, another pick): the page stops following its element.
   const following = Boolean(useValue($draft)?.rect)
   useEffect(() => { if (!following) postToPage(portRef, 'pick-follow', { on: false }) }, [following])

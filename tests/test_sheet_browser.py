@@ -48,6 +48,21 @@ class SheetInTheBrowser(unittest.TestCase):
         self.assertEqual(r.get("logs"), [], r.get("logs"))
         return r["out"]
 
+    def test_every_toolbar_popover_closes_on_esc_with_nothing_in_it_focused(self):
+        # V6l: the colour popovers took Esc only with the focus inside them (none of their swatches is focused when
+        # they open): Text colour pressed, then Esc, stayed open
+        aid = self.pub([["Item", "Cost"], ["Bolts", 3]])
+        o = self.run_page(aid, """
+          const out = {}, shown = () => api.frame('!!document.querySelector(".sh-pop")')
+          for (const re of ['/^(Text colour|Betűszín)$/', '/^(Fill colour|Kitöltőszín)$/', '/^(Borders|Szegélyek)$/']) {
+            await cellAt('Bolts'); await btn(re); const open = await shown()
+            await api.key('Escape', 'Escape', 27); await api.sleep(300); out[re] = [open, await shown()]
+          }
+          return out
+        """)
+        for k, v in o.items():
+            self.assertEqual(v, [True, False], (k, o))
+
     def test_structural_edits_are_undo_steps_and_keep_the_history(self):
         rows = [["Item", "Cost"], ["Bolts", 3], ["Anchors", 9], ["Clamps", 5], ["Rails", 24]]
         aid = self.pub(rows, charts=[{"type": "bar", "range": "A1:B5", "at": "D2"}])
