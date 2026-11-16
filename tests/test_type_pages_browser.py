@@ -2384,6 +2384,17 @@ class RoundV6mPages(unittest.TestCase):
         self.assertTrue(o.get("label"), o)
         self.assertEqual(o["after"][-1], "rect", o)
 
+    def test_a_design_systems_colour_tables_fit_beside_the_comments_list(self):
+        # Item 10: at 1522 px with the comments list docked (a frame 922 px wide) the Colors page's tables were 23 px
+        # wider than their page: a scrollbar under each, the rows' last button cut.
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        o = self.drive_page(aid, """
+          const n = await api.frame(`(() => { const b = [...document.querySelectorAll(".ds-nav-i")].find(e => e.textContent.trim().startsWith("Colors")).getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()`)
+          await api.mouse(n[0], n[1]); await api.sleep(900)
+          return await api.frame('[...document.querySelectorAll(".ds-table-wrap")].map(w => w.scrollWidth - w.clientWidth)')""", w=922, settle=2500)
+        self.assertTrue(o, o)
+        self.assertEqual(max(o), 0, o)
+
     def test_a_connectors_pin_is_not_on_the_items_it_joins(self):
         # Item 4: an arrow diamond -> Ship: its pin went right of its strokes' box, past the arrowhead, onto Ship (a
         # shape's body is no words nor picture: "free"). Another item drawn as one is not a free spot; a section is.
