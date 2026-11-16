@@ -548,21 +548,23 @@
     return c && c !== t && !c.hasAttribute("contenteditable") ? c : t;
   }
   /** A press on none of the parts of a page that names them ([data-comment-nearest]="<selector>": a doc's blocks),
-   *  in it or round it (between two blocks, in its margins, under the last): the nearest of them, by the line pressed
-   *  first (V6j: a press between a doc's blocks picked nothing, or a point after 3 s). Not one on another of the
-   *  page's controls or words. null otherwise. */
+   *  in it or round it (between two blocks, in its margins, under the last): the nearest of them with something in
+   *  it, by the line pressed first (V6j: a press between a doc's blocks picked nothing, or a point after 3 s); an
+   *  empty one only where all are. Not one on another of the page's controls or words. null otherwise. */
   function nearestPart(t, x, y) {
     var area = document.querySelector("[data-comment-nearest]");
     if (!area || !isFinite(x) || !isFinite(y)) return null;
     var sel = area.getAttribute("data-comment-nearest");
     try { if (t.closest(sel) || !(area.contains(t) || t.contains(area)) || t.closest(CONTROL + ", [data-comment-keep], [data-hermes-ui]")) return null; } catch (_) { return null; }
     for (var i = 0; i < t.childNodes.length; i++) { var c = t.childNodes[i]; if (c.nodeType === 3 && /\S/.test(c.nodeValue)) return null; }
+    // one with something in it first (V6l: a press under a doc's last block picked the empty checklist item there)
     var best = null, all = area.querySelectorAll(sel);
     for (i = 0; i < all.length; i++) {
       var q = all[i].getBoundingClientRect();
       if (q.width < 1 || q.height < 1 || all[i].parentElement.closest(sel)) continue;
       var dy = Math.max(0, q.top - y, y - q.bottom), dx = Math.max(0, q.left - x, x - q.right);
-      if (!best || dy < best.dy || (dy === best.dy && dx < best.dx)) best = { el: all[i], dy: dy, dx: dx };
+      var bare = !all[i].textContent.trim() && !all[i].querySelector("img, svg, canvas, video, table, hr, select, [data-md], input:not([type=checkbox])") ? 1 : 0;
+      if (!best || bare < best.bare || (bare === best.bare && (dy < best.dy || (dy === best.dy && dx < best.dx)))) best = { el: all[i], dy: dy, dx: dx, bare: bare };
     }
     return best && best.el;
   }

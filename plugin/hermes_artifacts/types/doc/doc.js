@@ -30,7 +30,7 @@
       bold: "Bold", italic: "Italic", underline: "Underline", strike: "Strikethrough", code: "Code", color: "Colour", link: "Link", linkAsk: "Link address",
       clear: "No colour", textColor: "Text colour", highlight: "Highlight",
       insert: "Insert", text: "Text", h1: "Heading 1", h2: "Heading 2", h3: "Heading 3", bullets: "Bulleted list", numbers: "Numbered list",
-      checklist: "Checklist", quote: "Quote", codeBlock: "Code block", divider: "Divider", table: "Table", date: "Date", dropdown: "Dropdown",
+      checklist: "Checklist", checklistItem: "Checklist item", quote: "Quote", codeBlock: "Code block", divider: "Divider", table: "Table", date: "Date", dropdown: "Dropdown",
       mention: "Mention", formula: "Formula", chart: "Chart", image: "Image", slashHint: "Type / in the document for more",
       mentionAsk: "Who? (a name)", dropdownAsk: "Dropdown name (e.g. Status)", optionsAsk: "Options, comma-separated", editOptions: "Edit options…",
       rowAbove: "Insert row above", rowBelow: "Insert row below", colLeft: "Insert column left", colRight: "Insert column right",
@@ -63,7 +63,7 @@
       bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott", strike: "Áthúzott", code: "Kód", color: "Szín", link: "Hivatkozás", linkAsk: "Hivatkozás címe",
       clear: "Nincs szín", textColor: "Szövegszín", highlight: "Kiemelés",
       insert: "Beszúrás", text: "Szöveg", h1: "Címsor 1", h2: "Címsor 2", h3: "Címsor 3", bullets: "Felsorolás", numbers: "Számozott lista",
-      checklist: "Teendőlista", quote: "Idézet", codeBlock: "Kódblokk", divider: "Elválasztó", table: "Táblázat", date: "Dátum", dropdown: "Legördülő",
+      checklist: "Teendőlista", checklistItem: "Teendő", quote: "Idézet", codeBlock: "Kódblokk", divider: "Elválasztó", table: "Táblázat", date: "Dátum", dropdown: "Legördülő",
       mention: "Említés", formula: "Képlet", chart: "Grafikon", image: "Kép", slashHint: "Írj / jelet a doksiban a többihez",
       mentionAsk: "Kit? (név)", dropdownAsk: "A legördülő neve (pl. Státusz)", optionsAsk: "Opciók vesszővel elválasztva", editOptions: "Opciók szerkesztése…",
       rowAbove: "Sor beszúrása fölé", rowBelow: "Sor beszúrása alá", colLeft: "Oszlop beszúrása balra", colRight: "Oszlop beszúrása jobbra",
@@ -1946,7 +1946,19 @@
   // The person went to the host (its Comment, the comments list, the chat): a frame's selection stays while it has no
   // focus, its bar would float there, stale (and cut by the list opening beside it). It closes; the comment pick too.
   window.addEventListener("blur", function () { clearTimeout(selTimer); selBar.hidden = true; });
-  if (hm && hm.on) hm.on("comment-mode", function (d) { if (d && d.on) { clearTimeout(selTimer); selBar.hidden = true; } });
+  if (hm && hm.on) hm.on("comment-mode", function (d) { if (d && d.on) { clearTimeout(selTimer); selBar.hidden = true; } nameEmpty(d && d.on); });
+  // A block with nothing in it, picked for a comment, is named by its kind (V6l: "Selected part" for an empty
+  // checklist item), while picking; one with words is named by them.
+  function nameEmpty(on) {
+    page.querySelectorAll(".doc-blk[data-block]").forEach(function (el) {
+      var f = el.firstElementChild, t = f && f.tagName, name = null;
+      if (on && !el.textContent.trim() && !el.querySelector("img,table,hr,[data-md]")) {
+        name = /^H[1-6]$/.test(t) ? T["h" + Math.min(3, +t[1])] : t === "UL" ? (f.querySelector("li.task") ? T.checklistItem : T.bullets)
+          : t === "OL" ? T.numbers : t === "BLOCKQUOTE" ? T.quote : t === "PRE" ? T.codeBlock : T.text;
+      }
+      if (name) el.setAttribute("data-comment-label", name); else el.removeAttribute("data-comment-label");
+    });
+  }
   document.addEventListener("mousedown", function (e) {
     if (!selBar.contains(e.target)) selBar.hidden = true;
     if (slash.open && !slash.el.contains(e.target)) slash.close();

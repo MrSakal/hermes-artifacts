@@ -1236,6 +1236,18 @@ class PickInEveryType(unittest.TestCase):
             ev, q = self.pick(aid, gap % spot)
             self.assertEqual(ev["event"], "picked", ev)
             self.assertRegex(ev["detail"]["selector"], r"blk-", (spot, ev))
+        # V6l: under the last block, an empty checklist item there: it was picked, "Selected part". The nearest block
+        # with something in it; an empty one only where all are, named by its kind.
+        from hermes_artifacts import docs
+        aid = self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nThe last words.\n\n- [ ] "})["id"]
+        under = '(() => { const b = [...document.querySelectorAll("#doc-page > .doc-blk")].pop().getBoundingClientRect(); return [b.left + 40, Math.min(innerHeight - 4, b.bottom + 30)] })()'
+        ev, _ = self.pick(aid, under)
+        last = docs.read(aid)["blocks"][1]["id"]
+        self.assertIn(last, ev["detail"]["selector"], ev)
+        self.assertEqual(ev["detail"]["label"], "The last words.", ev)
+        aid = self.store.publish(title="Doc", type="doc", files={"doc.md": "- [ ] "})["id"]
+        ev, _ = self.pick(aid, under)
+        self.assertIn(ev["detail"]["label"], ("Checklist item", "Teendő"), ev)  # the page's language
 
     def test_sheet_cell(self):
         aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
