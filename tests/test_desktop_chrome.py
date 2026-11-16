@@ -485,6 +485,23 @@ class CommentPinTests(unittest.TestCase):
         self.assertNotIn('"contextmenu", "touchstart"', bridge)  # a tap's touchstart is never cancelled
 
 
+class RoundV6mLook(unittest.TestCase):
+    """Live round V6m: the type pages' scrollbars as Hermes' own (item 10)."""
+
+    def test_the_type_pages_scrollbars_are_hermes_own(self):
+        # Hermes Desktop: 0.5rem, track 0 0, thumb on hover color-mix(--dt-scrollbar-thumb 18%), under the pointer 40 %,
+        # its --dt-scrollbar-thumb oklch(from <accent> l 0 h). A design system's table showed a heavy grey bar (30/55 %
+        # of the muted ink), its page's own always shown.
+        kit = (PLUGIN / "hermes_artifacts" / "types" / "_kit" / "kit.css").read_text("utf-8")
+        for rule in (":root { --kit-bar: oklch(from var(--color-accent) l 0 h); }",
+                     "*::-webkit-scrollbar { width: 8px; height: 8px; }",
+                     "*::-webkit-scrollbar-thumb { background: transparent; border-radius: 9999px; background-clip: padding-box; }",
+                     "*:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--kit-bar) 18%, transparent); }",
+                     "*:hover::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--kit-bar) 40%, transparent); }"):
+            self.assertIn(rule, kit)
+        self.assertNotIn("fg-muted) 30%", kit)
+
+
 @unittest.skipIf(NODE is None, "node not installed")
 class RoundV6mKeptDrafts(unittest.TestCase):
     """Live round V6m item 1: a second pick dropped a kept draft (its pin and words gone); Esc in the box threw its
