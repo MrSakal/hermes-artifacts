@@ -2403,4 +2403,16 @@ class RoundV6mPages(unittest.TestCase):
         self.assertIs(o["fr"], False, o)  # Ship at its right end
         self.assertIs(o["fl"], False, o)  # Review at its left
         self.assertIn([675, 308, 855, 368], o["kc"], o)  # Ship's shape is the page's content (the host's pinSpot keeps off it)
+        # Item 9: an open thread's numbered mark sat on the ring its Show flashes round the item: past it, not touching
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "[data-id=a]", n: 1}])'); await api.sleep(300)
+          await api.top('window.__post("flash", {selector: "[data-id=a]"})'); await api.sleep(600)
+          return await api.frame(`(() => { const ui = [...document.querySelectorAll("[data-hermes-ui]")].filter(e => e.tagName === "DIV" && e.getClientRects().length)
+            const r = e => { const q = e.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom] }
+            const mark = ui.find(e => e.textContent === "1"), ring = ui.find(e => e !== mark && !e.textContent)
+            return { mark: mark && r(mark), ring: ring && r(ring) } })()`)""")
+        m, g = o["mark"], o["ring"]
+        self.assertTrue(m and g, o)
+        halo = 3  # the ring's halo past its box
+        self.assertTrue(m[0] >= g[2] + halo or m[2] <= g[0] - halo or m[1] >= g[3] + halo or m[3] <= g[1] - halo, o)
 

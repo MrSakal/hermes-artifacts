@@ -1124,7 +1124,8 @@
     atN = d.n || 0; atDone = false;
     pickAt(d.x, d.y);
   });
-  /** An open thread's mark at its element's top right, kept there (watch); hidden while the element is not drawn. */
+  /** An open thread's mark by its element's top right, just past the ring its Show flashes round it (EDGE and HALO:
+   *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn. */
   function placePins() {
     for (var i = 0; i < pins.length; i++) {
       var p = pins[i];
@@ -1132,7 +1133,7 @@
       if (k === p.key) continue;
       p.key = k;
       p.b.style.display = w ? "" : "none";
-      if (w) { p.b.style.left = w[0] + w[2] + window.scrollX - 9 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
+      if (w) { p.b.style.left = w[0] + w[2] + window.scrollX + EDGE + HALO + 1 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
     }
   }
   on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
