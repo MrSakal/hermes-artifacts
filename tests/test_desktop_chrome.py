@@ -449,7 +449,24 @@ class CommentPinTests(unittest.TestCase):
           L({ x: 300, y: 100, w: 650, h: 30, fr: false, fl: false, fa: false, fb: true }), L({ x: 300, y: 600, w: 650, h: 30, fr: false, fl: false, fa: true, fb: false }),
           L({ x: 100, y: 300, w: 200, h: 30 }, 'below'), L({ x: 100, y: 600, w: 200, h: 30 }, 'below')]))
         """
-        self.assertEqual(run_node(stub_module(EXPORTS), body), ["right", "left", "below", "above", "below", "right"])
+        # V6m item 6: a side before the next, level with the pin or just past the part ("+"): right of a pin left of its
+        # part, past it; left of a pin below or above a part's right end, past the part
+        self.assertEqual(run_node(stub_module(EXPORTS), body), ["right", "right+", "left+", "left+", "below", "right"])
+
+    def test_the_side_order_holds_where_the_preferred_side_fits_past_the_part(self):
+        # V6m item 6, the rects of the live run (stage px): each went above or below where right or left fitted
+        body = """
+        const L = (r, bw, bh) => { const o = m.commentLayout(r, bw, bh, 147); return { side: o.box.side, box: o.box, pin: o.pin } }
+        console.log(JSON.stringify([
+          L({ x: 394, y: 712, w: 170, h: 42, ly: 712, lh: 20, fr: true, fl: true, fa: true, fb: false }, 1262, 716),   // doc "Pricing" at the bottom
+          L({ x: 734, y: 712, w: 280, h: 42, ly: 712, lh: 20, fr: true, fl: true, fa: true, fb: false }, 1262, 716),   // doc "5 days" bottom right
+          L({ x: 1140, y: 7, w: 102, h: 30, ly: 7, lh: 30, fr: false, fl: false, fa: false, fb: true }, 1262, 716)     // doc "Editing" top right
+        ]))
+        """
+        out = run_node(stub_module(EXPORTS), body)
+        for o in out:
+            b, p = o["box"], o["pin"]
+            self.assertTrue(b["x"] >= p["x"] + 26 or b["x"] + 320 <= p["x"], o)  # right or left of its pin, never above or below
 
     def test_the_page_stops_following_when_the_comment_closes(self):
         viewer = section("function Viewer(", "function Toast(")

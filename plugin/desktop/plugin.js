@@ -5783,9 +5783,10 @@ function boxSpot(rect, pin, bw, bh, h, side) {
   const dist = (a, b) => Math.hypot(Math.max(0, b[0] - a[2], a[0] - b[2]), Math.max(0, b[1] - a[3], a[1] - b[3]))
   const up = v => Math.ceil(v - 1e-6), down = v => Math.floor(v + 1e-6)
   const slide = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)))
-  // On each side in turn, level with the pin's top (or left), slid into the stage; none: on each side in turn
-  // shifted along it just past the part, either way (a pin by the part's edge; side "left+"). The one it had first.
-  const ways = [false, true].flatMap(shift => BOX_SIDES.map(s => [s, shift]))
+  // On each side in turn: level with the pin's top (or left), slid into the stage, else shifted along it just past
+  // the part, either way (a pin by the part's edge; side "left+"): a side before the next one (V6m: "above" taken
+  // where "right+" fitted, by a doc's bottom block). The one it had first.
+  const ways = BOX_SIDES.flatMap(s => [false, true].map(shift => [s, shift]))
   const had = ways.findIndex(([s, shift]) => s + (shift ? '+' : '') === side)
   if (had > 0) ways.unshift(...ways.splice(had, 1))
   const find = (hh, part) => {
