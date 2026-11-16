@@ -519,9 +519,15 @@
   // insert goes then, with its words (a replace of it), or first (another edit naming it); a delete of it sends
   // nothing (V6j: "+" then Esc saved an insert and a delete, and the doc's time moved with nothing changed). A type
   // chosen for it with nothing in it yet (a heading's "## ", a bullet's "- ") is no words: it stays unsent, and is
-  // taken back when left empty (commit; V6j: an empty heading saved, drawn 0 px high).
+  // taken back when left empty (commit; V6j: an empty heading saved, drawn 0 px high), as an empty code block is
+  // (V6l: "+" Code block, nothing written, saved).
   var unsent = {}; // tmp id -> { after, aprevs, md }
-  function bare(m) { return !String(m || "").replace(/^[ \t]*(#{1,6}|[-*+]([ \t]+\[[ xX]\])?|\d+[.)]|>)(?=\s|$)/gm, "").trim(); }
+  function bare(m) {
+    m = String(m || "");
+    if (/^\s*(`{3,}|~{3,})[\w+#.-]*\n\s*\1\s*$/.test(m)) return true; // a code block with nothing in it
+    return !m.replace(/^[ \t]*(#{1,6}|[-*+]([ \t]+\[[ xX]\])?|\d+[.)]|>)(?=\s|$)/gm, "").trim();
+  }
+  function bareEl(el) { return bare(mdOf(el)) && !el.querySelector("img,[data-md],table,hr"); } // a block shown with nothing in it
   function claim(id, md) { // the insert of an unsent block, now going out
     var v = id && unsent[id];
     if (!v) return null;
@@ -865,7 +871,7 @@
     var f = focused, el0 = blockEl(f.id);
     save(false);
     focused = null;
-    if (unsent[f.id] && el0 && bare(mdOf(el0)) && !el0.querySelector("img,[data-md],table,hr,pre")) { removeBlock(f.id); return; } // left empty
+    if (unsent[f.id] && el0 && bareEl(el0)) { removeBlock(f.id); return; } // left empty
     if (f.sug) { var b0 = blockOf(f.id); if (b0 && f.theirs != null) b0.md = f.theirs; pull(true); } // now it shows Hermes' text and the person's suggestion on it
     redrawOne(f.id);
     ast = md.parse(fullText());
@@ -891,7 +897,10 @@
     if (el) markEmpty(el, false);
     setTimeout(function () {
       if (!el || !focused || focused.id !== el.getAttribute("data-block")) return;
-      if (el.contains(document.activeElement) || floating()) return;
+      // the page itself left (a press in Hermes) with a block "+" made still empty: gone at once (V6l: it stayed
+      // until the doc was opened again); anything else keeps its caret for when the page is back
+      var left = !document.hasFocus() && unsent[focused.id] && bareEl(el);
+      if (!left && (el.contains(document.activeElement) || floating())) return;
       commit();
     }, 0);
   });
@@ -2004,7 +2013,7 @@
     if (it.chip) {
       var saved = E.caretRange() && E.caretRange().cloneRange();
       return Promise.resolve(it.chip()).then(function (c) { // a chip that asks first (a name, the options) comes later
-      if (!c) return;
+      if (!c) { var be = id && blockEl(id); if (be && unsent[id] && bareEl(be)) removeBlock(id); return; } // its question left (Esc): a block "+" made goes, empty
       var cur = id && blockEl(id), bb = id && blockOf(id);
       if (cur && bb && editable(bb) && !isCode(bb.md)) { // in the line, where the caret was
         cur.focus();
