@@ -725,17 +725,22 @@
     // its 0 x 0 box at the canvas's origin made the connector's rect 750 x 296 px, the comment's box 57 px off)
     var r = el.getBoundingClientRect(), some = r.width > 0 || r.height > 0;
     var l = some ? r.left : Infinity, t = some ? r.top : Infinity, rt = some ? r.right : -Infinity, b = some ? r.bottom : -Infinity;
-    var list = [el].concat(Array.prototype.slice.call(el.querySelectorAll ? el.querySelectorAll("svg *") : [], 0, 200));
+    strokes(el).forEach(function (q) { l = Math.min(l, q.l); t = Math.min(t, q.t); rt = Math.max(rt, q.r); b = Math.max(b, q.b); });
+    if (!(rt > l)) return r; // no size and no strokes drawn
+    return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+  }
+  /** The strokes of the shapes drawn in el (el too), each {l, t, r, b} in the window with half its width round it. */
+  function strokes(el) {
+    var out = [], list = [el].concat(Array.prototype.slice.call(el.querySelectorAll ? el.querySelectorAll("svg *") : [], 0, 200));
     for (var i = 0; i < list.length; i++) {
       var n = list[i];
       if (!(typeof SVGGeometryElement !== "undefined" && n instanceof SVGGeometryElement)) continue;
       var cs = getComputedStyle(n), q = n.getBoundingClientRect();
       if (cs.display === "none" || cs.visibility === "hidden" || !cs.stroke || cs.stroke === "none" || /^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.stroke) || !(q.width || q.height)) continue;
       var m = n.getScreenCTM && n.getScreenCTM(), pad = (parseFloat(cs.strokeWidth) || 0) / 2 * (m ? Math.hypot(m.a, m.b) : 1);
-      l = Math.min(l, q.left - pad); t = Math.min(t, q.top - pad); rt = Math.max(rt, q.right + pad); b = Math.max(b, q.bottom + pad);
+      out.push({ l: q.left - pad, t: q.top - pad, r: q.right + pad, b: q.bottom + pad });
     }
-    if (!(rt > l)) return r; // no size and no strokes drawn
-    return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+    return out;
   }
   /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
    *  frame, a point of a film's picture), in `el` (what holds it there: the frame, the picture). The page may say
@@ -764,7 +769,9 @@
     if (line) {
       var wb = at(line.right + PIN_GAP, t);
       out.lr = line.right;
-      out.fw = free("fw", wb) && (!!given || !ownWords(el, wb)); // a boolean: the host drops anything else
+      // not on el's own words, nor on its own lines (a board connector's label drawn on its line: V6l, the pin on the
+      // line between "yes" and the arrowhead)
+      out.fw = free("fw", wb) && (!!given || (!ownWords(el, wb) && !strokes(el).some(function (q) { return q.l < wb.r && wb.l < q.r && q.t < wb.b && wb.t < q.b; }))); // a boolean: the host drops anything else
     }
     // not a part drawn as one over the grid (a sheet's chart: V6k, its pin in its middle over the pie)
     var grid = el.closest && el.closest("[data-comment-pin-in]");

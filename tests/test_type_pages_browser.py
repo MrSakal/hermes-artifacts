@@ -2273,4 +2273,7 @@ class RoundV6hBoardPick(unittest.TestCase):
         self.assertTrue(rect and o["label"].startswith("Arrow"), o)
         # the strokes' box (half the stroke round it), not the canvas's corner
         self.assertTrue(ink[0] - 4 <= rect["x"] and rect["x"] + rect["w"] <= ink[2] + 4 and ink[1] - 4 <= rect["y"] and rect["y"] + rect["h"] <= ink[3] + 4, o)
+        # V6l: the spot after its label is on its own line (the pin sat between "yes" and the arrowhead): not free
+        self.assertIn("lr", rect, o)
+        self.assertIs(rect["fw"], False, o)
 
