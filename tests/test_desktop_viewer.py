@@ -784,6 +784,12 @@ BRIDGE_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16p
                "h1{font-size:32px;margin:40px 0 16px}.row{display:flex;gap:8px;margin-top:40px}.row input{flex:1;height:34px}</style>"
                "<main><h1 id=h>Bridge demo v2</h1><p>This page checks the bridge: state, notify, reloads)</p>"
                "<div class=row><input id=msg><button>Send</button></div></main>")
+# The live Test page (V6i B2): its controls 8 px apart and a full-width field under them, none marked for the box.
+LIVE_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui;background:#1d1d1b;color:#eee}main{padding:16px}"
+             "h1{font-size:32px;margin:30px 0 24px}p{margin:0 0 16px}button{font:inherit;padding:6px 14px}.row{display:flex;gap:8px;margin-top:12px}.row input{flex:1;height:34px}</style>"
+             "<main><h1>Bridge demo v2</h1><p>Counter: <b>0</b> (kept in this artifact's storage, survives reloads)</p>"
+             "<div><button id=inc>+1</button> <button id=reset>Reset</button></div>"
+             "<div class=row><input id=msg placeholder='Message to Hermes'><button>Send</button></div></main>")
 # Every line of words and every picture or control in the frame, in the window (frame JS, off: the frame's corner).
 CONTENT = r"""(() => { const out = [], rg = document.createRange(), w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
   for (let n; (n = w.nextNode());) { if (!/\S/.test(n.nodeValue) || n.parentElement.closest('[data-hermes-ui], script, style')) continue; rg.selectNodeContents(n)
@@ -1219,7 +1225,12 @@ PLACED = r"""(() => { const box = q => [q.left, q.top, q.right, q.bottom]
   const ctl = 'a[href], button, input, select, textarea, [role=button], [role=tab], [role=link]'
   const keep = [...document.querySelectorAll('[data-comment-keep]')].filter(e => e.getClientRects().length && seen(e)).map(e => ({ r: box(e.getBoundingClientRect()),
     c: [...e.querySelectorAll(ctl)].filter(c => c.getClientRects().length && seen(c)).map(c => box(c.getBoundingClientRect())) }))
-  return { keep } })()"""
+  // V6i B2: every other control of the page, marked or not (a free-form page's buttons and fields, a doc's checkboxes)
+  const foc = ctl + ', [role=checkbox], [role=switch], [role=menuitem], [role=option], [role=slider], [role=combobox], summary, [tabindex]:not([tabindex="-1"])'
+  const ctls = [...document.querySelectorAll(foc)].filter(e => !e.closest('[data-comment-keep], [data-hermes-ui], [data-comment-under], [data-comment-hide]') && !e.hasAttribute('contenteditable')
+    && e.getClientRects().length && seen(e)).map(e => [...box(e.getBoundingClientRect()), e.tagName + '.' + e.className + ' ' + (e.getAttribute('aria-label') || '')])
+    .filter(q => q[2] - q[0] >= 1 && q[3] - q[1] >= 1 && (q[2] - q[0]) * (q[3] - q[1]) <= innerWidth * innerHeight / 4 && q[2] > 0 && q[3] > 0 && q[0] < innerWidth && q[1] < innerHeight)
+  return { keep, ctls } })()"""
 # What the host drew for the draft (its box and pin), the bridge's rect of the part picked, and the stage.
 DRAWN = r"""(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }
   const ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*="z-index: 27"]')
@@ -1265,6 +1276,8 @@ class CommentPlacementProperty(unittest.TestCase):
         grid = lambda sel: f'(() => {{ const r = {sel}.getBoundingClientRect(), o = []; for (const fx of [0.15, 0.5, 0.85]) for (const fy of [0.15, 0.5, 0.85]) o.push([r.left + r.width * fx, r.top + r.height * fy]); return o }})()'
         cls.fixtures = {
             "page": (store.publish(title="Test page", type="page", html=BRIDGE_PAGE)["id"], 'document.querySelector("main")', '[...document.querySelectorAll("h1, p, input, button")]'),
+            # V6i B2: the live Test page's shape, nothing marked: "+1" with Reset 8 px after it, the message field under
+            "page-live": (store.publish(title="Test page", type="page", html=LIVE_PAGE)["id"], 'document.querySelector("main")', '[...document.querySelectorAll("h1, p, input, button")]'),
             "doc": (store.publish(path=str(ex / "doc"), title="Test doc", type="doc")["id"], 'document.querySelector(".doc-blk")', '[...document.querySelectorAll(".doc-blk, .doc-blk td")]'),
             "sheet": (store.publish(title="Costs", type="sheet", files={"sheet.json": sheet})["id"], 'document.querySelector("#sh-grid .sh-c")',
                       '[...document.querySelectorAll("#sh-grid .sh-c")].filter(c => c.textContent.trim())'),
@@ -1357,11 +1370,21 @@ class CommentPlacementProperty(unittest.TestCase):
                 # a region of the page's controls holding the part (a design system's nav, an item of it picked): its
                 # other controls each (V6h N2: the box 1 px on the nav's "Assets")
                 keep = [mv(k["r"]) for k in o["page"]["keep"] if not holds(k["r"])] + [mv(c) for k in o["page"]["keep"] if holds(k["r"]) for c in k["c"] if not holds(c)]
+                # V6i B2: every other control of the page, not the part picked nor one in it
+                inside = lambda k: r["x"] - 0.5 <= k[0] and k[2] <= r["x"] + r["w"] + 0.5 and r["y"] - 0.5 <= k[1] and k[3] <= r["y"] + r["h"] + 0.5
+                keep += [mv(c) + c[4:] for c in o["page"]["ctls"] if not holds(c) and not inside(c)]
                 if o.get("whole"):  # drawn as one (a board's sticky): the box keeps off all of it (V6h B2)
                     wb = mv(o["whole"])
                     e = [min(e[0], wb[0]), min(e[1], wb[1]), max(e[2], wb[2]), max(e[3], wb[3])]
                 bh = b[3] - b[1]
                 what = (kind, w, h, o["at"], {"box": b, "pin": p, "el": e})
+                # V6i B3: a pick always has its pin (a nav item between two others had none)
+                self.assertTrue(p, ("no pin", what))
+                # V6i B2: the pin's centre never on another control of the page ("+1"'s pin in Reset)
+                pc = ((p[0] + p[2]) / 2, (p[1] + p[3]) / 2)
+                own = [c for c in o["page"]["ctls"] if inside(c) and not holds(c)]  # the part's own buttons too
+                for k in keep + [mv(c) + c[4:] for c in own]:
+                    self.assertFalse(k[0] + 0.5 < pc[0] < k[2] - 0.5 and k[1] + 0.5 < pc[1] < k[3] - 0.5, ("the pin on a control of the page", k, r.get("kp"), what))
                 ok = self.hard(b, s, p, e, keep)
                 if not ok:  # only where some spot keeps them all
                     can = next(((x, y) for x, y in self.spots(s, bh) if self.hard([x, y, x + self.W, y + bh], s, p, e, keep)), None)
@@ -1371,11 +1394,22 @@ class CommentPlacementProperty(unittest.TestCase):
                 if p and (r["w"] < 52 or r["h"] < 52) and "px" not in r and not r.get("pt") and not after:
                     over = max(0, min(p[2], e[2]) - max(p[0], e[0])) * max(0, min(p[3], e[3]) - max(p[1], e[1]))
                     self.assertLessEqual(over, 0.25 * (e[2] - e[0]) * (e[3] - e[1]), ("the pin covers a small part", what))
+                # V6i B4: off the part the page named that holds the pick (a KPI's card, its number picked) where a spot
+                # clear of it by 8 px within 80 px of the pin keeps the hard rules
+                if ok and p and r.get("pb"):
+                    pb = mv(r["pb"])
+                    if self.meet(b, pb, self.GAP):
+                        for x, y in self.spots(s, bh):
+                            a = [x, y, x + self.W, y + bh]
+                            if self.gap(a, p) <= 80 - 1 and not self.meet(a, pb, self.GAP + 1) and self.hard(a, s, [p[0] - 0.5, p[1] - 0.5, p[2] + 0.5, p[3] + 0.5], [e[0] - 0.5, e[1] - 0.5, e[2] + 0.5, e[3] + 0.5], keep):
+                                self.fail(("the box on the part holding the pick while a spot off it by the pin keeps the rules", a, pb, what))
                 d = self.gap(b, p) if p else self.gap(b, e)
                 worst = max(worst, d)
                 # V6h N1: nearness wins: a box more than NEAR (+1, whole px) from its pin only where no spot that near
                 # keeps the hard rules, whatever it covers
-                if p and self.gap(b, p) > self.NEAR + 1:
+                # (V6i B4: one clear of the part holding the pick within 80 px goes first)
+                clear = r.get("pb") and not self.meet(b, mv(r["pb"]), self.GAP) and self.gap(b, p) <= 80 + 1
+                if p and self.gap(b, p) > self.NEAR + 1 and not clear:
                     for x, y in self.spots(s, bh, p):
                         a = [x, y, x + self.W, y + bh]
                         # kept in whole layout px (the placement rounds away; the hard check allows half a px)
@@ -1401,6 +1435,9 @@ class CommentPlacementProperty(unittest.TestCase):
 
     def test_page(self):
         self.check("page")
+
+    def test_page_live(self):
+        self.check("page-live")
 
     def test_doc(self):
         self.check("doc")
@@ -1692,6 +1729,52 @@ class RoundV6hHeldPress(unittest.TestCase):
         lost = [o for o in out if not o["draft"] or o["picking"]]
         self.assertFalse(lost, ("picks lost", lost))
         self.assertFalse([o for o in out if o["point"]], ("a pick fell back to the point", out))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6iPress(unittest.TestCase):
+    """Live round V6i (5fd0b90), B1: a deck just opened, Comment, a press 20-90 ms later: 3 of 24 lost, picking left
+    armed, nothing held. The page had said its click picks and the cover was gone, but Chromium hit-tested the
+    out-of-process frame just revealed as the frame ELEMENT of the host's document (CDP: pointerdown target=IFRAME at
+    the top, nothing in the page): neither the page nor the cover saw it. Here that press is made as it arrived live,
+    on the stage's iframe element in the host, at each type's part; it ends in a draft within 3 s."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+        ex = D.ROOT / "examples"
+        cls.cases = {
+            "slides": (store.publish(path=str(ex / "slides"), title="Test slides", type="slides")["id"], 'document.querySelector(".sl-clip .sl-canvas h1")'),
+            "page": (store.publish(title="Test page", type="page", html=LIVE_PAGE)["id"], 'document.querySelector("h1")'),
+            "doc": (store.publish(path=str(ex / "doc"), title="Test doc", type="doc")["id"], 'document.querySelector(".doc-blk")'),
+            "sheet": (store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"],
+                      'document.querySelector("#sh-grid .sh-c")'),
+        }
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_a_press_the_frame_never_got_ends_in_a_draft(self):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        for kind, (aid, sel) in self.cases.items():
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, SETTLE = 1500; await api.size(1250, 764);" + BOOT_ANY + """
+              const q = await api.frame('(() => { const e = ' + SEL + '; const b = e.getClientRects()[0] || e.getBoundingClientRect(); return [b.left + Math.min(20, b.width / 2), b.top + Math.min(10, b.height / 2)] })()')
+              await api.top('window.H.M.$picking.set(true)')
+              for (let i = 0; i < 100 && await api.top('(() => { const h = document.querySelector("[data-pick-hold]"); return !!h && h.style.display !== "none" })()'); i++) await api.sleep(20)
+              const off = await frameAt(), x = off[0] + q[0], y = off[1] + q[1]
+              await api.top(`(() => { const f = document.querySelector('[data-frame="shown"] iframe'), o = { bubbles: true, cancelable: true, composed: true, clientX: ${x}, clientY: ${y}, button: 0, pointerId: 1, isPrimary: true }
+                for (const [T, t] of [[PointerEvent, 'pointerdown'], [MouseEvent, 'mousedown'], [PointerEvent, 'pointerup'], [MouseEvent, 'mouseup'], [MouseEvent, 'click']]) f.dispatchEvent(new T(t, o)) })()`)
+              const t0 = Date.now(); let d = null
+              for (let i = 0; i < 35 && !d; i++) { await api.sleep(100); d = await api.top('window.H.M.$draft.get()') }
+              return { ms: Date.now() - t0, draft: d, picking: await api.top('window.H.M.$picking.get()') }""", timeout=180)
+            self.assertIsNone(r.get("err"), (kind, r))
+            o = r["out"]
+            self.assertTrue(o["draft"], (kind, "the press was lost", o))
+            self.assertTrue(o["draft"].get("anchor"), (kind, "a point, not the part pressed", o))
+            self.assertFalse(o["picking"], (kind, o))
+            self.assertLess(o["ms"], 3100, (kind, o))
 
 
 if __name__ == "__main__":

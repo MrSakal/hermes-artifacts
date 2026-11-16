@@ -1575,7 +1575,8 @@
   view.addEventListener("pointercancel", onUp);
   view.addEventListener("pointerleave", function () { ghost.hidden = true; });
   view.addEventListener("wheel", function (e) {
-    if (C.thumb || e.target.closest(".bd-ctx,.bd-edit")) return;
+    // a note's editor or a menu keeps its own scroll; a ctrl+wheel over a note being written still zooms (V6i N3)
+    if (C.thumb || e.target.closest(".bd-ctx") || (!(e.ctrlKey || e.metaKey) && e.target.closest(".bd-edit"))) return;
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX - vrc.left, e.clientY - vrc.top, cam.z * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0022)));
     else {

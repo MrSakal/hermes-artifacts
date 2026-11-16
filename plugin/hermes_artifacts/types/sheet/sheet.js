@@ -2973,7 +2973,10 @@
     if (m) { var b2 = cellBox(m.r2, m.c2); b.w = b2.x + b2.w - b.x; b.h = b2.y + b2.h - b.y; }
     var x0 = c < fc ? HW : HW + FW, x1 = c < fc ? HW + FW : vpW, y0 = r < fr ? HH : HH + FH, y1 = r < fr ? HH + FH : vpH;
     if (b.x + b.w <= x0 || b.x >= x1 || b.y + b.h <= y0 || b.y >= y1) {
-      return { x: v.left + Math.max(x0, Math.min(x1 - 1, b.x + b.w / 2)), y: v.top + Math.max(y0, Math.min(y1 - 1, b.y + b.h / 2)), w: 0, h: 0, point: true };
+      // the pin is drawn centred on the point: half a pin and its edge room inside the pane (V6i N4: 13 px of it
+      // over the frozen row)
+      var m2 = 17, ix = function (lo, hi, v2) { return hi - lo > 2 * m2 ? Math.max(lo + m2, Math.min(hi - m2, v2)) : (lo + hi) / 2; };
+      return { x: v.left + ix(x0, x1, b.x + b.w / 2), y: v.top + ix(y0, y1, b.y + b.h / 2), w: 0, h: 0, point: true };
     }
     var out = { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h }, k = key(m ? m.r1 : r, m ? m.c1 : c);
     for (var i = 0; i < cellQ.length; i++) {

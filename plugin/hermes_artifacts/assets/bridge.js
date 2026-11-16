@@ -536,7 +536,15 @@
   }
   /** What a click on t picks: t, or the part drawn as one that holds it ([data-comment-whole]: a board's sticky or
    *  shape, whose words inside are not a part of their own: V6h, the box 5 px off the pill drawn round "Ship"). */
-  function wholeOf(t) { return (t && t.closest && t.closest("[data-comment-whole]")) || t; }
+  // A click on the words or icon inside one of the page's controls picks the control (V6i B3: a design system's
+  // nav item picked as its label span, the box 4.8 px off the button holding it and the pin dropped on its neighbour).
+  function wholeOf(t) {
+    if (!t || !t.closest) return t;
+    var w = t.closest("[data-comment-whole]");
+    if (w) return w;
+    var c = t.closest(CONTROL);
+    return c && c !== t && !c.hasAttribute("contenteditable") ? c : t;
+  }
   function onMove(e) {
     if (!picking) return;
     var el = wholeOf(e.target);
@@ -810,8 +818,25 @@
       var cs = ns[i].querySelectorAll(CONTROL);
       for (var j = 0; j < cs.length && out.length < KEEP_MAX; j++) if (!cs[j].contains(el) && !el.contains(cs[j])) push(cs[j]);
     }
+    // Every other control of the page in sight, marked or not, the nearest el first (V6i B2: a free-form page's
+    // Reset under the pin of "+1", its message field under the box): a button, a field, a link, a checkbox, anything
+    // focusable; not one the page hides while picking, nor a box as big as a quarter of the window (a canvas, a grid).
+    var e = el.getBoundingClientRect(), more = [];
+    var all = document.querySelectorAll(FOCUSABLE);
+    for (var k = 0; k < all.length && k < 2000; k++) {
+      var n = all[k];
+      // the part's own buttons too (the pin never on them; the box keeps off the part anyway): not el nor one holding it
+      if (n.closest("[data-comment-keep],[data-hermes-ui],[data-comment-under],[data-comment-hide]") || n.contains(el) || n.hasAttribute("contenteditable")) continue;
+      var q = n.getBoundingClientRect();
+      if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight || q.width * q.height > innerWidth * innerHeight / 4) continue;
+      if (getComputedStyle(n).visibility === "hidden") continue; // shown on hover (opacity 0) counts: it comes under the pointer
+      more.push({ n: n, d: Math.hypot(Math.max(0, q.left - e.right, e.left - q.right), Math.max(0, q.top - e.bottom, e.top - q.bottom)) });
+    }
+    more.sort(function (a, b) { return a.d - b.d; });
+    for (k = 0; k < more.length && out.length < KEEP_MAX; k++) push(more[k].n);
     return out;
   }
+  var FOCUSABLE = CONTROL + ", [role=checkbox], [role=switch], [role=menuitem], [role=option], [role=slider], [role=combobox], summary, [tabindex]:not([tabindex='-1'])";
   // What the host titles a comment with: the part's name where the page gave one (data-comment-label on it or
   // around it: "Note", "Slide 3", "Region filter"), with the clicked words after it; else the words; else ""
   // (the host's neutral "Selected part"), never a tag name. At most LABEL_MAX, cut at a word.

@@ -524,6 +524,52 @@ class RoundV6hPlacement(unittest.TestCase):
         self.assertIn("pin = draft.gone ? null : placed.current.v.pin", SRC)
 
 
+class RoundV6iPlacement(unittest.TestCase):
+    """Live round V6i (5fd0b90), the rects the live pages sent: a design system's nav item between two others had no pin
+    (B3: its corner fallback on a neighbour, then dropped as under controls); "+1"'s pin in Reset (B2); a KPI's box on
+    its card while a spot off it was 66 px from the pin (B4)."""
+
+    def layout(self, rect, bw=908, bh=732, h=142):
+        return run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, {bw}, {bh}, {h})))")
+
+    @staticmethod
+    def on(p, k):
+        cx, cy = p["x"] + p["s"] / 2, p["y"] + p["s"] / 2
+        return k[0] < cx < k[2] and k[1] < cy < k[3]
+
+    def test_a_nav_item_between_two_others_has_its_pin_off_them(self):
+        nav = [[10, 14, 222, 44], [10, 53, 222, 85], [10, 85, 222, 117], [10, 150, 222, 182], [10, 183, 222, 215], [10, 215, 222, 247]]
+        rect = {"x": 10, "y": 118, "w": 212, "h": 32, "ly": 124.8, "lh": 17.6, "lr": 82, "fw": True, "fr": False, "fl": False, "fa": False, "fb": False, "kp": nav,
+                "kc": [k for k in nav] + [[264, 24, 875, 208]]}
+        o = self.layout(rect)
+        self.assertTrue(o["pin"], o)
+        for k in nav:
+            self.assertFalse(self.on(o["pin"], k), (k, o))
+        b = o["box"]
+        self.assertGreaterEqual(max(b["x"] - 222, 10 - (b["x"] + 320)), 8, o)
+
+    def test_plus_ones_pin_is_never_on_reset(self):
+        ctl = [[67, 146, 130, 183], [16, 194, 834, 231], [841, 194, 901, 231]]
+        rect = {"x": 16, "y": 146.7, "w": 43.95, "h": 36.1, "ly": 154.3, "lh": 20, "fr": False, "fl": True, "fa": False, "fb": False, "lr": 47.15, "fw": False, "kp": ctl,
+                "kc": [[16, 46, 240, 86], [16, 110, 77, 130], [85, 110, 398, 130]] + ctl}
+        o = self.layout(rect)
+        self.assertTrue(o["pin"], o)
+        for k in ctl:
+            self.assertFalse(self.on(o["pin"], k), (k, o))
+        b = o["box"]
+        for k in ctl:
+            self.assertGreaterEqual(max(k[0] - (b["x"] + 320), b["x"] - k[2], k[1] - (b["y"] + 142), b["y"] - k[3]), 4, (k, o))
+
+    def test_a_kpis_box_goes_off_its_card_by_the_pin(self):
+        card = [37.5, 285.7, 318.8, 406.1]
+        rect = {"x": 56.5, "y": 298.7, "w": 60, "h": 50, "ly": 300, "lh": 46, "lr": 116.5, "fw": True, "fr": True, "fl": False, "fa": False, "fb": False, "pb": card,
+                "kc": [[56, 298, 300, 315], [56, 320, 117, 348], [56, 352, 300, 370], [340, 298, 600, 315], [340, 320, 420, 348]]}
+        o = self.layout(rect, 1250, 716, 141)
+        b, p = o["box"], o["pin"]
+        self.assertGreaterEqual(max(card[0] - (b["x"] + 320), b["x"] - card[2], card[1] - (b["y"] + 141), b["y"] - card[3]), 8, o)
+        self.assertLessEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 80, o)
+
+
 class CommentsPanelLayoutTests(unittest.TestCase):
     """0.20 live: at a ~986 px window the comments list covered the sheet's right (its note, "Ask Herm…") while
     the page kept laying out for the whole row. Docked, the list takes its width from the stage: the frame

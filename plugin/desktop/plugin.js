@@ -5264,7 +5264,12 @@ function PopMenu({ items, onClose, align = 'left', width = 260, back = null }) {
       e.preventDefault(); e.stopPropagation()
       const swallow = c => { c.preventDefault(); c.stopPropagation() }
       const offC = listen(CTX, window, 'click', swallow, true), offUp = listen(CTX, window, 'mouseup', () => { offUp(); later(CTX, offC, 0) }, true)
-      offClick = () => { offC(); offUp() }
+      // Its release may never come here (MenuCover gone with the menu: it lands in the page's frame), so the next
+      // press ends it too: else that press's click was swallowed for up to a second (V6i N9: the title menu did not
+      // open again within ~600 ms).
+      let offNext = () => {}
+      const arm = later(CTX, () => { offNext = listen(CTX, window, 'mousedown', () => offClick(), true) }, 0)
+      offClick = () => { offC(); offUp(); arm(); offNext() }
       onClose()
     }
     const esc = e => e.key === 'Escape' && onClose()
@@ -5679,7 +5684,22 @@ function pinSpot(rect, bw, bh) {
   if (rect.w < 2 * PIN || rect.h < 2 * PIN) {
     for (const [x, sy] of [[R, y], [L, y], [end, A], [end, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy)) return { x, y: sy, s: PIN }
   }
-  return { x: clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), y: clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE), s: PIN }
+  // Over the part, in its top right corner, unless that is on the page's controls (V6i B3: a nav item between two
+  // others: the pin there was on a neighbour, and not drawn at all): then the nearest spot by the part off them, off
+  // the part and the page's other content first, every 4 px out to 3 pins; a pin always.
+  const corner = [clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE)]
+  if (!onCtl(corner[0], corner[1])) return { x: corner[0], y: corner[1], s: PIN }
+  let top = null
+  for (let x = Math.floor(E[0] - 3 * PIN); x <= E[2] + 3 * PIN - PIN; x += 4) {
+    for (let sy = Math.floor(E[1] - 3 * PIN); sy <= E[3] + 3 * PIN - PIN; sy += 4) {
+      if (!fitsX(x) || !fitsY(sy) || onCtl(x, sy)) continue
+      const inside = x >= E[0] && x + PIN <= E[2] && sy >= E[1] && sy + PIN <= E[3]
+      const d = Math.hypot(Math.max(0, E[0] - x - PIN, x - E[2]), Math.max(0, E[1] - sy - PIN, sy - E[3])) + Math.hypot(x - corner[0], sy - corner[1]) / 1000
+      const key = [inside || onInk(x, sy) ? 1 : 0, d]
+      if (!top || key[0] < top.key[0] || (key[0] === top.key[0] && key[1] < top.key[1])) top = { x, y: sy, key }
+    }
+  }
+  return top ? { x: top.x, y: top.y, s: PIN } : { x: corner[0], y: corner[1], s: PIN }
 }
 
 const KC_MAX = 160 // the page's content boxes a pick brings (bridge.js KC_MAX)
@@ -5693,19 +5713,22 @@ const BOX_M = 8 // the least room between the new comment's box and the stage's 
 const BOX_GAP = 8 // between the box and the element (or its pin)
 const BOX_NEAR = 24 // a box this close to its pin or element reads as by it: spots every 4 px from BOX_GAP to here
 const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep its hard rules
-const BOX_BANDS = [BOX_NEAR, 80, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
+const PB_REACH = 80 // a spot clear of the part holding the element (rect.pb) this near its pin goes first
+const BOX_BANDS = [BOX_NEAR, PB_REACH, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w, h in
  *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box, by
  *  ONE ordered rule for every type:
  *  1. Hard, never broken while any spot keeps them all: inside the stage (BOX_M off its edges), BOX_GAP off the
  *     pin and off the element picked, KEEP_PAD off every one of the page's own controls in sight (rect.kp:
  *     data-comment-keep: toolbars, pills, palettes, a deck's thumbnails, a film's playback bar, a filter row's
- *     fields and Reset, a doc's comment cards, a design's strips and panel). In whole px, rounded away from each.
- *  2. Among the spots that keep them, nearness wins (V6h: a box 65-227 px off its pin over other content read as
- *     lost): the nearest of the distance bands from the pin (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first);
- *     in a band the one covering the least of the page's content (rect.kc, rect.kw, KC_PAD round each: some
- *     neighbouring words by the pin are better than a box far away), then off the whole part the page named that
- *     holds the element (rect.pb: a KPI whose number was picked), then the nearest.
+ *     fields and Reset, a doc's comment cards, a design's strips and panel; and every other button, field, link
+ *     or checkbox of the page, marked or not: bridge.js keeps). In whole px, rounded away from each.
+ *  2. Among the spots that keep them: first those BOX_GAP clear of the whole part the page named that holds the
+ *     element (rect.pb: a KPI whose number was picked) within PB_REACH of the pin (V6i); then nearness wins (V6h: a
+ *     box 65-227 px off its pin over other content read as lost): the nearest of the distance bands from the pin
+ *     (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first); in a band the one covering the least of the page's content
+ *     (rect.kc, rect.kw, KC_PAD round each: some neighbouring words by the pin are better than a box far away),
+ *     then the nearest.
  *  3. None keeps 1 at the box's height: cut (it scrolls) down to BOX_MIN_H; then the element's own room is given
  *     up (the element fills the stage: the box over it), then the controls'; the stage and the pin never.
  *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
@@ -5735,6 +5758,7 @@ function boxSpot(rect, pin, bw, bh, h) {
       for (let g = G; g <= BOX_NEAR; g += 4) { xs.add(up(R[2] + g)); xs.add(down(R[0] - g - W)); ys.add(up(R[3] + g)); ys.add(down(R[1] - g - hh)) } // adjacent, then a little off
     }
     for (const k of kp) { xs.add(up(k[2] + KEEP_PAD)); xs.add(down(k[0] - KEEP_PAD - W)); ys.add(up(k[3] + KEEP_PAD)); ys.add(down(k[1] - KEEP_PAD - hh)) }
+    if (pb) { xs.add(up(pb[2] + G)); xs.add(down(pb[0] - G - W)); ys.add(up(pb[3] + G)); ys.add(down(pb[1] - G - hh)) }
     for (let x = P[0] - W; x <= P[2]; x += BOX_SLIDE) xs.add(Math.round(x))
     for (let y = P[1] - hh; y <= P[3]; y += BOX_SLIDE) ys.add(Math.round(y))
     let top = null
@@ -5745,7 +5769,10 @@ function boxSpot(rect, pin, bw, bh, h) {
         const a = [x, y, x + W, y + hh]
         if (near(a, P, G) || (level < 2 && kp.some(k => near(a, k, KEEP_PAD))) || (level < 1 && near(a, E, G))) continue
         const d = gap(a, P), c = covers(a)
-        const key = [BOX_BANDS.findIndex(b => d <= b), c, pb && near(a, pb, 0) ? 1 : 0, d]
+        // Clear of the part the page named that holds the element (a KPI's card, its number picked) within
+        // PB_REACH of the pin, before any spot on it or by it (V6i B4: the box on the card and its neighbours)
+        const onPb = pb ? (near(a, pb, G) || d > PB_REACH ? 1 : 0) : 0
+        const key = [onPb, BOX_BANDS.findIndex(b => d <= b), c, d]
         if (!top || less(key, top.key)) top = { x, y, key }
       }
     }
@@ -5840,9 +5867,18 @@ function PickHold({ F, stageRef, portRef }) {
     if (el) el.style.display = $picking.get() && !$pickOn.get() && !(s && (s.err || (s.hello > 0 && s.hello < PICK_ACK))) ? '' : 'none'
   }
   useLayoutEffect(sync)
+  const holdRef = useRef(null)
   useLayoutEffect(() => {
     const offs = [$picking.listen(() => { $pickOn.set(false); dropHeld(); sync() }), $pickOn.listen(sync)]
-    return () => offs.forEach(off => off())
+    // A press on the stage's frame that its page never got: Chromium hit-tests an out-of-process frame just revealed
+    // (or not yet drawn) as the frame element of this document, and the page sees nothing (V6i B1: 3 of 24 picks
+    // of a deck at 20-90 ms after Comment, the cover gone, nothing held, picking left armed). Held as the cover's.
+    const onFrame = e => {
+      const st = stageRef.current
+      if ($picking.get() && e.button === 0 && e.target?.tagName === 'IFRAME' && st && st.contains(e.target)) holdRef.current?.(e)
+    }
+    window.addEventListener('pointerdown', onFrame, true)
+    return () => { offs.forEach(off => off()); window.removeEventListener('pointerdown', onFrame, true) }
   }, [])
   // Held in the window's px: the frame may not be there yet (a page still loading); the frame's px when given.
   const hold = e => {
@@ -5852,6 +5888,7 @@ function PickHold({ F, stageRef, portRef }) {
     const st = stageRef.current, frame = () => (st?.querySelector('[data-frame="shown"] iframe') || st?.querySelector('[data-frame] iframe'))?.getBoundingClientRect()
     if ($pickOn.get()) giveHeld(portRef.current, frame) // it said so before this cover went
   }
+  holdRef.current = hold
   // The press held shows it was taken (V6g: a sheet's draft came up to 2.9 s after it, nothing seen meanwhile): at
   // the point pressed, a ring turning (core's animate-spin), "Loading…" for its name: busy, not a comment's pin.
   const box = held && ref.current ? ref.current.getBoundingClientRect() : null
@@ -6363,6 +6400,7 @@ function Viewer({ ctx, docked = false }) {
   const expanded = useValue($dockPos) === 'center'
   const dockFloat = useValue($dockFloat)
   const picking = useValue($picking)
+  const pressHeld = Boolean(useValue($pickHeld))
   const comments = useValue($comments)
   const makings = useValue($makings)
   const [, setTick] = useState(0)
@@ -6487,7 +6525,9 @@ function Viewer({ ctx, docked = false }) {
                     style: { position: 'absolute', inset: 0, zIndex: 1, display: 'flex', background: C.bg },
                     children: fromMaking === art.id
                       ? jsx(MakingSkeleton, { type: art.type })
-                      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: t('loading') })
+                      // While a press is held, PickHold's turning ring at the point pressed says it: no second
+                      // "Loading…" by it (V6i N5: read as the ring's own label, off its centre)
+                      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: pressHeld ? null : t('loading') })
                   }),
               jsx(PickHold, { F, stageRef: stage, portRef }),
               jsx(MenuCover, {}),
