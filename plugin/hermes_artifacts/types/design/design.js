@@ -1116,7 +1116,8 @@
   }
 
   // ------------------------------------------------------------------ properties panel
-  var tab = "design", panelHidden = false, sheetAsked = false;
+  // emptyAsked: the panel opened (Properties pressed) with nothing selected: it shows what to select
+  var tab = "design", panelHidden = false, sheetAsked = false, emptyAsked = false;
   function narrow() { return innerWidth < 760; }
   function setTab(t) { tab = t; panelHidden = false; if (narrow()) sheetAsked = true; renderPanel(); drawTools(); }
   function computed(k) { var i = sel.info[sel.tids[0]]; return i && i.computed ? i.computed[k] || "" : ""; }
@@ -1202,15 +1203,17 @@
     // Under 760 px the panel is a sheet over the canvas: open only when asked (the Properties button), so a pick
     // leaves the canvas, its element toolbar and breadcrumb in view.
     var off = narrow() ? !sheetAsked : panelHidden;
-    panelEl.hidden = off || !!focus || (!bp && tab !== "outline");
-    panelBtn.classList.toggle("is-on", !off); panelBtn.setAttribute("aria-pressed", String(!off));
+    // pressed only while it shows (V6l: pressed with nothing selected, it showed nothing, as if dead): then, with
+    // nothing selected, it says what to select
+    panelEl.hidden = off || !!focus || (!bp && tab !== "outline" && !emptyAsked);
+    panelBtn.classList.toggle("is-on", !panelEl.hidden); panelBtn.setAttribute("aria-pressed", String(!panelEl.hidden));
     app.classList.toggle("is-sheet", narrow() && !panelEl.hidden);
     if (panelEl.hidden) return;
     var tabBtn = function (k, label) { return h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === k), text: label, onclick: function () { setTab(k); } }); };
     var tabs = h("div", { "class": "dc-tabs" }, [tabBtn("design", T.properties), tabBtn("outline", T.outline), tabBtn("code", T.code), tabBtn("tweaks", T.tweaks),
       h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close"), onclick: function () {
         if (narrow()) sheetAsked = false; else panelHidden = true;
-        renderPanel(); drawTools(); panelBtn.focus();
+        emptyAsked = false; renderPanel(); drawTools(); panelBtn.focus();
       } })]);
     var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
       : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
@@ -1917,8 +1920,9 @@
     kit.menu(playBtn, (live.length ? [{ hint: T.prototypes }].concat(live.map(item)) : []).concat(rest.length ? [{ hint: T.statics }].concat(rest.map(item)) : []));
   });
   var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () {
-    if (narrow()) sheetAsked = !sheetAsked; else panelHidden = !panelHidden;
-    renderPanel(); drawTools();
+    var open = panelEl.hidden; // shown or not, not by its own flag alone (nothing selected hides it too)
+    if (narrow()) sheetAsked = open; else panelHidden = !open;
+    emptyAsked = open; renderPanel(); drawTools();
   });
   var zoomLabel = h("span");
   var zoomBtn = cbtn("", T.zoom, function () {

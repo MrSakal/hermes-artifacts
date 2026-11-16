@@ -2163,6 +2163,23 @@ class RoundV6hPages(unittest.TestCase):
             o = self.drive_page(aid, self.RING + f"const keys = await ring({json.dumps(sel)}, true); return {{ mouse: await ring({json.dumps(sel)}, false), keys }}", settle=2500)
             self.assertEqual(o, {"mouse": False, "keys": True}, (kind, o))
 
+    def test_a_designs_properties_pressed_with_nothing_selected_shows_what_to_select(self):
+        # V6l: Properties pressed with nothing selected looked pressed and showed no panel. Pressed only while the panel
+        # shows; with nothing selected it says what to select, as an artboard's says "Select an element…"
+        aid = self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        o = self.drive_page(aid, """
+          const st = () => api.frame('(() => { const b = [...document.querySelectorAll(".dc-pill button")].find(b => /propert|tulajdon|panel/i.test(b.getAttribute("aria-label") || b.title)), p = document.getElementById("dc-panel"); return { pressed: b.getAttribute("aria-pressed"), shown: !p.hidden && p.getClientRects().length > 0, text: p.hidden ? "" : (p.querySelector(".dc-pnote") || {}).textContent || "" } })()')
+          const press = async () => { const q = await api.frame('(() => { const b = [...document.querySelectorAll(".dc-pill button")].find(b => /propert|tulajdon|panel/i.test(b.getAttribute("aria-label") || b.title)); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()'); await api.mouse(q[0], q[1]); await api.sleep(500) }
+          const o = { load: await st() }
+          await press(); o.first = await st()
+          await press(); o.second = await st()
+          return o""", settle=3000)
+        for k in ("load", "first", "second"):
+            self.assertEqual(o[k]["pressed"] == "true", o[k]["shown"], (k, o))  # pressed exactly while it shows
+        self.assertTrue(o["first"]["shown"] != o["second"]["shown"], o)  # the button does something each time
+        shown = o["first"] if o["first"]["shown"] else o["second"]
+        self.assertIn(shown["text"], ("Select an artboard or an element.", "Jelölj ki egy rajzlapot vagy egy elemet."), o)
+
     def test_a_strip_cut_by_the_canvas_edge_shows_its_name_in_the_part_in_sight(self):
         # N6: a strip cut by the canvas's left edge showed an empty 26 px sliver (its name off screen). Its name, or
         # its handle, is in the part in sight.
