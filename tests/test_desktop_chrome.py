@@ -22,7 +22,7 @@ EXPORTS = ("\nexport { STRINGS, fitPopup, placeCommentBox, PIN, COMMENT_W, errTe
            " shellCache, notifyArgs, PASS_OPS, GRACE_REFUSED, onPageEvent, $draft, noteGate, noteText, commentLayout, commentDocks,"
            " fetchHtml, htmlStamp, dropHtml, htmlCache, pinSpot, pickedRect, PIN_GAP, dateText, cardKey, CARD_KEYS,"
            " askedEdit, editOf, $popups, panelMode, panelStyle, VIEW_ROW, VIEW_FILL, FRAME_FIT, PANEL_W, STAGE_MIN,"
-           " BOX_M, BOX_GAP, BOX_MIN_H, BAND_MIN, anchorTitle, $panel }\n")
+           " BOX_M, BOX_GAP, BOX_MIN_H, BAND_MIN, anchorTitle, $panel, $kept, $picking, closeDraft, shelveDraft, reopenKept }\n")
 NEW_KEYS = ["errStorage", "errDraining", "errOffline", "errGeneric", "errNoChat", "popInNoChat", "clearFilters",
             "clearFiltersTip", "noPreviewYet", "openComments", "editingBand", "copyWord", "discard", "noOpenComments",
             "noResolvedComments", "folderMore", "folderRename", "folderDelete", "folderDelConfirm", "folderDelConfirmSub",
@@ -174,15 +174,15 @@ class CommentPinTests(unittest.TestCase):
         """
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out, {"rect": {"x": 600, "y": 425, "w": 120, "h": 30}, "sameAnchor": True, "bad": True, "none": None})
-        # a new pick starts empty, as a selection's draft and a reply do ("Send to Hermes" is the checkbox)
-        self.assertIn("useEffect(() => (setText(''), setSend(true)), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
+        # a new pick starts empty (its words are the draft's own), as a selection's draft and a reply do
+        self.assertIn("const text = draft?.text || '', send = draft?.send !== false", section("function CommentPopover(", "function DockView("))
         self.assertIn("useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])", section("function CommentsPanel(", "function Viewer("))
         self.assertNotIn("'@Hermes '", SRC)
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         # watched every frame (a scroll, a resize, a pan, a re-layout), gone when no longer drawn (V6h)
-        self.assertIn('emit("picked-rect", { rect: picked.box ? boxRect(picked.el, picked.box()) : pickRect(picked.el) });', bridge)
-        self.assertIn('if (!w) { emit("picked-rect", { gone: true }); return; }', bridge)
-        self.assertIn("if (picked || pins.length) watchRaf = requestAnimationFrame(watch);", bridge)
+        self.assertIn('emit("picked-rect", { rect: p.box ? boxRect(p.el, p.box()) : pickRect(p.el), k: p.k });', bridge)
+        self.assertIn('if (!w) { emit("picked-rect", { gone: true, k: p.k }); return; }', bridge)
+        self.assertIn("if (followed.length || pins.length) watchRaf = requestAnimationFrame(watch);", bridge)
 
     def test_the_pin_never_covers_its_element_when_there_is_room(self):
         # 0.20 click-through: the pin sat on the last letters of "Site survey" and the line above. Now it goes
@@ -286,7 +286,7 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("const PIN = 26", SRC)
         self.assertIn("const PIN_GAP = 6", SRC)
         self.assertIn("const PIN_EDGE = 4", SRC)
-        self.assertIn('rect: pickRect(el) });', bridge)
+        self.assertIn('rect: pickRect(el), k: k });', bridge)
         self.assertNotIn("function inked(", bridge)
 
     def test_the_pin_is_drawn_over_the_box(self):
@@ -453,7 +453,7 @@ class CommentPinTests(unittest.TestCase):
 
     def test_the_page_stops_following_when_the_comment_closes(self):
         viewer = section("function Viewer(", "function Toast(")
-        self.assertIn("if (!following) postToPage(portRef, 'pick-follow', { on: false })", viewer)
+        self.assertIn("if (!now.includes(k)) postToPage(portRef, 'pick-follow', { on: false, k })", viewer)
         body = """
         const anchor = { selector: '#a', text: 'x', label: 'p' }
         m.$draft.set({ anchor, rect: { x: 1, y: 2, w: 3, h: 4 } })
@@ -463,9 +463,55 @@ class CommentPinTests(unittest.TestCase):
         """
         self.assertEqual(run_node(stub_module(EXPORTS), body), {"same": True})  # an unchanged rect re-renders nothing
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
-        self.assertIn('on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });', bridge)
+        self.assertIn("followed = followed.filter(function (p) { if (p.k !== (d && d.k)) return true;", bridge)
         self.assertIn("var PICKED_GAP_MS = 40;", bridge)
         self.assertNotIn('"contextmenu", "touchstart"', bridge)  # a tap's touchstart is never cancelled
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class RoundV6mKeptDrafts(unittest.TestCase):
+    """Live round V6m item 1: a second pick dropped a kept draft (its pin and words gone); Esc in the box threw its
+    words away. Kept drafts coexist, each by its own pin, followed by its own k; Esc closes as a press outside."""
+
+    def test_drafts_with_words_coexist_and_reopen_by_their_pins(self):
+        body = """
+        const A = { anchor: { selector: '#a' }, rect: { x: 100, y: 100, w: 80, h: 20 }, k: 1 }
+        m.$picking.set(true); m.onPageEvent('picked', { selector: '#a', text: 'A', rect: A.rect, k: 1 })
+        m.$draft.set({ ...m.$draft.get(), text: 'alpha' }); m.closeDraft()
+        const closedA = m.$draft.get()
+        m.shelveDraft(); m.$picking.set(true)  // Comment pressed again
+        m.onPageEvent('picked', { selector: '#b', text: 'B', rect: { x: 300, y: 300, w: 80, h: 20 }, k: 2 })
+        const afterB = { draft: m.$draft.get().anchor.selector, text: m.$draft.get().text || '', kept: m.$kept.get().map(d => [d.anchor.selector, d.text, d.k]) }
+        m.$draft.set({ ...m.$draft.get(), text: 'beta' }); m.closeDraft()
+        // A's part scrolled: only A's pin follows
+        m.onPageEvent('picked-rect', { rect: { x: 100, y: 40, w: 80, h: 20 }, k: 1 })
+        const moved = { a: m.$kept.get()[0].rect.y, b: m.$draft.get().rect.y }
+        m.$picking.set(true); m.reopenKept(m.$kept.get()[0])  // pressed while picking: that ends it
+        const reA = { draft: m.$draft.get().anchor.selector, text: m.$draft.get().text, closed: m.$draft.get().closed, kept: m.$kept.get().map(d => [d.anchor.selector, d.text]), picking: m.$picking.get() }
+        m.$draft.set(null)  // Discard: the open one only
+        const afterDiscard = { draft: m.$draft.get(), kept: m.$kept.get().map(d => d.anchor.selector) }
+        m.$picking.set(true); m.onPageEvent('picked', { selector: '#c', rect: { x: 500, y: 500, w: 80, h: 20 }, k: 3 })
+        m.closeDraft()  // Esc on an empty draft: gone
+        const emptyEsc = { draft: m.$draft.get(), kept: m.$kept.get().length }
+        console.log(JSON.stringify({ closedA: closedA.closed, afterB, moved, reA, afterDiscard, emptyEsc }))
+        """
+        o = run_node(stub_module(EXPORTS), body)
+        self.assertTrue(o["closedA"], o)
+        self.assertEqual(o["afterB"], {"draft": "#b", "text": "", "kept": [["#a", "alpha", 1]]}, o)
+        self.assertEqual(o["moved"], {"a": 40, "b": 300}, o)
+        self.assertEqual(o["reA"], {"draft": "#a", "text": "alpha", "closed": False, "kept": [["#b", "beta"]], "picking": False}, o)
+        self.assertEqual(o["afterDiscard"], {"draft": None, "kept": ["#b"]}, o)
+        self.assertEqual(o["emptyEsc"], {"draft": None, "kept": 1}, o)
+
+    def test_esc_in_the_box_closes_it_and_each_kept_pin_is_drawn(self):
+        pop = section("function CommentPopover(", "function DockView(")
+        self.assertIn("onEsc: closeDraft", pop)
+        self.assertIn("pinEl(pin, () => reopenKept(d), null, `kept${i}`)", pop)
+        self.assertIn("if (e.key === 'Escape') return (e.preventDefault(), onEsc ? onEsc() : discard())", section("function CommentForm(", "function CommentsPanel("))
+        for press in ("onClick: () => {\n              shelveDraft()", "shelveDraft(), $picking.set(true)", "(shelveDraft(), $picking.set(!picking))"):
+            self.assertIn(press, SRC)
+        bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
+        self.assertNotIn("if (picking) unfollow();", bridge)  # a new pick no longer forgets the kept parts
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -1033,7 +1079,7 @@ class ClickThroughTests(unittest.TestCase):
         self.assertEqual(form.count("children: t('save') })"), 1)
         self.assertNotIn("jsx(Icon", form)
         self.assertNotIn("t('cancel')", form)
-        self.assertIn("if (e.key === 'Escape') return discard()", form)
+        self.assertIn("onEsc ? onEsc() : discard()", form)
 
     def test_one_empty_state_for_every_type_and_tab(self):
         panel = section("function CommentsPanel(", "function Viewer(")

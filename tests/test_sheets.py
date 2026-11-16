@@ -364,7 +364,7 @@ class BridgeTests(unittest.TestCase):
         cut = lambda t: re.sub(m.group(1), "", t.strip(), count=1, flags=re.I)  # noqa: E731
         self.assertEqual([cut(t) for t in ("@Hermes ", "@hermes, ", "@Hermes: fix it", "@Hermesx")], ["", "", "fix it", "@Hermesx"])
         self.assertIn("if (!body || busy) return", submit)                   # nothing is sent then
-        self.assertIn("if (e.key === 'Escape') return discard()", form)      # Esc discards, sends nothing
+        self.assertIn("onEsc ? onEsc() : discard()", form)                   # Esc closes or discards, sends nothing
         self.assertIn("const discard = () => (setText(''), onDone())", form)
         page = (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js").read_text("utf-8")
         sel = page[page.index("function commentSel()"):page.index("function askSel()")]

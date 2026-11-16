@@ -619,7 +619,26 @@ const $picking = atom(false)
 // Comment, or in a design's 1.5 s of artboards loading, picked nothing).
 const $pickOn = atom(false)
 const $pickHeld = atom(null) // {x, y} in the window
-const $draft = atom(null) // {anchor} while writing a new comment
+// The new comment written now: {anchor, rect, k (the page's follow of its part), text, send, closed (by its pin), gone}
+const $draft = atom(null)
+const $kept = atom([]) // the other new comments closed with their words, each by its own pin: drafts as $draft's
+/** Another new comment is started (a pick, a page's own Comment): the one written now stays by its pin beside the
+ *  others while it has words (only Discard throws words away), else it goes. */
+function shelveDraft() {
+  const d = $draft.get()
+  if (d?.rect && String(d.text || '').trim()) $kept.set([...$kept.get(), { ...d, closed: true }])
+  $draft.set(null)
+}
+const startDraft = d => (shelveDraft(), $draft.set(d))
+/** A kept comment's pin pressed (picking too: that ends it): its box opens with its words; the one written now is
+ *  kept (shelveDraft). */
+function reopenKept(d) {
+  if (!$kept.get().includes(d)) return
+  $picking.set(false)
+  shelveDraft()
+  $draft.set({ ...d, closed: false })
+  $kept.set($kept.get().filter(x => x !== d))
+}
 const $panelCover = atom(0) // px of the stage's right the comments list covers while it floats over it (0: beside it, or closed)
 const $toast = atom(null)
 const $confirm = atom(null) // {kind: send|query, text, at, resolve}: a page asked to send something or to run a live query; the user confirms it here, outside the frame (Claude's vouched send)
@@ -1385,6 +1404,7 @@ function openArtifact(ctx, id) {
   $page.set(null)
   $comments.set([])
   $draft.set(null)
+  $kept.set([])
   $picking.set(false)
   ctx.storage.set('last', id)
   ctx.rest(`/artifacts/${enc(id)}/meta`, { method: 'POST', body: { opened: true } }).catch(() => {})
@@ -1406,6 +1426,7 @@ function closeArtifact() {
   $selected.set(null)
   $picking.set(false)
   $draft.set(null)
+  $kept.set([])
 }
 
 /** A short note to the person: Hermes' own toast (host.notify: its stack and its look, wherever the plugin's
@@ -4376,17 +4397,22 @@ function onPageEvent(event, detail) {
     $picking.set(false)
     const rect = pickedRect(detail && detail.rect)
     if (!rect) openPanel()
-    $draft.set({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null, ...(rect ? { rect } : {}) })
+    startDraft({ anchor: detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40), ...(detail.tab ? { tab: String(detail.tab).slice(0, 40) } : {}) } : null, ...(rect ? { rect } : {}), k: followKey(detail) })
     return
   }
   if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickHint)
   if (event === 'press-out') return closeBox?.() // a press in the page outside the new comment's box
-  if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize, a pan), or is gone
-    const d = $draft.get(), r = pickedRect(detail && detail.rect)
-    if (!d?.rect) return
-    // no longer drawn (removed, a slide not shown): its pin goes until it is back; the box and its words stay
-    if (detail?.gone === true) return d.gone ? undefined : $draft.set({ ...d, gone: true })
-    if (r && (d.gone || Object.keys(r).some(k => r[k] !== d.rect[k]))) $draft.set({ ...d, rect: r, gone: false })
+  if (event === 'picked-rect') { // the element picked for a new comment moved (a scroll, a resize, a pan), or is gone
+    const k = followKey(detail), r = pickedRect(detail && detail.rect)
+    const moved = d => {
+      if (!d?.rect || (d.k || 0) !== k) return d
+      // no longer drawn (removed, a slide not shown): its pin goes until it is back; the box and its words stay
+      if (detail?.gone === true) return d.gone ? d : { ...d, gone: true }
+      return r && (d.gone || Object.keys(r).some(q => r[q] !== d.rect[q])) ? { ...d, rect: r, gone: false } : d
+    }
+    const d = $draft.get(), nd = moved(d), kept = $kept.get(), nk = kept.map(moved)
+    if (nd !== d) $draft.set(nd)
+    if (nk.some((x, i) => x !== kept[i])) $kept.set(nk)
     return
   }
   if (event === 'picked' && $picking.get()) {
@@ -4394,9 +4420,11 @@ function onPageEvent(event, detail) {
     const anchor = detail && typeof detail === 'object' ? { selector: String(detail.selector || '').slice(0, 500), text: String(detail.text || '').slice(0, 200), label: String(detail.label || '').slice(0, 40) } : null
     const rect = pickedRect(detail && detail.rect)
     if (!rect) openPanel()
-    $draft.set({ anchor, rect })
+    startDraft({ anchor, rect, k: followKey(detail) })
   }
 }
+/** Which of the page's followed parts an event is of (bridge.js follow; 0: none). */
+const followKey = detail => (Number.isInteger(detail?.k) && detail.k > 0 ? detail.k : 0)
 
 function postToPage(portRef, event, detail) {
   try {
@@ -5575,7 +5603,7 @@ function Header({ ctx, art, v, portRef, docked }) {
             active: narrow ? panel : picking,
             armed: picking, // pressed until a pick, Esc or Cancel
             onClick: () => {
-              $draft.set(null)
+              shelveDraft()
               if (!narrow) return $picking.set(!picking)
               if (panel) $panelHere.set(false)
               else openPanel()
@@ -5588,7 +5616,7 @@ function Header({ ctx, art, v, portRef, docked }) {
                 width: 230,
                 onClose: () => setCmenu(false),
                 items: [
-                  { icon: 'comment', label: t('comment'), onClick: () => (setCmenu(false), $draft.set(null), $picking.set(true)) },
+                  { icon: 'comment', label: t('comment'), onClick: () => (setCmenu(false), shelveDraft(), $picking.set(true)) },
                   { icon: 'list', label: t('showComments'), right: open ? String(open) : '', checked: panel, onClick: () => (setCmenu(false), panel ? ($panel.set(false), $panelHere.set(false)) : openPanel()) }
                 ]
               })
@@ -5906,7 +5934,7 @@ function sendHeld() {
   if (!q || !f || !$picking.get()) return
   if (Date.now() - heldT0 >= HOLD_MAX_MS) {
     $picking.set(false)
-    $draft.set({ anchor: null, rect: { x: q.x - f.left - 0.5, y: q.y - f.top - 0.5, w: 1, h: 1, pt: true } })
+    startDraft({ anchor: null, rect: { x: q.x - f.left - 0.5, y: q.y - f.top - 0.5, w: 1, h: 1, pt: true } })
     return
   }
   postToPage({ current: heldTo.port }, 'pick-at', { x: q.x - f.left, y: q.y - f.top, n: q.n })
@@ -5927,17 +5955,22 @@ const boxWhole = el => {
 /** The new comment's box open on the page (CommentPopover): what closes it, for a press outside it in the page
  *  (the bridge's "press-out"). */
 let closeBox = null
+/** The new comment written now closed: its words kept by its pin (pressed, it opens again with them), an empty
+ *  one gone with its pin (a press outside its box, Esc in it). */
+const closeDraft = () => { const d = $draft.get(); if (d) $draft.set(String(d.text || '').trim() ? { ...d, closed: true } : null) }
 /** The in-place comment: a popover beside the element clicked, empty, Send to Hermes on (its checkbox). A press
- *  outside it and its pin closes it: its words kept by its pin (pressed, it opens again with them), an empty one
- *  gone with its pin. In the page the bridge takes that press ("comment-open"): it reaches nothing there, as a
- *  press outside a menu; elsewhere in Hermes it does what it does. */
+ *  outside it and its pin, or Esc in it, closes it (closeDraft). In the page the bridge takes that press
+ *  ("comment-open"): it reaches nothing there, as a press outside a menu; elsewhere in Hermes it does what it does.
+ *  The other new comments kept ($kept) show their pins: one pressed opens its own box with its words. */
 function CommentPopover({ ctx, art, stageRef, portRef }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
+  const keptDrafts = useValue($kept)
   const cover = useValue($panelCover)
-  const [text, setText] = useState('')
-  const [send, setSend] = useState(true)
-  useEffect(() => (setText(''), setSend(true)), [draft?.anchor]) // a new pick; the pin following its element keeps the text
+  // its words and Send to Hermes are the draft's own: kept with it by its pin, back with it
+  const text = draft?.text || '', send = draft?.send !== false
+  const setText = v => { const d = $draft.get(); if (d) $draft.set({ ...d, text: v }) }
+  const setSend = v => { const d = $draft.get(); if (d) $draft.set({ ...d, send: v }) }
   const stage = stageRef.current
   const bw = stage ? stage.clientWidth : 1200
   const bh = stage ? stage.clientHeight : 800
@@ -5946,22 +5979,19 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
   const open = Boolean(draft?.rect) && !docks && !shut
   const boxRef = useRef(null)
   const pinRef = useRef(null)
-  const words = useRef(text)
-  words.current = text
   useEffect(() => {
     if (!open) return undefined
-    const close = () => { const d = $draft.get(); if (d) $draft.set(words.current.trim() ? { ...d, closed: true } : null) }
-    closeBox = close
+    closeBox = closeDraft
     postToPage(portRef, 'comment-open', { on: true })
     const down = e => {
       const at = e.target
       if (boxRef.current?.contains(at) || pinRef.current?.contains(at)) return
       // the stage's frame itself: a press Chromium gave this document, not the page (PickHold)
       if (at?.tagName === 'IFRAME' && stageRef.current?.contains(at)) { e.preventDefault(); e.stopPropagation() }
-      close()
+      closeDraft()
     }
     const off = listen(CTX, window, 'pointerdown', down, true)
-    return () => { off(); if (closeBox === close) closeBox = null; postToPage(portRef, 'comment-open', { on: false }) }
+    return () => { off(); closeBox = null; postToPage(portRef, 'comment-open', { on: false }) }
   }, [open])
   const [boxH, setBoxH] = useState(170)
   useLayoutEffect(() => {
@@ -5976,17 +6006,34 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
   }, [Boolean(draft?.rect), docks, shut])
   // The stage narrows or grows (the comments list opens beside it, the window is resized): placed again.
   const [, setStageTick] = useState(0)
+  const any = Boolean(draft?.rect) || keptDrafts.length > 0
   useLayoutEffect(() => {
     const el = stageRef.current
-    if (!el || !draft?.rect) return undefined
+    if (!el || !any) return undefined
     let ro = null
     try { ro = new ResizeObserver(() => setStageTick(n => n + 1)); ro.observe(el) } catch {}
     return () => ro?.disconnect()
-  }, [Boolean(draft?.rect)])
+  }, [any])
   // placed again only when what it is placed by changed (not at every letter typed: it weighs every spot)
   const placed = useRef({ k: '', v: null })
+  const keptPlaced = useRef(new Map()) // a kept draft's pin, by what it is placed by
   const kept = useRef({ anchor: null, side: null }) // the box's side while this draft is open (placeCommentBox)
-  if (!draft?.rect) return null
+  if (!any) return null
+  // A pin over the popover's layer: whatever the placement, it is never covered. Pressed (a box closed with its
+  // words), its box opens again.
+  const pinEl = (pin, onOpen, ref, key) => jsx('div', { ref, ...(onOpen ? { role: 'button', tabIndex: 0, title: t('comment'), 'aria-label': t('comment'), className: FOCUS,
+    onPointerDown: e => (e.preventDefault(), onOpen()), onKeyDown: e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen()) } : {}),
+    style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: pin.s, height: pin.s, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: Math.round(pin.s * 0.42), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: onOpen ? 'pointer' : 'default' }, children: t('you').slice(0, 1) }, key)
+  const wasPlaced = keptPlaced.current
+  keptPlaced.current = new Map()
+  const keptPins = keptDrafts.map((d, i) => {
+    if (d.gone) return null
+    const kk = JSON.stringify([d.rect, bw, bh, cover]), was = wasPlaced.get(d)
+    const pin = was && was.kk === kk ? was.pin : commentLayout(d.rect, bw, bh, BOX_MIN_H, cover).pin
+    keptPlaced.current.set(d, { kk, pin })
+    return pin ? pinEl(pin, () => reopenKept(d), null, `kept${i}`) : null
+  })
+  if (!draft?.rect) return jsx('div', { children: keptPins })
   if (kept.current.anchor !== draft.anchor) kept.current = { anchor: draft.anchor, side: null }
   // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part),
   // its fraction too (V6k: offsetHeight 142 drawn 142.1 at 125 %, the box 3.9 px off a field)
@@ -5996,21 +6043,18 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
   const box = shut ? null : placed.current.v.box, pin = draft.gone ? null : placed.current.v.pin
   if (box && be && be.isConnected) kept.current.side = box.side // placed for its height as drawn
   const label = anchorTitle(draft.anchor, t('selectedPart'))
-  const reopen = () => $draft.set({ ...$draft.get(), closed: false })
+  const reopen = () => ($picking.set(false), $draft.set({ ...$draft.get(), closed: false }))
   return jsxs('div', {
     children: [
-      // The pin over the popover's layer: whatever the placement, it is never covered. The box closed with its
-      // words, pressing it opens the box again.
-      pin ? jsx('div', { ref: pinRef, ...(shut ? { role: 'button', tabIndex: 0, title: t('comment'), 'aria-label': t('comment'), className: FOCUS,
-        onPointerDown: e => (e.preventDefault(), reopen()), onKeyDown: e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), reopen()) } : {}),
-        style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: pin.s, height: pin.s, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: Math.round(pin.s * 0.42), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: shut ? 'pointer' : 'default' }, children: t('you').slice(0, 1) }) : null,
+      ...keptPins,
+      pin ? pinEl(pin, shut ? reopen : null, pinRef) : null,
       box
         ? jsxs('div', {
             ref: boxRef,
             style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH, overflowY: 'auto', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
             children: [
               label ? jsx('div', { style: { flexShrink: 0, fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
-              jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, send, setSend, compact: true })
+              jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), onEsc: closeDraft, text, setText, send, setSend, compact: true })
             ]
           })
         : null
@@ -6235,7 +6279,7 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
   })
 }
 
-function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, setText, compact = false, ...kept }) {
+function CommentForm({ ctx, art, parent = null, anchor = null, onDone, onEsc = null, text, setText, compact = false, ...kept }) {
   const t = usePluginI18n(ID)
   // Send to Hermes: the form's own, or its holder's (the popover's, kept while it is closed by its pin)
   const [own, setOwn] = useState(true)
@@ -6270,7 +6314,8 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
       setBusy(false)
     }
   }
-  // Discard (its button and Esc, the new comment and a reply alike): the words go with the form.
+  // Discard (its button; Esc in a reply or the list's form): the words go with the form. Esc in the popover's
+  // closes it as a press outside does (onEsc: closeDraft).
   const discard = () => (setText(''), onDone())
   // It grows with its words up to TEXT_MAX_H, then scrolls: no resize grip.
   const area = useRef(null)
@@ -6295,7 +6340,7 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
         onChange: e => setText(e.target.value),
         onFocus: e => e.target.setSelectionRange(e.target.value.length, e.target.value.length),
         onKeyDown: e => {
-          if (e.key === 'Escape') return discard()
+          if (e.key === 'Escape') return (e.preventDefault(), onEsc ? onEsc() : discard())
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || (compact && !e.shiftKey && !e.nativeEvent.isComposing))) {
             e.preventDefault()
             submit()
@@ -6362,7 +6407,7 @@ function CommentsPanel({ ctx, art, portRef }) {
   const onShow = c => {
     if (mode.full) {
       keptTop.current = listRef.current ? listRef.current.scrollTop : null
-      $panelHere.set(false); $picking.set(false); $draft.set(null)
+      $panelHere.set(false); $picking.set(false); shelveDraft()
     }
     postToPage(portRef, 'flash', { selector: c.anchor.selector })
   }
@@ -6379,9 +6424,9 @@ function CommentsPanel({ ctx, art, portRef }) {
         style: { display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 8px 0 14px', borderBottom: `1px solid ${C.line}` },
         children: [
           // The whole stage: Back to the artifact (it closes here only; docked again it opens by itself).
-          mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), $draft.set(null)) }) : null,
+          mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), shelveDraft()) }) : null,
           jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: t('comments') }),
-          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, armed: picking, title: t('addComment'), onClick: () => ($draft.set(null), $picking.set(!picking)) }),
+          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, armed: picking, title: t('addComment'), onClick: () => (shelveDraft(), $picking.set(!picking)) }),
           mode.full ? null : jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $panelHere.set(false), $picking.set(false)) })
         ]
       }),
@@ -6470,9 +6515,17 @@ function Viewer({ ctx, docked = false }) {
     if (e.key !== 'Escape' || e.defaultPrevented || $hostMenus.get() > 0 || $picking.get() || (a && a !== document.body && !stage.current?.contains(a))) return
     postToPage(portRef, 'key', { key: 'Escape' })
   }), [])
-  // The new comment's box closed (sent, cancelled, another pick): the page stops following its element.
-  const following = Boolean(useValue($draft)?.rect)
-  useEffect(() => { if (!following) postToPage(portRef, 'pick-follow', { on: false }) }, [following])
+  // A new comment gone (saved, discarded, closed empty): the page stops following its element.
+  useEffect(() => {
+    let was = []
+    const sync = () => {
+      const now = [$draft.get(), ...$kept.get()].map(d => d?.k).filter(Boolean)
+      for (const k of was) if (!now.includes(k)) postToPage(portRef, 'pick-follow', { on: false, k })
+      was = now
+    }
+    const offs = [$draft.listen(sync), $kept.listen(sync)]
+    return () => offs.forEach(off => off())
+  }, [])
   // The host's tick (the wait for ready, the heartbeat) while this viewer is mounted; a deck that stops
   // presenting lets a version that came meanwhile in.
   useEffect(() => {

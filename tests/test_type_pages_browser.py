@@ -243,7 +243,7 @@ class PickInThePage(unittest.TestCase):
           const ms = Date.now() - t0, during = (await n()) - start
           const last = await api.top('window.__events.filter(e => e.event === "picked-rect").pop().detail.rect.y')
           const real = await api.frame('document.getElementById("p20").getBoundingClientRect().top')
-          await api.top('window.__post("pick-follow", {on: false})'); await api.sleep(100)
+          await api.top('window.__post("pick-follow", {on: false, k: window.__events.find(e => e.event === "picked").detail.k})'); await api.sleep(100)
           const stopped = await n()
           for (let i = 0; i < 10; i++) { await api.frame('scrollBy(0, 9)'); await api.sleep(30) }
           await api.sleep(200)
@@ -541,7 +541,7 @@ class PickBandTests(unittest.TestCase):
           const under = await rect()
           await api.frame('scrollTo(0, 0)'); await api.sleep(250)
           const back = await rect()
-          await api.top('window.__post("pick-follow", {on: false})')
+          await api.top('window.__post("pick-follow", {on: false, k: window.__events.find(e => e.event === "picked").detail.k})')
           return { blank, hover, first: first && first.rect, under, back }
         """)
         self.assertIsNone(r.get("err"), r)
@@ -2057,7 +2057,7 @@ class RoundV6gPages(unittest.TestCase):
           await api.top('window.__post("comment-mode", {{on: false}})'); await api.sleep(200) // the host: picked, its draft open
           await api.pointer('mouseMoved', cell[0] + 8, cell[1], false); await api.sleep(300); o.writing = await api.frame({json.dumps(seen)})
           o.picked = await api.top('window.__events.filter(e => e.event === "picked").length')
-          await api.top('window.__post("pick-follow", {{on: false}})'); await api.sleep(200)
+          await api.top('window.__post("pick-follow", {{on: false, k: window.__events.find(e => e.event === "picked").detail.k}})'); await api.sleep(200)
           await api.pointer('mouseMoved', cell[0] + 2, cell[1], false); await api.sleep(300); o.after = await api.frame({json.dumps(seen)})
           return o""")
         self.assertEqual(out, {"hover": True, "picking": False, "writing": False, "picked": 1, "after": True})

@@ -893,18 +893,18 @@
     if (blank(el, e.clientX, e.clientY)) return;
     var text = wordsOf(el).trim().replace(/\s+/g, " ");
     atDone = true;
-    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el.contains(e.target) ? e.target : el), rect: pickRect(el) });
-    follow({ el: el, sel: selectorOf(el) });
+    var k = follow({ el: el, sel: selectorOf(el) });
+    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el.contains(e.target) ? e.target : el), rect: pickRect(el), k: k });
   }
-  // The element picked last, while its new comment is open, and the open threads' marks: wherever they move
-  // (a scroll, a resize, a canvas panned or zoomed, a re-layout) the pin goes with them. Watched every frame
-  // while there is one (only its box is read; the host is told at most every PICKED_GAP_MS). An element the page
-  // drew again is found again by its selector; one no longer drawn (removed, a slide not shown) is "gone": the
-  // host takes its pin away until it is back. The host says when the comment closes (pick-follow off); the next
-  // pick mode forgets it too. picked: {el, sel} (a pick), or {el, box} where box() measures a page's own part
-  // again (null: gone).
+  // The elements picked for new comments (each kept by its pin while its words are: the host's drafts), and the
+  // open threads' marks: wherever they move (a scroll, a resize, a canvas panned or zoomed, a re-layout) the pins
+  // go with them. Watched every frame while there is one (only their boxes are read; the host is told of each at
+  // most every PICKED_GAP_MS, by its k). An element the page drew again is found again by its selector; one no
+  // longer drawn (removed, a slide not shown) is "gone": the host takes its pin away until it is back. The host
+  // says when a draft goes (pick-follow off, its k). Each: {el, sel} (a pick), or {el, box} where box() measures a
+  // page's own part again (null: gone).
   var PICKED_GAP_MS = 40;
-  var picked = null, pickedTimer = 0, pickedAt = 0, watchRaf = 0;
+  var followed = [], followK = 0, watchRaf = 0;
   function where(p) {
     if (p.box) {
       var b = p.box();
@@ -929,42 +929,42 @@
   function keyOf(p) { var w = where(p); return w ? w.map(function (v) { return Math.round(v * 2) / 2; }).join() + "," + innerWidth + "," + innerHeight : "gone"; }
   function watch() {
     watchRaf = 0;
-    if (picked) { var k = keyOf(picked); if (k !== picked.key) { picked.key = k; pickedMoved(); } }
+    followed.forEach(function (p) { var k = keyOf(p); if (k !== p.key) { p.key = k; pickedMoved(p); } });
     placePins();
-    if (picked || pins.length) watchRaf = requestAnimationFrame(watch);
+    if (followed.length || pins.length) watchRaf = requestAnimationFrame(watch);
   }
   function watchOn() { if (!watchRaf) watchRaf = requestAnimationFrame(watch); }
-  function pickedMoved() {
-    if (!picked || pickedTimer) return;
-    pickedTimer = setTimeout(function () {
-      pickedTimer = 0;
-      if (!picked) return;
-      pickedAt = Date.now();
-      var w = where(picked);
-      if (!w) { emit("picked-rect", { gone: true }); return; }
-      emit("picked-rect", { rect: picked.box ? boxRect(picked.el, picked.box()) : pickRect(picked.el) });
-    }, Math.max(0, PICKED_GAP_MS - (Date.now() - pickedAt)));
+  function pickedMoved(p) {
+    if (p.timer) return;
+    p.timer = setTimeout(function () {
+      p.timer = 0;
+      if (followed.indexOf(p) < 0) return;
+      p.at = Date.now();
+      var w = where(p);
+      if (!w) { emit("picked-rect", { gone: true, k: p.k }); return; }
+      emit("picked-rect", { rect: p.box ? boxRect(p.el, p.box()) : pickRect(p.el), k: p.k });
+    }, Math.max(0, PICKED_GAP_MS - (Date.now() - (p.at || 0))));
   }
+  /** Follows p from now on; its k for the host. */
   function follow(p) {
-    picked = p;
+    p.k = ++followK;
     p.key = keyOf(p);
+    followed.push(p);
     watchOn();
     document.documentElement.setAttribute("data-comment-draft", ""); // its comment is being written (hideStyle)
+    return p.k;
   }
-  function unfollow() {
-    if (!picked) return;
-    picked = null;
-    document.documentElement.removeAttribute("data-comment-draft");
-    if (pickedTimer) { clearTimeout(pickedTimer); pickedTimer = 0; }
-  }
-  on("pick-follow", function (d) { if (!(d && d.on)) unfollow(); });
+  on("pick-follow", function (d) {
+    if (d && d.on) return;
+    followed = followed.filter(function (p) { if (p.k !== (d && d.k)) return true; clearTimeout(p.timer); return false; });
+    if (!followed.length) document.documentElement.removeAttribute("data-comment-draft");
+  });
   // While picking, a crosshair over all of the page (its own cursors, a link's hand or a text's caret, would say
   // a click does what it always does there); gone with pick mode.
   var pickStyle = null, hideStyle = null;
   function setPicking(on) {
     picking = !!on;
     if (!picking) heldPick = null;
-    if (picking) unfollow();
     document.documentElement.style.cursor = picking ? "crosshair" : "";
     if (picking) document.documentElement.setAttribute("data-commenting", "1"); else document.documentElement.removeAttribute("data-commenting");
     // A page's hover-only affordances ([data-comment-hide]: a doc's block handles) are not shown while a part is
@@ -1022,7 +1022,8 @@
       openStyle.textContent = "html[data-comment-open] iframe{pointer-events:none!important}";
       document.documentElement.appendChild(openStyle);
     }
-    if (boxOpen) document.documentElement.setAttribute("data-comment-open", ""); else document.documentElement.removeAttribute("data-comment-open");
+    // its comment no longer written (closed by its pin, gone): the page's hover-only affordances are back (hideStyle)
+    ["data-comment-open", "data-comment-draft"].forEach(function (a) { if (boxOpen) document.documentElement.setAttribute(a, ""); else document.documentElement.removeAttribute(a); });
   });
   // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
   // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
@@ -1267,14 +1268,14 @@
         var b = box ? box() : null;
         if (!box || b) {
           a.rect = b ? boxRect(el, b) : pickRect(el);
-          follow(box ? { el: el, box: box } : { el: el, sel: selectorOf(el) });
+          a.k = follow(box ? { el: el, box: box } : { el: el, sel: selectorOf(el) });
         }
       }
       atDone = true;
       emit("comment", a);
     },
     /** A page that moved what was commented on without a scroll (a canvas panned or zoomed): its pin follows. */
-    moved: function () { pickedMoved(); },
+    moved: function () { followed.forEach(pickedMoved); },
     /** A page that picks inside frames of its own (<html data-pick-later>): its clicks pick from now on. */
     pickReady: function () { if (picking) { framesPick = true; sayPickReady(); } },
     /** Type runtimes only: a vendored export library's source text (loaded on demand). */
