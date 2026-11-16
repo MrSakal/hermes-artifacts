@@ -649,7 +649,11 @@
     e.preventDefault(); e.stopImmediatePropagation();
     var a = el.getAttribute("data-ds-anchor"), name = el.getAttribute("data-token") || el.getAttribute("data-component") || a.replace(/^[a-z]+:/, "").split("/").pop();
     var part = e.target.closest("button, input, select, textarea, a[href]");
-    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, part && el.contains(part) ? part : el);
+    // a section's heading (a page's own, or one in its words): titled by its words, its pin by them, not by the
+    // file's name and the heading's whole bar (V6l: "README.md", the pin 99 px off the heading)
+    var head = /^section:/.test(a) ? (/^H\d$/.test(el.tagName) ? el : el.querySelector("h1, h2, h3, h4")) : null;
+    if (head) name = [].filter.call(head.childNodes, function (n) { return n.nodeType === 3; }).map(function (n) { return n.nodeValue; }).join("").trim() || name;
+    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, part && el.contains(part) ? part : head || el);
   }, true);
   if (CAN_COMMENT && window.hermes.on) {
     window.hermes.on("comment-mode", function (d) { dsPicking = !!(d && d.on); });

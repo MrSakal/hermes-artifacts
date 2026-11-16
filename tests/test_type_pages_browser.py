@@ -1338,6 +1338,16 @@ class PickInEveryType(unittest.TestCase):
         self.assertRegex(ev["detail"]["selector"], r"^token:color/")
         r = ev["detail"]["rect"]
         self.assertTrue(r["x"] <= q[0] <= r["x"] + r["w"] and r["y"] <= q[1] <= r["y"] + r["h"] and r["w"] < 60, (q, r))
+        # V6l: the page heading of Overview (the README) and of a further section titled "README.md" / "layout.md",
+        # its pin 99 px off: titled by its words, its rect theirs
+        for i in ("^(Overview|Áttekintés)", "^Layout"):
+            nav = "await api.frame('[...document.querySelectorAll(\".ds-nav-i\")].find(b => /%s/.test(b.textContent.trim())).click()'); await api.sleep(800)" % i
+            ev, q = self.pick(aid, at('document.querySelector(".ds-head h1")', 0.2), before=nav, settle=2500)
+            words = B.drive(f"await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}; await api.sleep(2500); {nav}; return await api.frame('(() => {{ const h = document.querySelector(\".ds-head h1\"), rg = document.createRange(); rg.selectNodeContents(h); const b = rg.getBoundingClientRect(); return {{ t: h.textContent.trim(), r: [b.left, b.right] }} }})()')")["out"]
+            self.assertEqual(ev["detail"]["label"], words["t"], (i, ev))
+            self.assertNotRegex(ev["detail"]["label"], r"\.md$", ev)
+            r = ev["detail"]["rect"]
+            self.assertLessEqual(r["x"] + r["w"], words["r"][1] + 1, (i, r, words))  # the words, not the heading's bar
 
     def test_model_view(self):
         from test_models import PANEL
