@@ -1698,6 +1698,33 @@ class RoundV6hHeldPress(unittest.TestCase):
         self.assertLessEqual(abs((p[1] + p[3]) / 2 - o["at"][1]), 1, o)
         self.assertFalse(o["picking"], o)
 
+    def test_a_press_held_while_the_page_loads_shows_its_ring_and_no_loading_words(self):
+        # V6k: the press held as the stage still said "Loading…" (the frame's own placeholder, before its page came):
+        # the ring at the press with those words across the stage for 2-3 frames. The ring alone says it.
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.slides)}; await api.size(1250, 764);" + """
+          await api.go(URL, 400)
+          for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
+          await api.top(`(async () => { const { M, R, jsx, ctx } = window.H; M.$list.set((await ctx.rest('/artifacts')).artifacts)
+            R.mount(() => jsx(M.Viewer, { ctx }), document.getElementById('root')) })()`)
+          const out = []
+          for (let n = 0; n < 6; n++) {
+            await api.top('window.H.M.closeArtifact()'); await api.sleep(200)
+            await api.top(`(() => { window.__seen = []; const t0 = performance.now(), f = () => { const ring = !!document.querySelector('[data-pick-hold] [role=status]')
+              const words = [...document.querySelectorAll('div')].some(e => e.children.length === 0 && (e.textContent || '').trim() === 'Loading…' && e.getBoundingClientRect().width > 400)
+              window.__seen.push([ring, words]); if (performance.now() - t0 < 3000) requestAnimationFrame(f) }; window.H.M.openArtifact(window.H.ctx, ${JSON.stringify(AID)}); window.H.M.$picking.set(true); requestAnimationFrame(f) })()`)
+            await api.sleep(30)
+            await api.mouse(625, 420)
+            await api.sleep(3100)
+            const s = await api.top('window.__seen')
+            out.push({ ring: s.filter(x => x[0]).length, both: s.filter(x => x[0] && x[1]).length })
+            await api.top('(() => { window.H.M.$draft.set(null); window.H.M.$picking.set(false) })()')
+          }
+          return out""", timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        self.assertTrue(any(o["ring"] for o in r["out"]), ("never held", r["out"]))
+        self.assertFalse([o for o in r["out"] if o["both"]], r["out"])
+
     def test_a_decks_title_and_blank_picked_as_it_opens_never_lost_in_40_opens_each(self):
         # B4's stress: React's passive effects a task later (__passiveMs), pick-ready said 0-300 ms late, the deck fit
         # again (a resize: a font come late) at a random moment after the press; the press at once after Comment, or

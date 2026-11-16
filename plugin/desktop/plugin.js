@@ -4057,6 +4057,7 @@ function Frame({ ctx, art, rec, F, presenting }) {
   const wrap = useRef(null)
   const hidden = F.hidden(rec)
   const held = useValue($frameHold) > Date.now() // a hung page's process is being released: no frame now
+  const pressHeld = Boolean(useValue($pickHeld)) // PickHold's turning ring says it: no "Loading…" too (V6k)
   useBridge(ref, art, ctx, portRef, rec, F)
   useLayoutEffect(() => eager(ref.current))
   // With the render that shows it (a passive effect ran after the paint: V6g, a press there hit the inert frame)
@@ -4080,7 +4081,7 @@ function Frame({ ctx, art, rec, F, presenting }) {
             ? { position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 2147483000, border: 0 }
             : { ...FRAME_FIT, background: C.bg }
         })
-      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: rec.err ? t('loadFailed', rec.err) : t('loading') })
+      : jsx('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: C.text3 }, children: rec.err ? t('loadFailed', rec.err) : pressHeld ? null : t('loading') })
   })
 }
 
