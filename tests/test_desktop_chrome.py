@@ -75,7 +75,7 @@ class PopupFitTests(unittest.TestCase):
         for name in ("function CardMenu(", "function FilterMenu(", "function NewMenu(", "function TileDsMenu(", "function TitleMenu("):
             start = SRC.index(name)
             self.assertIn("jsx(PopMenu,", SRC[start:start + 6000], name)
-        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side)", section("function CommentPopover(", "function DockView("))
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -109,7 +109,7 @@ class CommentPinTests(unittest.TestCase):
                        [12, 10, 74, 50], [1069, 10, 1231, 50], [496, 726, 747, 766]]}
         out = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, 1243, 780, 141)))")
         b, p = out["box"], out["pin"]
-        r, bh = rect, min(141, b["maxH"])  # V6k: cut (it scrolls) before it goes past BOX_KEEP
+        r, bh = rect, min(141, b["maxH"])
         gap = max(r["x"] - (b["x"] + 320), b["x"] - (r["x"] + r["w"]), r["y"] - (b["y"] + bh), b["y"] - (r["y"] + r["h"]))
         self.assertGreaterEqual(gap, 8 - 0.01, out)
         if p:
@@ -175,7 +175,7 @@ class CommentPinTests(unittest.TestCase):
         out = run_node(stub_module(EXPORTS), body)
         self.assertEqual(out, {"rect": {"x": 600, "y": 425, "w": 120, "h": 30}, "sameAnchor": True, "bad": True, "none": None})
         # a new pick starts empty, as a selection's draft and a reply do ("Send to Hermes" is the checkbox)
-        self.assertIn("useEffect(() => setText(''), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
+        self.assertIn("useEffect(() => (setText(''), setSend(true)), [draft?.anchor])", section("function CommentPopover(", "function DockView("))
         self.assertIn("useEffect(() => { if (docked) setText('') }, [docked && draft?.anchor])", section("function CommentsPanel(", "function Viewer("))
         self.assertNotIn("'@Hermes '", SRC)
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
@@ -327,9 +327,9 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("$panelCover.set(mode.cover)", panel)
         self.assertIn("$panelCover.set(0)", panel)  # closed or gone: nothing covered
         self.assertIn("top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, background: C.bg", section("function panelStyle(", "/** Whether the new comment's box"))  # opaque, all of it
-        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side)", section("function CommentPopover(", "function DockView("))
         # in the pane beside a chat too (it had no box at all: the stage there has no id)
-        self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage })", section("function Viewer(", "function Toast("))
+        self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage, portRef })", section("function Viewer(", "function Toast("))
 
     def test_an_element_scrolled_out_of_the_frame_keeps_its_pin_at_the_nearest_edge(self):
         # V6g: zoomed off screen, a design's draft lost its pin and the box parked in the bottom-right corner. The pin
@@ -395,28 +395,35 @@ class CommentPinTests(unittest.TestCase):
         b, p = o["back"]["box"], o["back"]["pin"]  # by its pin (V6g: the nearest free spot)
         self.assertEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 170), b["y"] - (p["y"] + 26)), 8, o["back"])
 
-    def test_the_box_never_covers_its_element_when_there_is_room(self):
-        # Round 1: the box sat on the picked element (a checklist item, a KPI tile, a sheet cell) or right beside
-        # its pin over the next cells. Now under the element, else over it, else beside it, inside the stage; over
-        # the element only when it leaves no room (it fills the stage), then at the bottom edge.
+    def test_the_box_is_a_popover_by_its_pin_off_the_part_where_a_spot_by_the_pin_is(self):
+        # The owner's rule (a design tool's comment): the box opens beside its pin, 8 px off it and never more than
+        # 24, wholly inside the stage, never over the pin, off the part picked by 8 px whenever any spot that near the
+        # pin is (else over the part: a slide, an artboard, a whole chart), at its full height while the stage has it.
+        # Every spot 8-24 px from the pin is looked at here (every 2 px), not only the placement's own.
         body = """
-        const out = [], cut = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-        const M = m.BOX_M, G = m.BOX_GAP, W = m.COMMENT_W
-        for (const [bw, bh] of [[1568, 860], [1150, 860], [760, 640], [700, 520], [420, 700]]) {
+        const out = [], W = m.COMMENT_W, M = m.BOX_M
+        const apart = (a, b) => Math.max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
+        const dist = (a, b) => Math.hypot(Math.max(0, b[0] - a[2], a[0] - b[2]), Math.max(0, b[1] - a[3], a[1] - b[3]))
+        for (const [bw, bh] of [[1568, 860], [1250, 716], [1150, 860], [906, 716], [760, 640], [700, 520], [420, 700]]) {
           const rects = [{ x: 640, y: 453, w: 63, h: 42, ly: 462, lh: 24, lr: 672, fr: false, fl: false, fw: true }, { x: 160, y: 355, w: Math.min(775, bw - 170), h: 165 },
             { x: 207, y: 207, w: 170, h: 105 }, { x: 100, y: bh - 60, w: bw - 200, h: 24 }, { x: 20, y: 10, w: bw - 40, h: 30 },
             { x: bw - 120, y: bh / 2 - 20, w: 100, h: 40 }, { x: 10, y: bh / 2 - 20, w: 90, h: 40, fl: false }, { x: 0, y: 0, w: bw, h: bh },
-            { x: 20, y: 20, w: bw - 40, h: bh - 60 }, { x: -30, y: -10, w: 80, h: 40 }, { x: 20, y: 300, w: 240, h: 24, fr: false, fb: true }]
+            { x: 20, y: 20, w: bw - 40, h: bh - 60 }, { x: -30, y: -10, w: 80, h: 40 }, { x: 20, y: 300, w: 240, h: 24, fr: false, fb: true },
+            { x: bw - 300, y: bh - 50, w: 280, h: 40 }, { x: 40, y: bh - 40, w: 60, h: 24, fr: false }, { x: bw / 2 - 200, y: 60, w: 400, h: bh - 120 }]
           for (const rect of rects) for (const h0 of [120, 170, 260]) {
             const { pin, box } = m.placeCommentBox(rect, bw, bh, h0)
-            const h = Math.min(h0, box.maxH), b = { x: box.x, y: box.y, w: W, h }
-            const p = { x: pin.x, y: pin.y, w: m.PIN, h: m.PIN }
-            const right = Math.max(rect.x + rect.w, pin.x >= rect.x + rect.w ? pin.x + m.PIN : 0), left = Math.min(rect.x, pin.x + m.PIN <= rect.x ? pin.x : Infinity)
-            const room = bh - M - (Math.max(rect.y + rect.h, pin.y >= rect.y + rect.h ? pin.y + m.PIN : 0) + G) >= m.BOX_MIN_H ||
-              Math.min(rect.y, pin.y + m.PIN <= rect.y ? pin.y : Infinity) - G - M >= m.BOX_MIN_H ||
-              (h0 <= bh - 2 * M && (bw - M - right - G >= W || left - G - M >= W))
-            out.push({ bw, bh, rect, h0, box, pin, room, overEl: cut(b, rect), overPin: cut(b, p),
-              inside: b.x >= 0 && b.x + W <= bw && b.y >= 0 && b.y + h <= bh })
+            const h = Math.min(h0, box.maxH), a = [box.x, box.y, box.x + W, box.y + h]
+            const P = [pin.x, pin.y, pin.x + pin.s, pin.y + pin.s], E = [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
+            const ok = q => q[0] >= M && q[2] <= bw - M && q[1] >= M && q[3] <= bh - M && apart(q, P) >= 8 && dist(q, P) <= 24
+            let clear = null, near = null
+            for (let x = P[0] - W - 24; x <= P[2] + 24; x += 2) for (let y = P[1] - h - 24; y <= P[3] + 24; y += 2) {
+              const q = [x, y, x + W, y + h]
+              if (!ok(q)) continue
+              near = near || q
+              if (apart(q, E) >= 8) { clear = q; break }
+            }
+            out.push({ bw, bh, rect, h0, box, pin, inside: a[0] >= M && a[2] <= bw - M && a[1] >= M && a[3] <= bh - M,
+              byPin: apart(a, P) >= 8 && dist(a, P) <= 26, offPart: apart(a, E) >= 8, clear, near, full: h0 > bh - 2 * M || box.maxH >= h0 })
           }
         }
         console.log(JSON.stringify(out))
@@ -424,13 +431,25 @@ class CommentPinTests(unittest.TestCase):
         out = run_node(stub_module(EXPORTS), body)
         for o in out:
             self.assertTrue(o["inside"], o)
-            self.assertFalse(o["overPin"], o)
-            if o["room"]:
-                self.assertFalse(o["overEl"], o)  # box ∩ picked rect = ∅
-        self.assertTrue(any(not o["room"] for o in out))  # the element filling the stage is among them
+            self.assertTrue(o["full"], o)  # never cut while the stage has its height
+            if o["near"]:
+                self.assertTrue(o["byPin"], o)  # 8-24 px from its pin whenever such a spot is in the stage
+            if o["clear"]:
+                self.assertTrue(o["offPart"], o)  # off the part whenever a spot by the pin is
+        self.assertTrue(any(o["near"] and not o["clear"] for o in out))  # a part filling the stage is among them
         cell = [o for o in out if o["bw"] == 1568 and o["rect"]["w"] == 63 and o["h0"] == 170][0]
-        b, p = cell["box"], cell["pin"]  # the reported sheet cell: the box by its pin (V6g: the nearest free spot)
-        self.assertEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 170), b["y"] - (p["y"] + 26)), 8, cell)
+        b, p = cell["box"], cell["pin"]  # the reported sheet cell: right beside its pin, level with it
+        self.assertEqual((b["x"], b["y"], b["side"]), (p["x"] + 26 + 8, p["y"], "right"), cell)
+
+    def test_the_box_takes_the_first_side_that_fits_and_keeps_it(self):
+        # right of the pin, then left, below, above; the side it had while its draft is open first while it fits
+        body = """
+        const L = (r, side) => m.placeCommentBox(r, 1250, 716, 170, side).box.side
+        console.log(JSON.stringify([L({ x: 100, y: 300, w: 200, h: 30 }), L({ x: 900, y: 300, w: 300, h: 30, fr: false }),
+          L({ x: 300, y: 100, w: 650, h: 30, fr: false, fl: false, fa: false, fb: true }), L({ x: 300, y: 600, w: 650, h: 30, fr: false, fl: false, fa: true, fb: false }),
+          L({ x: 100, y: 300, w: 200, h: 30 }, 'below'), L({ x: 100, y: 600, w: 200, h: 30 }, 'below')]))
+        """
+        self.assertEqual(run_node(stub_module(EXPORTS), body), ["right", "left", "below", "above", "below", "right"])
 
     def test_the_page_stops_following_when_the_comment_closes(self):
         viewer = section("function Viewer(", "function Toast(")
@@ -452,29 +471,8 @@ class CommentPinTests(unittest.TestCase):
 @unittest.skipIf(NODE is None, "node not installed")
 @unittest.skipUnless(NODE, "node is not installed")
 class RoundV6hPlacement(unittest.TestCase):
-    """Live round V6h (0440f61): the box far from its pin on dense pages (N1: 65-227 px), on the other side of a design
-    strip from its pin (N4: 39-42 px), 7.9 px against 8 (N12), an edge pin 2 px under a design's pill (B3), a pin on
-    an element no longer drawn."""
-
-    def test_nearness_wins_the_box_by_its_pin_over_neighbouring_words(self):
-        # N1: a dashboard's Reset picked, words all round it; a spot by the pin covering some, one 225 px off covering
-        # none: the one by the pin. N4: a strip with a neighbour's below it, its pin above it: the box above the pin.
-        body = """
-        const words = []
-        for (let y = 60; y < 700; y += 22) for (let x = 20; x < 1200; x += 140) words.push([x, y, x + 110, y + 16])
-        const reset = m.commentLayout({ x: 600, y: 300, w: 60, h: 28, ly: 300, lh: 28, fr: true, fl: true, kc: words.filter(k => !(k[0] < 660 && 600 < k[2] && k[1] < 328 && 300 < k[3])) }, 1250, 716, 150)
-        const strip = { x: 300, y: 400, w: 200, h: 26, ly: 400, lh: 26, lr: 480, fw: false, fr: false, fl: false, fa: true, fb: true,
-          kp: [[300, 400, 500, 426], [300, 446, 500, 472]] }
-        console.log(JSON.stringify({ reset, strip: m.commentLayout(strip, 1250, 716, 150) }))
-        """
-        out = run_node(stub_module(EXPORTS), body)
-        gap = lambda b, p, h: max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + p["s"]), p["y"] - (b["y"] + h), b["y"] - (p["y"] + p["s"]))
-        r = out["reset"]
-        self.assertLessEqual(gap(r["box"], r["pin"], 150), 24, out)
-        s = out["strip"]
-        self.assertLess(s["pin"]["y"], 400, s)  # its pin above the strip (fa), the box on the same side
-        self.assertTrue(8 <= gap(s["box"], s["pin"], 150) <= 24, s)
-        self.assertLessEqual(s["box"]["y"] + 150, s["pin"]["y"] + 26, s)
+    """Live round V6h (0440f61): 7.9 px against 8 (N12), an edge pin 2 px under a design's pill (B3), a pin on an
+    element no longer drawn."""
 
     def test_gaps_hold_in_whole_px_against_fractional_parts(self):
         # N12: the box at element + 8 with the element's edge at .4 px measured 7.9 after layout.
@@ -492,7 +490,6 @@ class RoundV6hPlacement(unittest.TestCase):
             gap = lambda q: max(q[0] - (b["x"] + 320), b["x"] - q[2], q[1] - (b["y"] + 150), b["y"] - q[3])
             self.assertGreaterEqual(gap([r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]), 8, o)
             self.assertGreaterEqual(gap([p["x"], p["y"], p["x"] + 26, p["y"] + 26]), 8, o)
-            self.assertGreaterEqual(gap(r["kp"][0]), 4, o)
 
     def test_an_edge_pin_keeps_off_the_pages_controls(self):
         # B3: a design's headline zoomed out of sight left: its pin at the stage's left edge, 2 px under the pill; the
@@ -526,8 +523,7 @@ class RoundV6hPlacement(unittest.TestCase):
 
 class RoundV6iPlacement(unittest.TestCase):
     """Live round V6i (5fd0b90), the rects the live pages sent: a design system's nav item between two others had no pin
-    (B3: its corner fallback on a neighbour, then dropped as under controls); "+1"'s pin in Reset (B2); a KPI's box on
-    its card while a spot off it was 66 px from the pin (B4)."""
+    (B3: its corner fallback on a neighbour, then dropped as under controls); "+1"'s pin in Reset (B2)."""
 
     def layout(self, rect, bw=908, bh=732, h=142):
         return run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, {bw}, {bh}, {h})))")
@@ -545,8 +541,6 @@ class RoundV6iPlacement(unittest.TestCase):
         self.assertTrue(o["pin"], o)
         for k in nav:
             self.assertFalse(self.on(o["pin"], k), (k, o))
-        b = o["box"]
-        self.assertGreaterEqual(max(b["x"] - 222, 10 - (b["x"] + 320)), 8, o)
 
     def test_plus_ones_pin_is_never_on_reset(self):
         ctl = [[67, 146, 130, 183], [16, 194, 834, 231], [841, 194, 901, 231]]
@@ -556,44 +550,6 @@ class RoundV6iPlacement(unittest.TestCase):
         self.assertTrue(o["pin"], o)
         for k in ctl:
             self.assertFalse(self.on(o["pin"], k), (k, o))
-        b = o["box"]
-        for k in ctl:
-            self.assertGreaterEqual(max(k[0] - (b["x"] + 320), b["x"] - k[2], k[1] - (b["y"] + 142), b["y"] - k[3]), 4, (k, o))
-
-    def test_a_kpis_box_goes_off_its_card_by_the_pin(self):
-        card = [37.5, 285.7, 318.8, 406.1]
-        rect = {"x": 56.5, "y": 298.7, "w": 60, "h": 50, "ly": 300, "lh": 46, "lr": 116.5, "fw": True, "fr": True, "fl": False, "fa": False, "fb": False, "pb": card,
-                "kc": [[56, 298, 300, 315], [56, 320, 117, 348], [56, 352, 300, 370], [340, 298, 600, 315], [340, 320, 420, 348]]}
-        o = self.layout(rect, 1250, 716, 141)
-        b, p = o["box"], o["pin"]
-        self.assertGreaterEqual(max(card[0] - (b["x"] + 320), b["x"] - card[2], card[1] - (b["y"] + 141), b["y"] - card[3]), 8, o)
-        self.assertLessEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 80, o)
-
-
-class RoundV6jPlacement(unittest.TestCase):
-    """Live loop V6j (48df5dc): Test dash2's "Value, M USD" number picked at a 1262 x 716 frame (the rect it sent): the
-    box off the card 76 px from the pin cut the summary line ("…against targ") while a spot off the card 102 px from
-    the pin was over none of the page's content."""
-
-    LIVE = {"x": 354.8, "y": 271.6, "w": 246.6, "h": 39.9, "ly": 266, "lh": 50.4, "vt": 44, "vb": 716, "fr": True, "fl": True, "fa": True, "fb": True,
-            "lr": 446.9, "fw": True, "pb": [336, 236.3, 620.2, 356.3],
-            "kp": [[56, 177, 217, 210], [230, 177, 289, 210], [1126, 7, 1163, 36], [1166, 7, 1203, 36], [1206, 7, 1243, 36]],
-            "kc": [[12, 13, 125, 30], [1126, 7, 1163, 36], [1136, 13, 1153, 30], [1166, 7, 1203, 36], [1176, 13, 1193, 30], [1206, 7, 1243, 36],
-                   [1216, 13, 1233, 30], [39, 68, 184, 103], [39, 108, 56, 127], [55, 108, 143, 127], [142, 108, 229, 127], [228, 108, 551, 127],
-                   [56, 157, 100, 173], [56, 177, 217, 210], [230, 177, 289, 210], [243, 184, 276, 203], [56, 249, 190, 265], [56, 266, 99, 317],
-                   [354, 249, 436, 265], [354, 266, 447, 317], [653, 249, 706, 265], [653, 266, 725, 317], [724, 290, 776, 311], [653, 318, 778, 335],
-                   [951, 249, 1054, 265], [951, 266, 993, 317], [951, 318, 1056, 335], [56, 389, 169, 410], [56, 416, 208, 433], [56, 443, 602, 704],
-                   [310, 456, 329, 471], [495, 474, 523, 490], [653, 389, 753, 410], [653, 415, 1198, 676], [710, 416, 738, 431], [769, 416, 800, 431]]}
-
-    def test_a_clear_spot_a_little_farther_beats_one_cutting_words(self):
-        h = 142
-        o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(self.LIVE)}, 1262, 716, {h})))")
-        b, p, card = o["box"], o["pin"], self.LIVE["pb"]
-        a = [b["x"], b["y"], b["x"] + 320, b["y"] + h]
-        for k in self.LIVE["kc"]:
-            self.assertFalse(a[0] < k[2] and k[0] < a[2] and a[1] < k[3] and k[1] < a[3], ("the box over the page's content", k, o))
-        self.assertGreaterEqual(max(card[0] - a[2], a[0] - card[2], card[1] - a[3], a[1] - card[3]), 8, o)
-        self.assertLessEqual(max(p["x"] - a[2], a[0] - (p["x"] + 26), p["y"] - a[3], a[1] - (p["y"] + 26)), 80 + 32, o)
 
 
 class RoundV6kPlacement(unittest.TestCase):
@@ -618,7 +574,7 @@ class RoundV6kPlacement(unittest.TestCase):
             self.assertGreaterEqual(gap(P, k), 4, (k, o))
 
     # The page's "Colors" heading picked at 1262 x 716 (its words' rect now, not its full-width block): the box went
-    # 505 px off to the stage's foot, no spot near the pin keeping off the rows' fields at its full height.
+    # 505 px off to the stage's foot. A popover by its pin now, over the rows' fields if need be, at its full height.
     HEADING = {"x": 264, "y": 32, "w": 73.4, "h": 31.2, "ly": 30.4, "lh": 34.4, "vt": 0, "vb": 716, "fr": True, "fl": True, "fa": True, "fb": True, "lr": 337.4375, "fw": True,
                "kp": [[0, 0, 232, 716], [1158, 33, 1223, 62], [1160, 91, 1187, 118], [1196, 91, 1223, 118], [572, 162, 823, 189], [870, 162, 1121, 189], [1136, 162, 1163, 189],
                       [541, 163, 566, 188], [839, 163, 864, 188], [1162, 162, 1189, 189], [268, 165, 305, 187], [1188, 162, 1215, 189], [572, 201, 823, 228], [870, 201, 1121, 228],
@@ -628,18 +584,17 @@ class RoundV6kPlacement(unittest.TestCase):
                       [839, 373, 864, 398], [1188, 372, 1215, 399], [268, 375, 340, 397], [572, 411, 762, 437], [870, 411, 1060, 437], [1136, 411, 1163, 437], [1162, 411, 1189, 437],
                       [541, 411, 566, 437], [839, 411, 864, 437], [1188, 411, 1215, 437], [268, 414, 326, 436], [572, 449, 762, 476], [870, 449, 1060, 476]]}
 
-    def test_the_box_stays_within_reach_of_its_pin_cut_before_it_travels(self):
+    def test_a_heading_with_fields_all_round_has_its_box_by_its_pin_at_full_height(self):
         h = 142
         o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(self.HEADING)}, 1262, 716, {h})))")
         b, p, r = o["box"], o["pin"], self.HEADING
-        a = [b["x"], b["y"], b["x"] + 320, b["y"] + min(h, b["maxH"])]
+        self.assertGreaterEqual(b["maxH"], h, o)
+        a = [b["x"], b["y"], b["x"] + 320, b["y"] + h]
         P = [p["x"], p["y"], p["x"] + p["s"], p["y"] + p["s"]]
         gap = lambda u, v: max(v[0] - u[2], u[0] - v[2], v[1] - u[3], u[1] - v[3])
-        self.assertLessEqual(gap(a, P), 120, o)
-        self.assertGreaterEqual(gap(a, P), 8, o)
+        self.assertTrue(8 <= gap(a, P) < 9, o)  # whole px, rounded away from the pin
+        self.assertEqual(b["side"], "right", o)
         self.assertGreaterEqual(gap(a, [r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]), 8, o)
-        for k in r["kp"]:
-            self.assertGreaterEqual(gap(a, k), 4, (k, o))
 
 
 class CommentsPanelLayoutTests(unittest.TestCase):

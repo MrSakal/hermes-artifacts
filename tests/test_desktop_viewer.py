@@ -149,7 +149,8 @@ class ViewerComments(unittest.TestCase):
 
     def test_a_discarded_draft_leaves_every_open_thread_marked(self):
         # live round V3 (3 of 3): Comment, a list item picked (the draft opens), a click into the paragraph that
-        # holds an open thread's mark, Discard: that mark was gone until the doc was opened again
+        # holds an open thread's mark, Discard: that mark was gone until the doc was opened again. Now that click
+        # only closes the empty draft (the box a popover): the mark stays, the paragraph is not entered
         aid = store.publish(title="Draft", type="doc", files={"doc.md": "# Draft\n\nThe paragraph with a thread in it.\n\n- First item\n- Second item"})["id"]
         blk = docs.read(aid)["blocks"]
         api.handle("POST", f"artifacts/{aid}/comments", {}, {"text": "note thread", "anchor": {"selector": f"#blk-{blk[1]['id']}", "text": "thread", "label": "text"}})
@@ -164,12 +165,12 @@ class ViewerComments(unittest.TestCase):
           o.draft = await api.top('!!document.querySelector("textarea")')
           p = await at('document.querySelector("mark.doc-cq").closest(".doc-blk")'); await api.mouse(p[0] + 10, p[1]); await api.sleep(400)
           o.inBlock = await api.frame('!!document.activeElement.closest(".doc-blk")')
-          await btn('Discard'); await api.sleep(800)
+          o.closed = !(await api.top('!!document.querySelector("textarea")')); await api.sleep(800)
           o.after = await marks()
           return o""")
         self.assertEqual(out["before"], ["thread"], out)
         self.assertTrue(out["draft"], out)
-        self.assertTrue(out["inBlock"], out)
+        self.assertEqual((out["inBlock"], out["closed"]), (False, True), out)
         self.assertEqual(out["after"], ["thread"], out)
 
     # Live round V4.
@@ -276,8 +277,9 @@ class ViewerComments(unittest.TestCase):
         out = self.drive("""
           const st = () => api.top('(() => { const b = [...document.querySelectorAll("header button, button")].find(b => b.getAttribute("aria-label") === "Comment"); return { pressed: b.hasAttribute("aria-pressed") && b.getAttribute("aria-pressed") !== "false", bg: getComputedStyle(b).backgroundColor, color: getComputedStyle(b).color, picking: window.H.M.$picking.get() } })()')
           const o = { before: await st() }
-          await btn('Comment'); await api.mouse(5, 400); await api.sleep(300); o.armed = await st()
-          await api.key('Escape', 'Escape', 27); await api.sleep(300); await api.mouse(5, 400); await api.sleep(300); o.after = await st()
+          // the pointer moved off the button (a press there would pick the doc's nearest block)
+          await btn('Comment'); await api.pointer('mouseMoved', 5, 400); await api.sleep(300); o.armed = await st()
+          await api.key('Escape', 'Escape', 27); await api.sleep(300); await api.pointer('mouseMoved', 5, 400); await api.sleep(300); o.after = await st()
           return o""")
         self.assertEqual((out["armed"]["picking"], out["armed"]["pressed"]), (True, True), out)  # (the tests' React writes a true one as "")
         self.assertNotEqual(out["armed"]["bg"], out["before"]["bg"], out)  # the pressed look, not only the attribute
@@ -383,12 +385,10 @@ BOOT_ANY = """
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
-class CommentBoxOffThePagesControls(unittest.TestCase):
-    """Live round V6: the new comment's box sat over a film's playback bar and scenes (and had no pin on its
-    picture: a point has no size, so the bridge said it was out of sight and the box waited in the corner), over a
-    design's tool palette after a pan and over the name strip of the very artboard commented on, and over a deck's
-    thumbnails after a pick on the slide's blank. Each page marks its own controls (data-comment-keep) and the box
-    keeps off them where there is room, at 1500 and at 400 px."""
+class CommentPinsOnCanvases(unittest.TestCase):
+    """Live round V6: a film's point had no pin on its picture (a point has no size, so the bridge said it was out of
+    sight and the box waited in the corner); a design's pin lay off the strip of the artboard commented on. The pin
+    on the point or the strip, the box a popover by it (8-24 px), at 1500 and at 400 px."""
 
     @classmethod
     def setUpClass(cls):
@@ -406,14 +406,13 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
         self.assertIsNone(r.get("err"), r)
         return r["out"]
 
-    def clear(self, o, what):
-        self.assertTrue(o["box"], (what, o))
-        self.assertTrue(o["kept"], (what, o))  # the controls were there to keep off
-        b = o["box"]
-        for k in o["kept"]:
-            self.assertFalse(b["l"] < k["r"] - 0.5 and k["l"] < b["r"] - 0.5 and b["t"] < k["b"] - 0.5 and k["t"] < b["b"] - 0.5, (what, k, o))
+    def by_pin(self, o, what):
+        self.assertTrue(o["box"] and o["pin"], (what, o))
+        b, p = o["box"], o["pin"]
+        gap = max(p["l"] - b["r"], b["l"] - p["r"], p["t"] - b["b"], b["t"] - p["b"])
+        self.assertTrue(7.5 <= gap <= 25, ("the box not by its pin", gap, what, o))
 
-    def test_a_films_point_has_its_pin_and_the_box_keeps_off_the_playback_bar_and_scenes(self):
+    def test_a_films_point_has_its_pin_and_the_box_by_it(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "motion"), title="Harbor film", type="motion")["id"]
         for w in (1500, 400):
             # the tester's point: the sky right of the title (73 %, 29 %); and one low on the water (40 %, 85 %)
@@ -429,9 +428,9 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
                 self.assertTrue(o["pin"], (what, o))  # V6: no pin while the draft was open
                 self.assertAlmostEqual((o["pin"]["l"] + o["pin"]["r"]) / 2, o["at"][0], delta=2, msg=(what, o))
                 self.assertAlmostEqual((o["pin"]["t"] + o["pin"]["b"]) / 2, o["at"][1], delta=2, msg=(what, o))
-                self.clear(o, what)
+                self.by_pin(o, what)
 
-    def test_a_design_box_keeps_off_its_palette_after_a_pan_and_off_the_strip_commented_on(self):
+    def test_a_designs_pin_after_a_pan_and_on_the_strip_commented_on(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
         chrome = '[...document.querySelectorAll(".dc-pill, .dc-strip")]'
         board = '__design.boards["Main.dc.html"].el'
@@ -441,8 +440,8 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
               const spot = () => api.frame('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(), v = document.getElementById("dc-view").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + Math.min(r.height * 0.2, 120), v.left + v.width * 0.45, v.bottom - 250] }})()')
               for (let i = 0; i < 4; i++) {{ const s = await spot(); await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaX: ${{s[0] - s[2]}}, deltaY: ${{s[1] - s[3]}}, clientX: 200, clientY: 200, bubbles: true, cancelable: true }}))`); await api.sleep(300) }}
               return await pickAt('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + Math.min(r.height * 0.2, 120)] }})()', {json.dumps(chrome)})""", w, settle=3000)
-            self.clear(o, (w, "panned"))
-            # a pick on the landing page's name strip: a comment on that artboard, its strip kept clear (zoomed in on
+            self.by_pin(o, (w, "panned"))
+            # a pick on the landing page's name strip: a comment on that artboard, its pin on the strip (zoomed in on
             # it until its name shows: at 400 px the whole canvas fitted is too small for any)
             o = self.drive(aid, board, f"""
               await api.frame('__design.fitAll()'); await api.sleep(600)
@@ -457,7 +456,7 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
                 + '; return [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(b => [b.left, b.right]) }})()'))
                 .map(p => [p[0] + o.off[0], p[1] + o.off[0]])
               return o""", w, settle=3000)
-            self.clear(o, (w, "strip"))
+            self.by_pin(o, (w, "strip"))
             # V6d: the pin lay 6 px left of the artboard, off it: on the strip picked
             self.assertTrue(o["pin"], (w, o))
             cx, cy = (o["pin"]["l"] + o["pin"]["r"]) / 2, (o["pin"]["t"] + o["pin"]["b"]) / 2
@@ -466,15 +465,13 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
             # after the name and its buttons, PIN_GAP (6 px) past the last, as after any words; the box 8 px off
             end = max(p[1] for p in o["parts"])
             self.assertTrue(0 <= o["pin"]["l"] - end <= 12, ("pin not right after the name and its buttons", w, o))
-            b, s = o["box"], o["strip"]
-            self.assertGreaterEqual(max(b["l"] - s[2], s[0] - b["r"], b["t"] - s[3], s[1] - b["b"]), 8 - 0.5, ("box within 8 px of the strip", w, o))
 
     def test_every_artboards_strip_comment_has_its_pin_on_the_strip_and_the_box_by_it(self):
         # V6f (1506 px window: a 1246 x 750 frame): "App: pick a drink" and "App: your order" (phone artboards: no room
         # after the strip's buttons before the next strip) opened with no pin (it went left of the strip, onto the
         # landing page's, a control: not drawn) and the box 235 px under the strip (off every artboard); strips 3 and
         # 4 had their pin and the same far box. A pin on its strip, after the buttons or over/under its end, never on
-        # the name, a button or another strip; the box 8-12 px from the strip, off every strip.
+        # the name, a button or another strip; the box a popover by it.
         aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
         strips = ('[...Object.values(__design.boards)].map(b => b.strip).filter(s => getComputedStyle(s).visibility === "visible" && s.getClientRects().length)'
                   '.map(s => { const r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
@@ -510,11 +507,9 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
                     self.assertFalse(meet(p, q), ("pin on the name or a button", q, what))
                 for q in o["others"]:
                     self.assertFalse(meet(p, q), ("pin on another strip", q, what))
-                    self.assertFalse(meet(b, q), ("box on another strip", q, what))
                 self.assertTrue(s[0] - 0.5 <= (p[0] + p[2]) / 2 <= s[2] + 40 and s[1] - 40 <= (p[1] + p[3]) / 2 <= s[3] + 40, ("pin off its strip", what))
-                self.assertFalse(meet(b, s), what)
-                gap = max(b[0] - s[2], s[0] - b[2], b[1] - s[3], s[1] - b[3])
-                self.assertTrue(7.5 <= gap <= 14, ("box not by its strip", gap, what))
+                gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
+                self.assertTrue(7.5 <= gap <= 25, ("box not by its pin", gap, what))
         self.assertGreaterEqual(done, 6)
 
     def test_the_box_follows_its_pin_as_the_canvas_zooms(self):
@@ -539,14 +534,6 @@ class CommentBoxOffThePagesControls(unittest.TestCase):
             b, p = st
             gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
             self.assertLessEqual(gap, 60, ("box left behind its pin", st, o))
-
-    def test_a_decks_blank_pick_keeps_the_box_off_the_thumbnails(self):
-        aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
-        for w in (1500, 400):
-            o = self.drive(aid, 'document.querySelector(".sl-clip .sl-canvas")', """
-              return await pickAt('(() => { const r = document.querySelector(".sl-clip .sl-canvas").getBoundingClientRect(); return [r.left + r.width * 0.97, r.top + r.height * 0.97] })()', '[...document.querySelectorAll("#sl-strip, .sl-pill")]')""", w, settle=2500)
-            self.assertIn(o["title"], ("Slide 1", "Dia 1"), (w, o))
-            self.clear(o, (w, "blank"))
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
@@ -646,10 +633,9 @@ class SlideBlankPickPinsThePoint(unittest.TestCase):
                 self.assertGreaterEqual(gap, 7.5, what)
                 self.assertTrue(b["l"] >= st[0] + 7.5 and b["r"] <= st[2] - 7.5 and b["t"] >= st[1] + 7.5 and b["b"] <= st[3] - 7.5, what)
 
-    def test_a_title_picked_has_its_pin_after_its_words_and_the_box_off_the_slides_other_words(self):
-        # V6d: "Q4 sales pipeline" (a full-width block) picked: the pin at the block's right end, 560 px from the words,
-        # and the box over the eyebrow line "QUARTERLY REVIEW". The pin right after the title's first line; the box
-        # off every other line of the slide (the room above the eyebrow is there at these widths).
+    def test_a_title_picked_has_its_pin_after_its_words_and_the_box_by_it(self):
+        # V6d: "Q4 sales pipeline" (a full-width block) picked: the pin at the block's right end, 560 px from the words.
+        # The pin right after the title's first line; the box a popover by it (it may lie on the slide's other words).
         h1 = 'document.querySelector(".sl-clip .sl-canvas h1")'
         url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
         words = r"""(() => { const rg = document.createRange(), out = []; const w = document.createTreeWalker(document.querySelector('.sl-clip .sl-canvas'), NodeFilter.SHOW_TEXT)
@@ -668,11 +654,7 @@ class SlideBlankPickPinsThePoint(unittest.TestCase):
             end, mid = o["w"]["end"] + off[0], o["w"]["mid"] + off[1]
             self.assertTrue(0 <= p["l"] - end <= 8, ("pin away from the title's words", what))  # PIN_GAP after them
             self.assertLessEqual(abs((p["t"] + p["b"]) / 2 - mid), 2, what)
-            for q in o["w"]["words"]:
-                if q["own"]:
-                    continue
-                l, t, rr, bb = q["l"] + off[0], q["t0"] + off[1], q["r"] + off[0], q["b"] + off[1]
-                self.assertFalse(b["l"] < rr and l < b["r"] and b["t"] < bb and t < b["b"], ("box over", q["t"], what))
+            self.assertTrue(7.5 <= max(p["l"] - b["r"], b["l"] - p["r"], p["t"] - b["b"], b["t"] - p["b"]) <= 25, what)
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
@@ -892,11 +874,10 @@ class RoundV6eComments(unittest.TestCase):
         cases = [(dash, kpi, fx, fy) for fx, fy in ((0.2, 0.15), (0.5, 0.5), (0.9, 0.85))] + [(page, 'document.getElementById("h")', 0.3, 0.5), (page, 'document.getElementById("msg")', 0.5, 0.5)]
         for aid, el, fx, fy in cases:
             for w, h in ((1246, 750), (906, 750), (740, 700), (600, 700)):
-                # the part picked: what is under the point clicked (a KPI's value, its label); V6h N1: the KPI holding
-                # it is only a tie-break for the box, nearness first
+                # the part picked, as the host has it (a KPI's value, its label; a heading's words)
                 pt = f'(() => {{ const r = ({el}).getBoundingClientRect(); return [r.left + r.width * {fx}, r.top + r.height * {fy}] }})()'
                 o = self.pick(aid, el, pt, w,
-                              f"const b = await api.frame('(() => {{ const q = ' + {json.dumps(pt)} + ', r = document.elementFromPoint(q[0], q[1]).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()'); o.el = [b[0] + o.off[0], b[1] + o.off[1], b[2] + o.off[0], b[3] + o.off[1]]; return o", h=h)
+                              "const d = await api.top('window.H.M.$draft.get().rect'); o.el = [d.x + o.off[0], d.y + o.off[1], d.x + d.w + o.off[0], d.y + d.h + o.off[1]]; return o", h=h)
                 what = (el[:40], fx, fy, w, o["box"], o["pin"], o["el"])
                 self.assertTrue(o["box"] and o["pin"], what)
                 b, p, e = o["box"], o["pin"], o["el"]
@@ -1250,19 +1231,17 @@ POINTS = r"""(els => { const out = [], keep = [...document.querySelectorAll('[da
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
 class CommentPlacementProperty(unittest.TestCase):
-    """Live round V6g (8b4afe7), the fourth on the new comment's box: on a deck's thumbnails (B2), a dashboard's Reset
-    (B3), a doc's block handles and comment marks (N1, N2), far from its pin with room by it (N4: 72-345 px). One
-    ordered rule (plugin.js placeCommentBox), checked here as a property over many picks per type with the real
-    rects: every part the page names (or its words, cells, blocks, points: at most CAP) at four stage sizes
-    (Hermes' 1523 px window: a 1250 x 716 frame; with the comments list: 906; the 1000 px window: 740; 400). Hard:
-    inside the stage, off the pin and the part picked (8 px; all of a part drawn as one), off every one of the
-    page's own controls (4 px; those of a region holding the part each), whenever any spot keeps them all. Near
-    (V6h): a box more than 24 px from its pin only where no spot that close keeps the hard rules."""
+    """The new comment's box is a popover beside its pin (the owner's rule, as a design tool's comment), checked as a
+    property over many picks per type with the real rects: every part the page names (or its words, cells, blocks,
+    points: at most CAP) at four stage sizes (Hermes' 1523 px window: a 1250 x 716 frame; with the comments list:
+    906; the 1000 px window: 740; 400). Inside the stage (8 px), 8 px off its pin and never more than 24, off the
+    part picked by 8 px (all of a part drawn as one) wherever a spot that near its pin is, at its full height. It may
+    lie on the page's content and its controls. The pin's own rules: always there, never on a control of the page,
+    never over a small part."""
 
     CAP = 16
     STAGES = ((1250, 716), (906, 716), (740, 716), (400, 700))
-    W, GAP, KEEP, M, NEAR = 320, 8, 4, 8, 24
-    REACH, LEAST = 120, 128  # plugin.js BOX_KEEP, BOX_MIN_H
+    W, GAP, M, NEAR = 320, 8, 8, 24
 
     @classmethod
     def setUpClass(cls):
@@ -1335,23 +1314,23 @@ class CommentPlacementProperty(unittest.TestCase):
     def meet(a, b, pad):
         return a[0] < b[2] + pad - 0.5 and b[0] - pad + 0.5 < a[2] and a[1] < b[3] + pad - 0.5 and b[1] - pad + 0.5 < a[3]
 
-    def hard(self, b, s, p, e, keep):
-        return (b[0] >= s[0] + self.M - 0.5 and b[2] <= s[2] - self.M + 0.5 and b[1] >= s[1] + self.M - 0.5 and b[3] <= s[3] - self.M + 0.5
-                and (p is None or not self.meet(b, p, self.GAP)) and not self.meet(b, e, self.GAP) and not any(self.meet(b, k, self.KEEP) for k in keep))
+    @staticmethod
+    def dist(a, b):
+        return ((max(0, b[0] - a[2], a[0] - b[2])) ** 2 + (max(0, b[1] - a[3], a[1] - b[3])) ** 2) ** 0.5
 
-    def spots(self, s, bh, around=None):
-        """Box spots (left, top) over the stage every 8 px, or only those 8-NEAR px off `around`."""
-        W = self.W
-        if around is None:
-            xs, ys = range(int(s[0]) + self.M, int(s[2]) - self.M - W + 1, 8), range(int(s[1]) + self.M, int(s[3] - self.M - bh) + 1, 8)
-            return [(x, y) for x in xs for y in ys]
-        out = []
-        for d in range(self.GAP, self.NEAR + 1, 4):
-            for x in range(int(around[0] - W - d), int(around[2] + d) + 1, 8):
-                out += [(x, around[1] - d - bh), (x, around[3] + d)]
-            for y in range(int(around[1] - bh - d), int(around[3] + d) + 1, 8):
-                out += [(around[0] - d - W, y), (around[2] + d, y)]
-        return out
+    def by_pin(self, q, s, p):
+        """q inside the stage, 8-24 px from the pin p."""
+        return (q[0] >= s[0] + self.M - 0.5 and q[2] <= s[2] - self.M + 0.5 and q[1] >= s[1] + self.M - 0.5 and q[3] <= s[3] - self.M + 0.5
+                and self.gap(q, p) >= self.GAP - 0.5 and self.dist(q, p) <= self.NEAR + 2)
+
+    def spot_off(self, s, p, e, bh):
+        """A box spot (every 2 px) by the pin and 8 px off the part, if there is one."""
+        for x in range(int(p[0] - self.W - self.NEAR), int(p[2] + self.NEAR) + 1, 2):
+            for y in range(int(p[1] - bh - self.NEAR), int(p[3] + self.NEAR) + 1, 2):
+                q = [x, y, x + self.W, y + bh]
+                if self.gap(q, p) >= self.GAP and self.dist(q, p) <= self.NEAR and self.by_pin(q, s, p) and self.gap(q, e) >= self.GAP:
+                    return q
+        return None
 
     def check(self, kind):
         worst = 0
@@ -1386,48 +1365,17 @@ class CommentPlacementProperty(unittest.TestCase):
                 own = [c for c in o["page"]["ctls"] if inside(c) and not holds(c)]  # the part's own buttons too
                 for k in keep + [mv(c) + c[4:] for c in own]:
                     self.assertFalse(k[0] + 0.5 < pc[0] < k[2] - 0.5 and k[1] + 0.5 < pc[1] < k[3] - 0.5, ("the pin on a control of the page", k, r.get("kp"), what))
-                ok = self.hard(b, s, p, e, keep)
-                if not ok:  # only where some spot keeps them all
-                    can = next(((x, y) for x, y in self.spots(s, bh) if self.hard([x, y, x + self.W, y + bh], s, p, e, keep)), None)
-                    self.assertIsNone(can, ("the box breaks a hard rule with a spot that keeps them", can, keep, what))
                 # V6h N5: a part under two pins wide or tall is never covered by its pin (a grid's cell has it inside)
                 after = "lr" in r and p and p[0] >= r["lr"] + ox - 0.5  # after its words, inside its box: its own room
                 if p and (r["w"] < 52 or r["h"] < 52) and "px" not in r and not r.get("pt") and not after:
                     over = max(0, min(p[2], e[2]) - max(p[0], e[0])) * max(0, min(p[3], e[3]) - max(p[1], e[1]))
                     self.assertLessEqual(over, 0.25 * (e[2] - e[0]) * (e[3] - e[1]), ("the pin covers a small part", what))
-                # V6i B4: off the part the page named that holds the pick (a KPI's card, its number picked) where a spot
-                # clear of it by 8 px within 80 px of the pin keeps the hard rules
-                if ok and p and r.get("pb"):
-                    pb = mv(r["pb"])
-                    if self.meet(b, pb, self.GAP):
-                        for x, y in self.spots(s, bh):
-                            a = [x, y, x + self.W, y + bh]
-                            if self.gap(a, p) <= 80 - 1 and not self.meet(a, pb, self.GAP + 1) and self.hard(a, s, [p[0] - 0.5, p[1] - 0.5, p[2] + 0.5, p[3] + 0.5], [e[0] - 0.5, e[1] - 0.5, e[2] + 0.5, e[3] + 0.5], keep):
-                                self.fail(("the box on the part holding the pick while a spot off it by the pin keeps the rules", a, pb, what))
-                d = self.gap(b, p) if p else self.gap(b, e)
-                worst = max(worst, d)
-                # V6k: within 120 px of its pin whenever a spot that near (cut to its least height) is in the stage and
-                # off the pin and the part; past that only as far as the nearest spot keeping off the controls too
-                if p and d > self.REACH + 1:
-                    lo = min(bh, self.LEAST)
-                    near = next(((x, y) for x, y in self.spots(s, lo) if self.gap([x, y, x + self.W, y + lo], p) <= self.REACH
-                                 and self.hard([x, y, x + self.W, y + lo], s, p, e, [])), None)
-                    if near:
-                        self.assertTrue(ok, ("the box far from its pin, off no rule's reason", near, d, what))
-                        nearer = next(((x, y) for x, y in self.spots(s, lo) if self.gap([x, y, x + self.W, y + lo], p) < d - 9
-                                       and self.hard([x, y, x + self.W, y + lo], s, [p[0] - 0.5, p[1] - 0.5, p[2] + 0.5, p[3] + 0.5], [e[0] - 0.5, e[1] - 0.5, e[2] + 0.5, e[3] + 0.5], keep)), None)
-                        self.assertIsNone(nearer, ("the box farther than the nearest spot keeping the rules", nearer, d, what))
-                # V6h N1: nearness wins: a box more than NEAR (+1, whole px) from its pin only where no spot that near
-                # keeps the hard rules, whatever it covers
-                # (V6i B4: one clear of the part holding the pick within 80 px goes first; V6j: one over none of the
-                # page's content counts 32 px nearer)
-                clear = r.get("pb") and not self.meet(b, mv(r["pb"]), self.GAP) and self.gap(b, p) <= 80 + 32 + 1
-                if p and self.gap(b, p) > self.NEAR + 1 and not clear:
-                    for x, y in self.spots(s, bh, p):
-                        a = [x, y, x + self.W, y + bh]
-                        # kept in whole layout px (the placement rounds away; the hard check allows half a px)
-                        if self.hard(a, s, [p[0] - 0.5, p[1] - 0.5, p[2] + 0.5, p[3] + 0.5], [e[0] - 0.5, e[1] - 0.5, e[2] + 0.5, e[3] + 0.5], keep):
-                            self.fail(("the box is far from its pin while a spot by it keeps the rules", a, d, what))
+                # the box: a popover by its pin, inside the stage, off the part where a spot by the pin is
+                self.assertTrue(self.by_pin(b, s, p), ("the box not 8-24 px from its pin inside the stage", self.gap(b, p), what))
+                if self.gap(b, e) < self.GAP - 0.5:
+                    can = self.spot_off(s, p, e, bh)
+                    self.assertIsNone(can, ("the box on the part picked with a spot by its pin off it", can, what))
+                worst = max(worst, self.gap(b, p))
         type(self).far[kind] = worst
         print(f"\n{kind}: max pin-box gap {worst:.0f} px", file=sys.stderr)
 
@@ -1478,6 +1426,53 @@ class CommentPlacementProperty(unittest.TestCase):
 
     def test_model(self):
         self.check("model")
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class CommentPopoverCloses(unittest.TestCase):
+    """The owner's rule for the box (as a design tool's comment): a press outside it and its pin closes it and does
+    nothing else on the page; a draft with words keeps its pin, and a press on the pin opens the box again with them
+    (Send to Hermes as it was); an empty one goes with its pin. Then the page's own presses work again."""
+
+    def test_a_press_outside_closes_the_box_its_pin_opens_it_again(self):
+        host = B.Host()
+        try:
+            host.files.update(D.viewer_files(EXPORTS))
+            aid = store.publish(title="Test page", type="page", html=LIVE_PAGE)["id"]
+            url = f"http://127.0.0.1:{host.port}/dom/index.html"
+            h1 = 'document.querySelector("h1")'
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(h1)}, SETTLE = 1500; await api.size(1250, 764);" + BOOT_ANY + f"""
+              await api.frame('window.__got = 0; document.addEventListener("click", () => window.__got++); document.addEventListener("mousedown", () => window.__got++)')
+              const state = () => api.top(`(() => {{ const d = window.H.M.$draft.get(), ta = document.querySelector('textarea'), cb = document.querySelector('input[type=checkbox]')
+                const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%'), q = pin && pin.getBoundingClientRect()
+                return {{ draft: !!d, closed: !!(d && d.closed), box: !!ta, text: ta ? ta.value : null, send: cb ? cb.checked : null, pin: q ? [q.left + q.width / 2, q.top + q.height / 2] : null }} }})()`)
+              const outside = async () => {{ const off = await frameAt(), q = await api.frame('(() => {{ const r = document.getElementById("msg").getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] }})()'); await api.mouse(off[0] + q[0], off[1] + q[1]); await api.sleep(400) }}
+              const out = {{}}
+              await pickAt('(() => {{ const r = {h1}.getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] }})()', '[]')
+              await api.type('first line\\nsecond')
+              await api.top(`document.querySelector('input[type=checkbox]').click()`); await api.sleep(200)
+              out.typed = await state()
+              await outside(); out.closed = await state(); out.got = await api.frame('window.__got')
+              out.focus = await api.frame('document.activeElement && document.activeElement.id')
+              await api.mouse(out.closed.pin[0], out.closed.pin[1]); await api.sleep(400); out.again = await state()
+              await outside(); await api.top('window.H.M.$draft.set(null)'); await api.sleep(300)
+              await pickAt('(() => {{ const r = {h1}.getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] }})()', '[]')
+              await outside(); out.empty = await state(); out.got2 = await api.frame('window.__got')
+              await outside(); out.got3 = await api.frame('window.__got')
+              return out""", timeout=240)
+            self.assertIsNone(r.get("err"), r)
+            o, TWO_LINES = r["out"], "first line" + chr(10) + "second"
+            self.assertEqual((o["typed"]["box"], o["typed"]["text"], o["typed"]["send"]), (True, TWO_LINES, False), o)  # two lines typed
+            self.assertEqual((o["closed"]["draft"], o["closed"]["closed"], o["closed"]["box"]), (True, True, False), o)
+            self.assertTrue(o["closed"]["pin"], o)  # its pin stays
+            self.assertEqual(o["got"], 0, o)  # the press reached nothing of the page
+            self.assertNotEqual(o["focus"], "msg", o)
+            self.assertEqual((o["again"]["box"], o["again"]["text"], o["again"]["send"], o["again"]["closed"]), (True, TWO_LINES, False, False), o)
+            self.assertEqual((o["empty"]["draft"], o["empty"]["pin"]), (False, None), o)  # an empty one goes with its pin
+            self.assertEqual(o["got2"], 0, o)
+            self.assertGreater(o["got3"], 0, o)  # closed: the page's own presses again
+        finally:
+            host.close()
 
 
 LONG_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px system-ui;background:#1d1d1b;color:#eee}main{padding:24px;width:1800px}"
@@ -1622,20 +1617,23 @@ class RoundV6hFollow(unittest.TestCase):
         self.follow("design-system", 'document.querySelector(".ds-cover")', 'document.querySelector("#ds-main h2")', self.moves((0, 120, False), (0, 1500, False), (0, -1620, False)))
 
     def test_slides_another_slide_and_back(self):
-        nav = ("const q = await api.frame('(() => {{ const t = document.querySelectorAll(\"#sl-rail .sl-thumb\")[{i}]; t.scrollIntoView({{ block: \"nearest\" }}); const b = t.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] }})()');"
-               " await api.mouse(off[0] + q[0], off[1] + q[1])")
+        # the deck's own move to another slide (a press on a thumbnail would only close the open box: the popover)
+        nav = "await api.frame('document.querySelectorAll(\"#sl-rail .sl-thumb\")[{i}].click()')"
         steps, _ = self.follow("slides", 'document.querySelector(".sl-clip .sl-canvas h1")', '(window.__part = window.__part || document.querySelector(".sl-clip .sl-canvas h1"))', [nav.format(i=1), nav.format(i=0)])
         self.assertIsNone(steps[1]["pin"], steps)  # another slide: its pin away
         self.assertTrue(steps[2]["pin"], steps)  # back with it
 
     def test_a_models_point_follows_an_orbit(self):
-        # a part of a model picked: its pin on the point of it clicked, wherever an orbit takes that point
+        # a part of a model picked: its pin on the point of it clicked, wherever an orbit takes that point (the box
+        # closed with its words: an orbit's press with the box open only closes it)
         url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
         r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.aids['model'])}, SEL = 'document.querySelector(\".md-canvas\")', SETTLE = 2500; await api.size(1250, 764);" + BOOT_ANY + f"""
           const off = await frameAt(), c = await api.frame('(() => {{ const r = document.querySelector(".md-canvas").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] }})()')
           await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
           await api.mouse(off[0] + c[0], off[1] + c[1]); await api.sleep(1200)
           const a = await api.top({json.dumps(DRAFT_NOW)}), label = await api.top('window.H.M.$draft.get().anchor.label')
+          // words written, the box closed by a press outside (its pin kept): the orbit's own press reaches the page
+          await api.type('a note'); await api.mouse(off[0] + 30, off[1] + c[1] * 2 - 30); await api.sleep(400)
           await api.drag(off[0] + c[0] + 200, off[1] + c[1] + 150, off[0] + c[0] + 320, off[1] + c[1] + 150); await api.sleep(900)
           return {{ a, b: await api.top({json.dumps(DRAFT_NOW)}), label }}""", timeout=240)
         self.assertIsNone(r.get("err"), r)
@@ -1697,6 +1695,31 @@ class RoundV6hHeldPress(unittest.TestCase):
         self.assertLessEqual(abs((p[0] + p[2]) / 2 - o["at"][0]), 1, o)
         self.assertLessEqual(abs((p[1] + p[3]) / 2 - o["at"][1]), 1, o)
         self.assertFalse(o["picking"], o)
+
+    def test_the_held_ring_stays_until_its_draft_is_drawn(self):
+        # V6k: the turning ring went ~20-50 ms before the draft came (the cover hidden as the page said its click
+        # picks, the press still held): in no frame is there neither between them.
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        title = '(() => { const e = document.querySelector(".sl-clip .sl-canvas h1"); const q = e.getClientRects()[0]; return [q.left + 30, q.top + q.height / 2] })()'
+        out = []
+        for _ in range(3):
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.slides)}, SEL = 'document.querySelector(\".sl-clip .sl-canvas h1\")', SETTLE = 1500; await api.size(1250, 764);" + BOOT_ANY + f"""
+              await api.frame('(' + {json.dumps(self.LOSE)} + ')(0)')
+              const q = await api.frame({json.dumps(title)}), f = await frameAt()
+              await api.top('window.H.M.$picking.set(true)')
+              await api.top(`(() => {{ window.__seen = []; const t0 = performance.now(), g = () => {{ const h = document.querySelector('[data-pick-hold]'); window.__seen.push([!!(h && h.style.display !== 'none' && h.querySelector('[role=status]')), !!document.querySelector('textarea')])
+                if (performance.now() - t0 < 2500) requestAnimationFrame(g) }}; requestAnimationFrame(g) }})()`)
+              await api.mouse(f[0] + q[0], f[1] + q[1]); await api.sleep(2600)
+              return await api.top('window.__seen')""", timeout=180)
+            self.assertIsNone(r.get("err"), r)
+            s = r["out"]
+            first = next((i for i, x in enumerate(s) if x[0]), None)
+            drawn = next((i for i, x in enumerate(s) if x[1]), None)
+            out.append((first, drawn, [x for x in s[first:drawn] if not x[0]] if first is not None and drawn is not None else None))
+        for first, drawn, blank in out:
+            self.assertIsNotNone(first, out)  # the press was held
+            self.assertIsNotNone(drawn, out)
+            self.assertEqual(blank, [], out)  # the ring until the draft, no frame of nothing
 
     def test_a_press_held_while_the_page_loads_shows_its_ring_and_no_loading_words(self):
         # V6k: the press held as the stage still said "Loading…" (the frame's own placeholder, before its page came):

@@ -219,7 +219,7 @@
         if (f.all !== false) allLabels[f.param] = f.all || allOf(f.label || f.param);
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }
-      ctl.setAttribute("data-comment-keep", ""); // the page's own control: a new comment's box keeps off it (V6g: Reset)
+      ctl.setAttribute("data-comment-keep", ""); // the page's own control: a new comment's pin keeps off it (V6g: Reset)
       lab.appendChild(ctl);
       bar.appendChild(lab);
       controls.push({ f: f, ctl: ctl });

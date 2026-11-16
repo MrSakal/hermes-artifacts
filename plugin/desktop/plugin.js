@@ -4338,11 +4338,9 @@ function pickedRect(r) {
   if (Number.isFinite(r.ly) && Number.isFinite(r.lh) && r.lh > 0) Object.assign(out, { ly: r.ly, lh: r.lh })
   for (const k of ['lr', 'vt', 'vb', 'px']) if (Number.isFinite(r[k])) out[k] = r[k]
   for (const k of ['fr', 'fl', 'fw', 'fa', 'fb', 'vis', 'pt']) if (typeof r[k] === 'boolean') out[k] = r[k]
-  // The page's own controls the box keeps off (bridge.js keeps), and the words it asks to (keptWords): [l, t, r, b]
-  // each, at most KEEP_MAX of each; the page's content in sight (kc: its words' lines and pictures, contentIn), at
-  // most KC_MAX.
-  if (Array.isArray(r.pb) && r.pb.length === 4 && r.pb.every(Number.isFinite) && r.pb[2] > r.pb[0] && r.pb[3] > r.pb[1]) out.pb = r.pb.slice()
-  for (const k of ['kp', 'kw', 'kc']) {
+  // The page's own controls the pin keeps off (bridge.js keeps): [l, t, r, b] each, at most KEEP_MAX; the page's
+  // content in sight (kc: its words' lines and pictures, contentIn), at most KC_MAX.
+  for (const k of ['kp', 'kc']) {
     const list = Array.isArray(r[k]) ? r[k].slice(0, k === 'kc' ? KC_MAX : KEEP_MAX).filter(q => Array.isArray(q) && q.length === 4 && q.every(Number.isFinite) && q[2] > q[0] && q[3] > q[1]) : []
     if (list.length) out[k] = list
   }
@@ -4382,6 +4380,7 @@ function onPageEvent(event, detail) {
     return
   }
   if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickHint)
+  if (event === 'press-out') return closeBox?.() // a press in the page outside the new comment's box
   if (event === 'picked-rect') { // the element picked for the new comment moved (a scroll, a resize, a pan), or is gone
     const d = $draft.get(), r = pickedRect(detail && detail.rect)
     if (!d?.rect) return
@@ -5714,114 +5713,65 @@ function pinSpot(rect, bw, bh) {
 }
 
 const KC_MAX = 160 // the page's content boxes a pick brings (bridge.js KC_MAX)
-const KEEP_MAX = 48 // and of its own controls, and of the words it asks the box to keep off (bridge.js KEEP_MAX)
-const BOX_REACH = 240 // the farthest of the box's distance bands from its pin (BOX_BANDS)
-const KC_PAD = 4 // the room kept around the page's words and pictures when measuring what a spot covers
-const KEEP_PAD = 4 // the least room between the box and the page's own controls
-const BOX_STEP = 16 // the spots tried over the whole stage: every BOX_STEP px
-const BOX_SLIDE = 8 // and along the sides of the pin and the element, every BOX_SLIDE px
+const KEEP_MAX = 48 // and of its own controls (bridge.js KEEP_MAX)
 const BOX_M = 8 // the least room between the new comment's box and the stage's edge
-const BOX_GAP = 8 // between the box and the element (or its pin)
-const BOX_NEAR = 24 // a box this close to its pin or element reads as by it: spots every 4 px from BOX_GAP to here
-const BOX_MIN_H = 128 // the least height the box is cut to to keep its hard rules: its text field one line, its buttons shown
+const BOX_GAP = 8 // between the box and its pin, and the part picked
+const BOX_NEAR = 24 // the farthest the box is from its pin (up to 2 px more to be just past the part picked)
+const BOX_MIN_H = 128 // the least height the box is cut to in a stage too small for it: its text field one line, its buttons shown
 const TEXT_MIN_H = 37 // the new comment's text field, one line, in a box cut (it scrolls)
-const PB_REACH = 80 // a spot clear of the part holding the element (rect.pb) this near its pin goes first
-const BOX_BANDS = [BOX_NEAR, PB_REACH, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
-const CLEAR_EASE = 32 // a spot over none of the page's content, past BOX_NEAR, is ranked as this much nearer
-const BOX_KEEP = 120 // the box's farthest from its pin while a spot that near keeps the hard rules (cut to BOX_MIN_H)
+const BOX_SIDES = ['right', 'left', 'below', 'above'] // the box's sides of its pin, the first that fits first
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w, h in
- *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box, by
- *  ONE ordered rule for every type:
- *  1. Hard, never broken while any spot keeps them all: inside the stage (BOX_M off its edges), BOX_GAP off the
- *     pin and off the element picked, KEEP_PAD off every one of the page's own controls in sight (rect.kp:
- *     data-comment-keep: toolbars, pills, palettes, a deck's thumbnails, a film's playback bar, a filter row's
- *     fields and Reset, a doc's comment cards, a design's strips and panel; and every other button, field, link
- *     or checkbox of the page, marked or not: bridge.js keeps). In whole px, rounded away from each.
- *  2. Among the spots that keep them: first those BOX_GAP clear of the whole part the page named that holds the
- *     element (rect.pb: a KPI whose number was picked) within PB_REACH of the pin (V6i); then nearness wins (V6h: a
- *     box 65-227 px off its pin over other content read as lost): the nearest of the distance bands from the pin
- *     (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first); in a band the one covering the least of the page's content
- *     (rect.kc, rect.kw, KC_PAD round each: some neighbouring words by the pin are better than a box far away),
- *     then the nearest. A spot over none of that content, past the adjacent band, is ranked CLEAR_EASE nearer.
- *     Only spots within BOX_KEEP of the pin, at the box's height or cut down to BOX_MIN_H; none that near: the
- *     nearest keeping 1, no farther.
- *  3. None keeps 1 at the box's height: cut (it scrolls) down to BOX_MIN_H; then the element's own room is given
- *     up (the element fills the stage: the box over it), then the controls'; the stage and the pin never.
- *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
-function placeCommentBox(rect, bw, bh, h) {
+ *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box is a
+ *  popover beside its pin, as a design tool's comment: BOX_GAP from it (up to BOX_NEAR where the part picked asks
+ *  for more room), level with it, on the first of BOX_SIDES (`side`, the one it had while its draft is open, first)
+ *  that is wholly inside the stage (BOX_M) and BOX_GAP off the part picked; with none off the part (one that fills
+ *  the stage: a slide, an artboard, a chart), the first inside the stage, over the part but never over the pin. Its
+ *  full height (h) while the stage has room for it; cut (it scrolls) only in a stage too small, down to BOX_MIN_H.
+ *  It may cover the page's content and controls while it is open: a press outside closes it (CommentPopover). In
+ *  whole px, rounded away from the pin and the part. box.maxH is always set: the most it may be; box.side: where it
+ *  went. Pure: tested without a DOM. */
+function placeCommentBox(rect, bw, bh, h, side = null) {
   const pin = pinSpot(rect, bw, bh)
-  return { pin, box: boxSpot(rect, pin, bw, bh, h) }
+  return { pin, box: boxSpot(rect, pin, bw, bh, h, side) }
 }
-function boxSpot(rect, pin, bw, bh, h) {
-  const M = BOX_M, G = BOX_GAP, W = COMMENT_W, S = pin.s
-  const near = (a, b, pad) => a[0] < b[2] + pad && b[0] - pad < a[2] && a[1] < b[3] + pad && b[1] - pad < a[3]
-  const P = [pin.x, pin.y, pin.x + S, pin.y + S], E = [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
-  const kp = rect.kp || [], soft = [...(rect.kc || []), ...(rect.kw || [])]
-  const pb = rect.pb ? [Math.min(rect.pb[0], E[0]), Math.min(rect.pb[1], E[1]), Math.max(rect.pb[2], E[2]), Math.max(rect.pb[3], E[3])] : null
-  const gap = (a, b) => Math.hypot(Math.max(0, b[0] - a[2], a[0] - b[2]), Math.max(0, b[1] - a[3], a[1] - b[3]))
-  const less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false }
-  const covers = a => soft.reduce((n, k) => n + Math.max(0, Math.min(a[2], k[2] + KC_PAD) - Math.max(a[0], k[0] - KC_PAD)) * Math.max(0, Math.min(a[3], k[3] + KC_PAD) - Math.max(a[1], k[1] - KC_PAD)), 0)
-  // The best spot for a box hh tall keeping the hard rules up to `level` (0: all; 1: not the element's; 2: nor the
-  // controls'), within BOX_KEEP of the pin; far: or, none that near, the nearest that keeps them (no farther).
-  const best = (hh, level, far) => {
-    const xs = new Set([M, bw - M - W]), ys = new Set([M, bh - M - hh])
-    for (let x = M; x + W <= bw - M; x += BOX_STEP) xs.add(x)
-    for (let y = M; y + hh <= bh - M; y += BOX_STEP) ys.add(y)
-    // Whole px, rounded away from what they keep off: a gap measured after layout is never under the rule (V6h:
-    // 7.9 against 8, 3.9 against 4).
-    const up = v => Math.ceil(v - 1e-6), down = v => Math.floor(v + 1e-6)
-    for (const R of [P, E]) {
-      xs.add(up(R[0])); xs.add(down(R[2] - W)); ys.add(up(R[1])); ys.add(down(R[3] - hh))
-      for (let g = G; g <= BOX_NEAR; g += 4) { xs.add(up(R[2] + g)); xs.add(down(R[0] - g - W)); ys.add(up(R[3] + g)); ys.add(down(R[1] - g - hh)) } // adjacent, then a little off
-    }
-    for (const k of kp) { xs.add(up(k[2] + KEEP_PAD)); xs.add(down(k[0] - KEEP_PAD - W)); ys.add(up(k[3] + KEEP_PAD)); ys.add(down(k[1] - KEEP_PAD - hh)) }
-    if (pb) { xs.add(up(pb[2] + G)); xs.add(down(pb[0] - G - W)); ys.add(up(pb[3] + G)); ys.add(down(pb[1] - G - hh)) }
-    for (let x = P[0] - W; x <= P[2]; x += BOX_SLIDE) xs.add(Math.round(x))
-    for (let y = P[1] - hh; y <= P[3]; y += BOX_SLIDE) ys.add(Math.round(y))
-    const ok = []
-    for (const x of xs) {
-      if (x < M || x + W > bw - M) continue
-      for (const y of ys) {
-        if (y < M || y + hh > bh - M) continue
-        const a = [x, y, x + W, y + hh]
-        if (near(a, P, G) || (level < 2 && kp.some(k => near(a, k, KEEP_PAD))) || (level < 1 && near(a, E, G))) continue
-        ok.push({ x, y, a, d: gap(a, P) })
+function boxSpot(rect, pin, bw, bh, h, side) {
+  const M = BOX_M, W = COMMENT_W
+  const P = [pin.x, pin.y, pin.x + pin.s, pin.y + pin.s], E = [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
+  // apart: the room between two boxes (on the axis they are apart on); dist: how far they are
+  const apart = (a, b) => Math.max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
+  const dist = (a, b) => Math.hypot(Math.max(0, b[0] - a[2], a[0] - b[2]), Math.max(0, b[1] - a[3], a[1] - b[3]))
+  const up = v => Math.ceil(v - 1e-6), down = v => Math.floor(v + 1e-6)
+  const slide = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)))
+  // On each side in turn, level with the pin's top (or left), slid into the stage; none: on each side in turn
+  // shifted along it just past the part, either way (a pin by the part's edge; side "left+"). The one it had first.
+  const ways = [false, true].flatMap(shift => BOX_SIDES.map(s => [s, shift]))
+  const had = ways.findIndex(([s, shift]) => s + (shift ? '+' : '') === side)
+  if (had > 0) ways.unshift(...ways.splice(had, 1))
+  const find = (hh, part) => {
+    for (const [s, shift] of ways) {
+      const across = s === 'right' || s === 'left'
+      // BOX_GAP off the pin, a little farther, or just past the part picked
+      const past = s === 'right' ? up(E[2] + BOX_GAP) : s === 'left' ? down(E[0] - BOX_GAP - W) : s === 'below' ? up(E[3] + BOX_GAP) : down(E[1] - BOX_GAP - hh)
+      for (const g of [BOX_GAP, BOX_GAP + 4, BOX_GAP + 8, BOX_GAP + 12, BOX_NEAR, null]) {
+        const fixed = g === null ? past : s === 'right' ? up(P[2] + g) : s === 'left' ? down(P[0] - g - W) : s === 'below' ? up(P[3] + g) : down(P[1] - g - hh)
+        const along = !shift ? [across ? P[1] : P[0]] : across ? [up(E[3] + BOX_GAP), down(E[1] - BOX_GAP - hh)] : [up(E[2] + BOX_GAP), down(E[0] - BOX_GAP - W)]
+        for (const v of along) {
+          const [x, y] = across ? [fixed, slide(v, M, bh - M - hh)] : [slide(v, M, bw - M - W), fixed], a = [x, y, x + W, y + hh]
+          if (x < M || x + W > bw - M || y < M || y + hh > bh - M || apart(a, P) < BOX_GAP - 1e-6 || dist(a, P) > BOX_NEAR + 2) continue // + 2: just past a part whose edge is in fractions, in whole px
+          if (part && apart(a, E) < BOX_GAP - 1e-6) continue
+          return { x, y, side: s + (shift ? '+' : '') }
+        }
       }
     }
-    if (!ok.length) return null
-    const reach = Math.max(BOX_KEEP, Math.min(...ok.map(o => o.d)))
-    if (reach > BOX_KEEP && !far) return null
-    let top = null
-    for (const { x, y, a, d } of ok) {
-      if (d > reach + 1e-6) continue
-      const c = covers(a)
-      // A spot over none of the page's content, past the adjacent band, counts CLEAR_EASE nearer (V6j: a KPI's
-      // box 76 px off its pin cut the summary line while one 102 px off was over nothing)
-      const dn = c === 0 && d > BOX_NEAR ? Math.max(d - CLEAR_EASE, BOX_NEAR + 0.5) : d
-      // Clear of the part the page named that holds the element (a KPI's card, its number picked) within
-      // PB_REACH of the pin, before any spot on it or by it (V6i B4: the box on the card and its neighbours)
-      const onPb = pb ? (near(a, pb, G) || dn > PB_REACH ? 1 : 0) : 0
-      const key = [onPb, BOX_BANDS.findIndex(b => dn <= b), c, d]
-      if (!top || less(key, top.key)) top = { x, y, key, reach }
-    }
-    return top
+    return null
   }
   const full = Math.min(h, bh - 2 * M)
-  // Cut before going farther than BOX_KEEP (V6j: a design system's heading, its box 505 px off at the stage's foot)
-  // and none that near at any height: the nearest of all heights, the tallest of those as near.
-  for (let level = 0; level <= 2; level++) {
-    for (const far of [false, true]) {
-      let pick = null
-      for (let hh = full; hh >= Math.min(full, BOX_MIN_H); hh = hh > BOX_MIN_H && hh - BOX_STEP < BOX_MIN_H ? BOX_MIN_H : hh - BOX_STEP) {
-        const b = best(hh, level, far)
-        if (b && !far) return { x: b.x, y: b.y, maxH: hh < h ? hh : bh - 2 * M }
-        if (b && (!pick || b.reach < pick.b.reach - 0.5)) pick = { b, hh }
-        if (hh <= BOX_MIN_H) break
-      }
-      if (pick) return { x: pick.b.x, y: pick.b.y, maxH: pick.hh < h ? pick.hh : bh - 2 * M }
-    }
+  for (let hh = full; ; hh = Math.max(BOX_MIN_H, hh - 16)) {
+    const b = find(hh, true) || find(hh, false)
+    if (b) return { ...b, maxH: hh < h ? hh : bh - 2 * M }
+    if (hh <= BOX_MIN_H) break
   }
-  return { x: M, y: M, maxH: bh - 2 * M } // a stage narrower than the box: its corner
+  return { x: M, y: M, maxH: bh - 2 * M, side: null } // a stage narrower than the box: its corner
 }
 
 /** The viewer's row (the stage and the comments list beside it), the stage, a shown frame's box in it and the
@@ -5859,8 +5809,9 @@ const BAND_MIN = 146 // a band between the page's own bars narrower than this is
  *  room for it; an element behind the list gets its pin at the list's edge, on its own line. An element out of
  *  sight (scrolled or zoomed out of the frame, or out of the band under the page's bars) keeps its
  *  draft attached: the pin at the band's edge nearest the element, the box by it as for any pin, both back on
- *  the element when it is (V6g: the box parked in the bottom-right corner with no pin). Pure. */
-function commentLayout(rect, bw, bh, h, cover = 0) {
+ *  the element when it is (V6g: the box parked in the bottom-right corner with no pin). side: the box's side of
+ *  its pin so far, kept while it fits. Pure. */
+function commentLayout(rect, bw, bh, h, cover = 0, side = null) {
   const free = Math.max(0, bw - cover)
   let t0 = Number.isFinite(rect.vt) ? Math.max(0, Math.min(bh, rect.vt)) : 0
   let b0 = Number.isFinite(rect.vb) ? Math.max(t0, Math.min(bh, rect.vb)) : bh
@@ -5870,14 +5821,12 @@ function commentLayout(rect, bw, bh, h, cover = 0) {
   const off = rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
   const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}),
     ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
-    ...(rect.kw ? { kw: rect.kw.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
-    ...(rect.kc ? { kc: rect.kc.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
-    ...(rect.pb ? { pb: [rect.pb[0], rect.pb[1] - t0, rect.pb[2], rect.pb[3] - t0] } : {}) }
+    ...(rect.kc ? { kc: rect.kc.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
   const band = b0 - t0
   // out of sight: a point at the band's edge nearest the element (its middle, held inside the band)
   const edge = (v, hi) => Math.max(0, Math.min(hi - 1, v))
-  const at = off ? { ...inBand, x: edge(rect.x + rect.w / 2, free), y: edge(rect.y - t0 + rect.h / 2, band), w: 0, h: 0, pt: true, pb: undefined } : inBand
-  const { pin, box } = placeCommentBox(at, free, band, h)
+  const at = off ? { ...inBand, x: edge(rect.x + rect.w / 2, free), y: edge(rect.y - t0 + rect.h / 2, band), w: 0, h: 0, pt: true } : inBand
+  const { pin, box } = placeCommentBox(at, free, band, h, side)
   // A pin that would lie on the page's own controls (a canvas's palette over the element after a pan) is not
   // drawn: the page's controls stay on top, as the element under them is.
   const underControls = (at.kp || []).some(([l, t, r, b]) => pin.x < r && l < pin.x + pin.s && pin.y < b && t < pin.y + pin.s)
@@ -5897,9 +5846,11 @@ function PickHold({ F, stageRef, portRef }) {
   const held = useValue($pickHeld)
   const shown = useRef(F.shown)
   shown.current = F.shown
+  // A press held stays shown (its ring) until a pick comes of it, also once the page says its click picks (V6k:
+  // the ring gone ~20-50 ms before the draft came)
   const sync = () => {
     const el = ref.current, s = shown.current
-    if (el) el.style.display = $picking.get() && !$pickOn.get() && !(s && (s.err || (s.hello > 0 && s.hello < PICK_ACK))) ? '' : 'none'
+    if (el) el.style.display = $picking.get() && ($pickHeld.get() || (!$pickOn.get() && !(s && (s.err || (s.hello > 0 && s.hello < PICK_ACK))))) ? '' : 'none'
   }
   useLayoutEffect(sync)
   const holdRef = useRef(null)
@@ -5918,7 +5869,7 @@ function PickHold({ F, stageRef, portRef }) {
   // Held in the window's px: the frame may not be there yet (a page still loading); the frame's px when given.
   const hold = e => {
     e.preventDefault(); e.stopPropagation()
-    if ($pickHeld.get()) return
+    if ($pickHeld.get() || !$picking.get()) return
     $pickHeld.set({ x: e.clientX, y: e.clientY, n: ++heldN })
     const st = stageRef.current, frame = () => (st?.querySelector('[data-frame="shown"] iframe') || st?.querySelector('[data-frame] iframe'))?.getBoundingClientRect()
     if ($pickOn.get()) giveHeld(portRef.current, frame) // it said so before this cover went
@@ -5973,18 +5924,45 @@ const boxWhole = el => {
   const ta = el.querySelector('textarea'), give = ta ? Math.max(0, (parseFloat(ta.style.height) || 0) - ta.getBoundingClientRect().height) : 0
   return el.scrollHeight - el.clientHeight + el.getBoundingClientRect().height + give
 }
-/** Claude's in-place comment: a box beside the element clicked, empty, Send to Hermes on (its checkbox). */
-function CommentPopover({ ctx, art, stageRef }) {
+/** The new comment's box open on the page (CommentPopover): what closes it, for a press outside it in the page
+ *  (the bridge's "press-out"). */
+let closeBox = null
+/** The in-place comment: a popover beside the element clicked, empty, Send to Hermes on (its checkbox). A press
+ *  outside it and its pin closes it: its words kept by its pin (pressed, it opens again with them), an empty one
+ *  gone with its pin. In the page the bridge takes that press ("comment-open"): it reaches nothing there, as a
+ *  press outside a menu; elsewhere in Hermes it does what it does. */
+function CommentPopover({ ctx, art, stageRef, portRef }) {
   const t = usePluginI18n(ID)
   const draft = useValue($draft)
   const cover = useValue($panelCover)
   const [text, setText] = useState('')
-  useEffect(() => setText(''), [draft?.anchor]) // a new pick; the pin following its element keeps the text
+  const [send, setSend] = useState(true)
+  useEffect(() => (setText(''), setSend(true)), [draft?.anchor]) // a new pick; the pin following its element keeps the text
   const stage = stageRef.current
   const bw = stage ? stage.clientWidth : 1200
   const bh = stage ? stage.clientHeight : 800
   const docks = commentDocks(bw, cover) // the floating comments list leaves no room: the box is in the list
+  const shut = Boolean(draft?.closed)
+  const open = Boolean(draft?.rect) && !docks && !shut
   const boxRef = useRef(null)
+  const pinRef = useRef(null)
+  const words = useRef(text)
+  words.current = text
+  useEffect(() => {
+    if (!open) return undefined
+    const close = () => { const d = $draft.get(); if (d) $draft.set(words.current.trim() ? { ...d, closed: true } : null) }
+    closeBox = close
+    postToPage(portRef, 'comment-open', { on: true })
+    const down = e => {
+      const at = e.target
+      if (boxRef.current?.contains(at) || pinRef.current?.contains(at)) return
+      // the stage's frame itself: a press Chromium gave this document, not the page (PickHold)
+      if (at?.tagName === 'IFRAME' && stageRef.current?.contains(at)) { e.preventDefault(); e.stopPropagation() }
+      close()
+    }
+    const off = listen(CTX, window, 'pointerdown', down, true)
+    return () => { off(); if (closeBox === close) closeBox = null; postToPage(portRef, 'comment-open', { on: false }) }
+  }, [open])
   const [boxH, setBoxH] = useState(170)
   useLayoutEffect(() => {
     const el = boxRef.current
@@ -5995,7 +5973,7 @@ function CommentPopover({ ctx, art, stageRef }) {
     let ro = null
     try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
     return () => ro?.disconnect()
-  }, [Boolean(draft?.rect), docks])
+  }, [Boolean(draft?.rect), docks, shut])
   // The stage narrows or grows (the comments list opens beside it, the window is resized): placed again.
   const [, setStageTick] = useState(0)
   useLayoutEffect(() => {
@@ -6007,25 +5985,32 @@ function CommentPopover({ ctx, art, stageRef }) {
   }, [Boolean(draft?.rect)])
   // placed again only when what it is placed by changed (not at every letter typed: it weighs every spot)
   const placed = useRef({ k: '', v: null })
+  const kept = useRef({ anchor: null, side: null }) // the box's side while this draft is open (placeCommentBox)
   if (!draft?.rect) return null
+  if (kept.current.anchor !== draft.anchor) kept.current = { anchor: draft.anchor, side: null }
   // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part),
   // its fraction too (V6k: offsetHeight 142 drawn 142.1 at 125 %, the box 3.9 px off a field)
-  const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(boxWhole(be) - 1e-3)) || boxH
-  const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover])
-  if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover) }
-  const { box } = placed.current.v, pin = draft.gone ? null : placed.current.v.pin
+  const be = boxRef.current, hNow = Math.ceil(((be && be.isConnected && boxWhole(be)) || boxH) - 1e-3) // the same whole px drawn or not (reopened)
+  const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover, kept.current.side])
+  if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side) }
+  const box = shut ? null : placed.current.v.box, pin = draft.gone ? null : placed.current.v.pin
+  if (box && be && be.isConnected) kept.current.side = box.side // placed for its height as drawn
   const label = anchorTitle(draft.anchor, t('selectedPart'))
+  const reopen = () => $draft.set({ ...$draft.get(), closed: false })
   return jsxs('div', {
     children: [
-      // The pin over the popover's layer: whatever the placement, it is never covered.
-      pin ? jsx('div', { style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: pin.s, height: pin.s, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: Math.round(pin.s * 0.42), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }, children: t('you').slice(0, 1) }) : null,
+      // The pin over the popover's layer: whatever the placement, it is never covered. The box closed with its
+      // words, pressing it opens the box again.
+      pin ? jsx('div', { ref: pinRef, ...(shut ? { role: 'button', tabIndex: 0, title: t('comment'), 'aria-label': t('comment'), className: FOCUS,
+        onPointerDown: e => (e.preventDefault(), reopen()), onKeyDown: e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), reopen()) } : {}),
+        style: { position: 'absolute', left: pin.x, top: pin.y, zIndex: 28, width: pin.s, height: pin.s, borderRadius: '50%', background: C.accent, color: C.onAccent, border: `2px solid ${C.bg}`, boxSizing: 'border-box', fontSize: Math.round(pin.s * 0.42), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: shut ? 'pointer' : 'default' }, children: t('you').slice(0, 1) }) : null,
       box
         ? jsxs('div', {
             ref: boxRef,
             style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH, overflowY: 'auto', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
             children: [
               label ? jsx('div', { style: { flexShrink: 0, fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
-              jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
+              jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, send, setSend, compact: true })
             ]
           })
         : null
@@ -6250,9 +6235,11 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
   })
 }
 
-function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, setText, compact = false }) {
+function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, setText, compact = false, ...kept }) {
   const t = usePluginI18n(ID)
-  const [send, setSend] = useState(true)
+  // Send to Hermes: the form's own, or its holder's (the popover's, kept while it is closed by its pin)
+  const [own, setOwn] = useState(true)
+  const [send, setSend] = kept.setSend ? [kept.send, kept.setSend] : [own, setOwn]
   const [busy, setBusy] = useState(false)
   const submit = async () => {
     const body = text.trim().replace(/^@Hermes\b[\s,:]*/i, '')
@@ -6574,7 +6561,7 @@ function Viewer({ ctx, docked = false }) {
                   }),
               jsx(PickHold, { F, stageRef: stage, portRef }),
               jsx(MenuCover, {}),
-              jsx(CommentPopover, { ctx, art, stageRef: stage }),
+              jsx(CommentPopover, { ctx, art, stageRef: stage, portRef }),
               jsx(ConfirmSend, {}),
               // The artifact's chat floating over it: Pop out chat on the full page, or the tile over the chat in
               // the popup layout. Under the header and its bands (it lives in the stage), never mounted closed.

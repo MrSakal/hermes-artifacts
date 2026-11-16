@@ -769,19 +769,15 @@
     // not a part drawn as one over the grid (a sheet's chart: V6k, its pin in its middle over the pie)
     var grid = el.closest && el.closest("[data-comment-pin-in]");
     if (grid && grid !== el && !el.hasAttribute("data-comment-whole")) out.px = pinIn(r, line);
-    // the part the page named that holds el (a KPI whose number was picked): the box keeps off it where it can
-    var part = el.closest && el.closest("[data-comment-label]");
-    if (part && part !== el) { var q = part.getBoundingClientRect(); if (q.width >= 1 && q.height >= 1) out.pb = [q.left, q.top, q.right, q.bottom]; }
-    var kp = keeps(el), kw = keptWords(el), kc = contentIn();
+    var kp = keeps(el), kc = contentIn();
     if (kp.length) out.kp = kp;
-    if (kw.length) out.kw = kw;
     if (kc.length) out.kc = kc;
     return out;
   }
-  /** What is on the page in sight, for the comment's box to prefer empty room (kc): each line of words and each
-   *  picture or control, [left, top, right, bottom] in the window, at most KC_MAX (the first in the page's order);
-   *  a box out of sight is not looked into, nor one the page lets the box lie on ([data-comment-under]: a design's
-   *  artboards on its canvas). */
+  /** What is on the page in sight, for the pin to keep off where a part has no free side (kc): each line of words
+   *  and each picture or control, [left, top, right, bottom] in the window, at most KC_MAX (the first in the page's
+   *  order); a box out of sight is not looked into, nor one the page lets a pin lie on ([data-comment-under]: a
+   *  design's artboards on its canvas). */
   var KC_MAX = 160;
   function contentIn() {
     var out = [], seen = 0;
@@ -815,30 +811,11 @@
     if (line.left - PIN_GAP - s >= lo) return line.left - PIN_GAP - s;
     return Math.max(lo, hi);
   }
-  /** The words the comment's box keeps off where there is room, besides the page's controls (kw: never a reason to
-   *  hide the pin): in a part of the page that asks for it ([data-comment-keep-words]: a deck's slide, V6d's box
-   *  over the eyebrow line of the title picked), each text's own extent, [left, top, right, bottom] in the window,
-   *  those in sight and not el's own (all of them where el is that part: its blank picked), at most KEEP_MAX. */
-  function keptWords(el) {
-    var wk = el.closest && el.closest("[data-comment-keep-words]"), out = [];
-    if (!wk) return out;
-    try {
-      var w = document.createTreeWalker(wk, NodeFilter.SHOW_TEXT), n, rg = document.createRange();
-      for (var i = 0; (n = w.nextNode()) && i < 400 && out.length < KEEP_MAX; i++) {
-        if (!/\S/.test(n.nodeValue) || (el !== wk && el.contains(n)) || (n.parentElement && n.parentElement.closest("[data-hermes-ui]"))) continue;
-        rg.selectNodeContents(n);
-        var q = rg.getBoundingClientRect();
-        if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight) continue;
-        out.push([Math.floor(q.left), Math.floor(q.top), Math.ceil(q.right), Math.ceil(q.bottom)]);
-      }
-    } catch (_) {}
-    return out;
-  }
-  /** The page's own controls the comment's box keeps off where there is room ([data-comment-keep]: a film's
-   *  playback bar and scenes, a canvas's floating tools, a design's frame names, a deck's thumbnails), each
-   *  [left, top, right, bottom] in the window: those in sight, not one holding el, at most KEEP_MAX. */
-  // One holding el (a design system's nav, an item of it picked): its other controls each (V6h: the box on the
-  // nav's "Assets" next to the item picked).
+  /** The page's own controls the comment's pin keeps off ([data-comment-keep]: a film's playback bar and scenes, a
+   *  canvas's floating tools, a design's frame names, a deck's thumbnails), each [left, top, right, bottom] in the
+   *  window: those in sight, not one holding el, at most KEEP_MAX. */
+  // One holding el (a design system's nav, an item of it picked): its other controls each (V6i B3: the pin on a
+  // neighbouring nav item).
   var KEEP_MAX = 48, CONTROL = "a[href], button, input, select, textarea, [role=button], [role=tab], [role=link]";
   function keeps(el) {
     var out = [], ns = document.querySelectorAll("[data-comment-keep]");
@@ -853,13 +830,13 @@
       for (var j = 0; j < cs.length && out.length < KEEP_MAX; j++) if (!cs[j].contains(el) && !el.contains(cs[j])) push(cs[j]);
     }
     // Every other control of the page in sight, marked or not, the nearest el first (V6i B2: a free-form page's
-    // Reset under the pin of "+1", its message field under the box): a button, a field, a link, a checkbox, anything
-    // focusable; not one the page hides while picking, nor a box as big as a quarter of the window (a canvas, a grid).
+    // Reset under the pin of "+1"): a button, a field, a link, a checkbox, anything focusable; not one the page hides
+    // while picking, nor a box as big as a quarter of the window (a canvas, a grid).
     var e = el.getBoundingClientRect(), more = [];
     var all = document.querySelectorAll(FOCUSABLE);
     for (var k = 0; k < all.length && k < 2000; k++) {
       var n = all[k];
-      // the part's own buttons too (the pin never on them; the box keeps off the part anyway): not el nor one holding it
+      // the part's own buttons too (the pin never on them): not el nor one holding it
       if (n.closest("[data-comment-keep],[data-hermes-ui],[data-comment-under],[data-comment-hide]") || n.contains(el) || n.hasAttribute("contenteditable")) continue;
       var q = n.getBoundingClientRect();
       if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight || q.width * q.height > innerWidth * innerHeight / 4) continue;
@@ -1006,6 +983,35 @@
     setPicking(false);
     emit("pick-cancel", {});
   }, true);
+  // While the new comment's box is open over the page (the host's "comment-open"), a press in the page only closes
+  // it (the host is told: "press-out"), as a press outside a menu: it, its release and its click reach none of the
+  // page's handlers. A wheel still scrolls and pans. The page's own frames (an artboard, a preview) take no pointer
+  // then: their press is this document's. Before picking's own (swallow): every press says whether it is one.
+  var boxOpen = false, outPress = false, openStyle = null;
+  function pressOut(e) {
+    var t = e.target;
+    if (t && t.closest && t.closest("[data-hermes-ui]")) return;
+    if (e.type === "pointerdown") {
+      outPress = boxOpen;
+      if (outPress) emit("press-out", {});
+    }
+    if (!outPress) return;
+    if (e.cancelable) e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.type === "click") outPress = false;
+  }
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "click", "dblclick", "auxclick", "contextmenu", "dragstart", "selectstart"]
+    .forEach(function (t) { window.addEventListener(t, pressOut, { capture: true, passive: false }); });
+  on("comment-open", function (d) {
+    boxOpen = !!(d && d.on);
+    if (boxOpen && !openStyle) {
+      openStyle = document.createElement("style");
+      openStyle.setAttribute("data-hermes-ui", "");
+      openStyle.textContent = "html[data-comment-open] iframe{pointer-events:none!important}";
+      document.documentElement.appendChild(openStyle);
+    }
+    if (boxOpen) document.documentElement.setAttribute("data-comment-open", ""); else document.documentElement.removeAttribute("data-comment-open");
+  });
   // While picking, the press that makes the click reaches none of the page's own handlers: it would focus an
   // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
   // still comes (onPick; a page that picks on its own, like motion, takes it on window first). A finger's tap

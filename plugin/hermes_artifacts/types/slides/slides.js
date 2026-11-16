@@ -188,10 +188,7 @@
   function canvasFor(s, scale, live) {
     var c = h("div", { "class": "sl-canvas" });
     c.style.transform = "scale(" + scale + ")";
-    if (live) { // what a comment pick on it is titled; the new comment's box keeps off its words where it can
-      c.setAttribute("data-comment-label", T.pSlide + " " + (slides.indexOf(s) + 1));
-      c.setAttribute("data-comment-keep-words", "");
-    }
+    if (live) c.setAttribute("data-comment-label", T.pSlide + " " + (slides.indexOf(s) + 1)); // what a comment pick on it is titled
     var sec = live ? s.sec : s.sec.cloneNode(true);
     if (!live) sec.querySelectorAll("[contenteditable]").forEach(function (n) { n.removeAttribute("contenteditable"); });
     c.appendChild(sec);

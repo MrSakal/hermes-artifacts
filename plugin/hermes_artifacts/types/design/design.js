@@ -405,8 +405,8 @@
   function makeBoard(p) {
     var b = { path: p, playing: false, errors: [] };
     b.el = h("div", { "class": "dc-board", "data-path": p });
-    // the artboard's picture: the new comment's box may lie on it, by what was picked (data-comment-under: V6f, a box
-    // kept off every artboard went 235 px from a strip, and stayed on the empty canvas as the canvas zoomed)
+    // the artboard's picture: a new comment's pin may lie on it (data-comment-under: its words and controls are not
+    // the page's to keep off; the artboard picks inside its own frame)
     b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
     b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [b.grip = h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
