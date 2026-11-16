@@ -33,9 +33,10 @@
   var MAX_QUEUED_EVENTS = 50;
 
   // A plain page's scrollbars in the host's theme (thin, its colours), as the type runtimes' are, only when the
-  // page styles none of its own. One <style> put first into <head> by the DOM (no line of the document moves),
-  // every selector in :where() (specificity 0, first in order): any rule of the page wins. Not in an export (no
-  // bridge there), not in a type runtime (the kit styles its own).
+  // page styles none of its own; and its keyboard focus as Hermes shows it (the accent's 3 px ring, not the
+  // browser's own outline: V6l, Tab on a free-form page's button). One <style> put first into <head> by the DOM (no
+  // line of the document moves), every selector in :where() (specificity 0, first in order): any rule of the page
+  // wins. Not in an export (no bridge there), not in a type runtime (the kit styles its own).
   var hostBars = null, BARS_ID = "hermes-scrollbars", OWN_BARS = /scrollbar-(color|width)|::?-webkit-scrollbar/i;
   function barColour(c) { return typeof c === "string" && /^(#[0-9a-f]{3,8}|rgba?\([\d.,%\s\/]+\))$/i.test(c) ? c : null; }
   function ownScrollbars() {
@@ -56,10 +57,12 @@
     try {
       if (!hostBars || document.readyState === "loading") return; // DOMContentLoaded comes back here
       var mine = document.getElementById(BARS_ID);
-      var thumb = barColour(hostBars.muted) || barColour(hostBars.strong), track = barColour(hostBars.bg);
-      if (document.getElementById("hermes-artifact-content") || !thumb || ownScrollbars()) { if (mine) mine.remove(); return; }
-      var css = ":where(*){scrollbar-width:thin;scrollbar-color:" + thumb + " transparent}" +
-        (track ? ":where(:root){scrollbar-color:" + thumb + " " + track + "}" : "");
+      var thumb = barColour(hostBars.muted) || barColour(hostBars.strong), track = barColour(hostBars.bg), ring = barColour(hostBars.accent);
+      var bars = !!thumb && !ownScrollbars();
+      if (document.getElementById("hermes-artifact-content") || !(bars || ring)) { if (mine) mine.remove(); return; }
+      var css = (bars ? ":where(*){scrollbar-width:thin;scrollbar-color:" + thumb + " transparent}" +
+        (track ? ":where(:root){scrollbar-color:" + thumb + " " + track + "}" : "") : "") +
+        (ring ? ":where(:focus-visible){outline:3px solid color-mix(in srgb," + ring + " 50%,transparent);outline-offset:0}" : "");
       if (!mine) {
         mine = document.createElement("style");
         mine.id = BARS_ID;

@@ -719,7 +719,7 @@ class PageScrollbars(unittest.TestCase):
         try:
             look = """(() => { const r = getComputedStyle(document.documentElement), b = document.querySelector('.box') || document.body
               const s = document.getElementById('hermes-scrollbars')
-              return { style: !!s, first: !!s && document.head.firstElementChild === s, rootW: r.scrollbarWidth, rootC: r.scrollbarColor,
+              return { style: !!s, css: s ? s.textContent : '', first: !!s && document.head.firstElementChild === s, rootW: r.scrollbarWidth, rootC: r.scrollbarColor,
                        boxW: getComputedStyle(b).scrollbarWidth, boxC: getComputedStyle(b).scrollbarColor } })()"""
             body = "const out = {}\n"
             for name, aid in ids.items():
@@ -737,8 +737,13 @@ class PageScrollbars(unittest.TestCase):
         self.assertEqual(p["rootC"], "rgb(140, 139, 134) rgb(31, 31, 30)")
         self.assertTrue(p["boxC"].startswith("rgb(140, 139, 134) "), p)
         self.assertEqual([str(a).split(":")[:2] for a in p["at"]], [["index.html", "6"]], p)  # the error's own line
-        for name in ("webkit", "inline", "dashboard"):
-            self.assertFalse(o[name]["style"], (name, o[name]))
+        # V6l: and its keyboard focus as Hermes shows it (the accent's 3 px ring, not the browser's own outline), on
+        # every plain page, its own scrollbars or not; a type runtime's is the kit's
+        for name in ("plain", "webkit", "inline"):
+            self.assertIn(":where(:focus-visible){outline:3px solid color-mix(in srgb,", o[name]["css"], (name, o[name]))
+        for name in ("webkit", "inline"):
+            self.assertNotIn("scrollbar", o[name]["css"], (name, o[name]))
+        self.assertFalse(o["dashboard"]["style"], o["dashboard"])
         self.assertEqual((o["webkit"]["rootW"], o["inline"]["rootW"]), ("auto", "auto"))
         self.assertEqual(o["inline"]["boxC"], "rgb(255, 0, 0) rgb(0, 0, 255)")
         self.assertEqual(o["webkit"]["at"], p["at"])  # the same line in each

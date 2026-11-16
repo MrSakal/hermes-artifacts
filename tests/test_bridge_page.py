@@ -622,7 +622,7 @@ class PageScrollbarTests(unittest.TestCase):
         self.assertEqual(export.replace("\r\n", "\n"), page)  # the page as it was written
         bridge = (PKG / "assets" / "bridge.js").read_text("utf-8")
         css = re.findall(r'"(:where\([^"]*)"', bridge)
-        self.assertEqual(len(css), 2, css)
+        self.assertEqual(len(css), 3, css)  # the scrollbars, the root's, the keyboard focus ring
         self.assertTrue(all(re.fullmatch(r":where\([^)]*\)\{[^{}]*", c) for c in css), css)  # specificity 0 only
         self.assertIn('head.insertBefore(mine, head.firstChild)', bridge)  # first: any later rule of the page wins
 
