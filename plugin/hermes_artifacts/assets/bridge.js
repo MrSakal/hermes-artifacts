@@ -62,7 +62,8 @@
       if (document.getElementById("hermes-artifact-content") || !(bars || ring)) { if (mine) mine.remove(); return; }
       var css = (bars ? ":where(*){scrollbar-width:thin;scrollbar-color:" + thumb + " transparent}" +
         (track ? ":where(:root){scrollbar-color:" + thumb + " " + track + "}" : "") : "") +
-        (ring ? ":where(:focus-visible){outline:3px solid color-mix(in srgb," + ring + " 50%,transparent);outline-offset:0}" : "");
+        // a ring as Hermes' (box-shadow, 3 px; V6m: an outline is drawn in whole device px, 2.4 px at 125 %)
+        (ring ? ":where(:focus-visible){outline:none;box-shadow:0 0 0 3px color-mix(in srgb," + ring + " 50%,transparent)}" : "");
       if (!mine) {
         mine = document.createElement("style");
         mine.id = BARS_ID;

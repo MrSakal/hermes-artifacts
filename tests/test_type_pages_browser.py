@@ -741,7 +741,8 @@ class PageScrollbars(unittest.TestCase):
         # V6l: and its keyboard focus as Hermes shows it (the accent's 3 px ring, not the browser's own outline), on
         # every plain page, its own scrollbars or not; a type runtime's is the kit's
         for name in ("plain", "webkit", "inline"):
-            self.assertIn(":where(:focus-visible){outline:3px solid color-mix(in srgb,", o[name]["css"], (name, o[name]))
+            # V6m: as Hermes' own ring, a 3 px box-shadow (an outline is drawn in whole device px: 2.4 px at 125 %)
+            self.assertIn(":where(:focus-visible){outline:none;box-shadow:0 0 0 3px color-mix(in srgb,", o[name]["css"], (name, o[name]))
         for name in ("webkit", "inline"):
             self.assertNotIn("scrollbar", o[name]["css"], (name, o[name]))
         self.assertFalse(o["dashboard"]["style"], o["dashboard"])
