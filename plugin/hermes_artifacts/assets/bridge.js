@@ -883,7 +883,8 @@
   }
   function wordsOf(el) {
     if (el.tagName === "SELECT") { var o = el.selectedOptions && el.selectedOptions[0]; return o ? o.text : ""; }
-    if (/^(INPUT|TEXTAREA)$/.test(el.tagName)) return "";
+    // a field by its name, not what is typed in it (V6k: "Selected part"): its label, aria-label, placeholder
+    if (/^(INPUT|TEXTAREA)$/.test(el.tagName)) return (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.title || "";
     return el.innerText || el.textContent || el.getAttribute("alt") || el.getAttribute("aria-label") || "";
   }
   function pickLabel(el) {

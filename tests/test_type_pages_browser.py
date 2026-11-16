@@ -1348,6 +1348,10 @@ class PickInEveryType(unittest.TestCase):
         self.assertEqual(ev["detail"]["label"], "A paragraph of the page")
         ev, _ = self.pick(aid, at('document.getElementById("box")'))
         self.assertEqual(ev["detail"]["label"], "")  # no words, no name: the host's "Selected part"
+        # V6k: a field was "Selected part": named as a button is, by its label, aria-label or placeholder
+        aid = self.store.publish(title="Plain", type="page", html=PICK_PAGE.replace("</main>", "<input id=msg placeholder='Message to Hermes'></main>"))["id"]
+        ev, _ = self.pick(aid, at('document.getElementById("msg")'))
+        self.assertEqual(ev["detail"]["label"], "Message to Hermes")
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
