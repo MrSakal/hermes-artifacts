@@ -530,6 +530,14 @@ class RoundV6mKeptDrafts(unittest.TestCase):
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertNotIn("if (picking) unfollow();", bridge)  # a new pick no longer forgets the kept parts
 
+    def test_the_author_is_spelled_as_the_comments_list_spells_it(self):
+        # Item 9: a doc's margin card said "you", the comments list "You": one spelling, in both languages
+        doc = (PLUGIN / "hermes_artifacts" / "types" / "doc" / "doc.js").read_text("utf-8")
+        import re
+        page = re.findall(r'byYou: "([^"]+)"', doc)
+        host = run_node(stub_module(EXPORTS), "console.log(JSON.stringify([m.STRINGS.en.you, m.STRINGS.hu.you]))")
+        self.assertEqual(page, host)
+
     def test_a_pin_with_no_box_off_the_part_by_it_takes_another_spot(self):
         # Item 5: a design's block at 1002 px (the rect its page sent): its pin left of it at the stage's edge, where
         # no box within 24 px of it keeps off it: the box went right, over the block. Below its right end (fb), the box

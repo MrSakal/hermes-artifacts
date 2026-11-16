@@ -14,7 +14,7 @@
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes, E = window.docEdit, WG = window.docWidgets;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { hist: "History", histNone: "No earlier states yet", byYou: "you", byH: "Hermes", byRestore: "restored", 
+    en: { hist: "History", histNone: "No earlier states yet", byYou: "You", byH: "Hermes", byRestore: "restored", 
       restoreThis: "Restore this state", restored: "Restored", cancel: "Cancel",
       exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)", toSlides: "Slides from this doc", toDesign: "Design from this doc",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Type / for blocks, or @Hermes and a request.",
@@ -47,7 +47,7 @@
       accept: "Accept", reject: "Reject", sReplace: "Change", sInsert: "Addition", sDelete: "Deletion", replies: "replies", reply1: "reply",
       wLabels: { latex: "Formula", math: "Formula", tex: "Formula", csv: "CSV", chart: "Chart", svg: "Drawing" },
       colors: { gray: "Gray", red: "Red", orange: "Orange", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple" } },
-    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "te", byH: "Hermes", byRestore: "visszaállítva", 
+    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "Te", byH: "Hermes", byRestore: "visszaállítva", 
       restoreThis: "Visszaállítás erre", restored: "Visszaállítva", cancel: "Mégse",
       exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)", toSlides: "Slides készítése a doksiból", toDesign: "Design készítése a doksiból",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Írj / jelet a blokkokhoz, vagy @Hermes és a kérésed.",
