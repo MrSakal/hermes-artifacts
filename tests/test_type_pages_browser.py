@@ -242,7 +242,8 @@ class PickInThePage(unittest.TestCase):
           await api.sleep(200)
           const ms = Date.now() - t0, during = (await n()) - start
           const last = await api.top('window.__events.filter(e => e.event === "picked-rect").pop().detail.rect.y')
-          const real = await api.frame('document.getElementById("p20").getBoundingClientRect().top')
+          // a paragraph's part is its words (V6j wordsRect), not its box: their top
+          const real = await api.frame('(() => { const g = document.createRange(); g.selectNodeContents(document.getElementById("p20")); return g.getBoundingClientRect().top })()')
           await api.top('window.__post("pick-follow", {on: false, k: window.__events.find(e => e.event === "picked").detail.k})'); await api.sleep(100)
           const stopped = await n()
           for (let i = 0; i < 10; i++) { await api.frame('scrollBy(0, 9)'); await api.sleep(30) }
