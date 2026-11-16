@@ -263,6 +263,8 @@
   var dropEl = h("div", { "class": "md-drop", hidden: true, text: T.dropHere });
   var axesEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   axesEl.setAttribute("class", "md-axes"); axesEl.setAttribute("viewBox", "-38 -38 76 76"); axesEl.setAttribute("aria-hidden", "true");
+  // a comment's pick takes the axes whole (drawn anew at every turn of the camera, a dot of them would be gone)
+  axesEl.setAttribute("data-comment-whole", ""); axesEl.setAttribute("data-comment-label", T.views);
   var statusEl = h("span", { "class": "md-status", "aria-live": "polite" });
   var saveBtn = btn(null, T.saveKey, function () { save(); }, "md-save");
   saveBtn.textContent = T.save; saveBtn.hidden = true;

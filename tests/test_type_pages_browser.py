@@ -2326,3 +2326,48 @@ class RoundV6hBoardPick(unittest.TestCase):
         self.assertIn("lr", rect, o)
         self.assertIs(rect["fw"], False, o)
 
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6mPages(unittest.TestCase):
+    """Live round V6m (d83e1a2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def drive_page(self, aid, body, w=1250, hh=716, settle=1500):
+        r = B.drive(f"await api.size({w}, {hh}); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep({settle})\n" + body, timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    FOLLOW = """
+      const q = await api.frame(%s)
+      await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
+      await api.mouse(q[0], q[1]); await api.sleep(600)
+      await api.top('window.__post("comment-mode", {on: false})'); await api.sleep(200)
+      const ev = await api.top('window.__events.filter(e => e.event === "picked").pop()')
+      %s
+      await api.sleep(1500)
+      return { label: ev && ev.detail.label, after: await api.top('window.__events.filter(e => e.event === "picked-rect").map(e => e.detail.gone ? "gone" : "rect")') }"""
+
+    def test_a_part_the_page_draws_again_keeps_its_pin(self):
+        # Item 2: a sheet's tab picked lost its pin ~1 s after (the tab bar drawn again: "gone"), the model's view axes
+        # too (drawn again at every turn of the camera). The tab is found again by its sheet's id; the axes are picked whole.
+        aid = self.store.publish(title="Book", type="sheet", files={"sheet.json": {"title": "Book", "sheets": [
+            {"name": "Costs", "rows": [["Item", "Cost"]]}, {"name": "Notes", "rows": [["a"]]}]}})["id"]
+        o = self.drive_page(aid, self.FOLLOW % (json.dumps(at('document.querySelector(".sh-tab")')),
+                            'const n = await api.frame(\'(() => { const b = document.querySelectorAll(".sh-tab")[1].getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()\'); await api.mouse(n[0], n[1])'), settle=2500)
+        self.assertEqual(o["label"], "Costs", o)
+        self.assertNotIn("gone", o["after"], o)
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": __import__("test_models").PANEL})["id"]
+        o = self.drive_page(aid, self.FOLLOW % (json.dumps(at('document.querySelector(".md-axes circle")')),
+                            'const v = await api.frame(\'(() => { const b = document.querySelectorAll(".md-axes circle")[2].getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()\'); await api.mouse(v[0], v[1])'), settle=2500)
+        self.assertIn(o["label"], ("Views", "Nézetek"), o)
+        self.assertNotIn("gone", o["after"], o)
+

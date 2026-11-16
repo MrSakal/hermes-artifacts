@@ -3124,7 +3124,8 @@
     if (C.thumb) return;
     tabsEl.innerHTML = "";
     book.forEach(function (s, i) {
-      var b = h("button", { type: "button", role: "tab", "class": "sh-tab" + (i === cur ? " on" : ""), "aria-selected": i === cur ? "true" : "false", title: s.name, "data-i": i },
+      // data-id: a comment's pin on the tab finds it again, drawn anew (the bridge's follow)
+      var b = h("button", { type: "button", role: "tab", "class": "sh-tab" + (i === cur ? " on" : ""), "aria-selected": i === cur ? "true" : "false", title: s.name, "data-i": i, "data-id": "tab:" + s.id },
         [h("span", { text: s.name })]);
       b.addEventListener("click", function () { if (dragTab && dragTab.moved) return; if (i !== cur) switchTo(i); });
       b.addEventListener("dblclick", function () { if (!ro()) renameInline(b, s); });
