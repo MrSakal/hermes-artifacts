@@ -540,6 +540,8 @@
         table: T.table, embed: T.embed }[it.type] || T.shape);
       // drawn as one: its words are not a part of their own (a table's cells and an embed's page are)
       if (it.type !== "table" && it.type !== "embed") el.setAttribute("data-comment-whole", "");
+      // a section is ground the others lie on: a comment's pin may lie on it too (bridge.js blocked)
+      if (it.type === "section") el.setAttribute("data-comment-under", "");
       if (old) old.replaceWith(el); else world.insertBefore(el, draftSvg);
       n.el = el;
     }

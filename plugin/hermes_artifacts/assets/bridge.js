@@ -634,18 +634,29 @@
     return false;
   }
   var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|IFRAME|svg)$/;
-  /** Whether a pin at box {l, t, r, b} would cover anything of another element: its words, or a picture or
-   *  control. The element itself, what holds it (the column, the body) and the plugin's own marks don't count. */
+  /** Whether a pin at box {l, t, r, b} would cover anything of another element: its words, a picture or control,
+   *  or a part drawn as one ([data-comment-whole]: a board's shape, V6m: a connector's pin on the node it points
+   *  at; not one the page lets a pin lie on, [data-comment-under]: a board's section). The element itself, what
+   *  holds it (the column, the body) and the plugin's own marks don't count. */
   function blocked(el, box) {
     var pts = [[(box.l + box.r) / 2, (box.t + box.b) / 2], [box.l + 1, box.t + 1], [box.r - 1, box.t + 1], [box.l + 1, box.b - 1], [box.r - 1, box.b - 1]];
-    var seen = [];
+    var seen = [], wholes = document.querySelectorAll("[data-comment-whole]:not([data-comment-under])");
+    // a part drawn as one within PIN_EDGE of it, by its box (a rounded shape's corner is no hit, V6m: the pin flush on Ship)
+    for (var w = 0; w < wholes.length && w < 2000; w++) {
+      var n = wholes[w];
+      if (n === el || n.contains(el) || el.contains(n) || n.closest("[data-hermes-ui]")) continue;
+      var q = n.getBoundingClientRect();
+      if (q.width > 0 && q.height > 0 && q.left < box.r + PIN_EDGE && box.l - PIN_EDGE < q.right && q.top < box.b + PIN_EDGE && box.t - PIN_EDGE < q.bottom) return true;
+    }
     for (var p = 0; p < pts.length; p++) {
       var hits = document.elementsFromPoint ? document.elementsFromPoint(pts[p][0], pts[p][1]) : [];
       for (var k = 0; k < hits.length; k++) {
         var h = hits[k];
         if (seen.indexOf(h) >= 0 || h === el || h.contains(el) || el.contains(h) || h.closest("[data-hermes-ui]")) continue;
         seen.push(h);
-        if (SOLID.test(h.tagName) || ownWords(h, box)) return true;
+        var whole = h.closest("[data-comment-whole]");
+        if (whole && (whole === el || whole.contains(el) || el.contains(whole) || whole.hasAttribute("data-comment-under"))) whole = null;
+        if (SOLID.test(h.tagName) || whole || ownWords(h, box)) return true;
       }
     }
     return false;

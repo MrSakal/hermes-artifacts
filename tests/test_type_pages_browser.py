@@ -2383,3 +2383,23 @@ class RoundV6mPages(unittest.TestCase):
         self.assertTrue(o.get("label"), o)
         self.assertEqual(o["after"][-1], "rect", o)
 
+    def test_a_connectors_pin_is_not_on_the_items_it_joins(self):
+        # Item 4: an arrow diamond -> Ship: its pin went right of its strokes' box, past the arrowhead, onto Ship (a
+        # shape's body is no words nor picture: "free"). Another item drawn as one is not a free spot; a section is.
+        board = {"title": "B", "items": [{"id": "s", "type": "section", "text": "Dev", "x": 0, "y": 0, "w": 900, "h": 400},
+                                          {"id": "a", "type": "box", "text": "Review", "x": 60, "y": 150},
+                                          {"id": "b", "type": "box", "text": "Ship", "x": 500, "y": 150},
+                                          {"id": "ab", "type": "arrow", "from": "a", "to": "b"}]}
+        aid = self.store.publish(title="B", type="board", files={"board.json": board})["id"]
+        o = self.drive_page(aid, """
+          const w = await api.frame(`(() => { const p = [...document.querySelectorAll('[data-id="ab"] path')].find(p => !/^(none|transparent|rgba\\(0, 0, 0, 0\\))$/.test(getComputedStyle(p).stroke))
+            const m = p.getScreenCTM(), q = p.getPointAtLength(p.getTotalLength() * 0.5); return [q.x * m.a + m.e, q.y * m.d + m.f] })()`)
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
+          await api.mouse(w[0], w[1]); await api.sleep(500)
+          const ev = await api.top('window.__events.filter(e => e.event === "picked").pop()')
+          return ev && ev.detail.rect""")
+        self.assertTrue(o, o)
+        self.assertIs(o["fr"], False, o)  # Ship at its right end
+        self.assertIs(o["fl"], False, o)  # Review at its left
+        self.assertIn([675, 308, 855, 368], o["kc"], o)  # Ship's shape is the page's content (the host's pinSpot keeps off it)
+

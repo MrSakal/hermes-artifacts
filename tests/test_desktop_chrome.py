@@ -513,6 +513,19 @@ class RoundV6mKeptDrafts(unittest.TestCase):
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertNotIn("if (picking) unfollow();", bridge)  # a new pick no longer forgets the kept parts
 
+    def test_a_connectors_pin_is_beside_its_line_off_the_shapes_it_joins(self):
+        # Item 4: an arrow Review -> Ship (the rect its page sent, test_type_pages_browser RoundV6mPages): no spot by
+        # its ends free; the pin went past the arrowhead onto Ship. Along its line, off both shapes, off the line.
+        rect = {"x": 414.1, "y": 332.9, "w": 261.8, "h": 10.2, "ly": 332.9, "lh": 10.2, "vt": 0, "vb": 716, "vis": True,
+                "fr": False, "fl": False, "fa": False, "fb": False, "kp": [[1196, 12, 1236, 50], [444, 654, 806, 702]],
+                "kc": [[235, 308, 415, 368], [300, 326, 350, 348], [675, 308, 855, 368], [749, 326, 781, 348]]}
+        p = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.pinSpot({json.dumps(rect)}, 1250, 716)))")
+        box = [p["x"], p["y"], p["x"] + p["s"], p["y"] + p["s"]]
+        over = lambda q, m=0: box[0] < q[2] + m and q[0] - m < box[2] and box[1] < q[3] + m and q[1] - m < box[3]  # noqa: E731
+        self.assertFalse(over([235, 308, 415, 368], 4) or over([675, 308, 855, 368], 4), p)  # neither shape, nor flush on it
+        self.assertFalse(over([rect["x"], rect["y"], rect["x"] + rect["w"], rect["y"] + rect["h"]]), p)  # nor its line
+        self.assertTrue(rect["x"] <= p["x"] and p["x"] + 26 <= rect["x"] + rect["w"], p)  # beside it
+
 
 @unittest.skipIf(NODE is None, "node not installed")
 @unittest.skipUnless(NODE, "node is not installed")

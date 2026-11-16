@@ -5705,9 +5705,14 @@ function pinSpot(rect, bw, bh) {
   // covered whole by its pin).
   const E = [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
   const others = (rect.kc || []).filter(k => !(k[0] >= E[0] - 0.5 && k[2] <= E[2] + 0.5 && k[1] >= E[1] - 0.5 && k[3] <= E[3] + 0.5))
-  const onInk = (x, sy) => others.some(([l, t, r, b]) => x < r && l < x + PIN && sy < b && t < sy + PIN)
+  const onInk = (x, sy, m = 0) => others.some(([l, t, r, b]) => x < r + m && l - m < x + PIN && sy < b + m && t - m < sy + PIN)
   const R = E[2] + PIN_GAP, L = E[0] - PIN_GAP - PIN, A = E[1] - PIN_GAP - PIN, U = E[3] + PIN_GAP
   for (const [x, sy] of [[rect.x, A], [rect.x, U], [R, A], [L, A], [R, U], [L, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy) && !onInk(x, sy)) return { x, y: sy, s: PIN }
+  // then along its top and bottom from its right end in, every half pin, PIN_EDGE off the page's content (a board's
+  // connector between two shapes: V6m, its pin past the arrowhead on the shape it points at)
+  for (let x = Math.floor(E[2] - PIN); x >= E[0] && rect.w >= 3 * PIN; x -= PIN / 2) {
+    for (const sy of [A, U]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy) && !onInk(x, sy, PIN_EDGE)) return { x, y: sy, s: PIN }
+  }
   // A part under two pins wide or tall is never covered by its pin: beside it on another part's words before that.
   const small = rect.w < 2 * PIN || rect.h < 2 * PIN
   if (small) {
