@@ -688,7 +688,15 @@
    *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
    *  vb: band()); in a grid that keeps pins in its parts, where in it the pin goes (px: pinIn). A spot is free
    *  when no other element's words, picture or control is under it (fw: nor the element's own words). */
-  function pickRect(el) { return rectOf(el, inkRect(el), firstLine(el), null); }
+  function pickRect(el) { return rectOf(el, wordsRect(el) || inkRect(el), firstLine(el), null); }
+  /** A heading's or paragraph's words, where it holds only words: what is seen of it (V6j: an h1 full width, its
+   *  text short: the room beside its words counted as the part's, the box 156 px off). null otherwise. */
+  function wordsRect(el) {
+    if (!/^(H[1-6]|P)$/.test(el.tagName) || el.querySelector("img, svg, canvas, video, iframe, input, select, textarea, button")) return null;
+    var rg = document.createRange(), q;
+    try { rg.selectNodeContents(el); q = rg.getBoundingClientRect(); } catch (_) { return null; }
+    return q && q.width >= 1 && q.height >= 1 ? q : null;
+  }
   /** el's box as drawn: its own, and the strokes of the shapes drawn in it (an SVG's outline reaches half its
    *  width past the shape's box), so what keeps off it keeps off what is seen. */
   function inkRect(el) {

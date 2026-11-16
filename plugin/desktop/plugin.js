@@ -5722,10 +5722,12 @@ const BOX_SLIDE = 8 // and along the sides of the pin and the element, every BOX
 const BOX_M = 8 // the least room between the new comment's box and the stage's edge
 const BOX_GAP = 8 // between the box and the element (or its pin)
 const BOX_NEAR = 24 // a box this close to its pin or element reads as by it: spots every 4 px from BOX_GAP to here
-const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep its hard rules
+const BOX_MIN_H = 128 // the least height the box is cut to to keep its hard rules: its text field one line, its buttons shown
+const TEXT_MIN_H = 37 // the new comment's text field, one line, in a box cut (it scrolls)
 const PB_REACH = 80 // a spot clear of the part holding the element (rect.pb) this near its pin goes first
 const BOX_BANDS = [BOX_NEAR, PB_REACH, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
 const CLEAR_EASE = 32 // a spot over none of the page's content, past BOX_NEAR, is ranked as this much nearer
+const BOX_KEEP = 120 // the box's farthest from its pin while a spot that near keeps the hard rules (cut to BOX_MIN_H)
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w, h in
  *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box, by
  *  ONE ordered rule for every type:
@@ -5740,6 +5742,8 @@ const CLEAR_EASE = 32 // a spot over none of the page's content, past BOX_NEAR, 
  *     (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first); in a band the one covering the least of the page's content
  *     (rect.kc, rect.kw, KC_PAD round each: some neighbouring words by the pin are better than a box far away),
  *     then the nearest. A spot over none of that content, past the adjacent band, is ranked CLEAR_EASE nearer.
+ *     Only spots within BOX_KEEP of the pin, at the box's height or cut down to BOX_MIN_H; none that near: the
+ *     nearest keeping 1, no farther.
  *  3. None keeps 1 at the box's height: cut (it scrolls) down to BOX_MIN_H; then the element's own room is given
  *     up (the element fills the stage: the box over it), then the controls'; the stage and the pin never.
  *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
@@ -5756,8 +5760,9 @@ function boxSpot(rect, pin, bw, bh, h) {
   const gap = (a, b) => Math.hypot(Math.max(0, b[0] - a[2], a[0] - b[2]), Math.max(0, b[1] - a[3], a[1] - b[3]))
   const less = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false }
   const covers = a => soft.reduce((n, k) => n + Math.max(0, Math.min(a[2], k[2] + KC_PAD) - Math.max(a[0], k[0] - KC_PAD)) * Math.max(0, Math.min(a[3], k[3] + KC_PAD) - Math.max(a[1], k[1] - KC_PAD)), 0)
-  // The best spot for a box hh tall keeping the hard rules up to `level` (0: all; 1: not the element's; 2: nor the controls').
-  const best = (hh, level) => {
+  // The best spot for a box hh tall keeping the hard rules up to `level` (0: all; 1: not the element's; 2: nor the
+  // controls'), within BOX_KEEP of the pin; far: or, none that near, the nearest that keeps them (no farther).
+  const best = (hh, level, far) => {
     const xs = new Set([M, bw - M - W]), ys = new Set([M, bh - M - hh])
     for (let x = M; x + W <= bw - M; x += BOX_STEP) xs.add(x)
     for (let y = M; y + hh <= bh - M; y += BOX_STEP) ys.add(y)
@@ -5772,32 +5777,47 @@ function boxSpot(rect, pin, bw, bh, h) {
     if (pb) { xs.add(up(pb[2] + G)); xs.add(down(pb[0] - G - W)); ys.add(up(pb[3] + G)); ys.add(down(pb[1] - G - hh)) }
     for (let x = P[0] - W; x <= P[2]; x += BOX_SLIDE) xs.add(Math.round(x))
     for (let y = P[1] - hh; y <= P[3]; y += BOX_SLIDE) ys.add(Math.round(y))
-    let top = null
+    const ok = []
     for (const x of xs) {
       if (x < M || x + W > bw - M) continue
       for (const y of ys) {
         if (y < M || y + hh > bh - M) continue
         const a = [x, y, x + W, y + hh]
         if (near(a, P, G) || (level < 2 && kp.some(k => near(a, k, KEEP_PAD))) || (level < 1 && near(a, E, G))) continue
-        const d = gap(a, P), c = covers(a)
-        // A spot over none of the page's content, past the adjacent band, counts CLEAR_EASE nearer (V6j: a KPI's
-        // box 76 px off its pin cut the summary line while one 102 px off was over nothing)
-        const dn = c === 0 && d > BOX_NEAR ? Math.max(d - CLEAR_EASE, BOX_NEAR + 0.5) : d
-        // Clear of the part the page named that holds the element (a KPI's card, its number picked) within
-        // PB_REACH of the pin, before any spot on it or by it (V6i B4: the box on the card and its neighbours)
-        const onPb = pb ? (near(a, pb, G) || dn > PB_REACH ? 1 : 0) : 0
-        const key = [onPb, BOX_BANDS.findIndex(b => dn <= b), c, d]
-        if (!top || less(key, top.key)) top = { x, y, key }
+        ok.push({ x, y, a, d: gap(a, P) })
       }
+    }
+    if (!ok.length) return null
+    const reach = Math.max(BOX_KEEP, Math.min(...ok.map(o => o.d)))
+    if (reach > BOX_KEEP && !far) return null
+    let top = null
+    for (const { x, y, a, d } of ok) {
+      if (d > reach + 1e-6) continue
+      const c = covers(a)
+      // A spot over none of the page's content, past the adjacent band, counts CLEAR_EASE nearer (V6j: a KPI's
+      // box 76 px off its pin cut the summary line while one 102 px off was over nothing)
+      const dn = c === 0 && d > BOX_NEAR ? Math.max(d - CLEAR_EASE, BOX_NEAR + 0.5) : d
+      // Clear of the part the page named that holds the element (a KPI's card, its number picked) within
+      // PB_REACH of the pin, before any spot on it or by it (V6i B4: the box on the card and its neighbours)
+      const onPb = pb ? (near(a, pb, G) || dn > PB_REACH ? 1 : 0) : 0
+      const key = [onPb, BOX_BANDS.findIndex(b => dn <= b), c, d]
+      if (!top || less(key, top.key)) top = { x, y, key, reach }
     }
     return top
   }
   const full = Math.min(h, bh - 2 * M)
+  // Cut before going farther than BOX_KEEP (V6j: a design system's heading, its box 505 px off at the stage's foot)
+  // and none that near at any height: the nearest of all heights, the tallest of those as near.
   for (let level = 0; level <= 2; level++) {
-    for (let hh = full; hh >= Math.min(full, BOX_MIN_H); hh = hh > BOX_MIN_H && hh - BOX_STEP < BOX_MIN_H ? BOX_MIN_H : hh - BOX_STEP) {
-      const b = best(hh, level)
-      if (b) return { x: b.x, y: b.y, maxH: hh < h ? hh : bh - 2 * M }
-      if (hh <= BOX_MIN_H) break
+    for (const far of [false, true]) {
+      let pick = null
+      for (let hh = full; hh >= Math.min(full, BOX_MIN_H); hh = hh > BOX_MIN_H && hh - BOX_STEP < BOX_MIN_H ? BOX_MIN_H : hh - BOX_STEP) {
+        const b = best(hh, level, far)
+        if (b && !far) return { x: b.x, y: b.y, maxH: hh < h ? hh : bh - 2 * M }
+        if (b && (!pick || b.reach < pick.b.reach - 0.5)) pick = { b, hh }
+        if (hh <= BOX_MIN_H) break
+      }
+      if (pick) return { x: pick.b.x, y: pick.b.y, maxH: pick.hh < h ? pick.hh : bh - 2 * M }
     }
   }
   return { x: M, y: M, maxH: bh - 2 * M } // a stage narrower than the box: its corner
@@ -5830,7 +5850,7 @@ function panelStyle(mode) {
 /** Whether the new comment's box goes into the comments list: the list floats over the stage (`cover` px of
  *  its right, a narrow view) and the width left of it does not take the box. */
 const commentDocks = (bw, cover) => cover > 0 && bw - cover < COMMENT_W + 16
-const BAND_MIN = 2 * BOX_M + BOX_MIN_H + 30 // a band between the page's own bars narrower than this is not kept to
+const BAND_MIN = 146 // a band between the page's own bars narrower than this is not kept to
 /** The new comment's pin and box in a stage of bw x bh whose right `cover` px the floating comments list
  *  covers: placed in the width left of the list (placeCommentBox), never under it, and between the page's own
  *  bars (rect.vt, rect.vb: a type page's sticky toolbar; pickedRect), never over them. box null: the box is in
@@ -5946,6 +5966,12 @@ function dropHeld() {
   $pickHeld.set(null)
 }
 
+/** The new comment's box's whole height as drawn (its fraction too), also while it is cut (box.maxH): what scrolls
+ *  and what its text field gave up. */
+const boxWhole = el => {
+  const ta = el.querySelector('textarea'), give = ta ? Math.max(0, (parseFloat(ta.style.height) || 0) - ta.getBoundingClientRect().height) : 0
+  return el.scrollHeight - el.clientHeight + el.getBoundingClientRect().height + give
+}
 /** Claude's in-place comment: a box beside the element clicked, empty, Send to Hermes on (its checkbox). */
 function CommentPopover({ ctx, art, stageRef }) {
   const t = usePluginI18n(ID)
@@ -5963,7 +5989,7 @@ function CommentPopover({ ctx, art, stageRef }) {
     const el = boxRef.current
     if (!el) return undefined
     // Its whole height, also while it is cut to the room left (box.maxH): else the cut would be its height.
-    const measure = () => setBoxH(el.scrollHeight + el.offsetHeight - el.clientHeight || 170)
+    const measure = () => setBoxH(boxWhole(el) || 170)
     measure()
     let ro = null
     try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
@@ -5983,7 +6009,7 @@ function CommentPopover({ ctx, art, stageRef }) {
   if (!draft?.rect) return null
   // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part),
   // its fraction too (V6k: offsetHeight 142 drawn 142.1 at 125 %, the box 3.9 px off a field)
-  const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(be.scrollHeight - be.clientHeight + be.getBoundingClientRect().height - 1e-3)) || boxH
+  const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(boxWhole(be) - 1e-3)) || boxH
   const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover])
   if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover) }
   const { box } = placed.current.v, pin = draft.gone ? null : placed.current.v.pin
@@ -5995,9 +6021,9 @@ function CommentPopover({ ctx, art, stageRef }) {
       box
         ? jsxs('div', {
             ref: boxRef,
-            style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH, overflowY: 'auto', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
+            style: { position: 'absolute', left: box.x, top: box.y, zIndex: 27, width: COMMENT_W, maxHeight: box.maxH, overflowY: 'auto', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', padding: 12, borderRadius: C.rLg, border: `1px solid ${C.line}`, background: C.bg, boxShadow: C.shadowPop },
             children: [
-              label ? jsx('div', { style: { fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
+              label ? jsx('div', { style: { flexShrink: 0, fontSize: 13, color: C.text3, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: label }) : null,
               jsx(CommentForm, { ctx, art, anchor: draft.anchor, onDone: () => $draft.set(null), text, setText, compact: true })
             ]
           })
@@ -6270,7 +6296,8 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
   }, [text])
   return jsxs('div', {
     onClick: e => e.stopPropagation(),
-    style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 },
+    // cut (box.maxH), its text field gives up its room down to one line: the buttons stay in sight
+    style: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, ...(compact ? { flex: '1 1 auto', minHeight: 0 } : {}) },
     children: [
       jsx('textarea', {
         ref: area,
@@ -6288,10 +6315,10 @@ function CommentForm({ ctx, art, parent = null, anchor = null, onDone, text, set
         },
         'aria-label': t('comment'),
         className: INPUT,
-        style: { ...font, resize: 'none', boxSizing: 'border-box', padding: 8, borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13, lineHeight: 1.45 }
+        style: { ...font, resize: 'none', boxSizing: 'border-box', padding: 8, borderWidth: 1, borderStyle: 'solid', color: C.fg, fontSize: 13, lineHeight: 1.45, ...(compact ? { flexShrink: 1, minHeight: TEXT_MIN_H } : {}) }
       }),
       jsxs('div', {
-        style: { display: 'flex', alignItems: 'center', gap: 8 },
+        style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
         children: [
           jsxs('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, cursor: 'pointer', minWidth: 0 }, children: [jsx('input', { type: 'checkbox', className: FOCUS, checked: send, onChange: e => setSend(e.target.checked) }), t('sendToHermes')] }),
           jsx('div', { style: { flex: 1 } }),

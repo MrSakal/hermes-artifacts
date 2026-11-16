@@ -1262,6 +1262,7 @@ class CommentPlacementProperty(unittest.TestCase):
     CAP = 16
     STAGES = ((1250, 716), (906, 716), (740, 716), (400, 700))
     W, GAP, KEEP, M, NEAR = 320, 8, 4, 8, 24
+    REACH, LEAST = 120, 128  # plugin.js BOX_KEEP, BOX_MIN_H
 
     @classmethod
     def setUpClass(cls):
@@ -1405,6 +1406,17 @@ class CommentPlacementProperty(unittest.TestCase):
                                 self.fail(("the box on the part holding the pick while a spot off it by the pin keeps the rules", a, pb, what))
                 d = self.gap(b, p) if p else self.gap(b, e)
                 worst = max(worst, d)
+                # V6k: within 120 px of its pin whenever a spot that near (cut to its least height) is in the stage and
+                # off the pin and the part; past that only as far as the nearest spot keeping off the controls too
+                if p and d > self.REACH + 1:
+                    lo = min(bh, self.LEAST)
+                    near = next(((x, y) for x, y in self.spots(s, lo) if self.gap([x, y, x + self.W, y + lo], p) <= self.REACH
+                                 and self.hard([x, y, x + self.W, y + lo], s, p, e, [])), None)
+                    if near:
+                        self.assertTrue(ok, ("the box far from its pin, off no rule's reason", near, d, what))
+                        nearer = next(((x, y) for x, y in self.spots(s, lo) if self.gap([x, y, x + self.W, y + lo], p) < d - 9
+                                       and self.hard([x, y, x + self.W, y + lo], s, [p[0] - 0.5, p[1] - 0.5, p[2] + 0.5, p[3] + 0.5], [e[0] - 0.5, e[1] - 0.5, e[2] + 0.5, e[3] + 0.5], keep)), None)
+                        self.assertIsNone(nearer, ("the box farther than the nearest spot keeping the rules", nearer, d, what))
                 # V6h N1: nearness wins: a box more than NEAR (+1, whole px) from its pin only where no spot that near
                 # keeps the hard rules, whatever it covers
                 # (V6i B4: one clear of the part holding the pick within 80 px goes first; V6j: one over none of the

@@ -109,11 +109,11 @@ class CommentPinTests(unittest.TestCase):
                        [12, 10, 74, 50], [1069, 10, 1231, 50], [496, 726, 747, 766]]}
         out = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, 1243, 780, 141)))")
         b, p = out["box"], out["pin"]
-        r = rect
-        gap = max(r["x"] - (b["x"] + 320), b["x"] - (r["x"] + r["w"]), r["y"] - (b["y"] + 141), b["y"] - (r["y"] + r["h"]))
+        r, bh = rect, min(141, b["maxH"])  # V6k: cut (it scrolls) before it goes past BOX_KEEP
+        gap = max(r["x"] - (b["x"] + 320), b["x"] - (r["x"] + r["w"]), r["y"] - (b["y"] + bh), b["y"] - (r["y"] + r["h"]))
         self.assertGreaterEqual(gap, 8 - 0.01, out)
         if p:
-            self.assertGreaterEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 8 - 0.01, out)
+            self.assertGreaterEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + bh), b["y"] - (p["y"] + 26)), 8 - 0.01, out)
 
     def test_a_pin_never_lies_on_the_pages_controls(self):
         # V6c, a design panned at 1500 px: the element's pin drew over the bottom palette's tools. V6f: it takes the
@@ -616,6 +616,30 @@ class RoundV6kPlacement(unittest.TestCase):
         self.assertLessEqual(gap(P, E), 8, o)  # by it
         for k in r["kp"]:
             self.assertGreaterEqual(gap(P, k), 4, (k, o))
+
+    # The page's "Colors" heading picked at 1262 x 716 (its words' rect now, not its full-width block): the box went
+    # 505 px off to the stage's foot, no spot near the pin keeping off the rows' fields at its full height.
+    HEADING = {"x": 264, "y": 32, "w": 73.4, "h": 31.2, "ly": 30.4, "lh": 34.4, "vt": 0, "vb": 716, "fr": True, "fl": True, "fa": True, "fb": True, "lr": 337.4375, "fw": True,
+               "kp": [[0, 0, 232, 716], [1158, 33, 1223, 62], [1160, 91, 1187, 118], [1196, 91, 1223, 118], [572, 162, 823, 189], [870, 162, 1121, 189], [1136, 162, 1163, 189],
+                      [541, 163, 566, 188], [839, 163, 864, 188], [1162, 162, 1189, 189], [268, 165, 305, 187], [1188, 162, 1215, 189], [572, 201, 823, 228], [870, 201, 1121, 228],
+                      [1136, 201, 1163, 228], [1162, 201, 1189, 228], [541, 202, 566, 227], [839, 202, 864, 227], [268, 204, 354, 226], [1188, 201, 1215, 228], [1160, 262, 1187, 289],
+                      [1196, 262, 1223, 289], [572, 333, 755, 360], [870, 333, 1053, 360], [1136, 333, 1163, 360], [1162, 333, 1189, 360], [541, 334, 566, 359], [839, 334, 864, 359],
+                      [1188, 333, 1215, 360], [268, 336, 298, 358], [572, 372, 762, 399], [870, 372, 1060, 399], [1136, 372, 1163, 399], [1162, 372, 1189, 399], [541, 373, 566, 398],
+                      [839, 373, 864, 398], [1188, 372, 1215, 399], [268, 375, 340, 397], [572, 411, 762, 437], [870, 411, 1060, 437], [1136, 411, 1163, 437], [1162, 411, 1189, 437],
+                      [541, 411, 566, 437], [839, 411, 864, 437], [1188, 411, 1215, 437], [268, 414, 326, 436], [572, 449, 762, 476], [870, 449, 1060, 476]]}
+
+    def test_the_box_stays_within_reach_of_its_pin_cut_before_it_travels(self):
+        h = 142
+        o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(self.HEADING)}, 1262, 716, {h})))")
+        b, p, r = o["box"], o["pin"], self.HEADING
+        a = [b["x"], b["y"], b["x"] + 320, b["y"] + min(h, b["maxH"])]
+        P = [p["x"], p["y"], p["x"] + p["s"], p["y"] + p["s"]]
+        gap = lambda u, v: max(v[0] - u[2], u[0] - v[2], v[1] - u[3], u[1] - v[3])
+        self.assertLessEqual(gap(a, P), 120, o)
+        self.assertGreaterEqual(gap(a, P), 8, o)
+        self.assertGreaterEqual(gap(a, [r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]), 8, o)
+        for k in r["kp"]:
+            self.assertGreaterEqual(gap(a, k), 4, (k, o))
 
 
 class CommentsPanelLayoutTests(unittest.TestCase):
