@@ -1249,6 +1249,7 @@ class PickInEveryType(unittest.TestCase):
         self.assertEqual(ev["detail"]["label"], "Cost by item", ev)
         r = ev["detail"]["rect"]
         self.assertTrue(r["x"] <= q[0] <= r["x"] + r["w"] and r["y"] <= q[1] <= r["y"] + r["h"] and r["w"] > 300, (q, r))
+        self.assertNotIn("px", r)  # its pin beside it as any part's, not in its middle as a cell's
 
     def test_board_note(self):
         aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [

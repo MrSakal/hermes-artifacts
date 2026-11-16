@@ -766,8 +766,9 @@
       out.lr = line.right;
       out.fw = free("fw", wb) && (!!given || !ownWords(el, wb)); // a boolean: the host drops anything else
     }
+    // not a part drawn as one over the grid (a sheet's chart: V6k, its pin in its middle over the pie)
     var grid = el.closest && el.closest("[data-comment-pin-in]");
-    if (grid && grid !== el) out.px = pinIn(r, line);
+    if (grid && grid !== el && !el.hasAttribute("data-comment-whole")) out.px = pinIn(r, line);
     // the part the page named that holds el (a KPI whose number was picked): the box keeps off it where it can
     var part = el.closest && el.closest("[data-comment-label]");
     if (part && part !== el) { var q = part.getBoundingClientRect(); if (q.width >= 1 && q.height >= 1) out.pb = [q.left, q.top, q.right, q.bottom]; }
