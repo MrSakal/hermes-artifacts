@@ -195,6 +195,14 @@ class EditTests(unittest.TestCase):
         r = sheets.apply(self.aid, [{"op": "delete_chart", "id": "c1"}, {"op": "add_chart", "type": "line", "range": "A1:D2", "at": "F2"}], by="user")
         self.assertEqual(r["charts"], [{"id": "c1", "at": "F2"}])
 
+    def test_a_chart_the_person_drops_stays_where_it_is_dropped(self):
+        # V6m item 7: a chart dragged near another (the page's move: delete, then add where it was dropped) went to the
+        # next free spot, ~620 px away. Put by the person's own hand it stays there, over the other or not.
+        sheets.apply(self.aid, [{"op": "add_chart", "type": "pie", "range": "A1:D3", "at": "F20"}], by="hermes")
+        r = sheets.apply(self.aid, [{"op": "delete_chart", "id": "c2"}, {"op": "add_chart", "type": "pie", "range": "A1:D3", "at": "E5"}], by="user")
+        self.assertEqual(r["charts"], [{"id": "c2", "at": "E5"}])
+        self.assertEqual([c["at"] for c in sheets.read(self.aid)["charts"]], ["F2", "E5"])
+
     def test_charts_published_on_one_spot_are_placed_apart(self):
         # live loop V6l: a sheet published with two charts at F2 drew one over the other, hidden whole; a drag of the
         # top one up towards it was "ignored" (placed below the hidden one, where it already was)

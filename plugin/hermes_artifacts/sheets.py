@@ -1211,7 +1211,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
                 raise SheetError("conflict", "cells you change were changed meanwhile: read them again",
                                  rev=sh["rev"], cells=hit[:50])
     before = _snap(sh, "start")
-    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": [], "charts": []}
+    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": [], "charts": [], "by": by}
     for o in ops:
         _one(st, sh, o, ctx)
     sh["rev"] += 1
@@ -1326,7 +1326,9 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
         if len(sh["charts"]) >= MAX_CHARTS:
             raise SheetError("too_large", f"at most {MAX_CHARTS} charts in a sheet")
         ch = _clean_chart({k: v for k, v in o.items() if k != "op"}, "add_chart", sh["charts"])
-        asked, ch["at"] = ch["at"], _place_chart(sh, ch["at"])  # never over another chart
+        # never over another chart; one the person puts (a drag, its undo) stays where it is put, over another or not
+        # (V6m: dropped near another, it went 620 px away)
+        asked, ch["at"] = ch["at"], ch["at"] if ctx["by"] == "user" else _place_chart(sh, ch["at"])
         sh["charts"].append(ch)
         ctx["charts"].append({"id": ch["id"], "at": ch["at"], **({"asked": asked} if asked != ch["at"] else {})})
     elif kind == "delete_chart":
