@@ -2351,7 +2351,7 @@ class RoundV6mPages(unittest.TestCase):
       await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
       await api.mouse(q[0], q[1]); await api.sleep(600)
       await api.top('window.__post("comment-mode", {on: false})'); await api.sleep(200)
-      const ev = await api.top('window.__events.filter(e => e.event === "picked").pop()')
+      const ev = await api.top('window.__events.filter(e => e.event === "picked" || e.event === "comment").pop()')
       %s
       await api.sleep(1500)
       return { label: ev && ev.detail.label, after: await api.top('window.__events.filter(e => e.event === "picked-rect").map(e => e.detail.gone ? "gone" : "rect")') }"""
@@ -2370,4 +2370,16 @@ class RoundV6mPages(unittest.TestCase):
                             'const v = await api.frame(\'(() => { const b = document.querySelectorAll(".md-axes circle")[2].getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()\'); await api.mouse(v[0], v[1])'), settle=2500)
         self.assertIn(o["label"], ("Views", "Nézetek"), o)
         self.assertNotIn("gone", o["after"], o)
+
+    def test_a_design_systems_part_left_and_come_back_to_has_its_pin_again(self):
+        # Item 3: a swatch's kept comment was lost on Colors -> Typography -> Colors (and on Colors pressed again): the
+        # page draws its parts anew, and one without an id was never found again. Gone while away, back on return.
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        nav = 'const go = async t => { const n = await api.frame(`(() => { const b = [...document.querySelectorAll(".ds-nav-i")].find(e => e.textContent.trim().startsWith("${t}")).getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()`); await api.mouse(n[0], n[1]); await api.sleep(900) }'
+        o = self.drive_page(aid, nav + "\nawait go('Colors')\n" + self.FOLLOW % (json.dumps(at('document.querySelectorAll(".ds-sw")[1]')),
+                            "await go('Typography'); const away = await api.top('window.__events.filter(e => e.event === \"picked-rect\").pop()'); await go('Colors'); await go('Colors')"
+                            "\nconst ret = await api.top('window.__events.filter(e => e.event === \"picked-rect\").pop()')"
+                            "\nif (!away || !away.detail.gone || !ret || ret.detail.gone) return { away, ret }"), settle=2500)
+        self.assertTrue(o.get("label"), o)
+        self.assertEqual(o["after"][-1], "rect", o)
 

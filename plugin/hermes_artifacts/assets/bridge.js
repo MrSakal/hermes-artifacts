@@ -914,17 +914,23 @@
     if (!p.el.isConnected && p.sel) {
       var did = p.el.getAttribute("data-id"), again = null;
       try { again = (did && window.CSS && CSS.escape ? document.querySelector("[data-id=\"" + CSS.escape(did) + "\"]") : null) || document.querySelector(p.sel); } catch (_) {}
-      if (again && same(again, p.el)) p.el = again;
+      if (again && same(again, p)) p.el = again;
     }
     if (!p.el.isConnected || !p.el.getClientRects().length) return null;
     var r = p.el.getBoundingClientRect();
     return [r.left, r.top, r.width, r.height];
   }
-  /** Whether a drawn-again element is the one that was there: the same id (a board item's data-id, an id); an
-   *  element with neither is not looked for again (a selector by place would find another slide's title). */
-  function same(a, b) {
-    var id = b.getAttribute("data-id") || b.id;
-    return !!id && a.tagName === b.tagName && (a.getAttribute("data-id") || a.id) === id;
+  /** Whether a drawn-again element is the one followed (p): the same id (a board item's data-id, an id); one with
+   *  neither, the same kind, words and named part as when it was picked (p.sig: a design system's page drawn again,
+   *  left and come back to), never another slide's title at the same place ("Slide 2", not "Slide 1"). */
+  function sigOf(el) {
+    var named = el.closest("[data-comment-label]");
+    return [el.tagName, el.getAttribute("class"), String(el.textContent).slice(0, 400), named ? named.getAttribute("data-comment-label") : ""].join("\u0001");
+  }
+  function same(a, p) {
+    var id = p.el.getAttribute("data-id") || p.el.id;
+    if (id) return a.tagName === p.el.tagName && (a.getAttribute("data-id") || a.id) === id;
+    return sigOf(a) === p.sig;
   }
   function keyOf(p) { var w = where(p); return w ? w.map(function (v) { return Math.round(v * 2) / 2; }).join() + "," + innerWidth + "," + innerHeight : "gone"; }
   function watch() {
@@ -948,6 +954,7 @@
   /** Follows p from now on; its k for the host. */
   function follow(p) {
     p.k = ++followK;
+    p.sig = sigOf(p.el);
     p.key = keyOf(p);
     followed.push(p);
     watchOn();
