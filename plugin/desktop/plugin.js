@@ -5681,21 +5681,31 @@ function pinSpot(rect, bw, bh) {
   const R = E[2] + PIN_GAP, L = E[0] - PIN_GAP - PIN, A = E[1] - PIN_GAP - PIN, U = E[3] + PIN_GAP
   for (const [x, sy] of [[rect.x, A], [rect.x, U], [R, A], [L, A], [R, U], [L, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy) && !onInk(x, sy)) return { x, y: sy, s: PIN }
   // A part under two pins wide or tall is never covered by its pin: beside it on another part's words before that.
-  if (rect.w < 2 * PIN || rect.h < 2 * PIN) {
+  const small = rect.w < 2 * PIN || rect.h < 2 * PIN
+  if (small) {
     for (const [x, sy] of [[R, y], [L, y], [end, A], [end, U]]) if (fitsX(x) && fitsY(sy) && !onCtl(x, sy)) return { x, y: sy, s: PIN }
   }
-  // Over the part, in its top right corner, unless that is on the page's controls (V6i B3: a nav item between two
-  // others: the pin there was on a neighbour, and not drawn at all): then the nearest spot by the part off them, off
-  // the part and the page's other content first, every 4 px out to 3 pins; a pin always.
+  // Over the part, in its top right corner (not a small one's: V6j, a swatch between the stage's edge and its value
+  // field had its pin over it), unless that is on the page's controls (V6i B3: a nav item between two others: the
+  // pin there was on a neighbour, and not drawn at all): then the nearest spot by the part off them, off the part
+  // and the page's other content first, every 4 px out to 3 pins (whole px off the part); a pin always.
   const corner = [clamp(rect.x + rect.w - PIN - PIN_EDGE, PIN_EDGE, bw - PIN - PIN_EDGE), clamp(rect.y + PIN_EDGE, PIN_EDGE, bh - PIN - PIN_EDGE)]
-  if (!onCtl(corner[0], corner[1])) return { x: corner[0], y: corner[1], s: PIN }
+  if (!small && !onCtl(corner[0], corner[1])) return { x: corner[0], y: corner[1], s: PIN }
+  const xs = [], ys = []
+  for (let x = Math.floor(E[0] - 3 * PIN); x <= E[2] + 3 * PIN - PIN; x += 4) xs.push(x)
+  for (let sy = Math.floor(E[1] - 3 * PIN); sy <= E[3] + 3 * PIN - PIN; sy += 4) ys.push(sy)
+  xs.push(Math.floor(E[0] - PIN), Math.ceil(E[2])); ys.push(Math.floor(E[1] - PIN), Math.ceil(E[3]))
+  for (const k of rect.kp || []) { xs.push(Math.ceil(k[2] + PIN_EDGE), Math.floor(k[0] - PIN_EDGE - PIN)); ys.push(Math.ceil(k[3] + PIN_EDGE), Math.floor(k[1] - PIN_EDGE - PIN)) }
   let top = null
-  for (let x = Math.floor(E[0] - 3 * PIN); x <= E[2] + 3 * PIN - PIN; x += 4) {
-    for (let sy = Math.floor(E[1] - 3 * PIN); sy <= E[3] + 3 * PIN - PIN; sy += 4) {
+  for (const x of xs) {
+    if (x < E[0] - 3 * PIN || x > E[2] + 2 * PIN) continue
+    for (const sy of ys) {
+      if (sy < E[1] - 3 * PIN || sy > E[3] + 2 * PIN) continue
       if (!fitsX(x) || !fitsY(sy) || onCtl(x, sy)) continue
       const inside = x >= E[0] && x + PIN <= E[2] && sy >= E[1] && sy + PIN <= E[3]
+      const over = x < E[2] && E[0] < x + PIN && sy < E[3] && E[1] < sy + PIN
       const d = Math.hypot(Math.max(0, E[0] - x - PIN, x - E[2]), Math.max(0, E[1] - sy - PIN, sy - E[3])) + Math.hypot(x - corner[0], sy - corner[1]) / 1000
-      const key = [inside || onInk(x, sy) ? 1 : 0, d]
+      const key = [small && over ? 2 : inside || onInk(x, sy) ? 1 : 0, d]
       if (!top || key[0] < top.key[0] || (key[0] === top.key[0] && key[1] < top.key[1])) top = { x, y: sy, key }
     }
   }

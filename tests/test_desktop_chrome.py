@@ -596,6 +596,28 @@ class RoundV6jPlacement(unittest.TestCase):
         self.assertLessEqual(max(p["x"] - a[2], a[0] - (p["x"] + 26), p["y"] - a[3], a[1] - (p["y"] + 26)), 80 + 32, o)
 
 
+class RoundV6kPlacement(unittest.TestCase):
+    """Live loop V6k (339ea00), the rects the live pages sent."""
+
+    # Test design system, Colors at a 742 x 716 frame: the "bone" Light swatch picked, between the stage's edge and its
+    # value field, its name above, the next row's name below: its pin went over it (its corner).
+    SWATCH = {"x": 20.8, "y": 265.8, "w": 24.4, "h": 24.4, "ly": 265.8, "lh": 24, "vt": 0, "vb": 716, "fr": False, "fl": True, "fa": True, "fb": False,
+              "kp": [[0, 0, 735, 84], [52, 265, 359, 291], [16, 311, 102, 332], [16, 213, 53, 235], [52, 362, 359, 389], [20, 363, 46, 388], [16, 472, 46, 494],
+                     [377, 265, 402, 291], [408, 265, 715, 291], [636, 210, 663, 237], [662, 210, 689, 237], [688, 210, 715, 237], [654, 108, 719, 137]],
+              "kc": [[16, 105, 90, 141], [16, 213, 53, 235], [20, 216, 49, 231], [20, 265, 46, 291], [52, 265, 359, 291], [16, 311, 102, 332], [20, 313, 98, 329]]}
+
+    def test_a_small_part_hemmed_in_has_its_pin_by_it_never_over_it(self):
+        o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(self.SWATCH)}, 742, 716, 142)))")
+        p, r = o["pin"], self.SWATCH
+        P = [p["x"], p["y"], p["x"] + p["s"], p["y"] + p["s"]]
+        E = [r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]
+        gap = lambda a, b: max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
+        self.assertGreaterEqual(gap(P, E), 0, o)  # never over it
+        self.assertLessEqual(gap(P, E), 8, o)  # by it
+        for k in r["kp"]:
+            self.assertGreaterEqual(gap(P, k), 4, (k, o))
+
+
 class CommentsPanelLayoutTests(unittest.TestCase):
     """0.20 live: at a ~986 px window the comments list covered the sheet's right (its note, "Ask Herm…") while
     the page kept laying out for the whole row. Docked, the list takes its width from the stage: the frame
