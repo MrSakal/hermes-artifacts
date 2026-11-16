@@ -5981,8 +5981,9 @@ function CommentPopover({ ctx, art, stageRef }) {
   // placed again only when what it is placed by changed (not at every letter typed: it weighs every spot)
   const placed = useRef({ k: '', v: null })
   if (!draft?.rect) return null
-  // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part)
-  const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(be.scrollHeight + be.offsetHeight - be.clientHeight)) || boxH
+  // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part),
+  // its fraction too (V6k: offsetHeight 142 drawn 142.1 at 125 %, the box 3.9 px off a field)
+  const be = boxRef.current, hNow = (be && be.isConnected && Math.ceil(be.scrollHeight - be.clientHeight + be.getBoundingClientRect().height - 1e-3)) || boxH
   const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover])
   if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover) }
   const { box } = placed.current.v, pin = draft.gone ? null : placed.current.v.pin
