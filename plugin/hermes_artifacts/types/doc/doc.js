@@ -510,8 +510,32 @@
   }
   /** base: the rev a block's words were typed against (its own, older than the tab's when Hermes changed
    *  that block meanwhile), so the server sees the conflict instead of the person's save overwriting it. */
-  function edit(ops, base) { return enqueue("edit", ops, base); }
-  function propose(ops) { return enqueue("suggest", ops).then(function (r) { return pull(true).then(function () { return r; }); }); }
+  function edit(ops, base) { ops = withUnsent(ops); return ops.length ? enqueue("edit", ops, base) : Promise.resolve({ ok: true }); }
+  function propose(ops) {
+    ops.forEach(function (o) { [o.block, o.after].forEach(function (id) { var c = claim(id); if (c) enqueue("edit", [c]); }); });
+    return enqueue("suggest", ops).then(function (r) { return pull(true).then(function () { return r; }); });
+  }
+  // An empty block "+" made (addBelow) stays here, unsent, until something is written in it or names it: its
+  // insert goes then, with its words (a replace of it), or first (another edit naming it); a delete of it sends
+  // nothing (V6j: "+" then Esc saved an insert and a delete, and the doc's time moved with nothing changed).
+  var unsent = {}; // tmp id -> { after, aprevs }
+  function claim(id, md) { // the insert of an unsent block, now going out
+    var v = id && unsent[id];
+    if (!v) return null;
+    delete unsent[id];
+    return { op: "insert", after: v.after, md: md != null ? md : (blockOf(id) || {}).md || "", tmp: id };
+  }
+  function withUnsent(ops) {
+    var out = [];
+    ops.forEach(function (o) {
+      if (o.op === "delete" && unsent[o.block]) { delete unsent[o.block]; return; }
+      var c = o.op === "replace" && claim(o.block, o.md);
+      if (c) { out.push(c); return; }
+      [o.block, o.after].forEach(function (id) { var c2 = claim(id); if (c2) out.push(c2); });
+      out.push(o);
+    });
+    return out;
+  }
   function wire(e) { // the ops as the server takes them: ids it gave meanwhile, an anchor still unsettled moved back, the cid
     return e.ops.map(function (o, i) {
       var x = {}; for (var k in o) if (k !== "tmp" && k.charAt(0) !== "_") x[k] = o[k];
@@ -1408,7 +1432,10 @@
     gut.el.style.left = (r.left - (roomy ? 45 : 22) - GAP) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
   }
   function addBelow(id) {
-    var made = insertBlock(id, "", "end");
+    if (realIds[id]) id = realIds[id];
+    var tmp = mode === "suggest" ? null : showNew(id, "", "end");
+    if (tmp) unsent[tmp] = { after: id, aprevs: [id].concat(prevsOf(id)) };
+    var made = tmp ? Promise.resolve(tmp) : insertBlock(id, "", "end");
     var el = document.activeElement && document.activeElement.closest && document.activeElement.closest(".doc-blk");
     // after this click has passed the page's close-on-click; Esc on that menu takes the block back while it is
     // still empty (V6h: an empty paragraph left behind)
@@ -2329,7 +2356,8 @@
     }
     var was = t.blocks;
     t.srv = full.blocks.map(function (b) { return b.id; }); // what the server has: an edit it refuses is made to fit it (mend)
-    var m = mergeBlocks(replayOps(full.blocks, outbox, realIds), was, keepMd);
+    var held = Object.keys(unsent).map(function (id) { return { via: "edit", ops: [{ op: "insert", after: unsent[id].after, md: "", tmp: id, _aprevs: unsent[id].aprevs }] }; });
+    var m = mergeBlocks(replayOps(full.blocks, outbox.concat(held), realIds), was, keepMd);
     t.blocks = m.blocks;
     m.back.forEach(function (x) { if (x.id === mine) f.sug = false; }); // gone there: its words go back in as a new block
     if (act === "drop") { clearTimeout(f.timer); focused = null; }

@@ -2132,21 +2132,33 @@ class RoundV6hPages(unittest.TestCase):
     def test_esc_on_the_menu_of_a_block_just_added_takes_it_back(self):
         # N10: "Add a block below" makes an empty paragraph and opens the block menu on it (as on main 414fa59); Esc
         # on that menu left the empty paragraph behind. It takes it back while still empty; a block typed in stays.
+        # V6j: that Esc sent an insert and a delete: the doc saved (its rev and time moved) with nothing changed. The
+        # new block is sent once something is written in it, never for "+" and Esc.
+        from hermes_artifacts import docs
         aid = self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nFirst paragraph.\n\nSecond paragraph."})["id"]
-        o = self.drive_page(aid, """
+        plus = """
           const n = () => api.frame('document.querySelectorAll(".doc-blk").length')
           const plus = async () => {
             const b = await api.frame('(() => { const r = document.querySelectorAll(".doc-blk")[1].getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2] })()')
             await api.pointer('mouseMoved', b[0], b[1], false); await api.sleep(300)
             const p = await api.frame('(() => { const e = document.querySelector(".doc-g-plus"); if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
             await api.mouse(p[0], p[1]); await api.sleep(700)
-          }
+          }"""
+        rev0 = docs.read(aid)["rev"]
+        o = self.drive_page(aid, plus + """
           const o = { before: await n() }
           await plus(); o.added = await n(); o.menu = await api.frame('!!document.querySelector(".doc-slash:not([hidden])")')
-          await api.key('Escape', 'Escape', 27); await api.sleep(900); o.esc = await n()
-          await plus(); await api.type('kept'); await api.sleep(300); await api.key('Escape', 'Escape', 27); await api.sleep(900); o.typed = await n()
+          await api.key('Escape', 'Escape', 27); await api.sleep(3200); o.esc = await n()
           return o""")
-        self.assertEqual(o, {"before": 3, "added": 4, "menu": True, "esc": 3, "typed": 4}, o)
+        self.assertEqual(o, {"before": 3, "added": 4, "menu": True, "esc": 3}, o)
+        self.assertEqual(docs.read(aid)["rev"], rev0)  # nothing sent
+        o = self.drive_page(aid, plus + """
+          await plus(); await api.type('kept'); await api.sleep(300); await api.key('Escape', 'Escape', 27); await api.sleep(2500)
+          return { typed: await n() }""")
+        self.assertEqual(o, {"typed": 4}, o)
+        r = docs.read(aid)
+        self.assertGreater(r["rev"], rev0)
+        self.assertEqual([b["md"] for b in r["blocks"]], ["# Doc", "First paragraph.", "kept", "Second paragraph."])
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
@@ -2185,3 +2197,4 @@ class RoundV6hBoardPick(unittest.TestCase):
             self.assertTrue(r, o)
             self.assertTrue(r["x"] <= it[0] + 0.5 and r["y"] <= it[1] + 0.5 and r["x"] + r["w"] >= it[2] - 0.5 and r["y"] + r["h"] >= it[3] - 0.5, o)
         self.assertEqual([o["label"] for o in out], ["Shape · Ship", "Sticky note · Owner: Anna"], out)
+

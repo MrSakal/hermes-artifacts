@@ -357,7 +357,7 @@ class DocPageTests(unittest.TestCase):
         self.assertIn("var p = edit([{ op: \"delete\", block: id }]);", fn(self.src, "function removeBlock(id) {", "\n\n"))
         self.assertIn('edit([{ op: "move", block: id, after: after }]);', fn(self.src, "function moveBlock(id, after) {", "\n  // Turn a block"))
         merge = fn(self.src, "function merge(full, flash) {", "\n  if (live) {")
-        self.assertIn("mergeBlocks(replayOps(full.blocks, outbox, realIds), was, keepMd)", merge)
+        self.assertIn("mergeBlocks(replayOps(full.blocks, outbox.concat(held), realIds), was, keepMd)", merge)  # and a block "+" made, unsent
         mend = fn(self.src, "function mend(e, r) {", "\n  // Hermes changed a block meanwhile")
         self.assertIn("repairOps(e, (e.t.srv || []).slice(), realIds)", mend)
         self.assertNotIn("hm.doc.edit(", self.src.replace("hm.doc.edit(t.id, ops, e.sentBase)", "").replace('hm.doc.edit(tab().id, [{ op: "batch", entries: all.slice(0, n) }], null)', ""))  # every edit goes through the outbox
