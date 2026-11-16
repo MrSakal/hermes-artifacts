@@ -639,7 +639,8 @@
     el.classList.remove("ds-flash"); void el.offsetWidth; el.classList.add("ds-flash");
   }
   // The host's comment pick on a part with an anchor (a token's row, a type style, a component): the comment is
-  // on that anchor (showAnchor finds it again), titled with its name, its pin beside it.
+  // on that anchor (showAnchor finds it again), titled with its name, its pin beside what was pressed: the control
+  // in it the pick outlined (a swatch, a value; V6j: the swatch's pin 662 px off at the row's end), else the row.
   var dsPicking = false;
   window.addEventListener("click", function (e) {
     if (!dsPicking || !CAN_COMMENT) return;
@@ -647,7 +648,8 @@
     if (!el) return;
     e.preventDefault(); e.stopImmediatePropagation();
     var a = el.getAttribute("data-ds-anchor"), name = el.getAttribute("data-token") || el.getAttribute("data-component") || a.replace(/^[a-z]+:/, "").split("/").pop();
-    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, el);
+    var part = e.target.closest("button, input, select, textarea, a[href]");
+    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, part && el.contains(part) ? part : el);
   }, true);
   if (CAN_COMMENT && window.hermes.on) {
     window.hermes.on("comment-mode", function (d) { dsPicking = !!(d && d.on); });

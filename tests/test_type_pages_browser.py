@@ -1302,6 +1302,12 @@ class PickInEveryType(unittest.TestCase):
         ev, _ = self.pick(aid, at('document.querySelector(".ds-row[data-token]")', 0.6),
                           before="await api.frame('[...document.querySelectorAll(\".ds-nav-i\")].find(b => /Colou?rs|Színek/.test(b.textContent)).click()'); await api.sleep(800)", settle=2500)
         self.assertRegex(ev["detail"]["selector"], r"^token:color/")
+        # V6j: a swatch picked had its pin at the row's end, 662 px off: the comment is the row's, its rect the swatch's
+        ev, q = self.pick(aid, at('document.querySelector(".ds-row[data-token] .ds-sw")'),
+                          before="await api.frame('[...document.querySelectorAll(\".ds-nav-i\")].find(b => /Colou?rs|Színek/.test(b.textContent)).click()'); await api.sleep(800)", settle=2500)
+        self.assertRegex(ev["detail"]["selector"], r"^token:color/")
+        r = ev["detail"]["rect"]
+        self.assertTrue(r["x"] <= q[0] <= r["x"] + r["w"] and r["y"] <= q[1] <= r["y"] + r["h"] and r["w"] < 60, (q, r))
 
     def test_model_view(self):
         from test_models import PANEL
