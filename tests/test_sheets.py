@@ -195,6 +195,13 @@ class EditTests(unittest.TestCase):
         r = sheets.apply(self.aid, [{"op": "delete_chart", "id": "c1"}, {"op": "add_chart", "type": "line", "range": "A1:D2", "at": "F2"}], by="user")
         self.assertEqual(r["charts"], [{"id": "c1", "at": "F2"}])
 
+    def test_charts_published_on_one_spot_are_placed_apart(self):
+        # live loop V6l: a sheet published with two charts at F2 drew one over the other, hidden whole; a drag of the
+        # top one up towards it was "ignored" (placed below the hidden one, where it already was)
+        aid = pub({"sheets": [{"name": "S", "rows": [["a", 1], ["b", 2]], "charts": [
+            {"type": "bar", "range": "A1:B2", "at": "F2"}, {"type": "pie", "range": "A1:B2", "at": "F2"}]}]})
+        self.assertEqual([c["at"] for c in sheets.read(aid)["charts"]], ["F2", "F15"])
+
     def test_random_charts_never_overlap(self):
         import random
         rnd = random.Random(7)

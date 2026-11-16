@@ -704,7 +704,9 @@ def sheet_from_spec(spec, where: str, taken: list) -> dict:
     if not isinstance(charts, list) or len(charts) > MAX_CHARTS:
         raise SheetError("invalid", f"{where}.charts: a list of at most {MAX_CHARTS} charts")
     for i, ch in enumerate(charts):
-        sh["charts"].append(_clean_chart(ch, f"{where}.charts[{i}]", sh["charts"]))
+        ch = _clean_chart(ch, f"{where}.charts[{i}]", sh["charts"])
+        ch["at"] = _place_chart(sh, ch["at"])  # never over another chart, as an added one (V6l: two at F2, one hidden)
+        sh["charts"].append(ch)
     return sh
 
 
