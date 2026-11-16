@@ -2123,13 +2123,16 @@ class RoundV6hPages(unittest.TestCase):
 
     def test_a_button_a_press_focused_keeps_no_ring_after_esc_one_the_keyboard_reached_keeps_it(self):
         # N13: a design's Properties pill clicked shut, then Esc: a thick ring as if the keyboard had reached it. One
-        # rule for every page's buttons (kit.js): by a press, no ring left; by the keyboard, the focus and the ring.
+        # rule for every page's buttons (bridge.js): by a press, no ring left; by the keyboard, the focus and the ring.
         cases = (("design", self.store.publish(path=str(EX / "design"), title="Test design", type="design")["id"],
                   '[...document.querySelectorAll(".dc-pill button")].find(b => /propert/i.test(b.getAttribute("aria-label") || b.title))'),
                  ("model", self.store.publish(title="Panel", type="model", files={"model.json": __import__("test_models").PANEL})["id"],
                   '[...document.querySelectorAll(".md-pill-l button")].pop()'),
                  ("doc", self.store.publish(title="Doc", type="doc", files={"doc.md": "# Doc\n\nWords."})["id"],
-                  '[...document.querySelectorAll("#doc-bar button")].filter(b => !b.disabled && b.getClientRects().length).pop()'))
+                  '[...document.querySelectorAll("#doc-bar button")].filter(b => !b.disabled && b.getClientRects().length).pop()'),
+                 # V6k: a free-form page (no kit.js): its Reset clicked, then Esc, rang. The rule is the bridge's, for every page.
+                 ("page", self.store.publish(title="Plain", type="page", html=PICK_PAGE.replace("</main>", "<button id=reset>Reset</button></main>"))["id"],
+                  'document.getElementById("reset")'))
         for kind, aid, sel in cases:
             o = self.drive_page(aid, self.RING + f"const keys = await ring({json.dumps(sel)}, true); return {{ mouse: await ring({json.dumps(sel)}, false), keys }}", settle=2500)
             self.assertEqual(o, {"mouse": False, "keys": True}, (kind, o))

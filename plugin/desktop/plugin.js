@@ -3296,8 +3296,8 @@ function watchRun() {
  *  when the resolved theme differs, every open page gets it again. */
 const themePorts = new Set() // every mounted page's port: the theme and Hermes' runs reach them all
 /** A button of the plugin's that a press focused keeps no ring after Esc (V6h: one clicked, then Esc, rang as if
- *  the keyboard had reached it); one the keyboard reached keeps its focus and its ring. The type pages do the same
- *  (kit.js). Returns its disposer. */
+ *  the keyboard had reached it); one the keyboard reached keeps its focus and its ring. Every page does the same
+ *  (bridge.js). Returns its disposer. */
 function watchPressFocus(ctx) {
   let pressed = null, focus = null
   const offs = [

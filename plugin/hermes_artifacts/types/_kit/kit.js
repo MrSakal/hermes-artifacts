@@ -146,23 +146,6 @@
     if (!t || !a || a === t || a === document.body || a.contains(t) || t.contains(a) || !a.matches || !a.matches(CONTROL)) return;
     a.blur();
   }, true);
-  // A control a press focused keeps no ring after Esc (V6h: a design's Properties pill clicked shut, then Esc, rang
-  // as if the keyboard had reached it); one the keyboard reached keeps its focus and its ring. As the host's own
-  // buttons (plugin.js pointerFocus).
-  var pressed = null, pressFocus = null;
-  if (document.addEventListener) {
-    document.addEventListener("pointerdown", function (e) {
-      pressed = e.target;
-      var a = document.activeElement; // pressed again where it already is: by a press now
-      if (a && a !== document.body && a.contains && a.contains(e.target)) pressFocus = a;
-    }, true);
-    document.addEventListener("focusin", function (e) { pressFocus = pressed && e.target.contains && e.target.contains(pressed) ? e.target : null; pressed = null; }, true);
-    document.addEventListener("keydown", function (e) {
-      var a = pressFocus;
-      if (e.key !== "Escape" || !a || document.activeElement !== a || !a.matches("button, [role=button], [role=tab]")) return;
-      setTimeout(function () { if (document.activeElement === a) a.blur(); }, 0);
-    }, true);
-  }
 
   /** A press outside an open menu or a toolbar's popover only closes it (the caller closes it): neither the press
    *  nor its click reaches what is under it (a canvas would select, a button would act: V6e, a doc's Full width
