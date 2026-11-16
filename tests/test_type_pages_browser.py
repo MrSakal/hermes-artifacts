@@ -2198,3 +2198,24 @@ class RoundV6hBoardPick(unittest.TestCase):
             self.assertTrue(r["x"] <= it[0] + 0.5 and r["y"] <= it[1] + 0.5 and r["x"] + r["w"] >= it[2] - 0.5 and r["y"] + r["h"] >= it[3] - 0.5, o)
         self.assertEqual([o["label"] for o in out], ["Shape · Ship", "Sticky note · Owner: Anna"], out)
 
+    def test_a_connector_picked_is_its_drawn_line(self):
+        # V6j: a connector's own box is 0 x 0 at the canvas's origin, its lines drawn overflowing it; that corner was
+        # counted, so the part picked was 750 x 296 px and the comment's box went 57 px off past it. Its strokes only.
+        board = {"title": "B", "items": [{"id": "a", "type": "box", "text": "Review"}, {"id": "b", "type": "box", "text": "Ship"},
+                                          {"id": "ab", "type": "arrow", "from": "a", "to": "b", "label": "yes"}]}
+        aid = self.store.publish(title="B", type="board", files={"board.json": board})["id"]
+        r = B.drive(f"await api.size(1250, 716); await api.go({json.dumps(self.host.url(aid, theme=HERMES_DARK, lang='en'))}, 800); {READY}\n await api.sleep(1500)\n" + """
+          const w = await api.frame(`(() => { const ps = [...document.querySelectorAll('[data-id="ab"] path')].filter(p => !/^(none|transparent|rgba\\(0, 0, 0, 0\\))$/.test(getComputedStyle(p).stroke))
+            const ink = ps.map(p => p.getBoundingClientRect()), p = ps[0], m = p.getScreenCTM(), q = p.getPointAtLength(p.getTotalLength() * 0.2)
+            return { at: [q.x * m.a + m.e, q.y * m.d + m.f], ink: [Math.min(...ink.map(b => b.left)), Math.min(...ink.map(b => b.top)), Math.max(...ink.map(b => b.right)), Math.max(...ink.map(b => b.bottom))] } })()`)
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
+          await api.mouse(w.at[0], w.at[1]); await api.sleep(500)
+          const ev = await api.top('window.__events.filter(e => e.event === "picked").pop()')
+          return { ink: w.ink, rect: ev && ev.detail.rect, label: ev && ev.detail.label }""", timeout=200)
+        self.assertIsNone(r.get("err"), r)
+        o = r["out"]
+        rect, ink = o["rect"], o["ink"]
+        self.assertTrue(rect and o["label"].startswith("Arrow"), o)
+        # the strokes' box (half the stroke round it), not the canvas's corner
+        self.assertTrue(ink[0] - 4 <= rect["x"] and rect["x"] + rect["w"] <= ink[2] + 4 and ink[1] - 4 <= rect["y"] and rect["y"] + rect["h"] <= ink[3] + 4, o)
+

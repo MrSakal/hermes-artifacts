@@ -692,7 +692,10 @@
   /** el's box as drawn: its own, and the strokes of the shapes drawn in it (an SVG's outline reaches half its
    *  width past the shape's box), so what keeps off it keeps off what is seen. */
   function inkRect(el) {
-    var r = el.getBoundingClientRect(), l = r.left, t = r.top, rt = r.right, b = r.bottom;
+    // A box of no size (a board's connector: its lines are drawn in it, overflowing) is not a corner of the ink (V6j:
+    // its 0 x 0 box at the canvas's origin made the connector's rect 750 x 296 px, the comment's box 57 px off)
+    var r = el.getBoundingClientRect(), some = r.width > 0 || r.height > 0;
+    var l = some ? r.left : Infinity, t = some ? r.top : Infinity, rt = some ? r.right : -Infinity, b = some ? r.bottom : -Infinity;
     var list = [el].concat(Array.prototype.slice.call(el.querySelectorAll ? el.querySelectorAll("svg *") : [], 0, 200));
     for (var i = 0; i < list.length; i++) {
       var n = list[i];
@@ -702,6 +705,7 @@
       var m = n.getScreenCTM && n.getScreenCTM(), pad = (parseFloat(cs.strokeWidth) || 0) / 2 * (m ? Math.hypot(m.a, m.b) : 1);
       l = Math.min(l, q.left - pad); t = Math.min(t, q.top - pad); rt = Math.max(rt, q.right + pad); b = Math.max(b, q.bottom + pad);
     }
+    if (!(rt > l)) return r; // no size and no strokes drawn
     return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
   }
   /** pickRect for a box {x, y, w, h} in the window that a page measured itself (a part inside an artboard's own
