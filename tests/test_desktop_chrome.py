@@ -570,6 +570,32 @@ class RoundV6iPlacement(unittest.TestCase):
         self.assertLessEqual(max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 141), b["y"] - (p["y"] + 26)), 80, o)
 
 
+class RoundV6jPlacement(unittest.TestCase):
+    """Live loop V6j (48df5dc): Test dash2's "Value, M USD" number picked at a 1262 x 716 frame (the rect it sent): the
+    box off the card 76 px from the pin cut the summary line ("…against targ") while a spot off the card 102 px from
+    the pin was over none of the page's content."""
+
+    LIVE = {"x": 354.8, "y": 271.6, "w": 246.6, "h": 39.9, "ly": 266, "lh": 50.4, "vt": 44, "vb": 716, "fr": True, "fl": True, "fa": True, "fb": True,
+            "lr": 446.9, "fw": True, "pb": [336, 236.3, 620.2, 356.3],
+            "kp": [[56, 177, 217, 210], [230, 177, 289, 210], [1126, 7, 1163, 36], [1166, 7, 1203, 36], [1206, 7, 1243, 36]],
+            "kc": [[12, 13, 125, 30], [1126, 7, 1163, 36], [1136, 13, 1153, 30], [1166, 7, 1203, 36], [1176, 13, 1193, 30], [1206, 7, 1243, 36],
+                   [1216, 13, 1233, 30], [39, 68, 184, 103], [39, 108, 56, 127], [55, 108, 143, 127], [142, 108, 229, 127], [228, 108, 551, 127],
+                   [56, 157, 100, 173], [56, 177, 217, 210], [230, 177, 289, 210], [243, 184, 276, 203], [56, 249, 190, 265], [56, 266, 99, 317],
+                   [354, 249, 436, 265], [354, 266, 447, 317], [653, 249, 706, 265], [653, 266, 725, 317], [724, 290, 776, 311], [653, 318, 778, 335],
+                   [951, 249, 1054, 265], [951, 266, 993, 317], [951, 318, 1056, 335], [56, 389, 169, 410], [56, 416, 208, 433], [56, 443, 602, 704],
+                   [310, 456, 329, 471], [495, 474, 523, 490], [653, 389, 753, 410], [653, 415, 1198, 676], [710, 416, 738, 431], [769, 416, 800, 431]]}
+
+    def test_a_clear_spot_a_little_farther_beats_one_cutting_words(self):
+        h = 142
+        o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(self.LIVE)}, 1262, 716, {h})))")
+        b, p, card = o["box"], o["pin"], self.LIVE["pb"]
+        a = [b["x"], b["y"], b["x"] + 320, b["y"] + h]
+        for k in self.LIVE["kc"]:
+            self.assertFalse(a[0] < k[2] and k[0] < a[2] and a[1] < k[3] and k[1] < a[3], ("the box over the page's content", k, o))
+        self.assertGreaterEqual(max(card[0] - a[2], a[0] - card[2], card[1] - a[3], a[1] - card[3]), 8, o)
+        self.assertLessEqual(max(p["x"] - a[2], a[0] - (p["x"] + 26), p["y"] - a[3], a[1] - (p["y"] + 26)), 80 + 32, o)
+
+
 class CommentsPanelLayoutTests(unittest.TestCase):
     """0.20 live: at a ~986 px window the comments list covered the sheet's right (its note, "Ask Herm…") while
     the page kept laying out for the whole row. Docked, the list takes its width from the stage: the frame

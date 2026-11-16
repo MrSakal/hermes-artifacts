@@ -5715,6 +5715,7 @@ const BOX_NEAR = 24 // a box this close to its pin or element reads as by it: sp
 const BOX_MIN_H = 100 // the least height the box is cut to (it scrolls) to keep its hard rules
 const PB_REACH = 80 // a spot clear of the part holding the element (rect.pb) this near its pin goes first
 const BOX_BANDS = [BOX_NEAR, PB_REACH, BOX_REACH, Infinity] // the box's distance bands from its pin, nearest first
+const CLEAR_EASE = 32 // a spot over none of the page's content, past BOX_NEAR, is ranked as this much nearer
 /** Where the new comment's pin and box go in the stage (bw x bh), for the element clicked (`rect`: x, y, w, h in
  *  stage px, its first line and free sides: pickedRect) and the box's height `h`. The pin: pinSpot. The box, by
  *  ONE ordered rule for every type:
@@ -5728,7 +5729,7 @@ const BOX_BANDS = [BOX_NEAR, PB_REACH, BOX_REACH, Infinity] // the box's distanc
  *     box 65-227 px off its pin over other content read as lost): the nearest of the distance bands from the pin
  *     (BOX_BANDS: adjacent, BOX_GAP to BOX_NEAR, first); in a band the one covering the least of the page's content
  *     (rect.kc, rect.kw, KC_PAD round each: some neighbouring words by the pin are better than a box far away),
- *     then the nearest.
+ *     then the nearest. A spot over none of that content, past the adjacent band, is ranked CLEAR_EASE nearer.
  *  3. None keeps 1 at the box's height: cut (it scrolls) down to BOX_MIN_H; then the element's own room is given
  *     up (the element fills the stage: the box over it), then the controls'; the stage and the pin never.
  *  box.maxH is always set: the most it may be. Pure: tested without a DOM. */
@@ -5769,10 +5770,13 @@ function boxSpot(rect, pin, bw, bh, h) {
         const a = [x, y, x + W, y + hh]
         if (near(a, P, G) || (level < 2 && kp.some(k => near(a, k, KEEP_PAD))) || (level < 1 && near(a, E, G))) continue
         const d = gap(a, P), c = covers(a)
+        // A spot over none of the page's content, past the adjacent band, counts CLEAR_EASE nearer (V6j: a KPI's
+        // box 76 px off its pin cut the summary line while one 102 px off was over nothing)
+        const dn = c === 0 && d > BOX_NEAR ? Math.max(d - CLEAR_EASE, BOX_NEAR + 0.5) : d
         // Clear of the part the page named that holds the element (a KPI's card, its number picked) within
         // PB_REACH of the pin, before any spot on it or by it (V6i B4: the box on the card and its neighbours)
-        const onPb = pb ? (near(a, pb, G) || d > PB_REACH ? 1 : 0) : 0
-        const key = [onPb, BOX_BANDS.findIndex(b => d <= b), c, d]
+        const onPb = pb ? (near(a, pb, G) || dn > PB_REACH ? 1 : 0) : 0
+        const key = [onPb, BOX_BANDS.findIndex(b => dn <= b), c, d]
         if (!top || less(key, top.key)) top = { x, y, key }
       }
     }

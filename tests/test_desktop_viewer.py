@@ -1407,8 +1407,9 @@ class CommentPlacementProperty(unittest.TestCase):
                 worst = max(worst, d)
                 # V6h N1: nearness wins: a box more than NEAR (+1, whole px) from its pin only where no spot that near
                 # keeps the hard rules, whatever it covers
-                # (V6i B4: one clear of the part holding the pick within 80 px goes first)
-                clear = r.get("pb") and not self.meet(b, mv(r["pb"]), self.GAP) and self.gap(b, p) <= 80 + 1
+                # (V6i B4: one clear of the part holding the pick within 80 px goes first; V6j: one over none of the
+                # page's content counts 32 px nearer)
+                clear = r.get("pb") and not self.meet(b, mv(r["pb"]), self.GAP) and self.gap(b, p) <= 80 + 32 + 1
                 if p and self.gap(b, p) > self.NEAR + 1 and not clear:
                     for x, y in self.spots(s, bh, p):
                         a = [x, y, x + self.W, y + bh]
