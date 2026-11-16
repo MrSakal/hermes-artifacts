@@ -513,6 +513,22 @@ class RoundV6mKeptDrafts(unittest.TestCase):
         bridge = (PLUGIN / "hermes_artifacts" / "assets" / "bridge.js").read_text("utf-8")
         self.assertNotIn("if (picking) unfollow();", bridge)  # a new pick no longer forgets the kept parts
 
+    def test_a_pin_with_no_box_off_the_part_by_it_takes_another_spot(self):
+        # Item 5: a design's block at 1002 px (the rect its page sent): its pin left of it at the stage's edge, where
+        # no box within 24 px of it keeps off it: the box went right, over the block. Below its right end (fb), the box
+        # beside it, off the block.
+        rect = {"x": 74.9, "y": 243.6, "w": 209.9, "h": 148.9, "ly": 275.9, "lh": 3, "vt": 0, "vb": 716, "vis": True,
+                "fr": False, "fl": True, "fa": False, "fb": True, "lr": 132.6, "fw": False,
+                "kp": [[64, 201, 296, 230], [310, 201, 381, 230], [12, 10, 74, 50], [569, 10, 731, 50], [246, 662, 497, 703]]}
+        o = run_node(stub_module(EXPORTS), f"console.log(JSON.stringify(m.commentLayout({json.dumps(rect)}, 742, 716, 147)))")
+        b, p = o["box"], o["pin"]
+        E = [rect["x"], rect["y"], rect["x"] + rect["w"], rect["y"] + rect["h"]]
+        gap = lambda q, w, h: max(q[0] - (b["x"] + 320), b["x"] - q[2], q[1] - (b["y"] + 147), b["y"] - q[3])  # noqa: E731
+        self.assertGreaterEqual(gap(E, 320, 147), 8 - 0.01, o)  # off the block
+        pq = [p["x"], p["y"], p["x"] + 26, p["y"] + 26]
+        self.assertTrue(8 - 0.01 <= gap(pq, 320, 147) <= 26, o)  # by its pin
+        self.assertFalse(pq[0] < E[2] and E[0] < pq[2] and pq[1] < E[3] and E[1] < pq[3], o)  # the pin off the block
+
     def test_a_connectors_pin_is_beside_its_line_off_the_shapes_it_joins(self):
         # Item 4: an arrow Review -> Ship (the rect its page sent, test_type_pages_browser RoundV6mPages): no spot by
         # its ends free; the pin went past the arrowhead onto Ship. Along its line, off both shapes, off the line.
