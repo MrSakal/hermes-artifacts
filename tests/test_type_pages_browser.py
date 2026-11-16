@@ -1242,6 +1242,13 @@ class PickInEveryType(unittest.TestCase):
             {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
         ev, _ = self.pick(aid, at('[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels")'), settle=2500)
         self.assertEqual(ev["detail"]["label"], "A2 · Panels")  # V6h N7: the cell's address, its value after
+        # V6k: a press on a chart picked the cell under it: the chart, titled by its name, its rect the chart's
+        aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182], ["Rails", 40]], "charts": [{"type": "pie", "range": "A1:B3", "title": "Cost by item", "at": "D2"}]}]}})["id"]
+        ev, q = self.pick(aid, at('document.querySelector(".sh-chart")', 0.5, 0.6), settle=2500)
+        self.assertEqual(ev["detail"]["label"], "Cost by item", ev)
+        r = ev["detail"]["rect"]
+        self.assertTrue(r["x"] <= q[0] <= r["x"] + r["w"] and r["y"] <= q[1] <= r["y"] + r["h"] and r["w"] > 300, (q, r))
 
     def test_board_note(self):
         aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [

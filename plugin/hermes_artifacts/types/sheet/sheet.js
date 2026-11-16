@@ -2388,7 +2388,8 @@
     var legend = names.length > (type === "pie" ? 0 : 1) ? h("div", { "class": "sh-legend", html: names.map(function (n, i) { return '<span><i style="background:' + col(i) + '"></i>' + kit.esc(n) + "</span>"; }).join("") }) : null;
     var menuBtn = h("button", { type: "button", "class": "kit-btn", title: T.chart, "aria-label": T.chart, html: kit.icon("more") });
     var head = h("div", { "class": "sh-chart-h" }, [h("span", { "class": "sh-chart-t", text: ch.title || ch.range }), ro() ? null : menuBtn]);
-    var card = h("div", { "class": "sh-chart", "data-chart": ch.id });
+    // picked whole while commenting, titled by its name (V6k: a press on it picked the cell under it)
+    var card = h("div", { "class": "sh-chart", "data-chart": ch.id, "data-comment-whole": "", "data-comment-label": ch.title || ch.range || T.chart });
     card.appendChild(head);
     card.insertAdjacentHTML("beforeend", chartSvg(type, d, 378, legend ? 186 : 206));
     if (legend) card.appendChild(legend);
@@ -2995,7 +2996,7 @@
   if (canComment && hm.on) {
     hm.on("comment-mode", function (d) { cellPicking = !!(d && d.on); });
     window.addEventListener("click", function (e) {
-      if (!cellPicking || !vp.contains(e.target)) return;
+      if (!cellPicking || !vp.contains(e.target) || e.target.closest(".sh-chart")) return; // a chart: the bridge's pick
       var p = hit(e.clientX, e.clientY);
       if (p.r < 0 || p.c < 0) return; // a header: the bridge's own pick
       e.preventDefault(); e.stopImmediatePropagation();
