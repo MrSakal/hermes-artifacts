@@ -1226,6 +1226,16 @@ class PickInEveryType(unittest.TestCase):
         aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
         ev, _ = self.pick(aid, at('[...document.querySelectorAll(".doc-blk li")].find(x => x.firstChild && x.firstChild.textContent.trim() === "A request for a quote arrives")', 0.1))
         self.assertIn("A request for a quote", ev["detail"]["label"])
+        # V6j: a press on none of the blocks (between two, in the margins, under the last) picked nothing, or a point
+        # after 3 s: the nearest block, by the line pressed
+        gap = ('(() => { const b = [...document.querySelectorAll("#doc-page > .doc-blk")].filter(e => e.getClientRects().length); b[1].scrollIntoView({block: "center"});'
+               ' const p = document.getElementById("doc-page").getBoundingClientRect(), r = b.map(e => e.getBoundingClientRect());'
+               ' const i = r.findIndex((q, k) => k && q.top - r[k - 1].bottom >= 2); const y = (r[i - 1].bottom + r[i].top) / 2;'
+               ' return %s })()')
+        for spot in ('[(p.left + p.right) / 2, y, "' + 'gap' + '"]', '[Math.max(2, p.left - 30), r[1].top + 4, "left"]', '[Math.min(innerWidth - 2, p.right + 30), r[1].top + 4, "right"]'):
+            ev, q = self.pick(aid, gap % spot)
+            self.assertEqual(ev["event"], "picked", ev)
+            self.assertRegex(ev["detail"]["selector"], r"blk-", (spot, ev))
 
     def test_sheet_cell(self):
         aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
