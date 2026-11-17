@@ -223,13 +223,14 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P.run('hermes.storage.get("a")').then(null, () => { r2.at = P.now }); await P.tick(0)
   out.alone = { hello: P.hello.length, rejectedAt: r2.at }
 
-  // --- the page's own toast: its mark says its kind (i, a check, an alert) ------------------------------
+  // --- the page's own toast: its mark says its kind (the kit's info, success or error icon) -------------
   P = page({ alone: true }); P.dcl(); P.load(); vm.runInContext(KIT, P.sb)
   out.marks = []
   for (const k of ['info', 'success', 'error', 'warn']) {
     P.run('kit.toast("note", 0, ' + JSON.stringify(k) + ')'); await P.tick(0)
     const t = P.doc.toasts[P.doc.toasts.length - 1]
-    out.marks.push([t.getAttribute('class'), t.getAttribute('role'), (t.innerHTML || '').replace(/<\/?svg[^>]*>|<circle[^>]*>/g, '')])
+    const mark = ['info', 'success', 'error'].filter(n => t.innerHTML === P.run('kit.icon(' + JSON.stringify(n) + ')'))
+    out.marks.push([t.getAttribute('class'), t.getAttribute('role'), mark.join()])
   }
   // --- Hermes at work: a read without hermes_ago is "just now", never NaN ---------------------------
   P = page(); P.connect(3); P.dcl(); P.load(); vm.runInContext(KIT, P.sb); await P.tick(10)
@@ -496,11 +497,8 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual((viewer["offPrevented"], viewer["ownPrevented"], viewer["lateTimeout"]), (False, False, 1))
 
     def test_the_own_toast_marks_its_kind(self):
-        info = '<path d="M12 11v5.5M12 7.5h.01"/>'
-        check = '<path d="M8 12.2l2.8 2.8L16 9.6"/>'
-        alert = '<path d="M12 7.5v5.5M12 16.5h.01"/>'
-        self.assertEqual(self.out["marks"], [["kit-toast is-info", "status", info], ["kit-toast is-success", "status", check],
-                                             ["kit-toast is-error", "alert", alert], ["kit-toast is-info", "status", info]])
+        self.assertEqual(self.out["marks"], [["kit-toast is-info", "status", "info"], ["kit-toast is-success", "status", "success"],
+                                             ["kit-toast is-error", "alert", "error"], ["kit-toast is-info", "status", "info"]])
         kit = (TYPES / "_kit" / "kit.js").read_text("utf-8")
         self.assertIn('toast(offline.text, 8000, "error");', kit)  # no host: an error, not a success
 
