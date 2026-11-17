@@ -308,6 +308,11 @@ await S('the chat\'s tab middle-clicked shut: the same', async () => { press(nul
 await S('the chat\'s tab shut with Ctrl+W: the same', async () => {
   window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routerNav('/'); await settle(); await draftSettles()
 }, { split: true, route: '#/chatA' })
+await S('expanded, its chat\'s tab closed: its own chat back behind it, the artifact fronted again (re-opened in place)', async () => {
+  click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle(); log.length = 0
+  press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles()
+}, { split: true, expanded: true, route: '#/chatA', lit: 'chat:chatA', reopens: 1 })
+await S('Show chat there: beside its own chat', () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, expanded: false, route: '#/chatA' })
 await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', () => routerNav('/'), { split: false, route: '#/', closed: false })
 await S('back to chat A: beside again', () => routerNav('/chatA'), { split: true, selected: 'a2' })
 await S('gallery: open B full page, then Chat', async () => {

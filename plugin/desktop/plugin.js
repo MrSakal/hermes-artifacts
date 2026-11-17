@@ -1163,7 +1163,14 @@ function watchChatArtifactTool(ctx) {
       const closed = Date.now() - tabClosedAt < 1500
       tabClosedAt = 0
       // Once Hermes has settled its new draft (an open in the same turn is undone by it: an endless spinner).
-      if (closed) return void later(ctx, () => { if (!sidAtom.get() && onChatRoute(null) && dockOwner() === left) host.openSession(left) }, 300)
+      // Expanded, the artifact stays in front of its chat's tab (re-opening its tile fronts it).
+      if (closed) {
+        return void later(ctx, async () => {
+          if (sidAtom.get() || !onChatRoute(null) || dockOwner() !== left) return
+          await host.openSession(left)
+          if (dockClose && $dockPos.get() === 'center' && dockOwner() === left) openTile(ctx, tileTitle)
+        }, 300)
+      }
       closeDock()
       $dockMaking.set(null)
       $chat.set('off')
