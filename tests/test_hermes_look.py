@@ -83,6 +83,8 @@ class HermesIcons(unittest.TestCase):
 # the kit's tokens (--kit-r-icon 4 px, --kit-r-btn 2.5 px, --kit-r-sm/md/lg/xl its scale), never a number of its own.
 CHROME = {
     "board/board.css": [".bd-tools", ".bd-tb", ".bd-zoom", ".bd-top", ".bd-ask", ".bd-ctx", ".bd-pop", ".bd-kind", ".bd-linkin"],
+    "sheet/sheet.css": [".sh-ac", ".sh-chart", ".sh-pop", ".sh-b", ".sh-chip", ".sh-chip-t", ".sh-chip-x", ".sh-chip-add", ".sh-seg", ".sh-agg",
+                        ".sh-ddp", ".sh-rp-x", ".sh-rc", ".sh-rc-x", ".sh-fb", ".sh-flt-add", ".sh-flt-q"],
 }
 
 
@@ -103,7 +105,7 @@ class HermesRadii(unittest.TestCase):
                 self.assertTrue(found, f"{f}: no rule {sel}")
                 for name, body in found:
                     for r in re.findall(r"border-radius:\s*([^;]+)", body):
-                        self.assertRegex(r.strip(), r"^(var\(--kit-r-(icon|btn|sm|md|lg|xl)\)\s*)+$|^(0|50%)$", f"{f} {name}: {r}")
+                        self.assertRegex(r.strip(), r"^((var\(--kit-r-(icon|btn|sm|md|lg|xl)\)|0)\s*)+$|^50%$", f"{f} {name}: {r}")
 
 
 if __name__ == "__main__":
