@@ -1623,6 +1623,49 @@ class RoundV6hFollow(unittest.TestCase):
     def test_design_system_scroll(self):
         self.follow("design-system", 'document.querySelector(".ds-cover")', 'document.querySelector("#ds-main h2")', self.moves((0, 120, False), (0, 1500, False), (0, -1620, False)))
 
+    def test_a_kept_pin_stays_on_its_design_system_heading(self):
+        # An Overview heading picked, a word written, the box closed by a press outside (its pin kept), the page
+        # wheeled by 40 and 400 px each way, out of sight and back: the pin keeps its place by its heading while the
+        # heading is in sight (V6n: it went [-55.7, -30.6] aside), hidden while it is not, back on it after.
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.aids['design-system'])}, SEL = 'document.querySelector(\".ds-cover\")', SETTLE = 2000; await api.size(1250, 764);" + BOOT_ANY + """
+          const H = 'document.querySelector("#ds-main h2")'
+          const at = await api.frame('(() => { const e = ' + H + '; e.scrollIntoView({ block: "center" }); const q = e.getBoundingClientRect(); return [q.left + 20, q.top + q.height / 2] })()')
+          await api.sleep(400)
+          await api.top('window.H.M.$picking.set(true)')
+          for (let i = 0; i < 100 && await api.top('(() => { const h = document.querySelector("[data-pick-hold]"); return !!h && h.style.display !== "none" })()'); i++) await api.sleep(20)
+          let off = await frameAt(); await api.mouse(off[0] + at[0], off[1] + at[1]); await api.sleep(1200)
+          await api.type('word'); await api.sleep(200)
+          await api.mouse(off[0] + 20, off[1] + 740); await api.sleep(500)
+          const now = async move => { const o = await frameAt(), q = await api.frame('(() => { const q = ' + H + '.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom] })()')
+            const p = await api.top('(() => { const p = [...document.querySelectorAll("div")].find(d => d.style.zIndex === "28" && d.style.borderRadius === "50%"); if (!p) return null; const b = p.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] })()')
+            const d = await api.top('(() => { const d = window.H.M.$draft.get(); return d && { closed: !!d.closed, text: d.text, vt: d.rect && d.rect.vt, vb: d.rect && d.rect.vb } })()')
+            return { move, head: [q[0] + o[0], q[1] + o[1], q[2] + o[0], q[3] + o[1]], pin: p, draft: d, stage: o } }
+          const steps = [await now('kept')]
+          for (const dy of [40, -40, 400, -400, 1600, -1600, 40, -40]) { await api.wheel(off[0] + 600, off[1] + 400, 0, dy, false); await api.sleep(700); steps.push(await now(dy)) }
+          return steps""", timeout=300)
+        self.assertIsNone(r.get("err"), r)
+        steps = r["out"]
+        k = steps[0]
+        self.assertTrue(k["draft"] and k["draft"]["closed"] and k["draft"]["text"] == "word", k)
+        self.assertTrue(k["pin"], ("no pin kept", k))
+        rel = (k["pin"][0] - k["head"][2], k["pin"][1] - k["head"][1])  # from the heading's top right
+        band = lambda s: (s["stage"][1] + s["draft"]["vt"], s["stage"][1] + s["draft"]["vb"])
+        out = back = worst = 0
+        for s in steps[1:]:
+            t, b = band(s)
+            if s["head"][3] <= t or s["head"][1] >= b:  # out of sight: no pin
+                out += 1
+                self.assertIsNone(s["pin"], ("a pin for a heading out of sight", s))
+            elif s["head"][1] >= t and s["head"][3] <= b:  # wholly in sight: by it as kept
+                back += out > 0
+                self.assertTrue(s["pin"], ("no pin for its heading in sight", s))
+                self.assertLessEqual(abs(s["pin"][0] - s["head"][2] - rel[0]), 1, ("pin aside of its heading", rel, s))
+                self.assertLessEqual(abs(s["pin"][1] - s["head"][1] - rel[1]), 1, ("pin aside of its heading", rel, s))
+                worst = max(worst, abs(s["pin"][0] - s["head"][2] - rel[0]), abs(s["pin"][1] - s["head"][1] - rel[1]))
+        self.assertTrue(out and back, ("never out of sight and back", steps))
+        print(f"\ndesign-system kept pin: {len(steps) - 1} wheels, {out} out of sight, at most {worst:.1f} px off its place", file=sys.stderr)
+
     def test_slides_another_slide_and_back(self):
         # the deck's own move to another slide (a press on a thumbnail would only close the open box: the popover)
         nav = "await api.frame('document.querySelectorAll(\"#sl-rail .sl-thumb\")[{i}].click()')"
