@@ -4,9 +4,9 @@
 #ds-app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
 #ds-nav { position: sticky; top: 0; align-self: start; height: 100vh; overflow: auto; padding: 14px 10px 24px;
   border-right: 1px solid var(--color-border-line); display: flex; flex-direction: column; gap: 1px; }
-.ds-nav-i { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--color-fg-secondary);
+.ds-nav-i { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 10px; border: 0; border-radius: var(--kit-r-md); background: none; color: var(--color-fg-secondary);
   font: inherit; font-size: 13px; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ds-nav-i:hover { background: var(--color-hover); color: var(--color-fg); }
+.ds-nav-i:hover { background: var(--color-active); color: var(--color-fg); }
 .ds-nav-i.on { background: var(--color-accent-soft); color: var(--color-fg); font-weight: 600; }
 .ds-nav-i.on .ds-nav-ic { color: var(--color-accent); }
 .ds-nav-i:focus-visible, .ds-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
@@ -14,7 +14,7 @@
 .ds-nav-meta { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 0; font-size: 11px; color: var(--color-fg-muted); }
 .ds-nav-s { position: relative; margin: 0 0 8px; }
 .ds-nav-s .ds-nav-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
-.ds-nav-search { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px 0 30px; border: 1px solid var(--color-border-line); border-radius: 8px;
+.ds-nav-search { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px 0 30px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-btn);
   background: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 13px; }
 .ds-nav-search:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
 .ds-nav-ic { display: inline-flex; flex: none; width: 16px; height: 16px; color: var(--color-fg-muted); }
@@ -38,11 +38,11 @@
 .ds-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-fg-muted); margin-bottom: 4px; }
 .ds-tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--color-hover); color: var(--color-fg-muted); }
 .ds-status { font-size: 12px; color: var(--color-fg-muted); }
-.ds-banner { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; background: var(--color-hover); color: var(--color-fg-secondary); font-size: 13px; }
+.ds-banner { margin: 0 0 14px; padding: 8px 12px; border-radius: var(--kit-r-lg); background: var(--color-hover); color: var(--color-fg-secondary); font-size: 13px; }
 
-.ds-btn { height: 28px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-panel);
+.ds-btn { height: 28px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn); background: var(--color-panel);
   color: var(--color-fg); font: inherit; font-size: 13px; cursor: pointer; }
-.ds-btn:hover { background: var(--color-hover); }
+.ds-btn:hover { background: var(--color-action-hover); }
 .ds-btn-add { display: inline-flex; align-items: center; gap: 6px; padding-left: 9px; white-space: nowrap; }
 .ds-btn-add svg { width: 14px; height: 14px; flex: none; }
 /* the primary action in the accent, as every other in the plugin (a doc's, a board's, a design's Save) */
@@ -51,7 +51,7 @@
 .ds-btn-danger { color: var(--color-bad); margin-left: auto; }
 .ds-link { border: 0; background: none; padding: 0; color: var(--color-accent); font: inherit; font-size: 12px; cursor: pointer; }
 
-.ds-problems { margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--color-border-line); border-radius: 8px; font-size: 13px; }
+.ds-problems { margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg); font-size: 13px; }
 .ds-problems summary { cursor: pointer; color: var(--color-warn); }
 .ds-problems ul { margin: 8px 0 2px; padding-left: 18px; color: var(--color-fg-secondary); }
 .ds-problems li { margin: 3px 0; }
@@ -89,23 +89,23 @@
 
 /* Editors */
 .ds-editor { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px; padding: 14px; border: 1px solid var(--color-border-strong);
-  border-radius: 10px; background: var(--color-panel); }
+  border-radius: var(--kit-r-xl); background: var(--color-panel); }
 .ds-token-editor { margin-left: 78px; }
 .ds-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--color-fg-muted); }
 .ds-in-row { display: flex; gap: 6px; align-items: center; }
-.ds-in { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg);
+.ds-in { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn); background: var(--color-bg);
   color: var(--color-fg); font: inherit; font-size: 13px; }
 .ds-in:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
 .ds-mono { font-family: var(--font-mono); font-size: 12px; }
-.ds-pick { width: 34px; height: 30px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: 6px; background: none; cursor: pointer; flex: none; }
+.ds-pick { width: 34px; height: 30px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn); background: none; cursor: pointer; flex: none; }
 .ds-row-btns { display: flex; gap: 8px; align-items: center; }
-.ds-md-edit { width: 100%; min-height: 220px; padding: 12px; border: 1px solid var(--color-border-strong); border-radius: 8px;
+.ds-md-edit { width: 100%; min-height: 220px; padding: 12px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn);
   background: var(--color-bg); color: var(--color-fg); font: 13px/1.55 var(--font-mono); resize: vertical; }
 .ds-page > .ds-btn { margin-top: 10px; align-self: flex-start; }
 /* The Markdown editor's Save and Cancel: a bar kept at the frame's foot while the text runs below it */
 .ds-md-editor { padding-bottom: 0; }
 .ds-md-bar { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 8px; align-items: center; margin: 0 -14px; padding: 10px 14px;
-  border-top: 1px solid var(--color-border-line); border-radius: 0 0 10px 10px; background: var(--color-panel); }
+  border-top: 1px solid var(--color-border-line); border-radius: 0 0 var(--kit-r-xl) var(--kit-r-xl); background: var(--color-panel); }
 .ds-md-bar .kit-btn.ds-primary { background: var(--color-accent); color: var(--color-accent-fg, var(--color-bg)); } /* the accent, as .ds-btn-primary */
 .ds-md-bar .kit-btn.ds-primary:hover { background: var(--color-accent); opacity: 0.9; }
 
@@ -171,15 +171,15 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-detail .ds-editor { margin: 8px 0 12px; }
 .ds-stem > td { padding: 14px 8px 4px; font: 600 11px/1.4 var(--font-mono); color: var(--color-fg-muted); border-bottom: 0; }
 .ds-cname { width: 28%; min-width: 150px; }
-.ds-tname { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 4px; margin-left: -4px; border: 0; border-radius: 4px;
+.ds-tname { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 4px; margin-left: -4px; border: 0; border-radius: var(--kit-r-btn);
   background: none; color: var(--color-fg); font: inherit; cursor: pointer; text-align: left; }
 .ds-tname:hover { background: var(--color-hover); }
 .ds-tname code { font: 12px/1.4 var(--font-mono); overflow-wrap: anywhere; }
 .ds-caret svg { width: 14px; height: 14px; display: block; color: var(--color-fg-muted); }
 .ds-sub { font-size: 12px; margin-top: 2px; }
-.ds-ib { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px;
+.ds-ib { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--kit-r-icon);
   background: none; color: var(--color-fg-muted); cursor: pointer; vertical-align: middle; }
-.ds-ib:hover { background: var(--color-hover); color: var(--color-fg); }
+.ds-ib:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .ds-ib svg { width: 16px; height: 16px; }
 .ds-ib.has { color: var(--color-accent); }
 .ds-ib:focus-visible, .ds-tname:focus-visible, .ds-cin:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
@@ -198,7 +198,7 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-sw-pick { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 /* width 0: the field asks for no more than its least (a field's own width, ~170 px, made a table of two themes
    18-23 px wider than its page beside the comments list: a scrollbar under it, its last button cut) */
-.ds-cin { flex: 1; width: 0; min-width: 90px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px; background: none;
+.ds-cin { flex: 1; width: 0; min-width: 90px; height: 26px; padding: 0 6px; border: 1px solid transparent; border-radius: var(--kit-r-btn); background: none;
   color: var(--color-fg); font: 12px var(--font-mono); }
 .ds-cin:hover { border-color: var(--color-border-line); }
 .ds-cin:focus { border-color: var(--color-accent); background: var(--color-bg); outline: 0; }
@@ -231,7 +231,7 @@ html[data-ds-thumb] body { overflow: hidden; }
 
 /* Popovers (usage notes, guidelines, layers) */
 .ds-pop { position: fixed; z-index: 50; width: 320px; max-width: calc(100vw - 16px); max-height: min(70vh, 560px); overflow: auto; padding: 12px;
-  border: 1px solid var(--color-border-strong); border-radius: 10px; background: var(--color-panel); box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+  border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-lg); background: var(--color-panel); box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
   display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .ds-pop-wide { width: 560px; }
 .ds-pop p { margin: 0; }
@@ -270,9 +270,9 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-fl { display: flex; flex-direction: column; gap: 1px; position: sticky; top: 56px; max-height: calc(100vh - 80px); overflow: auto; }
 .ds-fl-h { margin: 12px 6px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-fg-muted); }
 .ds-fl-h:first-child { margin-top: 0; }
-.ds-fl-i { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 4px 6px; border: 0; border-radius: 6px;
+.ds-fl-i { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 4px 6px; border: 0; border-radius: var(--kit-r-md);
   background: none; color: var(--color-fg-secondary); text-align: left; cursor: pointer; font: inherit; }
-.ds-fl-i:hover { background: var(--color-hover); }
+.ds-fl-i:hover { background: var(--color-active); }
 .ds-fl-i.on { background: var(--color-accent-soft); color: var(--color-fg); }
 .ds-fl-i code { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-fp { border-left: 1px solid var(--color-border-line); min-width: 0; }
@@ -285,11 +285,11 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-fp-img img { max-width: 100%; }
 
 /* Empty states and the generated part of the README */
-.ds-empty { margin: 8px 0 18px; padding: 18px; border: 1px dashed var(--color-border-strong); border-radius: 10px; display: flex; align-items: center;
+.ds-empty { margin: 8px 0 18px; padding: 18px; border: 1px dashed var(--color-border-strong); border-radius: var(--kit-r-lg); display: flex; align-items: center;
   gap: 12px; flex-wrap: wrap; }
 .ds-empty p { margin: 0; flex: 1; color: var(--color-fg-secondary); }
 .ds-problems .ds-btn { margin: 4px 0 2px; }
-.ds-gen { margin: 28px 0 0; padding: 10px 14px; border: 1px solid var(--color-border-line); border-radius: 10px; }
+.ds-gen { margin: 28px 0 0; padding: 10px 14px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg); }
 .ds-gen summary { cursor: pointer; font-size: 13px; color: var(--color-fg-muted); }
 .ds-gen .ds-prose { margin-top: 10px; font-size: 14px; }
 
