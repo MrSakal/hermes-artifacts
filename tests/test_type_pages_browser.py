@@ -2433,6 +2433,41 @@ class RoundV6mPages(unittest.TestCase):
         self.assertEqual(o["label"], "Costs", o)
         self.assertNotIn("gone", o["after"], o)
 
+    BADGES = ("[...document.querySelectorAll('div[data-hermes-ui]')].filter(b => /^\\d+$/.test(b.textContent))"
+              ".map(b => { const r = b.getBoundingClientRect(); return { n: b.textContent, shown: b.style.display !== 'none', l: r.left, t: r.top } })")
+
+    def test_an_open_threads_mark_by_a_sheets_cell_and_a_decks_slide(self):
+        # Owner, 0.20.0: a part with an open thread shows its numbered mark at its top right in every type; a sheet's
+        # cell had none (its comments are cell:<sheet>!A2, no selector the bridge finds), a deck's whole slide neither.
+        aid = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        o = self.drive_page(aid, """
+          const id = await api.frame('document.querySelector(".sh-tab").getAttribute("data-id").slice(4)')
+          await api.top('window.__post("pins", [{selector: "cell:' + id + '!A2", n: 1}])'); await api.sleep(500)
+          const cell = await api.frame('(() => { const c = [...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Panels").getBoundingClientRect(); return { r: c.right, t: c.top } })()')
+          return { cell, b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
+        self.assertEqual(len(o["b"]), 1, o)
+        b = o["b"][0]
+        self.assertTrue(b["shown"], o)
+        self.assertTrue(0 < b["l"] - o["cell"]["r"] <= 8 and abs(b["t"] - (o["cell"]["t"] - 9)) <= 1, o)  # its top right, past its ring
+        aid = self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"]
+        o = self.drive_page(aid, """
+          const id = await api.frame('[...document.querySelectorAll("#sl-stage section, section")].map(s => s.id).filter(Boolean)[0]')
+          const sec = await api.frame('(() => { const t = document.querySelectorAll("#sl-rail .sl-thumb")[0].getBoundingClientRect(); return { r: t.right, t: t.top } })()')
+          await api.top('window.__post("pins", [{selector: "#' + id + '", n: 1}])'); await api.sleep(500)
+          return { thumb: sec, b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
+        self.assertEqual(len([b for b in o["b"] if b["shown"]]), 2, o)  # by its thumbnail and by the slide shown
+        self.assertTrue(any(0 < b["l"] - o["thumb"]["r"] <= 8 for b in o["b"]), o)
+        # live: a board's open thread had no mark, its item drawn after the threads came: looked for again
+        aid = self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}]}})["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "#late-part", n: 1}])'); await api.sleep(300)
+          const before = await api.frame(""" + json.dumps(self.BADGES) + """)
+          await api.frame('(() => { const d = document.createElement("div"); d.id = "late-part"; d.textContent = "x"; d.style.cssText = "position:fixed;left:200px;top:200px;width:80px;height:30px"; document.body.appendChild(d) })()')
+          await api.sleep(900)
+          return { before, after: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
+        self.assertEqual((len(o["before"]), len(o["after"])), (0, 1), o)
+
     def test_the_floating_groups_have_no_wider_gap_before_their_first_button(self):
         # Owner, 0.20.0: a deck's top right group (download, play, tweaks, zoom) had 21 px from its edge to the first
         # icon, 16 between its icons (an empty status line's margins). Its edge no further from it than its icons are.

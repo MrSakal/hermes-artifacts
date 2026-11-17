@@ -1412,6 +1412,14 @@
       } });
   }, true);
 
+  // A whole slide with an open thread: its numbered mark by its thumbnail, and by the slide itself while it is shown.
+  if (window.hermes && window.hermes.locate && !C.thumb) window.hermes.locate(function (sel) {
+    var s = slides.filter(function (x) { return "#" + x.sec.id === sel; })[0];
+    if (!s) return null;
+    var rect = function (n) { if (!n || !n.isConnected || !n.getClientRects().length) return null; var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: n }; };
+    return [{ el: rail, box: function () { return rect(rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)]); } },
+      { el: clip, box: function () { return s.sec.isConnected && clip.contains(s.sec) ? rect(s.sec.parentElement) : null; } }];
+  });
   // A thumbnail picked: a comment on its whole slide (the slide's own target and title, as its blank's), its pin by
   // the thumbnail.
   function thumbPick(e) {

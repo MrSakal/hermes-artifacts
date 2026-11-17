@@ -1145,25 +1145,42 @@
       if (w) { p.b.style.left = w[0] + w[2] + window.scrollX + EDGE + HALO + 1 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
     }
   }
-  on("pins", function (items) { // [{selector, n}] numbered badges on commented elements
+  // A page whose comments name their parts its own way (a sheet's cell:, a model's part:, a deck's whole slide) finds
+  // them itself first (hermes.locate): an element, {el, box()} with box() the part's rect in the window (null: not
+  // drawn now), or a list of them (a slide: its thumbnail and its frame). Else the selector.
+  var locator = null, pinItems = [], pinTries = 0, pinTimer = 0;
+  on("pins", function (items) { pinItems = items || []; pinTries = 0; drawPins(); });
+  function drawPins() { // [{selector, n}] numbered badges on commented elements, each part with an open thread
     pins.forEach(function (p) { p.b.remove(); }); pins = [];
     if (document.documentElement.hasAttribute("data-own-pins")) return; // the page draws its own (a doc's margin cards)
-    (items || []).forEach(function (it) {
-      var el; try { el = document.querySelector(it.selector); } catch (_) {}
-      if (!el) return;
-      var b = document.createElement("div");
-      b.setAttribute("data-hermes-ui", "");
-      b.textContent = String(it.n);
-      b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
-        "border-radius:9px;background:" + mark() + ";color:#fff;font:600 11px/18px system-ui,sans-serif;" +
-        "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
-      b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
-      b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
-      document.body.appendChild(b); pins.push({ b: b, el: el, sel: it.selector, key: "" });
+    clearTimeout(pinTimer);
+    var missing = false;
+    pinItems.forEach(function (it) {
+      var L = null;
+      if (locator) try { L = locator(String(it.selector || "")); } catch (_) {}
+      if (!L) try { L = document.querySelector(it.selector); } catch (_) {}
+      if (!L) missing = true;
+      [].concat(L || []).forEach(function (t) {
+        var el = t && t.nodeType === 1 ? t : t && typeof t.box === "function" ? (t.el && t.el.nodeType === 1 ? t.el : document.body) : null;
+        if (el) badge(it, el, t.nodeType === 1 ? null : t.box);
+      });
     });
+    // a part the page has not drawn yet (a board's items come after the threads): looked for again, for 6 s at most
+    if (missing && pinTries++ < 15) pinTimer = setTimeout(drawPins, 400);
     placePins();
     watchOn();
-  });
+  }
+  function badge(it, el, box) {
+    var b = document.createElement("div");
+    b.setAttribute("data-hermes-ui", "");
+    b.textContent = String(it.n);
+    b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
+      "border-radius:9px;background:" + mark() + ";color:#fff;font:600 11px/18px system-ui,sans-serif;" +
+      "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
+    b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
+    b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
+    document.body.appendChild(b); pins.push({ b: b, el: el, box: box, sel: it.selector, key: "" });
+  }
   /** The flashed box kept off the page's own comment marks (the children of a [data-flash-keep]: a doc's margin
    *  icons beside its blocks): its side towards a mark it would cover, or come within 4 px of (its 3 px halo
    *  counted), moves back, so the mark stays seen while its element flashes. */
@@ -1288,6 +1305,8 @@
      *  function giving it again wherever it moves, with the element that holds it now as el when that one was made
      *  again; null while it is not drawn; boxRect says what more it may carry): the host then
      *  opens the form beside it with its pin, as for a pick, and not in its panel. */
+    /** The page finds the parts its comments name its own way: fn(selector) -> an element, {el, box()}, or null. */
+    locate: function (fn) { locator = typeof fn === "function" ? fn : null; drawPins(); },
     comment: function (anchor, where) {
       var a = Object.assign({}, anchor || {}), el = where && (where.nodeType === 1 ? where : where.el);
       if (el && el.nodeType === 1) {

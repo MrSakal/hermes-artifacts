@@ -3025,6 +3025,17 @@
     vp.appendChild(el);
     setTimeout(function () { el.remove(); }, 1900);
   }
+  // A cell with an open thread: its numbered mark by it whenever its sheet shows and it is in sight (hermes.locate).
+  if (hm && hm.locate && !C.thumb) hm.locate(function (sel) {
+    var m = /^cell:([^!]+)!\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(sel);
+    if (!m) return null;
+    return { el: vp, box: function () {
+      if (!book[cur] || book[cur].id !== m[1]) return null;
+      var p = parseKey(m[2] + m[3]), b = cellBox(p.r, p.c), v = vp.getBoundingClientRect();
+      if (b.x + b.w <= HW || b.y + b.h <= HH || b.x >= vpW || b.y >= vpH) return null;
+      return { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h };
+    } };
+  });
   if (hm && hm.on && !C.thumb) {
     // A comment's anchor clicked in the host: show that cell.
     hm.on("flash", function (d) {

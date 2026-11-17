@@ -663,6 +663,14 @@
     window.hermes.on("comment-mode", function (d) { dsPicking = !!(d && d.on); });
     // A comment's anchor clicked in the host: show that row or heading.
     window.hermes.on("flash", function (d) { showAnchor(String(d && d.selector || "")); });
+    // A part with an open thread (a token's row, a section's heading): its numbered mark by it while it is shown.
+    if (window.hermes.locate) window.hermes.locate(function (sel) {
+      return /^(token|style|component|asset|section):/.test(sel) ? { el: main, box: function () {
+        var n = [].filter.call(main.querySelectorAll("[data-ds-anchor]"), function (x) { return x.getAttribute("data-ds-anchor") === sel; })[0];
+        if (!n || !n.getClientRects().length) return null;
+        var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: n };
+      } } : null;
+    });
   }
   function confirmMenu(anchor, q, fn) { kit.menu(anchor, [{ hint: q }, { label: T.del, onClick: fn }]); }
   function copyText(s) {

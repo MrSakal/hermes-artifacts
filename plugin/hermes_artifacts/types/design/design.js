@@ -1639,6 +1639,16 @@
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.
     window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); if (commentPicking) pickWhenDrawn(); });
+    // An artboard with an open thread: its numbered mark by the artboard while it is drawn (an element in it is
+    // drawn in the artboard's own frame: its mark is not drawn here).
+    if (window.hermes.locate) window.hermes.locate(function (sel) {
+      var p = Object.keys(boards).filter(function (f) { return enc(f) === sel; })[0];
+      return p ? { el: boards[p].el, box: function () {
+        var b = boards[p], n = b && b.el;
+        if (!n || n.hidden || !n.isConnected || !n.getClientRects().length) return null;
+        var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height };
+      } } : null;
+    });
     window.hermes.on("flash", function (d) {
       var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(String(d && d.selector || ""));
       var p = m && Object.keys(files).filter(function (f) { return enc(f) === m[1]; })[0];
