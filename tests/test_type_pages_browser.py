@@ -2284,7 +2284,7 @@ class RoundV6hPages(unittest.TestCase):
             const d = await api.frame(`(() => { const s = __design.boards["Main.dc.html"].strip.getBoundingClientRect(), v = document.getElementById("dc-view").getBoundingClientRect(); return s.right - (v.left + ${keep}) })()`)
             await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaX: ${d}, deltaY: 0, clientX: 300, clientY: 300, bubbles: true, cancelable: true }))`); await api.sleep(400)
             out.push(await api.frame(`(() => { const b = __design.boards["Main.dc.html"], v = document.getElementById("dc-view").getBoundingClientRect(), s = b.strip.getBoundingClientRect()
-              const shown = [b.name, b.grip].filter(e => e.getClientRects().length && getComputedStyle(e).display !== "none").map(e => { const r = e.getBoundingClientRect(); return [Math.max(r.left, v.left), Math.min(r.right, s.right)] }).filter(([l, r]) => r - l >= 10)
+              const shown = [b.name, b.strip.querySelector(".dc-grip")].filter(e => e.getClientRects().length && getComputedStyle(e).display !== "none").map(e => { const r = e.getBoundingClientRect(); return [Math.max(r.left, v.left), Math.min(r.right, s.right)] }).filter(([l, r]) => r - l >= 10)
               return { keep: ${keep}, sliver: [Math.max(s.left, v.left), s.right], shown, title: b.strip.title } })()`))
           }
           return out""", settle=3000)
