@@ -585,7 +585,7 @@
    *  its column) where none of them is, with no words of its own (the blank under a doc's last block, the gap
    *  between a dashboard's tiles). Picks nothing: pick mode stays on. */
   function blank(el, x, y) {
-    if (!el || el === document.body || el === document.documentElement) return true;
+    if (!el || el === document.body || el === document.documentElement || off(el)) return true;
     if (!el.children.length || el.closest("[data-comment-label]")) return false; // in a part the page named (a slide)
     for (var i = 0; i < el.childNodes.length; i++) { var n = el.childNodes[i]; if (n.nodeType === 3 && /\S/.test(n.nodeValue)) return false; }
     for (i = 0; i < el.children.length; i++) {
@@ -595,6 +595,11 @@
     var r = el.getBoundingClientRect();
     var seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
     return seen >= 0.4 * innerWidth * innerHeight;
+  }
+  /** Ground the page's own parts lie on, never a part itself ([data-comment-off]: a board's canvas): a press on it
+   *  outside a part picks nothing and shows no box. */
+  function off(el) {
+    return !!(el.closest && el.closest("[data-comment-off]") && !el.closest("[data-comment-whole], [data-comment-label]"));
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
   var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4, PIN_MIN = 16;

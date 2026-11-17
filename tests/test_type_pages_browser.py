@@ -1275,6 +1275,22 @@ class PickInEveryType(unittest.TestCase):
             {"id": "a", "type": "box", "text": "Survey"}, {"id": "n", "type": "note", "text": "", "near": "a"}]}})["id"]
         ev, _ = self.pick(aid, at('document.querySelector(".bd-it[data-id=n]")'))
         self.assertIn(ev["detail"]["label"], ("Sticky note", "Cetli"))  # the page speaks the system's language
+        # the canvas itself is no part: no box round it under the pointer, and a press on it picks nothing
+        self.assertEqual(self.nothing(aid, "[60, 200]"), ([], ["none"]))
+
+    def nothing(self, aid, where, settle=1500, w=1200):
+        """Picking armed, the pointer over `where` (frame JS: [x, y]) and pressed there: the comment events (none
+        wanted) and the hover box's display (none: no box)."""
+        r = B.drive(f"await api.size({w}, 800); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}\n"
+                    f"await api.sleep({settle})\n"
+                    "await api.top('window.__post(\"comment-mode\", {on: true})'); await api.sleep(300)\n"
+                    f"const q = await api.frame({json.dumps(where)})\n"
+                    "await api.mouse(q[0], q[1]); await api.sleep(500)\n"
+                    "return { ev: await api.top('window.__events.filter(e => e.event === \"picked\" || e.event === \"comment\")'),"
+                    " box: await api.frame('[...document.querySelectorAll(\"div[data-hermes-ui]\")].filter(b => b.style.position === \"fixed\" && b.style.borderRadius === \"6px\").map(b => b.style.display)') }",
+                    timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]["ev"], r["out"]["box"]
 
     def test_dashboard_kpi_chart_and_filter_row(self):
         aid = self.store.publish(title="Orders", type="dashboard", files={"dashboard.json": PICK_DASH})["id"]
