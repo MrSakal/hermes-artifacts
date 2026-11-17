@@ -130,6 +130,7 @@ input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: va
 .sl-pill .sl-caret svg:last-child, .sl-pill .sl-zoom svg { width: 12px; height: 12px; opacity: .6; margin-left: 1px; }
 .sl-pill .sl-zoom { font-size: 12.5px; font-variant-numeric: tabular-nums; padding: 0 8px; gap: 2px; }
 .sl-pill .sl-status { margin: 0 4px 0 8px; }
+.sl-pill .sl-status:empty { display: none; } /* no words: no room (its margins were a gap before the first button) */
 .sl-pill-b .src-meta { min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
 
 #sl-strip { position: relative; z-index: 35; flex-shrink: 0; border-top: 1px solid var(--color-border-line); background: var(--color-bg); }

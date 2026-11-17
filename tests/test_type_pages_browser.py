@@ -2420,6 +2420,17 @@ class RoundV6mPages(unittest.TestCase):
         self.assertEqual(o["label"], "Costs", o)
         self.assertNotIn("gone", o["after"], o)
 
+    def test_the_floating_groups_have_no_wider_gap_before_their_first_button(self):
+        # Owner, 0.20.0: a deck's top right group (download, play, tweaks, zoom) had 21 px from its edge to the first
+        # icon, 16 between its icons (an empty status line's margins). Its edge no further from it than its icons are.
+        probe = ("(() => { const p = document.querySelector('%s'), r = p.getBoundingClientRect();"
+                 " const s = [...p.querySelectorAll('svg')].map(v => v.getBoundingClientRect()).filter(q => q.width);"
+                 " return { edge: s[0].left - r.left, gaps: s.slice(1).map((q, i) => q.left - s[i].right) } })()")
+        for aid, sel in ((self.store.publish(path=str(EX / "slides"), title="Deck", type="slides")["id"], ".sl-pill-r"),
+                         (self.store.publish(path=str(EX / "design"), title="Design", type="design")["id"], ".dc-pill-r")):
+            o = self.drive_page(aid, "return await api.frame(" + json.dumps(probe % sel) + ")", settle=2500)
+            self.assertLessEqual(o["edge"], min(o["gaps"]), (sel, o))
+
     def test_a_design_systems_files_preview_takes_all_the_room_right_of_the_list(self):
         # Owner, 0.20.0: Files sat in the page's narrow centred column, its preview a box in it. The list keeps its
         # width; the preview runs to the page's right edge (its padding) at every wide width.
