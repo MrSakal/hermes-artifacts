@@ -1391,6 +1391,23 @@ class PickInEveryType(unittest.TestCase):
             r = ev["detail"]["rect"]
             self.assertLessEqual(r["x"] + r["w"], words["r"][1] + 1, (i, r, words))  # the words, not the heading's bar
 
+    def test_design_system_blocks_whole_and_none_of_its_own_words(self):
+        # Owner, 0.20.0: a bullet of the Overview was ringed word by word (a code or bold word its own box); the Edit
+        # button and the Files view were commentable. A block is picked whole; the page's own controls and Files never.
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        li = '[...document.querySelectorAll(".ds-prose li")].find(e => e.textContent.startsWith("Sentence case"))'
+        ev, _ = self.pick(aid, at(li + '.querySelector("code")'), settle=2500)
+        whole = B.drive(f"await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}; await api.sleep(2500); return await api.frame({json.dumps('(() => { const b = ' + li + '.getBoundingClientRect(); return [b.width, b.height] })()')})")["out"]
+        self.assertTrue(ev["detail"]["text"].startswith("Sentence case everywhere"), ev)  # the bullet's words, not "label"
+        self.assertAlmostEqual(ev["detail"]["rect"]["h"], whole[1], delta=2)
+        self.assertEqual(self.nothing(aid, at('document.querySelector(".ds-head .ds-btn")'), settle=2500), ([], ["none"]))
+        files = "await api.frame('[...document.querySelectorAll(\".ds-nav-i, #ds-nav button\")].find(b => /Files|Fájlok/.test(b.textContent)).click()'); await api.sleep(800)"
+        r = B.drive(f"await api.size(1200, 800); await api.go({json.dumps(self.host.url(aid, theme=THEME))}, 800); {READY}; await api.sleep(2500); {files}\n"
+                    "await api.top('window.__post(\"comment-mode\", {on: true})'); await api.sleep(300)\n"
+                    "for (const s of ['.ds-fl-i', '.ds-fp-b', '.ds-fp-b .ds-prose > *', '.ds-fp-h code']) { const q = await api.frame('(() => { const e = document.querySelector(' + JSON.stringify(s) + '); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + Math.min(b.height / 2, 20)] })()'); if (q) { await api.mouse(q[0], q[1]); await api.sleep(300) } }\n"
+                    "return await api.top('window.__events.filter(e => e.event === \"picked\" || e.event === \"comment\").length')", timeout=240)
+        self.assertEqual(r["out"], 0, r)
+
     def test_model_view(self):
         from test_models import PANEL
         aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]

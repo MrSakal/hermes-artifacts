@@ -368,6 +368,10 @@
       var p = resolveRel(dirOf(path || ""), u);
       return p && C.files[p] != null ? kit.fileUrl(p) : "";
     });
+    // A comment is on a whole block (a paragraph, a bullet, a heading, a table), never on a word of it.
+    art.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, table, img, hr").forEach(function (b) {
+      if (!b.parentElement.closest("[data-comment-whole]")) b.setAttribute("data-comment-whole", "");
+    });
     // A brand-book section (title given): each heading an anchor, section:<file>#<slug>, with a comment button.
     if (title != null) {
       var seen = {};
@@ -645,7 +649,7 @@
   window.addEventListener("click", function (e) {
     if (!dsPicking || !CAN_COMMENT) return;
     var el = e.target.closest && e.target.closest("[data-ds-anchor]");
-    if (!el) return;
+    if (!el || e.target.closest("[data-comment-off]")) return; // the page's own controls by it: no part (bridge.js off)
     e.preventDefault(); e.stopImmediatePropagation();
     var a = el.getAttribute("data-ds-anchor"), name = el.getAttribute("data-token") || el.getAttribute("data-component") || a.replace(/^[a-z]+:/, "").split("/").pop();
     var part = e.target.closest("button, input, select, textarea, a[href]");
@@ -1655,8 +1659,12 @@
     else if (s === "components") kids = componentView();
     else if (s === "assets") kids = assetView();
     else kids = filesView();
-    main.replaceChildren(h("div", { "class": "ds-page" }, kids.filter(Boolean)));
+    main.replaceChildren(h("div", s === "files" ? { "class": "ds-page", "data-comment-off": "" } : { "class": "ds-page" }, kids.filter(Boolean)));
     labelCells(main);
+    // Only what the system holds is commented on: not the page's own words and controls round it (a section's Edit
+    // and comment buttons, its banners and hints, the generated "Consuming this system · Index"), nor the files.
+    main.querySelectorAll(".ds-head > :not(h1), .ds-banner, .ds-gen, .ds-empty, .ds-problems").forEach(function (e) { e.setAttribute("data-comment-off", ""); });
+    main.querySelectorAll(".ds-gen [data-comment-whole], [data-comment-off].ds-page [data-comment-whole]").forEach(function (e) { e.removeAttribute("data-comment-whole"); });
     Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); });
     sendView();
   }

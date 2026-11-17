@@ -912,8 +912,9 @@
     if (blank(el, e.clientX, e.clientY)) return;
     var text = wordsOf(el).trim().replace(/\s+/g, " ");
     atDone = true;
+    // titled by the words clicked, or a part drawn as one with no name of its own (a design system's bullet) by its own
     var k = follow({ el: el, sel: selectorOf(el) });
-    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el.contains(e.target) ? e.target : el), rect: pickRect(el), k: k });
+    emit("picked", { selector: selectorOf(el), text: text.slice(0, 200), label: pickLabel(el.contains(e.target) && !(el.hasAttribute("data-comment-whole") && !el.hasAttribute("data-comment-label")) ? e.target : el), rect: pickRect(el), k: k });
   }
   // The elements picked for new comments (each kept by its pin while its words are: the host's drafts), and the
   // open threads' marks: wherever they move (a scroll, a resize, a canvas panned or zoomed, a re-layout) the pins
