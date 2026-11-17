@@ -87,6 +87,13 @@ CHROME = {
                         ".sh-ddp", ".sh-rp-x", ".sh-rc", ".sh-rc-x", ".sh-fb", ".sh-flt-add", ".sh-flt-q"],
     "dashboard/dashboard.css": [".dash-err", ".src-ib", ".src-li", ".src-more", ".src-arg", ".src-modal-card", ".dash-ask", ".src-edit",
                                 ".src-hist-row", ".dash-notice", ".dash-ask-sel", ".dash-ask-sel-b", ".dash-edit-tools"],
+    "design/design.css": [".dc-sbtn", ".dc-err", ".dc-crumbs", ".dc-tools", ".dc-reset", ".dc-pill", ".dc-orow", ".dc-code"],
+    "slides/slides.css": [".sl-thumb", ".sl-tools", ".sl-askin", ".sl-pnext", ".sl-sec", ".sl-pill", ".sl-dialog"],
+    "model/model.css": [".md-pill", ".md-orow", ".md-ocaret", ".md-oeye", ".md-prob", ".md-tip", ".md-meas"],
+    "motion/motion.css": [".mo-more", ".mo-choice", ".mo-line", ".mo-pal", ".mo-seg"],
+    "doc/doc.css": ["#doc-toc a", ".doc-selbar", ".doc-askin"],
+    "doc/editor.css": [".doc-gutter button", ".doc-sb", ".doc-rm-item", ".doc-card-ok", ".doc-dateinp", ".doc-src-done", ".doc-dlg-in", ".doc-data-in"],
+    "design-system/ds.css": [".ds-nav-i", ".ds-nav-search", ".ds-btn", ".ds-in", ".ds-ib", ".ds-cin", ".ds-pop", ".ds-fl-i", ".ds-editor", ".ds-banner"],
 }
 
 
@@ -99,6 +106,11 @@ def rules(css, selector):
 
 
 class HermesRadii(unittest.TestCase):
+    def test_no_radius_of_its_own_behind_a_token(self):
+        # the kit defines every --kit-r-* on :root (Hermes' defaults), so a fallback after one is a stale number
+        for p in sorted(TYPES.rglob("*.css")):
+            self.assertNotRegex(p.read_text(encoding="utf-8"), r"var\(--kit-r-\w+,", p.name)
+
     def test_chrome_takes_hermes_radii(self):
         for f, sels in CHROME.items():
             css = (TYPES / f).read_text(encoding="utf-8")
