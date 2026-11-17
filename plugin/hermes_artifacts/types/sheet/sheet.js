@@ -3022,8 +3022,11 @@
     if (!m) return null;
     return { el: vp, box: function () {
       if (!book[cur] || book[cur].id !== m[1]) return null;
+      // its mark at its top right: hidden unless that corner is in its pane (V6n: a cell under the frozen rows, a
+      // sliver of it seen, had its mark over the header row)
       var p = parseKey(m[2] + m[3]), b = cellBox(p.r, p.c), v = vp.getBoundingClientRect();
-      if (b.x + b.w <= HW || b.y + b.h <= HH || b.x >= vpW || b.y >= vpH) return null;
+      var top = p.r < fr ? HH : HH + FH, right = p.c < fc ? HW + FW : vpW;
+      if (b.x + b.w <= (p.c < fc ? HW : HW + FW) || b.x + b.w > right || b.y < top || b.y >= vpH) return null;
       return { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h };
     } };
   });
