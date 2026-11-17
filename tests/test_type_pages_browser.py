@@ -1326,6 +1326,19 @@ class PickInEveryType(unittest.TestCase):
         self.assertRegex(ev["detail"]["label"], r"^(Slide|Dia) 1 · ")
         ev, _ = self.pick(aid, at('document.querySelector(".sl-clip .sl-canvas")', 0.97, 0.97))  # the slide's blank
         self.assertIn(ev["detail"]["label"], ("Slide 1", "Dia 1"))
+        blank = ev["detail"]["selector"]
+        # Owner, 0.20.0: a thumbnail is its whole slide (its target and title), its pin by the thumbnail; the deck's own
+        # chrome (the strip's buttons, the floating groups, the stage round the slide) is never commented on
+        ev, q = self.pick(aid, at('document.querySelectorAll("#sl-rail .sl-thumb")[1]'))
+        self.assertIn(ev["detail"]["label"], ("Slide 2", "Dia 2"))
+        self.assertRegex(ev["detail"]["selector"], r"^#[^ >]+$")
+        self.assertNotEqual(ev["detail"]["selector"], blank)
+        r = ev["detail"]["rect"]
+        self.assertTrue(r["x"] <= q[0] <= r["x"] + r["w"] and r["y"] <= q[1] <= r["y"] + r["h"], (q, r))
+        for sel in ("#sl-striphead button", ".sl-pill-r button", "#sl-strip button:not(.sl-thumb)", ".sl-pill-l button"):
+            shown = f'[...document.querySelectorAll({json.dumps(sel)})].find(e => e.getBoundingClientRect().width > 4)'
+            self.assertEqual(self.nothing(aid, at(shown)), ([], ["none"]), sel)
+        self.assertEqual(self.nothing(aid, at('document.getElementById("sl-stage-wrap")', 0.5, 0.02)), ([], ["none"]))
 
     def test_motion_stage_point(self):
         aid = self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"]

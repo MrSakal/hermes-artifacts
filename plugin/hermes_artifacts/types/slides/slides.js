@@ -263,7 +263,7 @@
   function thumb(s, i, caption) {
     var box = h("div", { "class": "sl-box" });
     var b = h("button", { "class": "sl-thumb" + (isHidden(s) ? " is-hidden" : "") + (!caption && picked.indexOf(s.id) >= 0 ? " picked" : ""),
-      type: "button", title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function (e) {
+      type: "button", "data-comment-on": "", "data-i": String(i), title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function (e) {
         if (!caption && editable && (e.shiftKey || e.ctrlKey || e.metaKey)) return pick(i, e.shiftKey ? "range" : "toggle");
         closeGrid(); picked = [s.id]; show(i);
       } },
@@ -1394,6 +1394,7 @@
   var commentPicking = false;
   if (window.hermes && window.hermes.on) window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });
   window.addEventListener("click", function (e) {
+    if (commentPicking && window.hermes.comment && thumbPick(e)) return;
     var cv = clip.firstChild, sec = curSec();
     if (!commentPicking || !cv || !sec || (e.target !== cv && e.target !== sec) || !window.hermes.comment) return;
     e.preventDefault(); e.stopImmediatePropagation();
@@ -1411,6 +1412,22 @@
       } });
   }, true);
 
+  // A thumbnail picked: a comment on its whole slide (the slide's own target and title, as its blank's), its pin by
+  // the thumbnail.
+  function thumbPick(e) {
+    var b = e.target.closest && e.target.closest(".sl-thumb[data-i]"), s = b && slides[+b.getAttribute("data-i")];
+    if (!s) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    commentPicking = false;
+    var i = slides.indexOf(s);
+    window.hermes.comment({ selector: selectorOf(s.sec), text: (s.sec.innerText || s.sec.textContent).replace(/\s+/g, " ").trim().slice(0, 200),
+      label: T.pSlide + " " + (i + 1) }, { el: b, box: function () {
+        var t = rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)];
+        if (!t) return null;
+        var q = t.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: t };
+      } });
+    return true;
+  }
   document.addEventListener("keydown", function (e) {
     if (pres) return;
     var k = e.key, mod = e.ctrlKey || e.metaKey;
