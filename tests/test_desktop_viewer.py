@@ -1178,6 +1178,15 @@ PLACED = r"""(() => { const box = q => [q.left, q.top, q.right, q.bottom]
     .filter(q => q[2] - q[0] >= 1 && q[3] - q[1] >= 1 && (q[2] - q[0]) * (q[3] - q[1]) <= innerWidth * innerHeight / 4 && q[2] > 0 && q[3] > 0 && q[0] < innerWidth && q[1] < innerHeight)
   return { keep, ctls } })()"""
 # What the host drew for the draft (its box and pin), the bridge's rect of the part picked, and the stage.
+# Points on a model's parts as its camera shows them: each part's box on screen, at its middle and 20 % in from it,
+# where the part is hit and no bar of the view is over it.
+MODEL_PARTS = r"""(() => { const c = document.querySelector(".md-canvas").getBoundingClientRect(), cam = __model.three().camera, b = __model.built(), o = []
+  for (const id in b.byId) { const q = new THREE.Box3().setFromObject(b.byId[id]), s = []
+    for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? q.max.x : q.min.x, i & 2 ? q.max.y : q.min.y, i & 4 ? q.max.z : q.min.z).project(cam); s.push([c.left + (v.x + 1) / 2 * c.width, c.top + (1 - v.y) / 2 * c.height]) }
+    const x0 = Math.min(...s.map(p => p[0])), x1 = Math.max(...s.map(p => p[0])), y0 = Math.min(...s.map(p => p[1])), y1 = Math.max(...s.map(p => p[1]))
+    for (const [fx, fy] of [[0.5, 0.5], [0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]]) o.push([x0 + (x1 - x0) * fx, y0 + (y1 - y0) * fy]) }
+  return o.filter(([x, y]) => { const e = document.elementFromPoint(x, y); return __model.pick(x, y) && e && e.localName === "canvas" && e.closest(".md-canvas") }) })()"""
+
 DRAWN = r"""(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }
   const ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*="z-index: 27"]')
   if (!card) return null
@@ -1236,7 +1245,8 @@ class CommentPlacementProperty(unittest.TestCase):
             "design-system": (store.publish(path=str(ex / "design-system"), title="Kiln", type="design-system")["id"], 'document.querySelector(".ds-cover")',
                               '[...document.querySelectorAll("[data-comment-label], #ds-main h1, #ds-main h2, #ds-main p")]'),
             "film": (store.publish(path=str(ex / "motion"), title="Harbor film", type="motion")["id"], 'document.getElementById("mo-frame")', grid('document.getElementById("mo-frame")')),
-            "model": (store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], 'document.querySelector(".md-canvas")', grid('document.querySelector(".md-canvas")')),
+            # its parts only, as the camera shows them: the view itself (floor, grid, axes) is no part (fb02caf)
+            "model": (store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], 'document.querySelector(".md-canvas")', MODEL_PARTS),
         }
         # open threads on two of the doc's blocks: their comment marks beside them are the page's own controls (N2)
         blocks = docs.read(cls.fixtures["doc"][0])["blocks"]
@@ -1263,7 +1273,8 @@ class CommentPlacementProperty(unittest.TestCase):
             let o = null
             for (let i = 0; i < 40 && !o; i++) {{ await api.sleep(60); o = await api.top({json.dumps(DRAWN)}) }}
             if (o) {{ await api.sleep(120); o = await api.top({json.dumps(DRAWN)}); o.page = await api.frame({json.dumps(PLACED)}); o.off = off; o.at = [x, y]
-              o.whole = await api.frame(`(() => {{ const e = document.elementFromPoint(${{x}}, ${{y}}), w = e && e.closest('[data-comment-whole]'); if (!w) return null; const q = w.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom] }})()`) }}
+              // (a heading or paragraph of words alone is its words, as the bridge measures it: wordsRect, V6j)
+              o.whole = await api.frame(`(() => {{ const e = document.elementFromPoint(${{x}}, ${{y}}), w = e && e.closest('[data-comment-whole]'); if (!w || (/^(H[1-6]|P)$/.test(w.tagName) && !w.querySelector('img, svg, canvas, video, iframe, input, select, textarea, button'))) return null; const q = w.getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom] }})()`) }}
             out.push(o || {{ at: [x, y], none: true }})
             await api.top('(() => {{ window.H.M.$draft.set(null); window.H.M.$picking.set(false) }})()'); await api.sleep(150)
           }}
@@ -1807,7 +1818,9 @@ class RoundV6iPress(unittest.TestCase):
             "page": (store.publish(title="Test page", type="page", html=LIVE_PAGE)["id"], 'document.querySelector("h1")'),
             "doc": (store.publish(path=str(ex / "doc"), title="Test doc", type="doc")["id"], 'document.querySelector(".doc-blk")'),
             "sheet": (store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"],
-                      'document.querySelector("#sh-grid .sh-c")'),
+                      # a cell drawn (the grid's first .sh-c is its dropdown's hidden overlay: pressed at its 0 x 0 box,
+                      # the frame's corner, the sheet's own bar)
+                      'document.querySelector("#sh-grid .sh-c:not([hidden])")'),
         }
 
     @classmethod
