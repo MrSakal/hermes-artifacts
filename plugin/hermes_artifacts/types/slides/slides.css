@@ -26,7 +26,7 @@ body { overflow: hidden; }
 .sl-canvas [contenteditable="true"] { outline: none; cursor: text; }
 
 .sl-thumb { position: relative; display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 2px solid transparent;
-  border-radius: 6px; background: none; cursor: pointer; }
+  border-radius: var(--kit-r-sm); background: none; cursor: pointer; }
 .sl-thumb.on { border-color: var(--color-accent); }
 .sl-thumb .sl-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 4px;
   background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); pointer-events: none; }
@@ -66,12 +66,12 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
   background: var(--color-bg); border: 1.5px solid var(--color-accent); pointer-events: auto; }
 .sl-guide { position: absolute; background: var(--color-bad); }
 .sl-clip .sl-canvas > section > *:not(aside):not([data-deco]) { cursor: default; }
-.sl-tools { position: fixed; z-index: 120; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg, 8px);
+.sl-tools { position: fixed; z-index: 120; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg);
   background: var(--color-bg-elevated, var(--color-bg)); border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .sl-tools[hidden] { display: none; }
 .sl-tools .kit-btn { min-width: 28px; }
 .sl-sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--color-border-line); }
-.sl-askin { width: 280px; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--color-border-line);
+.sl-askin { width: 280px; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: var(--kit-r-btn); border: 1px solid var(--color-border-line);
   background: transparent; color: var(--color-fg); outline: none; }
 .sl-drop { position: absolute; left: 26px; right: 10px; height: 3px; border-radius: 2px; background: var(--color-accent); pointer-events: none; }
 .sl-drop[hidden] { display: none; }
@@ -94,7 +94,7 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
 .sl-pclock { font-size: 15px; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; margin: 0 8px; }
 .sl-pside { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px 16px 0; min-height: 0; }
 .sl-plabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--color-fg-muted); }
-.sl-pnext { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--kit-r-sm, 6px); background: var(--color-panel); flex-shrink: 0; }
+.sl-pnext { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--kit-r-sm); background: var(--color-panel); flex-shrink: 0; }
 .sl-pend { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--color-fg-muted); font-size: 14px; }
 .sl-pnotes { flex: 1; min-height: 0; overflow: auto; line-height: 1.5; white-space: pre-wrap; color: var(--color-fg-secondary); }
 
@@ -102,7 +102,7 @@ html[data-thumb] #sl-stage { box-shadow: none; border-radius: 0; }
 .sl-thumb.is-hidden .sl-box { opacity: .38; }
 .sl-thumb.is-hidden .sl-num { text-decoration: line-through; }
 .sl-sec { display: block; width: 100%; box-sizing: border-box; margin: 6px 0 8px; padding: 2px 4px; border: 1px solid transparent;
-  border-radius: 4px; background: transparent; color: var(--color-fg-muted); font: 600 11px/1.4 inherit; letter-spacing: .04em;
+  border-radius: var(--kit-r-btn); background: transparent; color: var(--color-fg-muted); font: 600 11px/1.4 inherit; letter-spacing: .04em;
   text-transform: uppercase; }
 input.sl-sec:hover { border-color: var(--color-border-line); }
 input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: var(--color-fg); text-transform: none; }
@@ -118,7 +118,7 @@ input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: va
 #sl-stage-wrap { overflow: hidden; padding: 60px 24px 16px; }
 #sl-stage-wrap.is-zoomed { overflow: auto; align-items: flex-start; justify-content: flex-start; }
 #sl-stage-wrap.is-zoomed #sl-stage { margin: auto; flex: none; }
-.sl-pill { position: absolute; z-index: 40; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg, 8px);
+.sl-pill { position: absolute; z-index: 40; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .sl-pill[hidden], #sl-strip[hidden], #sl-rail[hidden], #sl-props[hidden] { display: none; }
@@ -162,7 +162,7 @@ input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: va
 .sl-p2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sl-p2 .sl-prow { grid-template-columns: auto minmax(0, 1fr); }
 .sl-prow input[type=number], .sl-prow input[type=text], .sl-prow select { width: 100%; min-width: 0; box-sizing: border-box; height: 26px; padding: 0 7px;
-  border-radius: 6px; border: 1px solid var(--color-border-line); background-color: var(--color-hover); color: var(--color-fg); font: inherit; outline: none; }
+  border-radius: var(--kit-r-btn); border: 1px solid var(--color-border-line); background-color: var(--color-hover); color: var(--color-fg); font: inherit; outline: none; }
 .sl-prow input:focus, .sl-prow select:focus { border-color: var(--color-accent); }
 .sl-pcolor { display: flex; gap: 6px; align-items: center; }
 .sl-pcolor input[type=color] { width: 28px; height: 26px; flex: none; padding: 0; border: 1px solid var(--color-border-line); border-radius: 6px; background: none; cursor: pointer; }
@@ -173,13 +173,13 @@ input.sl-sec:focus { outline: none; border-color: var(--color-accent); color: va
 
 /* New slide: the layouts, drawn in the deck's theme */
 .sl-modal { position: fixed; inset: 0; z-index: 150; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
-.sl-dialog { width: min(620px, calc(100vw - 32px)); max-height: min(82vh, 760px); display: flex; flex-direction: column; border-radius: var(--kit-r-lg, 8px);
+.sl-dialog { width: min(620px, calc(100vw - 32px)); max-height: min(82vh, 760px); display: flex; flex-direction: column; border-radius: var(--kit-r-xl);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .sl-dhead { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 6px 16px; font-size: 14px; }
 .sl-newgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 8px 16px 16px; overflow: auto; }
 .sl-newitem { display: block; padding: 0; border: 0; background: none; color: var(--color-fg-muted); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
-.sl-newitem .sl-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #fff; margin-bottom: 4px;
+.sl-newitem .sl-box { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--kit-r-sm); background: #fff; margin-bottom: 4px;
   pointer-events: none; outline: 1px solid var(--color-border-line); }
 .sl-newitem:hover .sl-box, .sl-newitem:focus-visible .sl-box { outline: 2px solid var(--color-accent); }
 .sl-newitem:focus { outline: none; }
@@ -218,5 +218,5 @@ html[data-thumb] #sl-stage-wrap { padding: 0; }
 
 /* The chrome (pills, strip, properties, dialogs, presenter view) is the plugin's, so it takes Hermes' theme: its colours, radii and
    shadows, and follows them when the theme changes. The slides themselves keep their own look (the deck's theme or design system). */
-.sl-prow input[type=number], .sl-prow input[type=text], .sl-prow select, .sl-pcolor input[type=color], .sl-pseg .kit-btn { border-radius: var(--kit-r-sm, 6px); }
-.sl-thumb, .sl-thumb .sl-box, .sl-newitem .sl-box { border-radius: var(--kit-r-sm, 6px); }
+.sl-prow input[type=number], .sl-prow input[type=text], .sl-prow select, .sl-pcolor input[type=color], .sl-pseg .kit-btn { border-radius: var(--kit-r-btn); }
+.sl-thumb, .sl-thumb .sl-box, .sl-newitem .sl-box { border-radius: var(--kit-r-sm); }
