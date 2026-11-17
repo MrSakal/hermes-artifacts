@@ -79,5 +79,32 @@ class HermesIcons(unittest.TestCase):
                 self.assertTrue(has(n) or has(prefix + n), f"{p.name}: {n}")
 
 
+# Each type's own chrome (its bars, palettes, groups, menus, buttons and fields): rules whose radius is Hermes', by
+# the kit's tokens (--kit-r-icon 4 px, --kit-r-btn 2.5 px, --kit-r-sm/md/lg/xl its scale), never a number of its own.
+CHROME = {
+    "board/board.css": [".bd-tools", ".bd-tb", ".bd-zoom", ".bd-top", ".bd-ask", ".bd-ctx", ".bd-pop", ".bd-kind", ".bd-linkin"],
+}
+
+
+def rules(css, selector):
+    """The declarations of every rule whose selector list names this class exactly."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        if any(re.fullmatch(re.escape(selector) + r"(\[[^\]]*\]|:[\w-]+(\([^)]*\))?)*", x.strip()) for x in m.group(1).split(",")):
+            yield m.group(1).strip(), m.group(2)
+
+
+class HermesRadii(unittest.TestCase):
+    def test_chrome_takes_hermes_radii(self):
+        for f, sels in CHROME.items():
+            css = (TYPES / f).read_text(encoding="utf-8")
+            for sel in sels:
+                found = list(rules(css, sel))
+                self.assertTrue(found, f"{f}: no rule {sel}")
+                for name, body in found:
+                    for r in re.findall(r"border-radius:\s*([^;]+)", body):
+                        self.assertRegex(r.strip(), r"^(var\(--kit-r-(icon|btn|sm|md|lg|xl)\)\s*)+$|^(0|50%)$", f"{f} {name}: {r}")
+
+
 if __name__ == "__main__":
     unittest.main()
