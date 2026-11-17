@@ -1134,16 +1134,32 @@
     pickAt(d.x, d.y);
   });
   /** An open thread's mark by its element's top right, just past the ring its Show flashes round it (EDGE and HALO:
-   *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn. */
+   *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn or is
+   *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). */
   function placePins() {
     for (var i = 0; i < pins.length; i++) {
       var p = pins[i];
-      var w = where(p), k = w ? w.join() : "gone";
+      var w = where(p), k = w ? w.join() + "," + innerWidth + "," + innerHeight : "gone";
       if (k === p.key) continue;
       p.key = k;
+      if (w && !inSight(p.el, w)) w = null; // measured only when it moved
       p.b.style.display = w ? "" : "none";
       if (w) { p.b.style.left = w[0] + w[2] + window.scrollX + EDGE + HALO + 1 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
     }
+  }
+  /** Whether any of a box (x, y, w, h in the window) is in sight: inside every box el scrolls or is clipped in, and in
+   *  the band its page's own bars leave (band()). */
+  function inSight(el, w) {
+    var l = Math.max(w[0], 0), t = w[1], r = Math.min(w[0] + w[2], innerWidth), b = w[1] + w[3];
+    for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      var cs = getComputedStyle(p);
+      if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+      var q = p.getBoundingClientRect();
+      l = Math.max(l, q.left); t = Math.max(t, q.top); r = Math.min(r, q.right); b = Math.min(b, q.bottom);
+    }
+    if (r - l < 1 || b - t < 1) return false;
+    var bd = band(el);
+    return Math.min(b, bd.b) - Math.max(t, bd.t) >= 1;
   }
   // A page whose comments name their parts its own way (a sheet's cell:, a model's part:, a deck's whole slide) finds
   // them itself first (hermes.locate): an element, {el, box()} with box() the part's rect in the window (null: not

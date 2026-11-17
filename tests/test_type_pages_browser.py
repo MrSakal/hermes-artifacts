@@ -2468,6 +2468,29 @@ class RoundV6mPages(unittest.TestCase):
           return { before, after: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
         self.assertEqual((len(o["before"]), len(o["after"])), (0, 1), o)
 
+    def test_an_open_threads_mark_goes_with_its_part_and_hides_out_of_sight(self):
+        # V6n: a part scrolled in its page's own scroller kept its mark where it was, also once out of the scroller's
+        # sight (over the page's bar). The mark goes with the part, is hidden while it is out of sight, back with it.
+        html = ('<div id="bar" style="position:fixed;top:0;left:0;right:0;height:40px;background:#123"></div>'
+                '<div id="sc" style="position:absolute;top:40px;left:0;right:0;bottom:0;overflow:auto">'
+                '<div style="height:200px"></div><p id="part" style="width:200px">Commented words</p><div style="height:3000px"></div></div>')
+        aid = self.store.publish(title="Scroller", type="page", html=html)["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "#part", n: 1}])'); await api.sleep(500)
+          const at = async () => ({ part: await api.frame('document.getElementById("part").getBoundingClientRect().top'), b: await api.frame(""" + json.dumps(self.BADGES) + """) })
+          const a = await at()
+          await api.frame('document.getElementById("sc").scrollBy(0, 150)'); await api.sleep(400)
+          const b = await at()
+          await api.frame('document.getElementById("sc").scrollBy(0, 400)'); await api.sleep(400)
+          const c = await at()
+          await api.frame('document.getElementById("sc").scrollTop = 0'); await api.sleep(400)
+          return { a, b, c, d: await at() }""", settle=2500)
+        a, b, c, d = o["a"], o["b"], o["c"], o["d"]
+        self.assertTrue(a["b"][0]["shown"] and b["b"][0]["shown"] and d["b"][0]["shown"], o)
+        self.assertAlmostEqual(b["b"][0]["t"] - a["b"][0]["t"], -150, delta=1, msg=o)
+        self.assertFalse(c["b"][0]["shown"], o)  # scrolled out of its scroller's sight
+        self.assertAlmostEqual(d["b"][0]["t"], a["b"][0]["t"], delta=1, msg=o)
+
     def test_a_dashboards_refresh_only_with_a_connector_to_run_again(self):
         # Owner, 0.20.0: a dashboard from a file or written-in data (a loader computing over it too) showed "Run every
         # live query again"; only one read from a connector (a stored call or query) has anything to refresh.

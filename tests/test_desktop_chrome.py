@@ -75,7 +75,7 @@ class PopupFitTests(unittest.TestCase):
         for name in ("function CardMenu(", "function FilterMenu(", "function NewMenu(", "function TileDsMenu(", "function TitleMenu("):
             start = SRC.index(name)
             self.assertIn("jsx(PopMenu,", SRC[start:start + 6000], name)
-        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side, kept.current.rel)", section("function CommentPopover(", "function DockView("))
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -327,46 +327,43 @@ class CommentPinTests(unittest.TestCase):
         self.assertIn("$panelCover.set(mode.cover)", panel)
         self.assertIn("$panelCover.set(0)", panel)  # closed or gone: nothing covered
         self.assertIn("top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, background: C.bg", section("function panelStyle(", "/** Whether the new comment's box"))  # opaque, all of it
-        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side)", section("function CommentPopover(", "function DockView("))
+        self.assertIn("commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side, kept.current.rel)", section("function CommentPopover(", "function DockView("))
         # in the pane beside a chat too (it had no box at all: the stage there has no id)
         self.assertIn("jsx(CommentPopover, { ctx, art, stageRef: stage, portRef })", section("function Viewer(", "function Toast("))
 
-    def test_an_element_scrolled_out_of_the_frame_keeps_its_pin_at_the_nearest_edge(self):
-        # V6g: zoomed off screen, a design's draft lost its pin and the box parked in the bottom-right corner. The pin
-        # stays at the stage's edge nearest the element (its middle held inside), the box by it as for any pin.
+    def test_an_element_out_of_sight_has_no_pin_and_no_box_until_it_is_back(self):
+        # V6n (the owner): scrolled out of its view, the part's pin and box are hidden (they stayed parked at the
+        # band's edge, a sheet's cell gone under its headers with its pin 40 px off on the grid), the draft kept.
         body = """
         const L = r => m.commentLayout(r, 1000, 700, 170, 0)
-        const gap = ({ pin, box }) => Math.max(pin.x - (box.x + m.COMMENT_W), box.x - (pin.x + pin.s), pin.y - (box.y + Math.min(170, box.maxH)), box.y - (pin.y + pin.s))
-        const cases = [L({ x: 100, y: -80, w: 200, h: 40 }), L({ x: 100, y: 720, w: 200, h: 40 }), L({ x: -300, y: 100, w: 200, h: 40 }), L({ x: 100, y: -20, w: 200, h: 40 })]
-        console.log(JSON.stringify(cases.map(c => ({ pin: c.pin, gap: gap(c) }))))
+        const cases = [L({ x: 100, y: -80, w: 200, h: 40 }), L({ x: 100, y: 720, w: 200, h: 40 }), L({ x: -300, y: 100, w: 200, h: 40 }),
+          L({ x: 100, y: 6, w: 200, h: 30, vt: 44, vb: 660 }), L({ x: 100, y: -20, w: 200, h: 40 }), L({ x: 100, y: 300, w: 200, h: 40 })]
+        console.log(JSON.stringify(cases))
         """
-        top, bottom, left, part = run_node(stub_module(EXPORTS), body)
-        self.assertEqual((top["pin"]["x"], top["pin"]["y"]), (200 - 13, 4))
-        self.assertEqual((bottom["pin"]["x"], bottom["pin"]["y"]), (200 - 13, 700 - 4 - 26))
-        self.assertEqual((left["pin"]["x"], left["pin"]["y"]), (4, 120 - 13))
+        top, bottom, left, under, part, back = run_node(stub_module(EXPORTS), body)
+        for o in (top, bottom, left, under):
+            self.assertEqual((o["pin"], o["box"]), (None, None), o)
         self.assertIsNotNone(part["pin"])  # partly in view: pinned beside it
-        for o in (top, bottom, left, part):
-            self.assertEqual(o["gap"], 8, o)  # the box by its pin
+        self.assertIsNotNone(back["pin"])
+        self.assertIsNotNone(back["box"])
 
-    def test_a_draft_whose_element_is_out_of_sight_stays_by_its_pin_inside_the_band(self):
-        # Round V1: scrolled out of view, the box jumped over a doc's contents down its left; V6g: parked in the
-        # bottom-right corner with no pin it read as attached to nothing. The pin at the band's edge nearest the
-        # element, the box by it, both inside the band between the page's bars, whatever the stage and the list.
-        body = '''
-        const out = []
-        for (const [bw, bh, cover] of [[1500, 860, 0], [1000, 700, 0], [700, 520, 0], [1000, 700, 0]])
-          for (const rect of [{ x: 310, y: -400, w: 500, h: 40 }, { x: 310, y: 2000, w: 500, h: 40 }, { x: 310, y: 6, w: 500, h: 30, vt: 44, vb: bh - 40, vis: false }])
-            for (const h0 of [120, 170, 400]) {
-              const { pin, box } = m.commentLayout(rect, bw, bh, h0, cover)
-              const vt = rect.vt || 0, vb = rect.vb || bh, h = Math.min(h0, box.maxH)
-              const gap = Math.max(pin.x - (box.x + m.COMMENT_W), box.x - (pin.x + pin.s), pin.y - (box.y + h), box.y - (pin.y + pin.s))
-              const edge = Math.min(pin.y - vt, vb - pin.y - pin.s)
-              out.push([gap >= 8 && gap <= 24, edge === 4, box.y >= vt + 8 && box.y + h <= vb - 8, box.x >= 8 && box.x + m.COMMENT_W <= bw - cover - 8])
-            }
-        console.log(JSON.stringify(out))
-        '''
-        for o in run_node(stub_module(EXPORTS), body):
-            self.assertEqual(o, [True, True, True, True])
+    def test_pin_and_box_go_with_their_part_as_it_scrolls(self):
+        # V6n: a sheet's cell scrolled 150 px moved, its pin 1-2 px; a design system's heading's pin went 56 px aside
+        # on a vertical scroll (placed anew at each move). The same part moved: both keep their place by it while
+        # they stay in the band; scrolled out, both hidden; back, placed anew.
+        body = """
+        const r0 = { x: 300, y: 400, w: 200, h: 34, ly: 400, lh: 20, vt: 44, vb: 700, fr: true, fl: true, fa: true, fb: true }
+        const a = m.commentLayout(r0, 1000, 760, 170, 0, null, null)
+        const mv = dy => m.commentLayout({ ...r0, y: r0.y + dy, ly: r0.ly + dy, fr: false, fl: dy % 2 === 0 }, 1000, 760, 170, 0, null, a.rel)
+        const d = [mv(-150), mv(-120), mv(90)]
+        console.log(JSON.stringify({ a, d, gone: mv(-420) }))
+        """
+        o = run_node(stub_module(EXPORTS), body)
+        a = o["a"]
+        for c, dy in zip(o["d"], (-150, -120, 90)):
+            self.assertEqual((c["pin"]["x"] - a["pin"]["x"], c["pin"]["y"] - a["pin"]["y"]), (0, dy), c)
+            self.assertEqual((c["box"]["x"] - a["box"]["x"], c["box"]["y"] - a["box"]["y"]), (0, dy), c)
+        self.assertEqual((o["gone"]["pin"], o["gone"]["box"]), (None, None))
 
     def test_the_page_bars_are_kept_clear_and_an_element_under_them_has_no_pin(self):
         # Round 1, docked at 1500: a doc's list item scrolled up under the doc's own sticky toolbar kept its pin,
@@ -383,9 +380,8 @@ class CommentPinTests(unittest.TestCase):
         console.log(JSON.stringify({ under, below, part, foot, thin, back }))
         """
         o = run_node(stub_module(EXPORTS), body)
-        self.assertEqual(o["under"]["pin"]["y"], 44 + 4)  # V6g: at the band's top edge, never on the toolbar
-        self.assertGreaterEqual(o["under"]["box"]["y"], 44 + 8)  # the form stays, off the toolbar
-        self.assertEqual(o["below"]["pin"]["y"], 44 + 4)
+        self.assertEqual((o["under"]["pin"], o["under"]["box"]), (None, None))  # under the page's bar: hidden (V6n)
+        self.assertEqual((o["below"]["pin"], o["below"]["box"]), (None, None))
         self.assertGreaterEqual(o["part"]["pin"]["y"], 44 + 4)  # partly seen: pinned, inside the band
         self.assertGreaterEqual(o["part"]["box"]["y"], 44 + 8)
         self.assertLessEqual(o["foot"]["box"]["y"] + min(170, o["foot"]["box"]["maxH"]), 650 - 8)  # off a bottom bar too
@@ -607,21 +603,6 @@ class RoundV6hPlacement(unittest.TestCase):
             gap = lambda q: max(q[0] - (b["x"] + 320), b["x"] - q[2], q[1] - (b["y"] + 150), b["y"] - q[3])
             self.assertGreaterEqual(gap([r["x"], r["y"], r["x"] + r["w"], r["y"] + r["h"]]), 8, o)
             self.assertGreaterEqual(gap([p["x"], p["y"], p["x"] + 26, p["y"] + 26]), 8, o)
-
-    def test_an_edge_pin_keeps_off_the_pages_controls(self):
-        # B3: a design's headline zoomed out of sight left: its pin at the stage's left edge, 2 px under the pill; the
-        # box 56 px from it. The pin PIN_EDGE off the pill (along the edge), the box by it.
-        body = """
-        const r = { x: -900, y: 120, w: 600, h: 60, ly: 120, lh: 40, vis: false, kp: [[12, 10, 74, 50], [1069, 10, 1231, 50], [496, 680, 747, 712]] }
-        console.log(JSON.stringify(m.commentLayout({ ...r, y: 20 }, 1250, 716, 150)))
-        """
-        o = run_node(stub_module(EXPORTS), body)
-        p, b = o["pin"], o["box"]
-        self.assertIsNotNone(p, o)
-        self.assertLessEqual(p["x"], 4, o)
-        self.assertGreaterEqual(p["y"], 50 + 4, o)  # past the pill
-        gap = max(p["x"] - (b["x"] + 320), b["x"] - (p["x"] + 26), p["y"] - (b["y"] + 150), b["y"] - (p["y"] + 26))
-        self.assertTrue(8 <= gap <= 24, o)
 
     def test_a_part_no_longer_drawn_takes_its_pin_away_and_back(self):
         body = """

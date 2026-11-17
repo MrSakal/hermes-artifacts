@@ -5877,32 +5877,39 @@ const BAND_MIN = 146 // a band between the page's own bars narrower than this is
 /** The new comment's pin and box in a stage of bw x bh whose right `cover` px the floating comments list
  *  covers: placed in the width left of the list (placeCommentBox), never under it, and between the page's own
  *  bars (rect.vt, rect.vb: a type page's sticky toolbar; pickedRect), never over them. box null: the box is in
- *  the list (commentDocks). pin null: it would lie on the page's own controls (rect.kp), or the list leaves no
- *  room for it; an element behind the list gets its pin at the list's edge, on its own line. An element out of
- *  sight (scrolled or zoomed out of the frame, or out of the band under the page's bars) keeps its
- *  draft attached: the pin at the band's edge nearest the element, the box by it as for any pin, both back on
- *  the element when it is (V6g: the box parked in the bottom-right corner with no pin). side: the box's side of
- *  its pin so far, kept while it fits. Pure. */
-function commentLayout(rect, bw, bh, h, cover = 0, side = null) {
+ *  the list (commentDocks), or its element is out of sight. pin null: it would lie on the page's own controls
+ *  (rect.kp), or the list leaves no room for it; an element behind the list gets its pin at the list's edge, on
+ *  its own line. An element out of sight (scrolled or zoomed out of the frame, or out of the band under the
+ *  page's bars) has neither: both come back on it when it is back (the draft and its words are kept). side: the
+ *  box's side of its pin so far, kept while it fits. rel: where pin and box were for this draft (the result's
+ *  rel): the same part moved (a scroll, a pan) takes them with it, as placed, while they stay in the band (V6n:
+ *  re-placed at each move, a design system's heading's pin went 56 px aside on a vertical scroll). Pure. */
+function commentLayout(rect, bw, bh, h, cover = 0, side = null, rel = null) {
   const free = Math.max(0, bw - cover)
   let t0 = Number.isFinite(rect.vt) ? Math.max(0, Math.min(bh, rect.vt)) : 0
   let b0 = Number.isFinite(rect.vb) ? Math.max(t0, Math.min(bh, rect.vb)) : bh
   if (b0 - t0 < BAND_MIN) [t0, b0] = [0, bh]
   // Out of sight by where it is (the bridge's vis false alone is no reason: a board's hover layer over an item
   // picked made it so, V6g, and its pin went on its middle with the box 7 px off it)
-  const off = rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0
+  if (rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0) return { pin: null, box: null }
+  const docks = commentDocks(bw, cover)
+  const onControls = pin => (rect.kp || []).some(([l, t, r, b]) => pin.x < r && l < pin.x + pin.s && pin.y < b && t < pin.y + pin.s)
+  if (rel && rel.w === rect.w && rel.h === rect.h && rel.hh === h && rel.free === free && rel.docks === docks) {
+    const pin = { ...rel.pin, x: rect.x + rel.pin.x, y: rect.y + rel.pin.y }
+    const box = rel.box && { ...rel.box, x: rect.x + rel.box.x, y: rect.y + rel.box.y }
+    const inside = (x, y, w, hh) => x >= 0 && x + w <= free && y >= t0 && y + hh <= b0
+    if (inside(pin.x, pin.y, pin.s, pin.s) && (!box || inside(box.x, box.y, COMMENT_W, Math.min(h, box.maxH))) && !onControls(pin)) return { pin, box, rel }
+  }
   const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}),
     ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
     ...(rect.kc ? { kc: rect.kc.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
-  const band = b0 - t0
-  // out of sight: a point at the band's edge nearest the element (its middle, held inside the band)
-  const edge = (v, hi) => Math.max(0, Math.min(hi - 1, v))
-  const at = off ? { ...inBand, x: edge(rect.x + rect.w / 2, free), y: edge(rect.y - t0 + rect.h / 2, band), w: 0, h: 0, pt: true } : inBand
-  const { pin, box } = placeCommentBox(at, free, band, h, side)
+  const placed = placeCommentBox(inBand, free, b0 - t0, h, side)
+  const pin = { ...placed.pin, y: placed.pin.y + t0 }, box = docks ? null : { ...placed.box, y: placed.box.y + t0 }
   // A pin that would lie on the page's own controls (a canvas's palette over the element after a pan) is not
   // drawn: the page's controls stay on top, as the element under them is.
-  const underControls = (at.kp || []).some(([l, t, r, b]) => pin.x < r && l < pin.x + pin.s && pin.y < b && t < pin.y + pin.s)
-  return { pin: underControls || free < PIN + 8 ? null : { ...pin, y: pin.y + t0 }, box: commentDocks(bw, cover) ? null : { ...box, y: box.y + t0 } }
+  if (onControls(pin) || free < PIN + 8) return { pin: null, box }
+  const at = q => q && { ...q, x: q.x - rect.x, y: q.y - rect.y }
+  return { pin, box, rel: { w: rect.w, h: rect.h, hh: h, free, docks, pin: at(pin), box: at(box) } }
 }
 
 /** While picking and the shown page has not said its click picks ($pickOn), or none is shown yet (a first load),
@@ -6061,7 +6068,7 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
   // placed again only when what it is placed by changed (not at every letter typed: it weighs every spot)
   const placed = useRef({ k: '', v: null })
   const keptPlaced = useRef(new Map()) // a kept draft's pin, by what it is placed by
-  const kept = useRef({ anchor: null, side: null }) // the box's side while this draft is open (placeCommentBox)
+  const kept = useRef({ anchor: null, side: null, rel: null }) // the box's side and where pin and box sit by the part, while this draft is open (commentLayout)
   if (!any) return null
   // A pin over the popover's layer: whatever the placement, it is never covered. Pressed (a box closed with its
   // words), its box opens again.
@@ -6078,12 +6085,15 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
     return pin ? pinEl(pin, () => reopenKept(d), null, `kept${i}`) : null
   })
   if (!draft?.rect) return jsx('div', { children: keptPins })
-  if (kept.current.anchor !== draft.anchor) kept.current = { anchor: draft.anchor, side: null }
+  if (kept.current.anchor !== draft.anchor) kept.current = { anchor: draft.anchor, side: null, rel: null }
   // its height as drawn now (the observer's may lag a late change: V6g, placed for 139 px, drawn 141, 7 px off its part),
   // its fraction too (V6k: offsetHeight 142 drawn 142.1 at 125 %, the box 3.9 px off a field)
   const be = boxRef.current, hNow = Math.ceil(((be && be.isConnected && boxWhole(be)) || boxH) - 1e-3) // the same whole px drawn or not (reopened)
   const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover, kept.current.side])
-  if (placed.current.k !== pk) placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side) }
+  if (placed.current.k !== pk) {
+    placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side, kept.current.rel) }
+    if (placed.current.v.rel) kept.current.rel = placed.current.v.rel
+  }
   const box = shut ? null : placed.current.v.box, pin = draft.gone ? null : placed.current.v.pin
   if (box && be && be.isConnected) kept.current.side = box.side // placed for its height as drawn
   const label = anchorTitle(draft.anchor, t('selectedPart'))
