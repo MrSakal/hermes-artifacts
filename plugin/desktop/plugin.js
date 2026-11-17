@@ -1927,8 +1927,9 @@ const memo = typeof React.memo === 'function' ? React.memo : c => c
 
 /** `count` (a number, 0 for none): a count after the icon, in room for two digits while there is one; with none
  *  the button is its icon's, the icon centred (V6f: a 48 px button, its icon at the left). The header's spacer
- *  takes up what it gives or takes: the title keeps its place. */
-function IconButton({ icon, title, onClick, active, label, pressed, armed, data, count, disabled = false }) {
+ *  takes up what it gives or takes: the title keeps its place. `small`: in a pane's header, Hermes' buttons there
+ *  (right-sidebar/index.tsx: Button size "icon-xs", its labelled ones "xs"): 24 px, an icon's square, its 13 px glyph. */
+function IconButton({ icon, title, onClick, active, label, pressed, armed, data, count, disabled = false, small = false }) {
   const [h, hp] = useHover()
   return jsxs('button', {
     type: 'button',
@@ -1947,19 +1948,22 @@ function IconButton({ icon, title, onClick, active, label, pressed, armed, data,
       ...font,
       display: 'inline-flex',
       alignItems: 'center',
-      gap: 6,
-      height: 30,
-      padding: label ? '0 12px' : count ? '0 6px 0 8px' : '0 8px', // its 14 px glyph: a 30 px square
+      justifyContent: 'center',
+      boxSizing: 'border-box',
+      gap: small ? 4 : 6,
+      height: small ? 24 : 30,
+      minWidth: small ? 24 : 0,
+      padding: small ? (label ? '0 8px 0 6px' : count ? '0 6px 0 5px' : 0) : label ? '0 12px' : count ? '0 6px 0 8px' : '0 8px', // its 14 px glyph: a 30 px square
       border: 0,
       cursor: disabled ? 'default' : 'pointer',
       opacity: disabled ? 0.5 : 1, // Hermes' disabled:opacity-50
-      fontSize: 12,
+      fontSize: small && label ? 11 : 12,
       // armed (a mode it turns on, on now: picking): pressed, with the chosen chip's tinted look (Chip)
       color: disabled ? C.text2 : armed ? C.accent : active || h ? C.fg : C.text2,
       background: disabled ? 'transparent' : armed ? C.accentBg : active || h ? C.hover : 'transparent'
     },
     children: [
-      jsx(Icon, { name: icon, size: 'var(--titlebar-icon-size, 14px)' }),
+      jsx(Icon, { name: icon, size: small ? 13 : 'var(--titlebar-icon-size, 14px)' }),
       label ? jsx('span', { children: label }) : null,
       count ? jsx('span', { style: { minWidth: '2ch', textAlign: 'left', fontVariantNumeric: 'tabular-nums' }, children: String(count) }) : null
     ]
@@ -5525,7 +5529,7 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
         'aria-expanded': open,
         title: art.title,
         className: TEXT_BTN,
-        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: docked ? 260 : 520, height: 30, padding: '0 10px', border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
+        style: { ...font, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: docked ? 260 : 520, height: 24, padding: '0 8px', border: `1px solid ${open ? C.line : 'transparent'}`, cursor: 'pointer', color: C.fg, background: open || h ? C.hover : 'transparent', fontSize: 14 },
         children: [
           jsx('span', { style: { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }, children: art.title }),
           v !== art.version ? jsx('span', { style: { flexShrink: 0, fontSize: 12, color: C.text3 }, children: `v${v}` }) : null,
@@ -5553,14 +5557,14 @@ function TitleButton({ ctx, art, v, portRef, docked }) {
  *  with the artifact beside it) and Pop out chat (pressed while the chat floats over the artifact). Beside
  *  the chat only Pop out chat: the chat is already there. */
 function ChatSwitch({ t, beside = null, popup, onPopup, iconOnly = false }) {
-  const pop = jsx(IconButton, { icon: 'popout', title: t('popOut'), active: popup, pressed: popup, data: { [POPOUT_CONTROL]: '' }, onClick: onPopup })
+  const pop = jsx(IconButton, { icon: 'popout', title: t('popOut'), active: popup, pressed: popup, data: { [POPOUT_CONTROL]: '' }, onClick: onPopup, small: true })
   return jsxs('div', {
     role: 'group',
     'aria-label': t('chatModes'),
     // The same corners as the icon buttons in it (Hermes' 4px).
     className: 'rounded-[4px]',
     style: { display: 'flex', alignItems: 'center', background: beside ? C.hover : 'transparent' },
-    children: [beside ? jsx(IconButton, { icon: beside.icon, label: iconOnly ? null : beside.label, title: beside.label, onClick: beside.onClick }) : null, pop]
+    children: [beside ? jsx(IconButton, { icon: beside.icon, label: iconOnly ? null : beside.label, title: beside.label, onClick: beside.onClick, small: true }) : null, pop]
   })
 }
 
@@ -5599,6 +5603,7 @@ function Header({ ctx, art, v, portRef, docked }) {
             icon: 'comment',
             title: t('comment'),
             count: open,
+            small: true,
             active: narrow ? panel : picking,
             armed: picking, // pressed until a pick, Esc or Cancel
             onClick: () => {
@@ -5608,7 +5613,7 @@ function Header({ ctx, art, v, portRef, docked }) {
               else openPanel()
             }
           }),
-          jsx(IconButton, { icon: 'chevron', title: t('moreComment'), active: cmenu, onClick: () => setCmenu(!cmenu) }),
+          jsx(IconButton, { icon: 'chevron', title: t('moreComment'), active: cmenu, onClick: () => setCmenu(!cmenu), small: true }),
           cmenu
             ? jsx(PopMenu, {
                 align: 'right',
@@ -5632,11 +5637,11 @@ function Header({ ctx, art, v, portRef, docked }) {
               popup: chat === 'float', onPopup: () => pagePopup(), iconOnly })
           : expanded
             ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx), iconOnly })
-            : [jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) }, 'x'), jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }, 's')]
+            : [jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx), small: true }, 'x'), jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }, 's')]
       }),
       // ✕ beside or over a chat: the chat alone, remembered as the person's close there. On the full page:
       // the gallery (an artifact's own route would reopen it).
-      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => closeOnPage() })
+      jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => closeOnPage(), small: true })
     ]
   })
 }
@@ -6145,7 +6150,7 @@ function MakingView({ ctx, m }) {
           expanded
             ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx) })
             : jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }),
-          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session) })
+          jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => closeMaking(m.session), small: true })
         ]
       }),
       jsxs('div', {

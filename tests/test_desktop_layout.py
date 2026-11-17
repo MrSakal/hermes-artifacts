@@ -70,7 +70,7 @@ class LayoutTests(unittest.TestCase):
           const { M, R, jsx } = window.H
           const root = document.getElementById('root')
           const art = { id: 'a1', title: %s, type: 'doc', version: 3, versions: [1, 2, 3], session: 's1' }
-          const box = el => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width } }
+          const box = el => { const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height } }
           const out = []
           for (const v of %s) {
             M.$chat.set(v.chat); M.$dockPos.set(v.pos)
@@ -100,6 +100,14 @@ class LayoutTests(unittest.TestCase):
             for i, a in enumerate(boxes):
                 for b in boxes[i + 1:]:
                     self.assertFalse(cut(a, b), f"{msg}: {a} over {b}")
+            # Hermes' buttons in a pane's header (right-sidebar/index.tsx, Button size="icon-xs"): 24 px, an icon's
+            # square; the title's too, all on one line (V6q: 30 x 30)
+            for b in boxes:
+                self.assertAlmostEqual(b["h"], 24, delta=0.5, msg=msg)
+                self.assertAlmostEqual(b["t"], title["t"], delta=0.5, msg=msg)
+            for b in btns:
+                if not b["text"]:
+                    self.assertAlmostEqual(b["w"], 24, delta=0.5, msg=f"{msg}: {b}")
             # the title gives way with a gap before the buttons, its chevron (and version) seen inside it
             self.assertLessEqual(title["r"] + 8, min(b["l"] for b in btns) + 0.5, msg)
             self.assertGreater(o["chev"]["w"], 0, msg)

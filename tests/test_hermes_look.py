@@ -142,8 +142,9 @@ class HostLooksLikeHermes(unittest.TestCase):
             self.assertIn(v, icons)
 
     def test_its_bar_glyphs_are_hermes_titlebar_size(self):
-        # Hermes' titlebar draws its codicons at --titlebar-icon-size (13.9 px); rows at 16 px
-        self.assertIn("jsx(Icon, { name: icon, size: 'var(--titlebar-icon-size, 14px)' })", PLUGIN)
+        # Hermes' titlebar draws its codicons at --titlebar-icon-size (13.9 px), a pane header's at 13 px
+        # (right-sidebar/index.tsx); rows at 16 px
+        self.assertIn("jsx(Icon, { name: icon, size: small ? 13 : 'var(--titlebar-icon-size, 14px)' })", PLUGIN)
 
     def test_its_radii_are_hermes(self):
         self.assertIn("const ICON_BTN = `rounded-[4px] ${FOCUS}`", PLUGIN)
