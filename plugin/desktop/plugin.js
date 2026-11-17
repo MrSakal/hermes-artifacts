@@ -5615,13 +5615,10 @@ function Header({ ctx, art, v, portRef, docked }) {
       picking ? jsx(PickHint, {}) : jsx(TitleButton, { ctx, art, v, portRef, docked }, art.id),
       // At least 8 px (with the gaps) between the title and the buttons.
       jsx('div', { style: { flex: picking ? '0 0 4px' : '1 0 0', minWidth: 0 } }),
-      // The two chat layouts as one switch: Chat (its chat with the artifact beside it) | Pop out chat.
-      docked
-        ? null
-        : jsx(ChatSwitch, { t, beside: { icon: chat === 'float' ? 'collapse' : 'sparkle', label: t('chat'), onClick: () => pageDocked(ctx, art) },
-            popup: chat === 'float', onPopup: () => pagePopup(), iconOnly }),
+      // Every layout and type the same order: the artifact's own controls, then the chat's (Chat or Show chat or
+      // expand, then Pop out chat), then the x last.
       jsxs('div', {
-        style: { position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 6 },
+        style: { position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 },
         children: [
           jsx(IconButton, {
             icon: 'comment',
@@ -5650,16 +5647,18 @@ function Header({ ctx, art, v, portRef, docked }) {
             : null
         ]
       }),
-      // Expanded over its chat (Claude's): "Show chat" where ⤢ was, switched with Pop out chat (the chat
-      // floating over the tile). Beside the chat: Pop out chat (that layout) and ⤢ (the tile alone over the chat).
-      docked
-        ? expanded
-          ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx), iconOnly })
-          : jsxs(Fragment, { children: [
-              jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }),
-              jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) })
-            ] })
-        : null,
+      // The full page: Chat (its chat with the artifact beside it) | Pop out chat, as one switch. Expanded over its
+      // chat (Claude's): "Show chat" where ⤢ was, switched with Pop out chat (the chat floating over the tile).
+      // Beside the chat: ⤢ (the tile alone over the chat), then Pop out chat (that layout).
+      jsxs('div', {
+        style: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 6 },
+        children: !docked
+          ? jsx(ChatSwitch, { t, beside: { icon: chat === 'float' ? 'collapse' : 'sparkle', label: t('chat'), onClick: () => pageDocked(ctx, art) },
+              popup: chat === 'float', onPopup: () => pagePopup(), iconOnly })
+          : expanded
+            ? jsx(ChatSwitch, { t, beside: { icon: 'collapse', label: t('showChat'), onClick: () => chatDocked(ctx) }, popup: dockFloat, onPopup: () => chatPopup(ctx), iconOnly })
+            : [jsx(IconButton, { icon: 'expand', title: t('expand'), onClick: () => expandDock(ctx) }, 'x'), jsx(ChatSwitch, { t, popup: false, onPopup: () => chatPopup(ctx) }, 's')]
+      }),
       // ✕ beside or over a chat: the chat alone, remembered as the person's close there. On the full page:
       // the gallery (an artifact's own route would reopen it).
       jsx(IconButton, { icon: 'close', title: t('close'), onClick: docked ? () => closeBeside(art) : () => closeOnPage() })

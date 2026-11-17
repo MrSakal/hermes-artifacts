@@ -65,6 +65,7 @@ await S('beside the chat: Pop out chat and expand, no Show chat', () => {
   const ts = titles(tileEl())
   want(ts.filter(x => x === 'popOut').length === 1 && ts.includes('expand') && !ts.includes('showChat') && !ts.includes('chat'), 'header ' + ts.join(' '))
   want(JSON.stringify(groupTitles(tileEl())) === '["popOut"]', 'switch ' + groupTitles(tileEl()))
+  want(ts.slice(-5).join() === 'comment,moreComment,expand,popOut,close', 'order ' + ts.join(' ')) // the type's controls, the chat's, x
   const p = pop(tileEl())
   want(p.props['aria-pressed'] === false && 'data-ha-popout' in p.props, 'popOut props ' + JSON.stringify(Object.keys(p.props)))
   want(!floating() && mode() === 'docked/false', 'mode ' + mode())
@@ -80,6 +81,7 @@ await S('its header: Show chat | Pop out chat (pressed) as one switch, no expand
   want(JSON.stringify(groupTitles(tileEl())) === '["showChat","popOut"]', 'switch ' + groupTitles(tileEl()))
   const ts = titles(tileEl())
   want(!ts.includes('expand') && ts.filter(x => x === 'showChat').length === 1 && ts.filter(x => x === 'popOut').length === 1, 'header ' + ts.join(' '))
+  want(ts.slice(-5).join() === 'comment,moreComment,showChat,popOut,close', 'order ' + ts.join(' '))
   want(pop(tileEl()).props['aria-pressed'] === true, 'not pressed')
 }, POP)
 await S('Pop out chat again closes only the floating chat', async () => {
@@ -188,6 +190,8 @@ await S('an artifact made in no chat: the floating chat opens and will start one
 await S('with the popup layout picked, the page\'s Chat: beside its chat, docked picked', async () => {
   I.$chatMode.set('expanded')
   I.openOnPage(ctx, 'b1'); await settle()
+  const ts = titles(routeEl())
+  want(ts.slice(-5).join() === 'comment,moreComment,chat,popOut,close', 'page order ' + ts.join(' '))
   click(routeEl(), b => b.props.title === 'chat', 'Chat'); await settle()
   want(mode() === 'docked/false', 'mode ' + mode())
 }, { split: true, expanded: false, page: false, selected: 'b1', lit: 'chat:chatB' })
