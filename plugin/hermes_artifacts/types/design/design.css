@@ -197,8 +197,8 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-save { color: var(--color-accent-fg, var(--color-bg)) !important; }
 html[data-thumb] .dc-pill { display: none; }
 .dc-pill .dc-status:empty { display: none; }
-/* the view's pill stays over the panel's top; the panel starts below it, its tabs fit its width */
-#dc-panel { padding-top: 58px; overflow-x: hidden; }
+/* the panel starts at the top of the stage, beside the view (its pills are the view's); its tabs fit its width */
+#dc-panel { overflow-x: hidden; }
 /* tabs keep their whole words (Hungarian's are long): a row too narrow for them all takes a second one */
 .dc-tabs { flex-wrap: wrap; row-gap: 2px; }
 .dc-tabs .kit-btn { flex: none; padding: 0 6px; white-space: nowrap; }

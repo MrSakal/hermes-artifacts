@@ -2468,6 +2468,18 @@ class RoundV6mPages(unittest.TestCase):
           return { before, after: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
         self.assertEqual((len(o["before"]), len(o["after"])), (0, 1), o)
 
+    def test_a_designs_panel_starts_at_the_top_of_the_stage(self):
+        # Owner, 0.20.0: Properties / Outline / Code / Tweaks sat 58 px down the panel, under a toolbar row that is
+        # not over it (the view's pills are in the view, left of the panel). Its tabs at its top, beside that row.
+        aid = self.store.publish(path=str(EX / "design"), title="Design", type="design")["id"]
+        o = self.drive_page(aid, """
+          const q = await api.frame('(() => { const r = __design.boards["Main.dc.html"].el.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.35] })()')
+          await api.mouse(q[0], q[1]); await api.sleep(900)
+          return await api.frame('(() => { const p = document.getElementById("dc-panel"), t = p.querySelector(".dc-tabs"), pill = document.querySelector(".dc-pill-r").getBoundingClientRect(); return { hidden: p.hidden, panel: p.getBoundingClientRect().top, tabs: t && t.getBoundingClientRect().top, pillRight: pill.right, panelLeft: p.getBoundingClientRect().left } })()')""", settle=2500)
+        self.assertFalse(o["hidden"], o)
+        self.assertLessEqual(o["tabs"] - o["panel"], 16, o)
+        self.assertLessEqual(o["pillRight"], o["panelLeft"], o)  # the pill is the view's, never over the panel
+
     def test_the_floating_groups_have_no_wider_gap_before_their_first_button(self):
         # Owner, 0.20.0: a deck's top right group (download, play, tweaks, zoom) had 21 px from its edge to the first
         # icon, 16 between its icons (an empty status line's margins). Its edge no further from it than its icons are.
