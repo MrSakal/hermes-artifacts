@@ -1278,6 +1278,25 @@ class PickInEveryType(unittest.TestCase):
         # the canvas itself is no part: no box round it under the pointer, and a press on it picks nothing
         self.assertEqual(self.nothing(aid, "[60, 200]"), ([], ["none"]))
 
+    def test_no_types_own_chrome_is_commented_on(self):
+        # Only what was made is commentable, never the type's own bars, palettes, headers or players (owner, 0.20.0:
+        # a film's whole player ringed, a sheet's toolbar picked). A press there: no box, nothing picked.
+        from test_models import PANEL
+        sheet = self.store.publish(title="Budget", type="sheet", files={"sheet.json": {"title": "Budget", "sheets": [
+            {"name": "Budget", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        cases = [
+            (self.store.publish(path=str(EX / "doc"), title="Doc", type="doc")["id"], "#doc-bar button"),
+            (sheet, "#sh-bar button"), (sheet, ".sh-q[data-comment-off] .sh-in > *"),
+            (self.store.publish(title="Flow", type="board", files={"board.json": {"title": "Flow", "items": [{"id": "a", "type": "box", "text": "Survey"}]}})["id"], ".bd-tools button"),
+            (self.store.publish(path=str(EX / "motion"), title="Film", type="motion")["id"], "#mo-controls button"),
+            (self.store.publish(path=str(EX / "dashboard"), title="Orders", type="dashboard")["id"], "#dash-bar button"),
+            (self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"], "#ds-nav button, #ds-nav a"),
+            (self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"], ".md-pill-l button"),
+        ]
+        for aid, sel in cases:
+            shown = f'[...document.querySelectorAll({json.dumps(sel)})].find(e => e.getBoundingClientRect().width > 4)'
+            self.assertEqual(self.nothing(aid, at(shown), settle=2500), ([], ["none"]), sel)
+
     def nothing(self, aid, where, settle=1500, w=1200):
         """Picking armed, the pointer over `where` (frame JS: [x, y]) and pressed there: the comment events (none
         wanted) and the hover box's display (none: no box)."""

@@ -430,7 +430,7 @@
   var MODES = ["h", "f", "m"], Q = [], cellQ = [];
   MODES.forEach(function (ym) {
     MODES.forEach(function (xm) {
-      var q = { xm: xm, ym: ym, el: h("div", { "class": "sh-q" }), inner: h("div", { "class": "sh-in" }), pool: [], rr: null, cc: null };
+      var q = { xm: xm, ym: ym, el: h("div", xm === "h" || ym === "h" ? { "class": "sh-q", "data-comment-off": "" } : { "class": "sh-q" }), inner: h("div", { "class": "sh-in" }), pool: [], rr: null, cc: null };
       q.el.appendChild(q.inner); vp.appendChild(q.el); Q.push(q);
       if (xm !== "h" && ym !== "h") {
         q.ov = { sel: h("div", { "class": "sh-sel", hidden: true }), act: h("div", { "class": "sh-active", hidden: true }),
@@ -3125,7 +3125,7 @@
     tabsEl.innerHTML = "";
     book.forEach(function (s, i) {
       // data-id: a comment's pin on the tab finds it again, drawn anew (the bridge's follow)
-      var b = h("button", { type: "button", role: "tab", "class": "sh-tab" + (i === cur ? " on" : ""), "aria-selected": i === cur ? "true" : "false", title: s.name, "data-i": i, "data-id": "tab:" + s.id },
+      var b = h("button", { type: "button", role: "tab", "class": "sh-tab" + (i === cur ? " on" : ""), "aria-selected": i === cur ? "true" : "false", title: s.name, "data-i": i, "data-id": "tab:" + s.id, "data-comment-on": "" },
         [h("span", { text: s.name })]);
       b.addEventListener("click", function () { if (dragTab && dragTab.moved) return; if (i !== cur) switchTo(i); });
       b.addEventListener("dblclick", function () { if (!ro()) renameInline(b, s); });

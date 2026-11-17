@@ -170,7 +170,7 @@
       openMenu.close();
       if (same) return;
     }
-    var m = h("div", { "class": "kit-menu", role: "menu" });
+    var m = h("div", { "class": "kit-menu", role: "menu", "data-comment-off": "" });
     // As Hermes' menus: an item's icon leads (icon: a kit icon's name; when any item has one, every item keeps
     // the slot, so the labels line up), the picked one (on: true) ends with a check, sep: true is a divider
     // (never first, last or twice in a row), disabled: true greys it.

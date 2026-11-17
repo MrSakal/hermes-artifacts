@@ -596,10 +596,12 @@
     var seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
     return seen >= 0.4 * innerWidth * innerHeight;
   }
-  /** Ground the page's own parts lie on, never a part itself ([data-comment-off]: a board's canvas): a press on it
-   *  outside a part picks nothing and shows no box. */
+  /** Only what was made is commented on, never the type's own chrome: its bars, palettes and panels
+   *  ([data-comment-keep]) and the ground its parts lie on ([data-comment-off]: a board's canvas, a sheet's headers).
+   *  A press there outside a part (named, drawn as one, or [data-comment-on]: a sheet's tab) picks nothing and shows
+   *  no box. */
   function off(el) {
-    return !!(el.closest && el.closest("[data-comment-off]") && !el.closest("[data-comment-whole], [data-comment-label]"));
+    return !!(el.closest && el.closest("[data-comment-off], [data-comment-keep]") && !el.closest("[data-comment-whole], [data-comment-label], [data-comment-on]"));
   }
   // The host's new-comment pin (plugin.js PIN, PIN_GAP): beside the element, centred on its first line.
   var PIN = 26, PIN_GAP = 6, PIN_EDGE = 4, PIN_MIN = 16;
