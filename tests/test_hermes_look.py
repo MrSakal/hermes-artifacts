@@ -105,6 +105,54 @@ def rules(css, selector):
             yield m.group(1).strip(), m.group(2)
 
 
+PLUGIN = (ROOT / "plugin" / "desktop" / "plugin.js").read_text(encoding="utf-8")
+FONT_CSS = SPRITE.parent / "codicon.css"
+
+
+def host_icons():
+    """plugin.js's ICONS: each name it draws by, and the codicon it is."""
+    a = PLUGIN.index("const ICONS = {")
+    return dict(re.findall(r"(\w+): '([a-z0-9-]+)'", PLUGIN[a:PLUGIN.index("}", a)]))
+
+
+class HostLooksLikeHermes(unittest.TestCase):
+    """The host's own chrome (the artifact's header, menus, gallery and cards, comments panel, popup chat) draws
+    Hermes' codicons from the font Hermes' stylesheet already gives the page, at its sizes, with its radii. The
+    owner saw our 24-unit stroke icons in the header beside the codicons of the type's toolbar."""
+
+    def test_it_draws_hermes_codicons_and_no_stroke_icons(self):
+        self.assertIsNone(re.search(r"viewBox: '0 0 24 24'|strokeWidth|strokeLinecap", PLUGIN))
+        self.assertIn("className: `codicon codicon-${ICONS[name]", PLUGIN)
+
+    @unittest.skipUnless(FONT_CSS.is_file(), "Hermes Desktop's codicons are not installed here")
+    def test_every_icon_is_in_hermes_codicon_font(self):
+        names = set(re.findall(r"\.codicon-([a-z0-9-]+):before", FONT_CSS.read_text(encoding="utf-8")))
+        for k, v in host_icons().items():
+            self.assertIn(v, names, k)
+
+    def test_every_icon_is_named_and_every_name_is_there(self):
+        icons = host_icons()
+        a = PLUGIN.index("const ICONS = {")
+        rest = PLUGIN[:a] + PLUGIN[PLUGIN.index("}", a):]
+        for k in icons:
+            self.assertTrue(f"'{k}'" in rest, f"{k} shipped and never named")
+        for m in re.finditer(r"jsx\(Icon, \{ name: '(\w+)'|\bicon: '(\w+)'", PLUGIN):
+            self.assertIn(m.group(1) or m.group(2), icons)
+        for v in re.findall(r"\w+: '(\w+)'", PLUGIN[PLUGIN.index("const TYPE_ICON = {"):PLUGIN.index("const ICONS = {")]):
+            self.assertIn(v, icons)
+
+    def test_its_bar_glyphs_are_hermes_titlebar_size(self):
+        # Hermes' titlebar draws its codicons at --titlebar-icon-size (13.9 px); rows at 16 px
+        self.assertIn("jsx(Icon, { name: icon, size: 'var(--titlebar-icon-size, 14px)' })", PLUGIN)
+
+    def test_its_radii_are_hermes(self):
+        self.assertIn("const ICON_BTN = `rounded-[4px] ${FOCUS}`", PLUGIN)
+        self.assertIn("const TEXT_BTN = `rounded-[2.5px] ${FOCUS}`", PLUGIN)
+        # anything else: Hermes' scale (C.rSm..rXl from --radius-scalar) or fully round
+        for r in re.findall(r"borderRadius: ([^,}]+)", PLUGIN):
+            self.assertRegex(r.strip(), r"^(C\.r(Sm|Md|Lg|Xl)|'50%'|999)$", r)
+
+
 class HermesRadii(unittest.TestCase):
     def test_no_radius_of_its_own_behind_a_token(self):
         # the kit defines every --kit-r-* on :root (Hermes' defaults), so a fallback after one is a stale number

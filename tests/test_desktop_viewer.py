@@ -981,7 +981,7 @@ class RoundV6fViewer(unittest.TestCase):
         self.assertIsNone(r.get("err"), r)
         return r["out"]
 
-    COMMENT = ('(() => { const b = [...document.querySelectorAll("button")].find(b => b.getAttribute("aria-label") === "Comment"), q = b.getBoundingClientRect(), i = b.querySelector("svg").getBoundingClientRect()'
+    COMMENT = ('(() => { const b = [...document.querySelectorAll("button")].find(b => b.getAttribute("aria-label") === "Comment"), q = b.getBoundingClientRect(), i = b.querySelector("i.codicon").getBoundingClientRect()'
                '; return { w: q.width, mid: q.left + q.width / 2, icon: i.left + i.width / 2, text: b.textContent } })()')
 
     def test_the_comment_button_with_no_comments_is_its_icon_centred(self):

@@ -1238,7 +1238,7 @@ function PinMark({ ctx, sessionId }) {
     style: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, padding: 0, border: 0,
       marginRight: 4, flexShrink: 0, borderRadius: C.rMd, cursor: 'pointer',
       background: hover ? C.rowHover : 'transparent', color: hover ? C.fg : C.text2 },
-    children: jsx(Icon, { name: a.type === 'page' || !TYPE_ICON[a.type] ? 'code' : TYPE_ICON[a.type], size: 14, stroke: 1.8 })
+    children: jsx(Icon, { name: a.type === 'page' || !TYPE_ICON[a.type] ? 'code' : TYPE_ICON[a.type], size: 14 })
   })
 }
 
@@ -1824,68 +1824,27 @@ const font = { fontFamily: 'var(--font-sans, inherit)' }
 // --chrome-action-hover is translucent: layer it over the opaque background so nothing shows through.
 const hoverFill = `linear-gradient(${C.hover}, ${C.hover}), ${C.bg}`
 
-// Each type's icon (an ICONS name); the design system wears a swatch book.
+// Each type's icon (an ICONS name).
 const TYPE_ICON = { page: 'page', dashboard: 'chart', slides: 'slides', doc: 'doc', sheet: 'sheet', board: 'board', design: 'palette',
   model: 'cube', 'design-system': 'swatch', motion: 'motion' }
 
+// Hermes' own icons: each name here is the codicon Hermes Desktop draws its UI with, from the codicon font its
+// stylesheet already gives the page (nothing copied; the type pages' frames get the kit's).
 const ICONS = {
-  swatch: 'M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2zM16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7M7 17h.01M11 8l2.3-2.3a2.4 2.4 0 0 1 3.4 0l1.9 1.9a2.4 2.4 0 0 1 0 3.4L9.9 19.8',
-  page: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 9h16M8 6h.01M11 6h.01',
-  chart: 'M5 20V10M10 20V4M15 20v-7M20 20v-11M3 20h18',
-  slides: 'M3 4h18M5 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4M12 15v3M9 21l3-3 3 3',
-  doc: 'M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6',
-  sheet: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 9h16M4 14.5h16M9.5 4v16',
-  board: 'M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6.5 8h4v3h-4zM13.5 12.5h4M16 11l1.5 1.5L16 14M9 17l-1.5 3M15 17l1.5 3',
-  palette: 'M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01',
-  cube: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',
-  motion: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.6v6.8l5.6-3.4z',
-  code: 'M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 5l-3 14',
-  folder: 'M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z',
-  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
-  filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
-  plus: 'M12 5v14M5 12h14',
-  search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4',
-  sort: 'M4 7h16M7 12h10M10 17h4',
-  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
-  list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
-  more: 'M5 12h.01M12 12h.01M19 12h.01',
-  back: 'M15 18l-6-6 6-6',
-  pin: 'M12 17v5M8 3h8l-1 6 3 3v2H6v-2l3-3z',
-  comment: 'M4 5h16v11H9l-5 4z',
-  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
-  reload: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
-  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
-  close: 'M6 6l12 12M18 6L6 18',
-  chevron: 'M7 10l5 5 5-5',
-  next: 'M9 6l6 6-6 6',
-  popout: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM12 12h6v6h-6z',
-  expand: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
-  beside: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM14 5v14M16.5 9h2M16.5 12h2', // a view with a chat panel at its side
-  collapse: 'M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7',
-  sparkle: 'M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2', // Hermes' caduceus: everything that asks Hermes
-  copy: 'M8 8h12v12H8zM16 8V4H4v12h4',
-  pencil: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
-  history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2',
-  data: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
-  check: 'M5 12l5 5 9-10',
-  down: 'M12 5v14M6 13l6 6 6-6',
-  enter: 'M19 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4'
+  swatch: 'library', page: 'browser', chart: 'graph', slides: 'device-desktop', doc: 'file-text', sheet: 'table', board: 'note',
+  palette: 'symbol-color', cube: 'package', motion: 'play-circle', code: 'code', folder: 'folder', link: 'link', filter: 'filter',
+  plus: 'add', search: 'search', sort: 'list-filter', grid: 'layout', list: 'list-flat', more: 'ellipsis', back: 'arrow-left',
+  pin: 'pin', comment: 'comment', download: 'download', reload: 'refresh', trash: 'trash', close: 'close', chevron: 'chevron-down',
+  next: 'chevron-right', popout: 'open-in-window', expand: 'screen-full', beside: 'split-horizontal', collapse: 'screen-normal',
+  sparkle: 'sparkle', copy: 'copy', pencil: 'edit', history: 'history', data: 'database', check: 'check', down: 'arrow-down',
+  enter: 'newline'
 }
 
-function Icon({ name, size = 16, stroke = 1.6 }) {
-  return jsx('svg', {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: stroke,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    'aria-hidden': true,
-    style: { flexShrink: 0 },
-    children: jsx('path', { d: ICONS[name] || ICONS.page })
-  })
+/** `size`: Hermes' 16 px in rows and menus; its bars pass its titlebar's var(--titlebar-icon-size). The glyph's
+ *  box is its size whether or not the font has come. */
+function Icon({ name, size = 16 }) {
+  return jsx('i', { 'aria-hidden': true, className: `codicon codicon-${ICONS[name] || ICONS.page}`,
+    style: { display: 'inline-block', fontSize: size, width: size, height: size, flexShrink: 0 } })
 }
 
 function useHover() {
@@ -1981,7 +1940,7 @@ function IconButton({ icon, title, onClick, active, label, pressed, armed, data,
       alignItems: 'center',
       gap: 6,
       height: 30,
-      padding: label ? '0 12px' : count ? '0 6px 0 7px' : '0 7px',
+      padding: label ? '0 12px' : count ? '0 6px 0 8px' : '0 8px', // its 14 px glyph: a 30 px square
       border: 0,
       cursor: disabled ? 'default' : 'pointer',
       opacity: disabled ? 0.5 : 1, // Hermes' disabled:opacity-50
@@ -1991,7 +1950,7 @@ function IconButton({ icon, title, onClick, active, label, pressed, armed, data,
       background: disabled ? 'transparent' : armed ? C.accentBg : active || h ? C.hover : 'transparent'
     },
     children: [
-      jsx(Icon, { name: icon }),
+      jsx(Icon, { name: icon, size: 'var(--titlebar-icon-size, 14px)' }),
       label ? jsx('span', { children: label }) : null,
       count ? jsx('span', { style: { minWidth: '2ch', textAlign: 'left', fontVariantNumeric: 'tabular-nums' }, children: String(count) }) : null
     ]
@@ -2161,7 +2120,7 @@ function Thumb({ ctx, art, height }) {
       ? jsxs('div', {
           style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.text2, fontSize: 12,
             background: `linear-gradient(135deg, ${C.hover}, transparent)` },
-          children: [jsx(Icon, { name: TYPE_ICON[art.type] || 'page', size: 40, stroke: 1.3 }), jsx('span', { children: t('noPreviewYet') })]
+          children: [jsx(Icon, { name: TYPE_ICON[art.type] || 'page', size: 40 }), jsx('span', { children: t('noPreviewYet') })]
         })
       : kind === 'frame' && src && near && !held
       ? jsx(SandboxedFrame, {
@@ -2179,7 +2138,7 @@ function Thumb({ ctx, art, height }) {
 function TypeBadge({ type, size = 32 }) {
   return jsx('div', {
     style: { width: size, height: size, borderRadius: C.rMd, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.fg, background: C.bg },
-    children: jsx(Icon, { name: TYPE_ICON[type] || 'page', size: size * 0.5, stroke: 1.5 })
+    children: jsx(Icon, { name: TYPE_ICON[type] || 'page', size: size * 0.5 })
   })
 }
 
@@ -2356,7 +2315,7 @@ function NewTile({ ctx, kind }) {
               background: h ? C.hair : C.card,
               transition: 'background 140ms ease'
             },
-            children: jsx(Icon, { name: kind === 'page' ? 'code' : TYPE_ICON[kind], size: 30, stroke: 1.5 })
+            children: jsx(Icon, { name: kind === 'page' ? 'code' : TYPE_ICON[kind], size: 30 })
           }),
           jsx('span', { style: { fontSize: 13, color: C.fg, paddingBottom: 2 }, children: t(`tile_${kind}`) })
         ]
@@ -2394,7 +2353,7 @@ function OverlayBtn({ icon, title, active, onClick }) {
     style: { width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer',
       border: `1px solid ${active ? C.accent : C.line}`, color: active ? C.accent : C.fg,
       background: active ? `color-mix(in srgb, ${C.accent} 18%, ${C.pop})` : h ? `color-mix(in srgb, ${C.fg} 10%, ${C.pop})` : C.pop },
-    children: jsx(Icon, { name: icon, size: 16, stroke: 2 })
+    children: jsx(Icon, { name: icon, size: 16 })
   })
 }
 
@@ -5404,7 +5363,8 @@ function MenuRow({ it }) {
     },
     children: [
       it.box
-        ? jsx('span', { style: { width: 14, height: 14, flexShrink: 0, borderRadius: 4, border: `1px solid ${it.checked ? C.fg : C.line}`, background: it.checked ? C.fg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.bg }, children: it.checked ? jsx(Icon, { name: 'check', size: 11, stroke: 2.4 }) : null })
+        // Hermes' CheckboxMark: 16 px, its rounded-sm, its 14 px check
+        ? jsx('span', { style: { width: 16, height: 16, boxSizing: 'border-box', flexShrink: 0, borderRadius: C.rSm, border: `1px solid ${it.checked ? C.fg : C.line}`, background: it.checked ? C.fg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.bg }, children: it.checked ? jsx(Icon, { name: 'check', size: 14 }) : null })
         : it.icon ? jsx(Icon, { name: it.icon }) : null,
       jsxs('span', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }, children: [
         // wrap: a sentence (a refusal), read whole on as many lines as it takes, never cut
@@ -6295,7 +6255,7 @@ function CommentItem({ c, n, replies, ctx, art, onShow }) {
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
         children: [
-          n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 9, background: C.accentBg, color: C.accent, fontSize: 11, fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
+          n ? jsx('span', { style: { minWidth: 18, height: 18, borderRadius: 999, background: C.accentBg, color: C.accent, fontSize: 11, fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }, children: String(n) }) : null,
           who(c),
           jsx('span', { style: { fontSize: 11, color: C.text3 }, children: jsx(Ago, { ts: c.ts }) }),
           jsx('div', { style: { flex: 1 } }),

@@ -80,7 +80,7 @@ class LayoutTests(unittest.TestCase):
               %s
               const head = root.firstElementChild, title = head.querySelector('button[aria-haspopup=menu]'), span = title.querySelector('span')
               out.push({ name: v.name, w, head: box(head), title: box(title), span: { ...box(span), clipped: span.scrollWidth > span.clientWidth + 1, ellipsis: getComputedStyle(span).textOverflow },
-                chev: box(title.querySelector('svg')), ver: title.querySelectorAll('span').length > 1 ? box(title.querySelectorAll('span')[1]) : null,
+                chev: box(title.querySelector('i.codicon')), ver: title.querySelectorAll('span').length > 1 ? box(title.querySelectorAll('span')[1]) : null,
                 btns: [...head.querySelectorAll('button')].filter(b => b !== title).map(b => ({ label: b.getAttribute('aria-label'), text: b.textContent.trim(), ...box(b) })) })
             }
             R.unmount()
