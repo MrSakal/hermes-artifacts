@@ -122,7 +122,7 @@ class MotionInTheBrowser(unittest.TestCase):
         try:
             aid = store.publish(path=str(EXAMPLE), title="Film", type="motion")["id"]
             r = B.drive(f"await api.size(1200, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(3000)\n" + """
-              const exp = '[...document.querySelectorAll("button")].find(b => b.innerHTML.includes("M12 4v11"))'
+              const exp = '[...document.querySelectorAll("button")].find(b => b.innerHTML.includes(Object.assign(document.createElement("i"), {innerHTML: kit.icon("download")}).innerHTML))'
               await api.clickIn(exp); await api.sleep(300)
               const open = await api.frame('!!document.querySelector(".mo-dialog")')
               await api.key('Escape', 'Escape', 27); await api.sleep(200)
