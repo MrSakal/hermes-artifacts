@@ -1059,10 +1059,10 @@ class RoundV6gPicks(unittest.TestCase):
         self.assertEqual((m["w"], m["label"], m["cls"]), (26, "Loading…", "animate-spin"), o)  # V6h N8: busy, not a placed pin
         self.assertFalse(o["draft"], o)
 
-    def test_a_designs_draft_keeps_by_its_pin_through_a_zoom_and_off_screen_keeps_its_pin_at_the_edge(self):
-        # V6g N3: a design's element commented on, then zoomed: the box 72 px from its pin at first, 17-37 px after;
-        # zoomed until the element left the stage, the pin went and the box parked in the bottom-right corner. The box
-        # by its pin at every step; the element out of sight, the pin at the stage's edge nearest it, the box by it.
+    def test_a_designs_draft_keeps_by_its_pin_through_a_zoom_and_off_screen_has_neither(self):
+        # V6g N3: a design's element commented on, then zoomed: the box 72 px from its pin at first, 17-37 px after.
+        # The box by its pin at every step in sight; the element out of sight, neither pin nor box (V6n, the owner:
+        # they were parked at the stage's edge), both back with it.
         aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
         board = '__design.boards["Main.dc.html"].el'
         o = self.drive(aid, board, f"""
@@ -1080,16 +1080,16 @@ class RoundV6gPicks(unittest.TestCase):
           return steps""", 1250, 764, 3000)
         out_of_sight = 0
         for s in o:
-            self.assertTrue(s["box"] and s["pin"], ("no box or no pin", s, o))
-            b, p, st = s["box"], s["pin"], s["stage"]
-            gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
-            self.assertTrue(8 - 0.5 <= gap <= 24, ("box away from its pin", gap, s))
-            el = s.get("el")
+            b, p, st, el = s["box"], s["pin"], s["stage"], s.get("el")
             if el and (el[2] + st[0] < st[0] or el[0] + st[0] > st[2] or el[3] + st[1] < st[1] or el[1] + st[1] > st[3]):
                 out_of_sight += 1
-                edge = min(p[0] - st[0], st[2] - p[2], p[1] - st[1], st[3] - p[3])
-                self.assertLessEqual(edge, 4.5, ("pin not at the stage's edge", s))
+                self.assertEqual((p, b), (None, None), ("a pin or box for a part out of sight", s))
+                continue
+            self.assertTrue(b and p, ("no box or no pin", s, o))
+            gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
+            self.assertTrue(8 - 0.5 <= gap <= 24, ("box away from its pin", gap, s))
         self.assertGreater(out_of_sight, 0, ("the zoom never took the artboard out of sight", o))
+        self.assertTrue(o[-1]["box"] and o[-1]["pin"], ("not back with it", o[-1]))
 
     def test_a_strip_cut_by_the_window_has_its_pin_off_its_name(self):
         # V6g N9: the window narrowed (no refit), a design's strip partly past the stage's edge picked: the pin on its
@@ -1477,18 +1477,18 @@ LONG_PAGE = ("<!doctype html><meta charset=utf-8><style>body{margin:0;font:16px 
 DRAFT_NOW = ("(() => { const box = q => { const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }, ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*=\"z-index: 27\"]')"
              "; const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%')"
              "; const r = (window.H.M.$draft.get() || {}).rect"
-             "; return { box: card ? box(card) : null, pin: pin ? box(pin) : null, stage: box(document.querySelector('[data-frame=\"shown\"] iframe') || document.querySelector('iframe')), band: r && Number.isFinite(r.vt) ? [r.vt, r.vb] : null } })()")
+             "; return { box: card ? box(card) : null, pin: pin ? box(pin) : null, stage: box(document.querySelector('[data-frame=\"shown\"] iframe') || document.querySelector('iframe')), band: r && Number.isFinite(r.vt) ? [r.vt, r.vb] : null, out: !!r && (r.x + r.w <= 0 || r.y + r.h <= (r.vt || 0) || r.y >= (Number.isFinite(r.vb) ? r.vb : 1e9)) } })()")
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
 class RoundV6hFollow(unittest.TestCase):
     """Live round V6h (0440f61), B1: a board's sticky commented on, then panned and zoomed: the item moved, its pin and
     box stayed where they were. The rule for every type: the pin is at its part wherever the content moves (a
-    pan, a zoom, a scroll on either axis, a re-layout), at the stage's edge nearest it while it is out of sight,
-    away while it is not drawn (another slide, another sheet) and back with it; the box by its pin. Here a draft is
-    opened by a real pick in each type, the content moved by each means it has, and after every move: a part in
-    sight has its pin on or by it (and moved by exactly as much as a part moved without a zoom, 1 px), the box
-    8-24 px from the pin; a part out of sight has its pin at the stage's edge."""
+    pan, a zoom, a scroll on either axis, a re-layout); pin and box hidden while it is out of sight or not drawn
+    (V6n, the owner; a part not drawn, another slide, keeps its box) and back with it; the box by its pin. Here a draft is opened by a
+    real pick in each type, the content moved by each means it has, and after every move: a part in sight has its
+    pin on or by it (and moved by exactly as much as a part moved without a zoom, 1 px), the box 8-24 px from the
+    pin; a part out of sight has neither, its draft kept."""
 
     @classmethod
     def setUpClass(cls):
@@ -1515,9 +1515,8 @@ class RoundV6hFollow(unittest.TestCase):
     def tearDownClass(cls):
         cls.host.close()
 
-    def follow(self, kind, ready, part, moves, w=1250, h=764, zoom=(), virtual=False):
-        """part: frame JS for the element picked (picked at its first line, in sight); moves: driver JS, each one move.
-        virtual: the page draws only what is in sight (a sheet's grid): a part it no longer draws is scrolled away."""
+    def follow(self, kind, ready, part, moves, w=1250, h=764, zoom=()):
+        """part: frame JS for the element picked (picked at its first line, in sight); moves: driver JS, each one move."""
         url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
         r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(self.aids[kind])}, SEL = {json.dumps(ready)}, SETTLE = 2000, PART = {json.dumps(part)}; await api.size({w}, {h});" + BOOT_ANY + f"""
           const partAt = async () => {{ const off = await frameAt(); const q = await api.frame('(() => {{ const e = ' + PART + '; if (!e || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }})()'); return q && [q[0] + off[0], q[1] + off[1], q[2] + off[0], q[3] + off[1]] }}
@@ -1551,22 +1550,23 @@ class RoundV6hFollow(unittest.TestCase):
             if i:
                 self.assertTrue(s["draft"], ("the draft went", what))
             p, b, part, st = s["pin"], s["box"], s["part"], s["stage"]
-            self.assertTrue(b, ("no box", what))
             if s.get("band") and s["band"][1] - s["band"][0] >= 146:  # between the page's own bars (commentLayout's BAND_MIN)
                 st = [st[0], st[1] + s["band"][0], st[2], st[1] + s["band"][1]]
-            if part is None and virtual:  # scrolled out of what the grid draws: its pin at the edge of its pane
-                self.assertTrue(p, ("no pin for a part scrolled away", what))
+            if s.get("out"):  # what was picked (its words, its line) out of sight, the rest of its part maybe not: neither (V6n)
+                out_of_sight += 1
+                self.assertEqual((p, b), (None, None), ("a pin or box for a part out of sight", what))
                 continue
-            if part is None:  # not drawn: its pin away
+            if part is None:  # not drawn (another slide): its pin away, its box and words kept
                 self.assertIsNone(p, ("a pin for a part not drawn", what))
                 continue
             whole = part[0] >= st[0] and part[2] <= st[2] and part[1] >= st[1] and part[3] <= st[3]
             gone = part[2] <= st[0] or part[0] >= st[2] or part[3] <= st[1] or part[1] >= st[3]
             if gone:
                 out_of_sight += 1
-                self.assertTrue(p, ("no pin for a part out of sight", what))
-                self.assertLessEqual(min(p[0] - st[0], st[2] - p[2], p[1] - st[1], st[3] - p[3]), 4.5, ("pin not at the stage's edge", what))
-            elif whole:
+                self.assertEqual((p, b), (None, None), ("a pin or box for a part out of sight", what))
+                continue
+            self.assertTrue(b, ("no box", what))
+            if whole:
                 self.assertTrue(p, ("no pin for a part in sight", what))
                 self.assertLessEqual(gap(p, part), 26 + 6 + 2, ("pin detached from its part", what))
                 prev = steps[i - 1] if i else None
@@ -1598,7 +1598,7 @@ class RoundV6hFollow(unittest.TestCase):
 
     def test_sheet_scroll_both_ways(self):
         self.follow("sheet", 'document.querySelector("#sh-grid .sh-c")', '[...document.querySelectorAll("#sh-grid .sh-c")].find(c => c.textContent === "Part 3")',
-                    self.moves((0, 120, False), (0, 240, False), (0, 1200, False), (0, -1560, False)), virtual=True)
+                    self.moves((0, 60, False), (0, -60, False), (0, 1200, False), (0, -1200, False)))  # in sight, then under its headers and back
 
     def test_doc_scroll(self):
         self.follow("doc", 'document.querySelector(".doc-blk")', 'document.querySelectorAll(".doc-blk")[3]', self.moves((0, 120, False), (0, 200, False), (0, 2000, False), (0, -2320, False)))

@@ -2433,6 +2433,30 @@ class RoundV6mPages(unittest.TestCase):
         self.assertEqual(o["label"], "Costs", o)
         self.assertNotIn("gone", o["after"], o)
 
+    def test_a_cell_picked_follows_the_grid_and_is_out_of_sight_under_its_headers(self):
+        # V6n: a sheet's cell picked and scrolled under its headers kept its pin parked on the grid. Its rect goes with
+        # the cell, past the window's corner (the host hides pin and box) while no cell in sight draws it, back after.
+        rows = [["Item", "Cost"]] + [["Row %d" % i, i] for i in range(1, 80)]
+        aid = self.store.publish(title="Pool", type="sheet", files={"sheet.json": {"title": "Pool", "sheets": [{"name": "Pool", "rows": rows}]}})["id"]
+        row9 = '[...document.querySelectorAll("#sh-grid .sh-c")].find(x => x.textContent.trim() === "Row 9")'
+        last = 'JSON.stringify(window.__events.filter(e => e.event === "picked-rect").pop().detail.rect)'
+        scroll = 'document.getElementById("sh-grid").scrollBy(0, %d)'
+        body = f"""
+          const q = await api.frame({json.dumps(at(row9))})
+          await api.top('window.__post("comment-mode", {{on: true}})'); await api.sleep(300)
+          await api.mouse(q[0], q[1]); await api.sleep(600)
+          const cell = await api.frame({json.dumps(row9 + '.getBoundingClientRect().top')})
+          const ys = []
+          for (const s of {json.dumps([scroll % d for d in (30, 1200, -1230)])}) {{
+            await api.frame(s); await api.sleep(600); ys.push(JSON.parse(await api.top({json.dumps(last)})).y)
+          }}
+          return {{ cell, ys }}"""
+        o = self.drive_page(aid, body, settle=2500)
+        y0, (y1, y2, y3) = o["cell"], o["ys"]
+        self.assertAlmostEqual(y1, y0 - 30, delta=1.5, msg=o)  # with the cell
+        self.assertLess(y2, -1000, o)  # out of sight: past the window
+        self.assertAlmostEqual(y3, y0, delta=1.5, msg=o)  # back
+
     BADGES = ("[...document.querySelectorAll('div[data-hermes-ui]')].filter(b => /^\\d+$/.test(b.textContent))"
               ".map(b => { const r = b.getBoundingClientRect(); return { n: b.textContent, shown: b.style.display !== 'none', l: r.left, t: r.top } })")
 

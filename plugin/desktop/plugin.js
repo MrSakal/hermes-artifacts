@@ -5881,8 +5881,9 @@ const BAND_MIN = 146 // a band between the page's own bars narrower than this is
  *  (rect.kp), or the list leaves no room for it; an element behind the list gets its pin at the list's edge, on
  *  its own line. An element out of sight (scrolled or zoomed out of the frame, or out of the band under the
  *  page's bars) has neither: both come back on it when it is back (the draft and its words are kept). side: the
- *  box's side of its pin so far, kept while it fits. rel: where pin and box were for this draft (the result's
- *  rel): the same part moved (a scroll, a pan) takes them with it, as placed, while they stay in the band (V6n:
+ *  box's side of its pin so far, kept while it fits. rel: where pin and box were by the part at the last move (the
+ *  result's rel, null once it was not wholly in sight): the same part moved (a scroll, a pan) at the same size
+ *  takes them with it, as placed, while they stay in the band (V6n:
  *  re-placed at each move, a design system's heading's pin went 56 px aside on a vertical scroll). Pure. */
 function commentLayout(rect, bw, bh, h, cover = 0, side = null, rel = null) {
   const free = Math.max(0, bw - cover)
@@ -5891,10 +5892,12 @@ function commentLayout(rect, bw, bh, h, cover = 0, side = null, rel = null) {
   if (b0 - t0 < BAND_MIN) [t0, b0] = [0, bh]
   // Out of sight by where it is (the bridge's vis false alone is no reason: a board's hover layer over an item
   // picked made it so, V6g, and its pin went on its middle with the box 7 px off it)
-  if (rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0) return { pin: null, box: null }
+  if (rect.x + rect.w <= 0 || rect.x >= bw || rect.y + rect.h <= t0 || rect.y >= b0) return { pin: null, box: null, rel: null }
   const docks = commentDocks(bw, cover)
   const onControls = pin => (rect.kp || []).some(([l, t, r, b]) => pin.x < r && l < pin.x + pin.s && pin.y < b && t < pin.y + pin.s)
-  if (rel && rel.w === rect.w && rel.h === rect.h && rel.hh === h && rel.free === free && rel.docks === docks) {
+  // wholly in sight (a part partly out of it has its box placed by the part seen: not where to keep it)
+  const whole = rect.x >= 0 && rect.x + rect.w <= free && rect.y >= t0 && rect.y + rect.h <= b0
+  if (whole && rel && rel.w === rect.w && rel.h === rect.h && rel.hh === h && rel.free === free && rel.docks === docks) {
     const pin = { ...rel.pin, x: rect.x + rel.pin.x, y: rect.y + rel.pin.y }
     const box = rel.box && { ...rel.box, x: rect.x + rel.box.x, y: rect.y + rel.box.y }
     const inside = (x, y, w, hh) => x >= 0 && x + w <= free && y >= t0 && y + hh <= b0
@@ -5903,13 +5906,16 @@ function commentLayout(rect, bw, bh, h, cover = 0, side = null, rel = null) {
   const inBand = { ...rect, y: rect.y - t0, ...(Number.isFinite(rect.ly) ? { ly: rect.ly - t0 } : {}),
     ...(rect.kp ? { kp: rect.kp.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}),
     ...(rect.kc ? { kc: rect.kc.map(([l, t, r, b]) => [l, t - t0, r, b - t0]) } : {}) }
-  const placed = placeCommentBox(inBand, free, b0 - t0, h, side)
+  let placed = placeCommentBox(inBand, free, b0 - t0, h, side)
+  // the side kept no longer fits by its pin (the part back from out of sight elsewhere): placed afresh
+  const apart = ({ pin: p, box: b }) => Math.max(p.x - (b.x + COMMENT_W), b.x - (p.x + p.s), p.y - (b.y + Math.min(h, b.maxH)), b.y - (p.y + p.s)) >= 8
+  if (side && !apart(placed)) placed = placeCommentBox(inBand, free, b0 - t0, h, null)
   const pin = { ...placed.pin, y: placed.pin.y + t0 }, box = docks ? null : { ...placed.box, y: placed.box.y + t0 }
   // A pin that would lie on the page's own controls (a canvas's palette over the element after a pan) is not
   // drawn: the page's controls stay on top, as the element under them is.
-  if (onControls(pin) || free < PIN + 8) return { pin: null, box }
+  if (onControls(pin) || free < PIN + 8) return { pin: null, box, rel: null }
   const at = q => q && { ...q, x: q.x - rect.x, y: q.y - rect.y }
-  return { pin, box, rel: { w: rect.w, h: rect.h, hh: h, free, docks, pin: at(pin), box: at(box) } }
+  return { pin, box, rel: whole ? { w: rect.w, h: rect.h, hh: h, free, docks, pin: at(pin), box: at(box) } : null }
 }
 
 /** While picking and the shown page has not said its click picks ($pickOn), or none is shown yet (a first load),
@@ -6055,6 +6061,12 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
     try { ro = new ResizeObserver(measure); ro.observe(el) } catch {}
     return () => ro?.disconnect()
   }, [Boolean(draft?.rect), docks, shut])
+  // A box drawn again (its part back in sight, V6n) is a new element the observer above does not watch: its height
+  // read as drawn, else it stays placed for the last box's (it lay over its pin)
+  useLayoutEffect(() => {
+    const el = boxRef.current, hh = el && boxWhole(el)
+    if (hh && Math.abs(hh - boxH) > 0.5) setBoxH(hh)
+  })
   // The stage narrows or grows (the comments list opens beside it, the window is resized): placed again.
   const [, setStageTick] = useState(0)
   const any = Boolean(draft?.rect) || keptDrafts.length > 0
@@ -6092,7 +6104,7 @@ function CommentPopover({ ctx, art, stageRef, portRef }) {
   const pk = JSON.stringify([draft.rect, bw, bh, hNow, cover, kept.current.side])
   if (placed.current.k !== pk) {
     placed.current = { k: pk, v: commentLayout(draft.rect, bw, bh, hNow, cover, kept.current.side, kept.current.rel) }
-    if (placed.current.v.rel) kept.current.rel = placed.current.v.rel
+    kept.current.rel = placed.current.v.rel
   }
   const box = shut ? null : placed.current.v.box, pin = draft.gone ? null : placed.current.v.pin
   if (box && be && be.isConnected) kept.current.side = box.side // placed for its height as drawn

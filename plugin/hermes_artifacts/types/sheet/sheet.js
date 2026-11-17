@@ -2948,33 +2948,44 @@
     var name = (book.length > 1 ? s.name + " · " : "") + k;
     return (shown ? name + " · " + shown : name).slice(0, 40);
   }
-  /** Where cell (r, c) of sheet s is in the window for the comment's pin: its box and the line of its words (the
-   *  box showing it now); out of sight in its pane (scrolled under the frozen rows, past the grid), the point of
-   *  that pane nearest it; null while another sheet is shown. */
+  /** Where cell (r, c) of sheet s is in the window for the comment's pin: the box drawing it now and the line of its
+   *  words; null while another sheet is shown. Out of sight (scrolled under the headers or the frozen rows, past
+   *  the grid; drawn by no cell in sight: a point of it in the grid shows it, no header, frozen pane or chart over
+   *  it): a box past the window's corner, where the host hides its pin and box until it is back (V6n: parked at the
+   *  pane's edge, the pin stayed on the grid). */
   function cellWhere(s, r, c) {
     if (book[cur] !== s) return null;
-    var v = vp.getBoundingClientRect(), b = cellBox(r, c), m = mergeAt(s, r, c);
-    if (m) { var b2 = cellBox(m.r2, m.c2); b.w = b2.x + b2.w - b.x; b.h = b2.y + b2.h - b.y; }
-    var x0 = c < fc ? HW : HW + FW, x1 = c < fc ? HW + FW : vpW, y0 = r < fr ? HH : HH + FH, y1 = r < fr ? HH + FH : vpH;
-    if (b.x + b.w <= x0 || b.x >= x1 || b.y + b.h <= y0 || b.y >= y1) {
-      // the pin is drawn centred on the point: half a pin and its edge room inside the pane (V6i N4: 13 px of it
-      // over the frozen row)
-      var m2 = 17, ix = function (lo, hi, v2) { return hi - lo > 2 * m2 ? Math.max(lo + m2, Math.min(hi - m2, v2)) : (lo + hi) / 2; };
-      return { x: v.left + ix(x0, x1, b.x + b.w / 2), y: v.top + ix(y0, y1, b.y + b.h / 2), w: 0, h: 0, point: true };
-    }
-    var out = { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h }, k = key(m ? m.r1 : r, m ? m.c1 : c);
+    var m = mergeAt(s, r, c), k = key(m ? m.r1 : r, m ? m.c1 : c), g = grid.getBoundingClientRect();
     for (var i = 0; i < cellQ.length; i++) {
       var pool = cellQ[i].pool;
       for (var j in pool) {
         var el = pool[j];
-        if (el._k !== k || el._s === null || !el.firstChild) continue;
-        var rg = document.createRange(); rg.selectNodeContents(el);
-        var q = rg.getBoundingClientRect();
-        if (q.width > 0) { out.ly = q.top; out.lh = q.height; out.lr = q.right; out.ll = q.left; }
+        if (el._k !== k || el._s === null) continue;
+        var q = el.getBoundingClientRect(), l = Math.max(q.left, g.left), t = Math.max(q.top, g.top), rr = Math.min(q.right, g.right), bb = Math.min(q.bottom, g.bottom);
+        if (rr - l < 1 || bb - t < 1 || !shows(el, l, t, rr, bb)) continue;
+        var out = { x: q.left, y: q.top, w: q.width, h: q.height };
+        if (el.firstChild) {
+          var rg = document.createRange(); rg.selectNodeContents(el);
+          var w = rg.getBoundingClientRect();
+          if (w.width > 0) { out.ly = w.top; out.lh = w.height; out.lr = w.right; out.ll = w.left; }
+        }
         return out;
       }
     }
-    return out;
+    return { x: -1e5, y: -1e5, w: 1, h: 1 };
+  }
+  /** Whether the part of el in l, t, r, b is seen: one of its points hits it, not what is drawn over it. */
+  function shows(el, l, t, r, b) {
+    var pts = [[(l + r) / 2, (t + b) / 2], [l + 2, t + 2], [r - 2, b - 2], [l + 2, b - 2], [r - 2, t + 2]];
+    for (var i = 0; i < pts.length; i++) {
+      var hits = document.elementsFromPoint(pts[i][0], pts[i][1]);
+      for (var n = 0; n < hits.length; n++) {
+        if (hits[n].closest("[data-hermes-ui]")) continue;
+        if (hits[n] === el || el.contains(hits[n])) return true;
+        break;
+      }
+    }
+    return false;
   }
   if (canComment && hm.on) {
     hm.on("comment-mode", function (d) { cellPicking = !!(d && d.on); });

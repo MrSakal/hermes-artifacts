@@ -733,7 +733,13 @@
    *  right end; whether any of it can be seen (vis) and the band the host keeps the pin and its box in (vt,
    *  vb: band()); in a grid that keeps pins in its parts, where in it the pin goes (px: pinIn). A spot is free
    *  when no other element's words, picture or control is under it (fw: nor the element's own words). */
-  function pickRect(el) { return rectOf(el, wordsRect(el) || inkRect(el), firstLine(el), null); }
+  function pickRect(el) {
+    // its words while any of them is in sight; else the part's box (V6n: a heading wider than the window scrolled
+    // sideways, its words out of sight and the rest of it seen, had its draft hidden as out of sight)
+    var w = wordsRect(el), bd = w && band(el);
+    if (w && (w.right <= 0 || w.left >= innerWidth || w.bottom <= bd.t || w.top >= bd.b)) w = null;
+    return rectOf(el, w || inkRect(el), firstLine(el), null);
+  }
   /** A heading's or paragraph's words, where it holds only words: what is seen of it (V6j: an h1 full width, its
    *  text short: the room beside its words counted as the part's, the box 156 px off). null otherwise. */
   function wordsRect(el) {
