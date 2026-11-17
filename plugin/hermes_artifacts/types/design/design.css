@@ -118,7 +118,6 @@ body { overflow: hidden; }
 /* Toolbar */
 .dc-status { font-size: 12px; color: var(--color-fg-muted); }
 .dc-save { background: var(--color-accent) !important; }
-@media (max-width: 760px) { #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); } }
 
 /* The full-window view */
 #dc-focus { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: var(--dc-canvas); }
@@ -217,9 +216,11 @@ html[data-thumb] .dc-pill { display: none; }
 .dc-fhead .kit-btn:disabled { opacity: .35; }
 /* Under 760 px the panel is a sheet over the canvas (opened by Properties, closed by its Close); while it is open the
    canvas's tools step aside, the top pills too (Export, Play, Properties and Zoom were drawn over the sheet's tabs at
-   400 px): the sheet is above all canvas chrome and starts at the top. */
+   400 px): the sheet is above all canvas chrome and starts at the top. At 760 px and up the panel is beside the
+   canvas, as the page lays it out (design.js narrow()), its pills in the view (at 760 px the panel lay over the
+   view, its tabs under Save, Play, Properties and Zoom). */
 @media (max-width: 759.98px) {
-  #dc-panel { width: min(320px, 100%); }
+  #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); width: min(320px, 100%); }
   #dc-app.is-sheet .dc-pill-b, #dc-app.is-sheet .dc-crumbs, #dc-app.is-sheet ~ .dc-tools,
   #dc-app.is-sheet .dc-pill-l, #dc-app.is-sheet .dc-pill-r { display: none; }
   #dc-app.is-sheet #dc-panel { z-index: 40; padding-top: 10px; }
