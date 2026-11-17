@@ -1145,11 +1145,13 @@ function watchChatArtifactTool(ctx) {
   const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
   let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
   // The person closes a chat's tab (its x, a middle click on it, Ctrl/Cmd+W): Hermes empties the chat's zone to a
-  // new session. Beside an artifact that is its own chat coming back, not an empty one.
+  // new session. Beside an artifact that is its own chat coming back, not an empty one. Ctrl/Cmd+W comes as Hermes'
+  // close-tab request (its main process claims the key: main.ts before-input-event), or as the key where it reaches
+  // the page; Hermes' own handler of either runs first and has emptied the zone before ours sees it.
   let tabClosedAt = 0
   const onTabClose = e => {
-    const key = e.type === 'keydown'
-    if (key ? (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w' : e.target?.closest?.('[role="tab"]') && (e.button === 1 || e.target.closest('button[aria-label="Close"]'))) tabClosedAt = Date.now()
+    const key = e?.type === 'keydown'
+    if (!e || (key ? (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w' : e.target?.closest?.('[role="tab"]') && (e.button === 1 || e.target.closest('button[aria-label="Close"]')))) tabClosedAt = Date.now()
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
@@ -1158,22 +1160,28 @@ function watchChatArtifactTool(ctx) {
     lastSid = sid
     // An empty new session in front of the artifact's tile: its own chat back when the person closed that chat's
     // tab; a new session asked for (the sidebar, Ctrl+N) is another chat, the artifact goes with its own.
+    // Told apart once the gesture's events have all run (Ctrl/Cmd+W: the new session comes before ours see it).
     const left = !sid && onChatRoute(null) ? dockOwner() : null
+    const still = () => !sidAtom.get() && onChatRoute(null) && dockOwner() === left
     if (left) {
-      const closed = Date.now() - tabClosedAt < 1500
-      tabClosedAt = 0
-      // Once Hermes has settled its new draft (an open in the same turn is undone by it: an endless spinner).
-      // Expanded, the artifact stays in front of its chat's tab (re-opening its tile fronts it).
-      if (closed) {
-        return void later(ctx, async () => {
-          if (sidAtom.get() || !onChatRoute(null) || dockOwner() !== left) return
+      return void later(ctx, () => {
+        if (!still()) return
+        const closed = Date.now() - tabClosedAt < 1500
+        tabClosedAt = 0
+        if (!closed) {
+          closeDock()
+          $dockMaking.set(null)
+          $chat.set('off')
+          return
+        }
+        // Once Hermes has settled its new draft (an open in the same turn is undone by it: an endless spinner).
+        // Expanded, the artifact stays in front of its chat's tab (re-opening its tile fronts it).
+        later(ctx, async () => {
+          if (!still()) return
           await host.openSession(left)
           if (dockClose && $dockPos.get() === 'center' && dockOwner() === left) openTile(ctx, tileTitle)
         }, 300)
-      }
-      closeDock()
-      $dockMaking.set(null)
-      $chat.set('off')
+      }, 0)
     }
     if (!sid) return // on a page: the dock stays as it is
     // The artifact (or placeholder) belongs to its chat: another chat in front closes it (not the person's close).
@@ -1204,7 +1212,8 @@ function watchChatArtifactTool(ctx) {
     if (!busy && m?.local) endMaking(sid)
   }
   const offs = [onRouteChange(ctx, both), sidAtom.listen(both), $list.listen(both), $makings.listen(sync),
-    ...['pointerdown', 'auxclick', 'keydown'].map(type => listen(ctx, window, type, onTabClose, true))] // window: Hermes' keybinds stop Ctrl+W there
+    ...['pointerdown', 'auxclick', 'keydown'].map(type => listen(ctx, window, type, onTabClose, true)),
+    window.hermesDesktop?.onClosePreviewRequested?.(() => onTabClose())]
   if (host.state?.busy?.listen) offs.push(host.state.busy.listen(onBusy))
   sync()
   enter()

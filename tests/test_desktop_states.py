@@ -92,6 +92,9 @@ window.location = {
   replace(v) { setRoute(v, true) }
 }
 globalThis.window = window
+// Ctrl/Cmd+W: Hermes' main process claims the key and sends its close-tab request (preload onClosePreviewRequested).
+const closeTabRequests = new Set()
+window.hermesDesktop = { onClosePreviewRequested: f => (closeTabRequests.add(f), () => closeTabRequests.delete(f)) }
 globalThis.document = Object.assign(new EventTarget(), { fullscreenElement: null, getElementById: () => null, documentElement: {}, head: {} })
 
 // ---------------------------------------------------------------- fake host
@@ -305,15 +308,22 @@ const draftSettles = () => new Promise(r => setTimeout(r, 350)) // the plugin wa
 await S('the chat\'s tab closed beside its artifact: its own chat back, not a new session', async () => { press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles() },
   { split: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false })
 await S('the chat\'s tab middle-clicked shut: the same', async () => { press(null, { button: 1 }); routerNav('/'); await settle(); await draftSettles() }, { split: true, route: '#/chatA' })
-await S('the chat\'s tab shut with Ctrl+W: the same', async () => {
-  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routerNav('/'); await settle(); await draftSettles()
+// Hermes' own handler of Ctrl+W (its close-tab request, or the key where it reaches the page) empties the zone
+// before the plugin hears of it.
+await S('the chat\'s tab shut with Ctrl+W (Hermes\' close-tab request): the same', async () => {
+  routerNav('/'); closeTabRequests.forEach(f => f()); await settle(); await draftSettles()
+}, { split: true, route: '#/chatA' })
+await S('the chat\'s tab shut with Ctrl+W (the key): the same', async () => {
+  routerNav('/'); window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); await settle(); await draftSettles()
 }, { split: true, route: '#/chatA' })
 await S('expanded, its chat\'s tab closed: its own chat back behind it, the artifact fronted again (re-opened in place)', async () => {
   click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle(); log.length = 0
   press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles()
 }, { split: true, expanded: true, route: '#/chatA', lit: 'chat:chatA', reopens: 1 })
 await S('Show chat there: beside its own chat', () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, expanded: false, route: '#/chatA' })
-await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', () => routerNav('/'), { split: false, route: '#/', closed: false })
+// Told apart from a tab's close once the gesture's events have run (a timer turn).
+await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', async () => { routerNav('/'); await new Promise(r => setTimeout(r, 5)) },
+  { split: false, route: '#/', closed: false })
 await S('back to chat A: beside again', () => routerNav('/chatA'), { split: true, selected: 'a2' })
 await S('gallery: open B full page, then Chat', async () => {
   routerNav(PAGE); await settle(); I.openArtifact(ctx, 'b1'); await settle(); if (buttons(routeEl()).some(b => b.props.title === 'showChat')) throw new Error('Show chat on a gallery-opened page')
