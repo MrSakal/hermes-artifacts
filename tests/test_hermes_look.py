@@ -85,6 +85,8 @@ CHROME = {
     "board/board.css": [".bd-tools", ".bd-tb", ".bd-zoom", ".bd-top", ".bd-ask", ".bd-ctx", ".bd-pop", ".bd-kind", ".bd-linkin"],
     "sheet/sheet.css": [".sh-ac", ".sh-chart", ".sh-pop", ".sh-b", ".sh-chip", ".sh-chip-t", ".sh-chip-x", ".sh-chip-add", ".sh-seg", ".sh-agg",
                         ".sh-ddp", ".sh-rp-x", ".sh-rc", ".sh-rc-x", ".sh-fb", ".sh-flt-add", ".sh-flt-q"],
+    "dashboard/dashboard.css": [".dash-err", ".src-ib", ".src-li", ".src-more", ".src-arg", ".src-modal-card", ".dash-ask", ".src-edit",
+                                ".src-hist-row", ".dash-notice", ".dash-ask-sel", ".dash-ask-sel-b", ".dash-edit-tools"],
 }
 
 
