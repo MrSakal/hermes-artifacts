@@ -2326,7 +2326,7 @@ class RoundV6hPages(unittest.TestCase):
         # V6k: a type chosen on that menu (Heading 2, Bulleted list) and nothing typed: Esc, or a click elsewhere,
         # left the empty block saved ("##" drawn 0 px high). It stays unsent while empty and goes when left.
         rev1 = r["rev"]
-        pick = "const it = await api.frame('(() => { const b = [...document.querySelectorAll(\".doc-slash .doc-rm-item\")].find(b => b.textContent.trim() === %s); b.scrollIntoView({ block: \"nearest\" }); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()'); await api.mouse(it[0], it[1]); await api.sleep(500)"
+        pick = "const it = await api.frame('(() => { const b = [...document.querySelectorAll(\".doc-slash .doc-rm-item\")].find(b => b.querySelector(\"span\").textContent.trim() === %s); b.scrollIntoView({ block: \"nearest\" }); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()'); await api.mouse(it[0], it[1]); await api.sleep(500)"
         # V6l: a Code block chosen and left empty was saved; an empty block left by a press in Hermes (the page left)
         # stayed drawn until the doc was opened again; so did one whose Dropdown or Mention question was left by Esc.
         esc = "await api.key('Escape', 'Escape', 27)"
