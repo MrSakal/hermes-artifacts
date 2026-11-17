@@ -312,8 +312,9 @@
   function fitChrome() {
     app.classList.remove("is-tight");
     if (narrow || pillL.hidden) return;
-    var a = pillL.getBoundingClientRect(), b = pillR.getBoundingClientRect(), c = pillB.hidden ? null : pillB.getBoundingClientRect();
-    if (a.right + 8 > b.left || c && c.width + 24 > viewEl.clientWidth) app.classList.add("is-tight");
+    // the tools' own width (scrollWidth: the pill is capped at the view's, its last tools then cut off under the panel)
+    var a = pillL.getBoundingClientRect(), b = pillR.getBoundingClientRect(), w = pillB.hidden ? 0 : pillB.scrollWidth;
+    if (a.right + 8 > b.left || w + 24 > viewEl.clientWidth) app.classList.add("is-tight");
   }
   function toolBtn(ic, title, mode) {
     var on = tool === "select" && gizmoMode === mode;
