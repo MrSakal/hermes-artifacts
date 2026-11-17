@@ -209,7 +209,8 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd-wide[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); }
 .bd-kinds { display: grid; grid-template-columns: repeat(4, 40px); gap: 4px; }
 .bd-kind { display: grid; place-items: center; width: 40px; height: 36px; padding: 0; border: 0; border-radius: var(--kit-r-icon); background: none; color: var(--color-fg-secondary); cursor: pointer; }
-.bd-kind svg, .bd-tb > svg[viewBox^="-2"], .bd-cb > svg[viewBox^="-2"] { width: 22px; height: 20px; }
+.bd-kind svg { width: 22px; height: 20px; }
+.bd-tb > svg[viewBox^="-2"], .bd-cb > svg[viewBox^="-2"] { width: 18px; height: 16px; }
 .bd-kind:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .bd-kind.on { background: var(--color-accent-soft); color: var(--color-accent); }
 .bd-linkform { display: flex; gap: 6px; width: min(300px, calc(100vw - 40px)); }

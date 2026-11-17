@@ -98,9 +98,11 @@
   // the board's icons, its menus' too (kit.menu takes a name): bd-<name>, the kit's where it has no own
   function ico(name) { return kit.icon("bd-" + name); }
   var CARET = kit.icon("caretDown", "bd-caret");
+  // A shape's own outline (a kind is shown as itself, as a swatch shows its colour), drawn with the 1 px line of the
+  // codicons beside it at any size.
   function kindIcon(kind) {
     var d = kind === "table" ? "M1 1h20v16H1zM1 6.5h20M1 12h20M8 1v16" : G.shapePath(kind, 20, kind === "person" ? 18 : 15);
-    return '<svg viewBox="-2 -2 24 ' + (kind === "person" ? 22 : kind === "table" ? 22 : 19) + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+    return '<svg viewBox="-2 -2 24 ' + (kind === "person" ? 22 : kind === "table" ? 22 : 19) + '" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="' + d + '"/></svg>';
   }
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
   /** Equal as data, whatever order the keys came in (the server stores an item's keys in its own order). */
