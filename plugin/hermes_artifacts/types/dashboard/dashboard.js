@@ -1348,9 +1348,10 @@
     if (e.key === "Escape" && full && !e.defaultPrevented && !document.querySelector(".kit-menu")) { e.preventDefault(); setFull(false); }
   });
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { full = false; fullBtn.setAttribute("aria-pressed", "false"); fullBtn.title = T.fullScreen; });
-  // "Run every live query again": only where there is one (a live query, or a loader that computes data).
+  // "Run every live query again": only where a dataset is read from a connector (a stored call or query) it can run
+  // again; data from a file or written in shows only when it was updated.
   var refreshBtn = kit.button("", "refresh", function () { refreshLive(); gen++; redraw(); }, T.refreshAll);
-  function syncRefresh() { if (refreshBtn) refreshBtn.hidden = !liveIds().length && !Object.keys(loaders).length; }
+  function syncRefresh() { if (refreshBtn) refreshBtn.hidden = !liveIds().length; }
   syncRefresh();
   bar.append(refreshBtn, freshEl,
     h("span", { style: "flex:1" }), histBtn, fullBtn, srcBtn);

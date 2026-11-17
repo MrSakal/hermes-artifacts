@@ -2468,6 +2468,15 @@ class RoundV6mPages(unittest.TestCase):
           return { before, after: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=2500)
         self.assertEqual((len(o["before"]), len(o["after"])), (0, 1), o)
 
+    def test_a_dashboards_refresh_only_with_a_connector_to_run_again(self):
+        # Owner, 0.20.0: a dashboard from a file or written-in data (a loader computing over it too) showed "Run every
+        # live query again"; only one read from a connector (a stored call or query) has anything to refresh.
+        page = '<div id="v"></div><script>dash.loader("a", { fn: function (r) { return r; }, description: "as is" })</script>'
+        probe = "return await api.frame('(() => { const b = document.querySelector(\"#dash-bar .kit-btn\"); return !!b && !b.hidden && !!b.getClientRects().length })()')"
+        for kind, want in (({"kind": "rows", "rows": [{"v": 1}]}, False), ({"kind": "call", "tool": "orders_list", "args": {}}, True)):
+            aid = self.store.publish(title="Dash", type="dashboard", files={"dashboard.json": {"title": "Dash", "datasets": {"a": {"title": "A", "source": kind}}}, "index.html": page})["id"]
+            self.assertEqual(self.drive_page(aid, probe, settle=2500), want, kind)
+
     def test_a_designs_panel_starts_at_the_top_of_the_stage(self):
         # Owner, 0.20.0: Properties / Outline / Code / Tweaks sat 58 px down the panel, under a toolbar row that is
         # not over it (the view's pills are in the view, left of the panel). Its tabs at its top, beside that row.
