@@ -15,7 +15,7 @@ import _browser as B
 import _dom as D
 from hermes_artifacts import api, docs, store
 
-EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, sawEdit, shownUpdated, $list, $panel, $panelHere, $picking, $panelShown, $draft, STRINGS }\n"
+EXPORTS = "\nexport { Viewer, openArtifact, closeArtifact, Ago, clock, sawEdit, shownUpdated, $list, $panel, $panelHere, $picking, $pickHeld, $panelShown, $draft, STRINGS }\n"
 BOOT = """
   await api.go(URL, 400)
   for (let i = 0; i < 50 && !(await api.top('Boolean(window.__ready)')); i++) await api.sleep(100)
@@ -1724,7 +1724,7 @@ class RoundV6hHeldPress(unittest.TestCase):
           const t0 = Date.now(); await api.mouse(f[0] + q[0], f[1] + q[1])
           let d = null
           for (let i = 0; i < 80 && !d; i++) {{ await api.sleep(100); d = await api.top('window.H.M.$draft.get()') }}
-          return {{ ms: Date.now() - t0, draft: d, at: [f[0] + q[0], f[1] + q[1]], picking: await api.top('window.H.M.$picking.get()'), drawn: await api.top({json.dumps(DRAFT_NOW)}) }}""", timeout=180)
+          return {{ ms: Date.now() - t0, draft: d, held: await api.top('window.H.M.$pickHeld.get()'), picking: await api.top('window.H.M.$picking.get()') }}""", timeout=180)
         self.assertIsNone(r.get("err"), r)
         return r["out"]
 
@@ -1735,15 +1735,13 @@ class RoundV6hHeldPress(unittest.TestCase):
         self.assertFalse(o["picking"], o)
         self.assertLess(o["ms"], 2500, o)
 
-    def test_a_held_press_no_pick_comes_of_is_a_point_pin_never_lost(self):
+    def test_a_held_press_the_page_never_answers_is_let_go_picking_on(self):
+        # V6p: it was a point comment wherever pressed (a sheet's bar too); what is under it is not known, and only a
+        # part the page names is commented on: let go after HOLD_MAX_MS, picking stays on for the next press.
         o = self.held(-1)
-        self.assertTrue(o["draft"], o)
-        self.assertTrue(o["draft"]["rect"]["pt"], o)
-        p = o["drawn"]["pin"]
-        self.assertTrue(p, o)
-        self.assertLessEqual(abs((p[0] + p[2]) / 2 - o["at"][0]), 1, o)
-        self.assertLessEqual(abs((p[1] + p[3]) / 2 - o["at"][1]), 1, o)
-        self.assertFalse(o["picking"], o)
+        self.assertIsNone(o["draft"], o)
+        self.assertTrue(o["picking"], o)
+        self.assertIsNone(o["held"], o)
 
     def test_the_held_ring_stays_until_its_draft_is_drawn(self):
         # V6k: the turning ring went ~20-50 ms before the draft came (the cover hidden as the page said its click
@@ -1889,6 +1887,54 @@ class RoundV6iPress(unittest.TestCase):
             self.assertTrue(o["draft"].get("anchor"), (kind, "a point, not the part pressed", o))
             self.assertFalse(o["picking"], (kind, o))
             self.assertLess(o["ms"], 3100, (kind, o))
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class RoundV6pHeldOff(unittest.TestCase):
+    """Live round V6p: a press the frame never got (RoundV6iPress), made on the type's chrome or the ground its parts
+    lie on (a sheet's bar at the frame's corner, its headers; a deck's pill), became a point comment there after
+    HOLD_MAX_MS (3.2 s live), while a press made in the page there picks nothing. The page says it picked nothing
+    ("pick-none"): the press is let go at once, no draft, picking stays armed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.host.files.update(D.viewer_files(EXPORTS))
+        ex = D.ROOT / "examples"
+        sheet = store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": [["Item", "Cost"], ["Panels", 182]]}]}})["id"]
+        cls.cases = {
+            "sheet corner": (sheet, 'document.querySelector("#sh-grid")', '[2, 2]'),
+            "sheet header": (sheet, 'document.querySelector("#sh-grid")', '(() => { const e = [...document.querySelectorAll("[data-comment-off]")].find(e => e.getBoundingClientRect().width > 100); const b = e.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()'),
+            "slides pill": (store.publish(path=str(ex / "slides"), title="Test slides", type="slides")["id"], 'document.querySelector(".sl-clip .sl-canvas h1")',
+                            '(() => { const b = document.querySelector(".sl-pill-l").getBoundingClientRect(); return [b.left + 4, b.top + b.height / 2] })()'),
+        }
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def test_a_press_the_frame_never_got_on_chrome_picks_nothing_at_once(self):
+        url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
+        for kind, (aid, sel, where) in self.cases.items():
+            r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(sel)}, WHERE = {json.dumps(where)}, SETTLE = 1500; await api.size(1250, 764);" + BOOT_ANY + """
+              const q = await api.frame(WHERE)
+              await api.top('window.H.M.$picking.set(true)')
+              for (let i = 0; i < 100 && await api.top('(() => { const h = document.querySelector("[data-pick-hold]"); return !!h && h.style.display !== "none" })()'); i++) await api.sleep(20)
+              const off = await frameAt(), x = off[0] + q[0], y = off[1] + q[1]
+              await api.top(`(() => { window.__let = null; const t0 = performance.now(), un = window.H.M.$pickHeld.listen(v => { if (!v && window.__let == null) window.__let = performance.now() - t0 })
+                const f = document.querySelector('[data-frame="shown"] iframe'), o = { bubbles: true, cancelable: true, composed: true, clientX: ${x}, clientY: ${y}, button: 0, pointerId: 1, isPrimary: true }
+                for (const [T, t] of [[PointerEvent, 'pointerdown'], [MouseEvent, 'mousedown'], [PointerEvent, 'pointerup'], [MouseEvent, 'mouseup'], [MouseEvent, 'click']]) f.dispatchEvent(new T(t, o)) })()`)
+              await api.sleep(3600)
+              return { let: await api.top('window.__let'), held: await api.top('window.H.M.$pickHeld.get()'), draft: await api.top('window.H.M.$draft.get()'), picking: await api.top('window.H.M.$picking.get()'),
+                ring: await api.top('!!document.querySelector("[data-pick-hold] [role=status]")') }""", timeout=180)
+            self.assertIsNone(r.get("err"), (kind, r))
+            o = r["out"]
+            self.assertIsNone(o["draft"], (kind, "a comment on chrome", o))
+            self.assertTrue(o["picking"], (kind, "picking ended", o))
+            self.assertIsNone(o["held"], (kind, o))
+            self.assertFalse(o["ring"], (kind, o))
+            self.assertIsNotNone(o["let"], (kind, o))
+            self.assertLess(o["let"], 1000, (kind, "let go only by the 3 s fallback", o))
 
 
 if __name__ == "__main__":

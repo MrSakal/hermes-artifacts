@@ -915,7 +915,7 @@
     if (!picking) return;
     e.preventDefault(); e.stopImmediatePropagation();
     var el = wholeOf(e.target, e.clientX, e.clientY);
-    if (blank(el, e.clientX, e.clientY)) return;
+    if (blank(el, e.clientX, e.clientY)) { atNone = true; return; }
     var text = wordsOf(el).trim().replace(/\s+/g, " ");
     atDone = true;
     // titled by the words clicked, or a part drawn as one with no name of its own (a design system's bullet) by its own
@@ -1131,13 +1131,15 @@
     sayPickReady();
   });
   // The host keeps a held press until a pick comes of it and sends it again (the same n) when none has yet: a
-  // press this page already picked is not picked twice.
-  var atN = 0, atDone = false;
+  // press this page already picked is not picked twice. One on none of the page's parts (its chrome, the ground they
+  // lie on: onPick's blank) picks nothing, as a click made here: the host is told ("pick-none"), and lets it go.
+  var atN = 0, atDone = false, atNone = false;
   on("pick-at", function (d) {
     if (!picking || !d || !isFinite(d.x) || !isFinite(d.y)) return;
     if (d.n && d.n === atN && atDone) return;
-    atN = d.n || 0; atDone = false;
+    atN = d.n || 0; atDone = false; atNone = false;
     pickAt(d.x, d.y);
+    if (atNone && !atDone) { atDone = true; emit("pick-none", { n: atN }); }
   });
   /** An open thread's mark by its element's top right, just past the ring its Show flashes round it (EDGE and HALO:
    *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn or is

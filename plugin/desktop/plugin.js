@@ -4391,6 +4391,8 @@ function onPageEvent(event, detail) {
     return
   }
   if (event === 'pick-cancel') return $picking.set(false) // Esc in the page while picking (PickHint)
+  // the press held picked nothing there (the type's chrome, its ground): let go, picking stays on, as a press made there
+  if (event === 'pick-none') { if ($pickHeld.get()?.n === detail?.n) dropHeld(); return }
   if (event === 'press-out') return closeBox?.() // a press in the page outside the new comment's box
   if (event === 'picked-rect') { // the element picked for a new comment moved (a scroll, a resize, a pan), or is gone
     const k = followKey(detail), r = pickedRect(detail && detail.rect)
@@ -5934,8 +5936,10 @@ function PickHold({ F, stageRef, portRef }) {
 // A press held for the page ($pickHeld) is given to it (bridge "pick-at", with its n) and KEPT until a pick comes
 // of it (the page's "picked" or "comment": picking then ends, dropHeld): given again every HOLD_AGAIN_MS (the page
 // re-laid out, its node under the point replaced, a frame replaced by another: V6h, 1 of 22 picks of a deck's
-// title lost), and after HOLD_MAX_MS with none, the point pressed is commented on (a point pin): never lost. The
-// page picks one n once. Given again to whichever frame says next that its click picks (useBridge).
+// title lost). A page that picked nothing there says so ("pick-none": its chrome, its ground): let go at once. After
+// HOLD_MAX_MS with no answer it is let go too, picking left on: what is under the point is not known, and only a
+// part the page names is commented on (V6p: a point comment on a sheet's bar after 3 s). The page picks one n once.
+// Given again to whichever frame says next that its click picks (useBridge).
 const HOLD_AGAIN_MS = 500
 const HOLD_MAX_MS = 3000
 let heldN = 0, heldTo = null, heldT0 = 0, heldTimer = 0
@@ -5949,11 +5953,7 @@ function sendHeld() {
   heldTimer = 0
   const q = $pickHeld.get(), f = heldTo?.frame()
   if (!q || !f || !$picking.get()) return
-  if (Date.now() - heldT0 >= HOLD_MAX_MS) {
-    $picking.set(false)
-    startDraft({ anchor: null, rect: { x: q.x - f.left - 0.5, y: q.y - f.top - 0.5, w: 1, h: 1, pt: true } })
-    return
-  }
+  if (Date.now() - heldT0 >= HOLD_MAX_MS) return dropHeld()
   postToPage({ current: heldTo.port }, 'pick-at', { x: q.x - f.left, y: q.y - f.top, n: q.n })
   heldTimer = setTimeout(sendHeld, HOLD_AGAIN_MS)
 }
