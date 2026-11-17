@@ -455,7 +455,7 @@ class DocEditingInChrome(unittest.TestCase):
         _, o = self.run_page("""
           await api.frame('(() => { const p = document.querySelectorAll(".doc-blk p")[0]; p.closest(".doc-blk").focus(); const r = document.createRange(); r.setStart(p.firstChild, 0); r.setEnd(p.firstChild, 4); getSelection().removeAllRanges(); getSelection().addRange(r) })()')
           await api.sleep(600)
-          const btn = '[...document.querySelectorAll(".doc-selbar .doc-sb")].find(b => (b.querySelector("path") || {}).getAttribute && b.querySelector("path").getAttribute("d") === "M9 8l-4 4 4 4M15 8l4 4-4 4")'
+          const btn = '[...document.querySelectorAll(".doc-selbar .doc-sb")].find(b => ["Code", "Kód"].includes(b.getAttribute("aria-label")))'
           const seen = []
           for (let i = 0; i < 3; i++) {
             await api.frame(btn + '.click()'); await api.sleep(500)
