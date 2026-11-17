@@ -658,41 +658,6 @@ class SlideBlankPickPinsThePoint(unittest.TestCase):
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
-class ModelViewPickPinsThePoint(unittest.TestCase):
-    """Live round V6d: a 3D view picked where no part is ("3D view") had its pin in the view's top right corner, on
-    the page's own Panel pill. The pin is on the point clicked, and never on the page's pills."""
-
-    def test_the_views_pin_is_on_the_point_clicked_off_the_pills(self):
-        from test_models import PANEL
-        host = B.Host()
-        try:
-            host.files.update(D.viewer_files(EXPORTS))
-            aid = store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
-            url = f"http://127.0.0.1:{host.port}/dom/index.html"
-            # a point of the view with no part under it, nearest the top right (the tester's), no pill over it
-            spot = ("(() => { const c = document.querySelector('.md-canvas'), r = c.getBoundingClientRect();"
-                    " for (let j = 2; j < 20; j++) for (let i = 18; i > 1; i--) { const x = r.left + r.width * i / 20, y = r.top + r.height * j / 20;"
-                    " if (document.elementFromPoint(x, y) === c && !__model.pick(x, y)) return [x, y] } return null })()")
-            pills = '[...document.querySelectorAll("[data-comment-keep]")]'
-            for w in (1500, 400):
-                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = 'document.querySelector(\".md-canvas\")', SETTLE = 3000; await api.size({w}, 900);" + BOOT_ANY + f"""
-                  const at = await api.frame({json.dumps(spot)}); if (!at) return null
-                  const o = await pickAt({json.dumps(spot)}, {json.dumps(pills)})
-                  o.at = [at[0] + o.off[0], at[1] + o.off[1]]; return o""", timeout=240)
-                self.assertIsNone(r.get("err"), r)
-                o, what = r["out"], (w, r["out"])
-                self.assertTrue(o and o["pin"], what)
-                p = o["pin"]
-                self.assertLessEqual(abs((p["l"] + p["r"]) / 2 - o["at"][0]), 2, what)
-                self.assertLessEqual(abs((p["t"] + p["b"]) / 2 - o["at"][1]), 2, what)
-                self.assertTrue(o["kept"], what)
-                for k in o["kept"]:
-                    self.assertFalse(p["l"] < k["r"] and k["l"] < p["r"] and p["t"] < k["b"] and k["t"] < p["b"], (k, what))
-        finally:
-            host.close()
-
-
-@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
 class PickKeepsTheFrame(unittest.TestCase):
     """Live round V6c (3404f5e): picking put a band under the header that took 33 px from the frame, and gave them
     back as the new comment opened. Live, a film's page stayed laid out for the smaller frame (innerHeight 706 in a
@@ -1670,8 +1635,7 @@ class RoundV6hFollow(unittest.TestCase):
         self.assertIsNone(r.get("err"), r)
         o = r["out"]
         self.assertTrue(o["a"]["pin"] and o["b"]["pin"], o)
-        if o["label"] != "3D view":  # a part: its point moved with the orbit
-            self.assertGreater(abs(o["b"]["pin"][0] - o["a"]["pin"][0]) + abs(o["b"]["pin"][1] - o["a"]["pin"][1]), 2, o)
+        self.assertGreater(abs(o["b"]["pin"][0] - o["a"]["pin"][0]) + abs(o["b"]["pin"][1] - o["a"]["pin"][1]), 2, o)
 
 
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")

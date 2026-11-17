@@ -19,7 +19,7 @@
   var kit = window.kit, h = kit.h, C = kit.content, MK = window.modelKit;
   var L = /^hu\b/i.test(C.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { noHost: "Not connected to Hermes: changes won't be saved.", loading: "Loading the 3D view\u2026", view3d: "3D view", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
+    en: { noHost: "Not connected to Hermes: changes won't be saved.", loading: "Loading the 3D view\u2026", noLib: "The 3D library didn't load. Open the model in Hermes Desktop to see it in 3D.",
       noGL: "This device can't draw 3D here (WebGL is unavailable). The parts and parameters are in the panel.",
       noKit: "The model builder didn't load.", bad: "model.json is missing or not valid JSON.", empty: "This model has no parts yet.",
       params: "Parameters", props: "Properties", outline: "Outline", noParams: "This model has no parameters.",
@@ -59,7 +59,7 @@
       addKinds: { box: "Box", cyl: "Cylinder", sphere: "Sphere", cone: "Cone", prism: "Prism", extrude: "Extrusion (rounded rectangle)",
         lathe: "Lathe (turned body)" },
       about: function (list) { return "(model parts: " + list + ")"; } },
-    hu: { noHost: "Nincs kapcsolat a Hermesszel: a m\u00f3dos\u00edt\u00e1sok nem ment\u0151dnek.", loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", view3d: "3D n\u00e9zet", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
+    hu: { noHost: "Nincs kapcsolat a Hermesszel: a m\u00f3dos\u00edt\u00e1sok nem ment\u0151dnek.", loading: "A 3D n\u00e9zet bet\u00f6lt\u00e9se\u2026", noLib: "A 3D k\u00f6nyvt\u00e1r nem t\u00f6lt\u0151d\u00f6tt be. Nyisd meg a modellt a Hermes Desktopban a 3D n\u00e9zethez.",
       noGL: "Ez az eszk\u00f6z itt nem tud 3D-t rajzolni (nincs WebGL). Az elemek \u00e9s a param\u00e9terek a panelen vannak.",
       noKit: "A modell\u00e9p\u00edt\u0151 nem t\u00f6lt\u0151d\u00f6tt be.", bad: "A model.json hi\u00e1nyzik, vagy nem \u00e9rv\u00e9nyes JSON.", empty: "Ebben a modellben m\u00e9g nincs elem.",
       params: "Param\u00e9terek", props: "Tulajdons\u00e1gok", outline: "Szerkezet", noParams: "Ennek a modellnek nincsenek param\u00e9terei.",
@@ -263,8 +263,6 @@
   var dropEl = h("div", { "class": "md-drop", hidden: true, text: T.dropHere });
   var axesEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   axesEl.setAttribute("class", "md-axes"); axesEl.setAttribute("viewBox", "-38 -38 76 76"); axesEl.setAttribute("aria-hidden", "true");
-  // a comment's pick takes the axes whole (drawn anew at every turn of the camera, a dot of them would be gone)
-  axesEl.setAttribute("data-comment-whole", ""); axesEl.setAttribute("data-comment-label", T.views);
   var statusEl = h("span", { "class": "md-status", "aria-live": "polite" });
   var saveBtn = btn(null, T.saveKey, function () { save(); }, "md-save");
   saveBtn.textContent = T.save; saveBtn.hidden = true;
@@ -823,7 +821,6 @@
     renderer.toneMapping = THREE.NeutralToneMapping != null ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
     canvas = renderer.domElement;
     canvas.className = "md-canvas kit-surface"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
-    canvas.id = "md-view"; // a comment on the view where no part is (its pick: commentPicking)
     viewEl.insertBefore(canvas, viewEl.firstChild);
     scene = new THREE.Scene();
     scene.environment = makeEnv();
@@ -1840,17 +1837,17 @@
       drawSelPill();
     });
   }
-  // The host's comment pick on the view: the part under the click, or the view itself ("3D view") where there is
-  // none, its pin on the point clicked (V6d: the view's pin went to its top right corner, over the Panel pill).
+  // The host's comment pick on the view: the part under the click, its pin on the point of it clicked, wherever an
+  // orbit, a pan or a zoom takes that point (behind the camera: not drawn). The view itself (its floor, grid, axes)
+  // is no part: a click where there is none picks nothing (the view is [data-comment-off] for the bridge).
   var commentPicking = false;
   window.addEventListener("click", function (e) {
     if (!commentPicking || !canvas || e.target !== canvas || !window.hermes || !window.hermes.comment) return;
-    var p = pick(e.clientX, e.clientY), f = p && find(p.id), name = f ? label(f.part) : T.view3d;
+    var p = pick(e.clientX, e.clientY), f = p && find(p.id);
+    if (!f) return;
+    var name = label(f.part), at = p.hit && p.hit.point ? p.hit.point.clone() : null;
     e.preventDefault(); e.stopImmediatePropagation();
-    // A part's pin is on the point of it clicked, wherever an orbit, a pan or a zoom takes that point (behind the
-    // camera: not drawn); the view's on the point of the view clicked.
-    var at = f && p.hit && p.hit.point ? p.hit.point.clone() : null;
-    window.hermes.comment({ selector: f ? "part:" + p.id : "#" + canvas.id, text: f ? name.slice(0, 200) : "", label: name.slice(0, 40) },
+    window.hermes.comment({ selector: "part:" + p.id, text: name.slice(0, 200), label: name.slice(0, 40) },
       { el: canvas, box: at ? function () {
         if (!canvas.isConnected || !camera) return null;
         var q = at.clone().project(camera), r = canvas.getBoundingClientRect();

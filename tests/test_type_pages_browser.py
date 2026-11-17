@@ -1398,8 +1398,8 @@ class PickInEveryType(unittest.TestCase):
         spot = ("(() => { const c = document.querySelector('.md-canvas'), r = c.getBoundingClientRect();"
                 " for (let j = 1; j < 20; j++) for (let i = 1; i < 20; i++) { const x = r.left + r.width * i / 20, y = r.top + r.height * j / 20;"
                 " if (document.elementFromPoint(x, y) === c && !!__model.pick(x, y) === %s) return [x, y] } return null })()")
-        ev, _ = self.pick(aid, spot % "false", settle=3500)  # no part there: the view
-        self.assertIn(ev["detail"]["label"], ("3D view", "3D nézet"))
+        # no part there: the view itself (its floor, its grid) is no part, nothing picked and no box round it
+        self.assertEqual(self.nothing(aid, spot % "false", settle=3500), ([], ["none"]))
         if not B.drive(f"await api.go({json.dumps(self.host.url(aid))}, 800); {READY}; await api.sleep(3500); return await api.frame('__model.state().glOK')")["out"]:
             return  # no WebGL in this Chrome: no part to hit
         ev, _ = self.pick(aid, spot % "true", settle=3500)  # the part there
@@ -2394,18 +2394,13 @@ class RoundV6mPages(unittest.TestCase):
       return { label: ev && ev.detail.label, after: await api.top('window.__events.filter(e => e.event === "picked-rect").map(e => e.detail.gone ? "gone" : "rect")') }"""
 
     def test_a_part_the_page_draws_again_keeps_its_pin(self):
-        # Item 2: a sheet's tab picked lost its pin ~1 s after (the tab bar drawn again: "gone"), the model's view axes
-        # too (drawn again at every turn of the camera). The tab is found again by its sheet's id; the axes are picked whole.
+        # Item 2: a sheet's tab picked lost its pin ~1 s after (the tab bar drawn again: "gone"). The tab is found again
+        # by its sheet's id.
         aid = self.store.publish(title="Book", type="sheet", files={"sheet.json": {"title": "Book", "sheets": [
             {"name": "Costs", "rows": [["Item", "Cost"]]}, {"name": "Notes", "rows": [["a"]]}]}})["id"]
         o = self.drive_page(aid, self.FOLLOW % (json.dumps(at('document.querySelector(".sh-tab")')),
                             'const n = await api.frame(\'(() => { const b = document.querySelectorAll(".sh-tab")[1].getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()\'); await api.mouse(n[0], n[1])'), settle=2500)
         self.assertEqual(o["label"], "Costs", o)
-        self.assertNotIn("gone", o["after"], o)
-        aid = self.store.publish(title="Panel", type="model", files={"model.json": __import__("test_models").PANEL})["id"]
-        o = self.drive_page(aid, self.FOLLOW % (json.dumps(at('document.querySelector(".md-axes circle")')),
-                            'const v = await api.frame(\'(() => { const b = document.querySelectorAll(".md-axes circle")[2].getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()\'); await api.mouse(v[0], v[1])'), settle=2500)
-        self.assertIn(o["label"], ("Views", "Nézetek"), o)
         self.assertNotIn("gone", o["after"], o)
 
     def test_a_design_systems_part_left_and_come_back_to_has_its_pin_again(self):
