@@ -184,3 +184,17 @@ class PageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PickReadyTests(unittest.TestCase):
+    def test_a_pick_waits_for_the_artboards_drawn_not_their_pictures_and_fonts(self):
+        # V6n: a click made soon after a design opened was held 4-6 s: until every artboard had settled (its pictures
+        # decoded and fonts loaded, up to 4 s each, an artboard out of view never drawing its pictures). It waits for
+        # the artboards mounted, which they say before settling.
+        types = ROOT / "plugin" / "hermes_artifacts" / "types" / "design"
+        frame, design = (types / "frame.js").read_text("utf-8"), (types / "design.js").read_text("utf-8")
+        self.assertLess(frame.index('post({ t: "mounted" })'), frame.index("if (!st.ready) settle()"))
+        pick = design[design.index("function pickWhenDrawn()"):]
+        pick = pick[:pick.index("\n  }\n")]
+        self.assertIn("f.whenMounted()", pick)
+        self.assertNotIn("whenReady", pick)

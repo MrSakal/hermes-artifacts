@@ -203,6 +203,12 @@
       self.send(m);
     });
   };
+  /** Drawn (its template mounted), before its pictures and fonts have come: what a pick in it needs. */
+  Frame.prototype.whenMounted = function () {
+    var self = this;
+    if (this.mounted) return Promise.resolve();
+    return new Promise(function (r) { (self.mountWaiters = self.mountWaiters || []).push(r); });
+  };
   Frame.prototype.whenReady = function () {
     var self = this;
     if (this.ready) return Promise.resolve();
@@ -220,6 +226,7 @@
         f.queue.splice(0).forEach(function (q) { f.iframe.contentWindow.postMessage(q, "*"); });
         return;
       }
+      if (m.t === "mounted" || m.t === "ready") { f.mounted = true; (f.mountWaiters || []).splice(0).forEach(function (r) { r(); }); }
       if (m.t === "ready") { f.ready = true; (f.readyWaiters || []).splice(0).forEach(function (r) { r(); }); }
       if (m.t === "raster" && f.reqs[m.req]) { f.reqs[m.req](m); return; }
       if (m.t === "picked") { framePicked(f, m); return; }
@@ -1611,10 +1618,11 @@
   // The host's comment pick: the frames pick inside themselves (frame.js); a zoom while picking tells them again.
   // The host holds a click until every artboard has drawn and picks (runtime.html data-pick-later: V6e, a click in
   // the 1.5 s an artboard took to load picked nothing), then gives it back (bridge pick-at: a click on its frame).
+  // Drawn, not settled: an artboard's pictures and fonts (ready) took up to 4 s more, the pick held all that time (V6n).
   var commentPicking = false;
   function sendPick() { frames.forEach(function (f) { if (f.mode !== "export") f.send({ t: "pick", on: commentPicking, k: scaleOf(f) }); }); }
   function pickWhenDrawn() {
-    var waits = frames.filter(function (f) { return f.mode !== "export"; }).map(function (f) { return f.whenReady(); });
+    var waits = frames.filter(function (f) { return f.mode !== "export"; }).map(function (f) { return f.whenMounted(); });
     Promise.race([Promise.all(waits), new Promise(function (r) { setTimeout(r, 4000); })]).then(function () {
       if (commentPicking && window.hermes.pickReady) window.hermes.pickReady();
     });

@@ -213,6 +213,7 @@
     st.inst = DC.mount({ doc: document, host: document.body, file: st.file, parsed: parsed, get: get, props: st.props, url: url, css: css,
       live: live, map: st.map, onError: fail, onRender: rendered, xi: XI });
     if (!st.errors.length) post({ t: "error", errors: [] });
+    post({ t: "mounted" }); // drawn and picks: its pictures and fonts may still come (ready)
     if (!st.ready) settle().then(function () { st.ready = true; post({ t: "ready" }); size(); });
   }
   var selTimer = 0;
