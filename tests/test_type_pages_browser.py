@@ -498,13 +498,14 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
 
     def test_doc_with_each_menu_open(self):
         aid = self.store.publish(path=str(EX / "doc"), title="Quote process", type="doc")["id"]
-        btn = lambda d: '[...document.querySelectorAll("#doc-bar .kit-btn")].find(b => b.querySelector(\'path[d^="%s"]\')).click()' % d
+        btn = lambda icon: ('[...document.querySelectorAll("#doc-bar .kit-btn")].find(b => b.innerHTML.includes(Object.assign(document.createElement("i"),'
+                            ' {innerHTML: kit.icon("%s")}).innerHTML)).click()' % icon)
         menus = {
             "tabs": 'document.querySelector(".doc-tabbtn").click()',
             "fonts": 'document.querySelectorAll(".doc-tool")[1].click()',
             "insert": 'document.querySelector(".doc-plus").click()',
-            "history": btn("M3 12a9 9"),
-            "export": btn("M12 4v11"),
+            "history": btn("history"),
+            "export": btn("download"),
             "mode": 'document.querySelector(".doc-mode").click()',
             "table menu": '(() => { const c = document.querySelectorAll(".doc-blk table td")[3]; c.scrollIntoView({block: "center"}); const b = c.getBoundingClientRect();'
                           ' c.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: b.left + 20, clientY: b.top + b.height / 2})) })()',
