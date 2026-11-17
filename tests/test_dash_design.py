@@ -172,7 +172,7 @@ class DashboardInTheBrowser(unittest.TestCase):
                 r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
                   const rows = await api.frame('(() => { const t = [...document.querySelectorAll(".c-kpi")].map(e => Math.round(e.getBoundingClientRect().top)); const m = {}; t.forEach(x => m[x] = (m[x] || 0) + 1); return Object.values(m) })()')
                   const note = await api.frame('[...document.querySelectorAll(".c-kpi-note")].map(e => e.textContent.trim()).filter(Boolean)')
-                  const fb = '[...document.querySelectorAll(".dash-bar .kit-btn")].find(b => b.innerHTML.includes("M14 4h6v6"))'
+                  const fb = '[...document.querySelectorAll(".dash-bar .kit-btn")].find(b => b.innerHTML.includes(Object.assign(document.createElement("i"), {innerHTML: kit.icon("expand")}).innerHTML))'
                   await api.clickIn(fb); await api.sleep(150)
                   const on = await api.frame(fb + '.getAttribute("aria-pressed")')
                   await api.key('Escape', 'Escape', 27); await api.sleep(150)
