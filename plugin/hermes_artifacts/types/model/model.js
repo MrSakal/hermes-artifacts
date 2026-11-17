@@ -1795,9 +1795,38 @@
   // ------------------------------------------------------------------ Hermes: comment, ask, view context, versions
   function commentOn() {
     if (!sel.length || !window.hermes || !window.hermes.comment) return;
-    var f = find(sel[0]), name = label(f && f.part);
-    window.hermes.comment({ selector: "part:" + sel[0], text: name.slice(0, 200), label: name.slice(0, 40) });
+    var id = sel[0], f = find(id), name = label(f && f.part);
+    window.hermes.comment({ selector: "part:" + id, text: name.slice(0, 200), label: name.slice(0, 40) },
+      { el: canvas, box: function () { return cornerBox(silhouette(built && built.byId[id])); } });
   }
+  /** A part as the camera shows it: the box round its vertices on screen, in the window, and its top right point
+   *  on its outline (the vertex furthest up and right); null while it is hidden, not drawn or behind the camera. Its
+   *  3D box's corners lie off a part seen at an angle (V6q: its mark 60 px off a panel in the iso view). */
+  var vtx = null, vm = null, im = null;
+  function silhouette(o) {
+    if (!o || !canvas || !camera || !THREE || !visibleChain(o)) return null;
+    vtx = vtx || new THREE.Vector3(); vm = vm || new THREE.Matrix4(); im = im || new THREE.Matrix4();
+    var r = canvas.getBoundingClientRect(), s = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, tx: 0, ty: 0 }, best = -Infinity;
+    o.updateWorldMatrix(true, true);
+    o.traverse(function (m) {
+      var pos = (m.isMesh && !m.userData.mdCap) && visibleChain(m) && m.geometry && m.geometry.attributes.position;
+      if (!pos) return;
+      for (var k = 0; k < (m.isInstancedMesh ? m.count : 1); k++) { // an array's copies: each where it is drawn
+        if (m.isInstancedMesh) { m.getMatrixAt(k, im); vm.multiplyMatrices(m.matrixWorld, im); } else vm.copy(m.matrixWorld);
+        for (var i = 0; i < pos.count; i++) {
+          vtx.fromBufferAttribute(pos, i).applyMatrix4(vm).project(camera);
+          if (vtx.z > 1 || vtx.z < -1) continue;
+          var x = r.left + (vtx.x + 1) / 2 * r.width, y = r.top + (1 - vtx.y) / 2 * r.height;
+          if (x < s.x0) s.x0 = x; if (x > s.x1) s.x1 = x; if (y < s.y0) s.y0 = y; if (y > s.y1) s.y1 = y;
+          if (x - y > best) { best = x - y; s.tx = x; s.ty = y; }
+        }
+      }
+    });
+    if (best === -Infinity || s.x1 < r.left || s.y1 < r.top || s.x0 > r.right || s.y0 > r.bottom) return null;
+    return s;
+  }
+  /** The part's box as far as its top right point (where its pin and its thread's mark go: after that point). */
+  function cornerBox(s) { return s ? { x: s.x0, y: s.ty, w: Math.max(1, s.tx - s.x0), h: Math.max(1, s.y1 - s.ty) } : null; }
   function askAbout() {
     if (!sel.length) return;
     var ids = sel.slice(0, 20);
@@ -1843,24 +1872,16 @@
       if (!m || !find(m[1])) return;
       setSel([m[1]]); focusSel();
     });
-    // A part with an open thread: its numbered mark by the part's top right on screen, wherever the camera goes.
+    // A part with an open thread: its numbered mark by the part's top right on its outline, wherever the camera goes.
     if (window.hermes.locate) window.hermes.locate(function (sel) {
       var m = /^part:(.+)$/.exec(sel);
-      if (!m) return null;
-      return { el: viewEl, box: function () {
-        var o = built && built.byId[m[1]];
-        if (!o || !canvas || !camera || !THREE || !visibleChain(o)) return null;
-        var b = new THREE.Box3().setFromObject(o), r = canvas.getBoundingClientRect(), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        if (b.isEmpty()) return null;
-        for (var i = 0; i < 8; i++) {
-          var q = new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).project(camera);
-          if (q.z > 1 || q.z < -1) return null;
-          var x = r.left + (q.x + 1) / 2 * r.width, y = r.top + (1 - q.y) / 2 * r.height;
-          x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
-        }
-        if (x1 < r.left || y1 < r.top || x0 > r.right || y0 > r.bottom) return null;
-        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-      } };
+      return m ? { el: viewEl, box: function () { return cornerBox(silhouette(built && built.byId[m[1]])); } } : null;
+    });
+    // While picking, the ring round the part a click would pick, as the camera shows it.
+    if (window.hermes.hover) window.hermes.hover(function (x, y) {
+      var p = commentPicking && canvas && document.elementFromPoint(x, y) === canvas ? pick(x, y) : null;
+      var s = p && silhouette(built && built.byId[p.id]);
+      return s ? { x: s.x0, y: s.y0, w: s.x1 - s.x0, h: s.y1 - s.y0 } : null;
     });
     // An earlier version is shown: the page only reads.
     window.hermes.on("versions", function (d) {

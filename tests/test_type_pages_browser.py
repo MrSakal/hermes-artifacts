@@ -2558,6 +2558,33 @@ class RoundV6mPages(unittest.TestCase):
         self.assertLessEqual(o["tabs"] - o["panel"], 16, o)
         self.assertLessEqual(o["pillRight"], o["panelLeft"], o)  # the pill is the view's, never over the panel
 
+    def test_a_models_mark_and_ring_on_its_part_as_drawn(self):
+        # V6q: a model's thread mark (and a comment's pin) sat by its part's 3D box, 60 px off the panel in the iso
+        # view; picking drew no ring on its parts. Both follow the part as the camera shows it.
+        from test_models import PANEL
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        o = self.drive_page(aid, """
+          const off = await api.top('(() => { const r = document.querySelector("iframe").getBoundingClientRect(); return [r.left, r.top] })()')
+          const out = {}
+          for (const v of ['iso', 'front', 'right']) {
+            await api.frame('__model.setView("' + v + '")'); await api.sleep(900)
+            await api.top('window.__post("pins", [{selector: "part:panel", n: 1}])'); await api.sleep(600)
+            const b = (await api.frame(""" + json.dumps(self.BADGES) + """)).find(x => x.shown)
+            // the mark's corner (bridge placePins: 6 px right of it, 9 px over it); the panel within 4 px of it
+            out[v] = { b, near: b ? await api.frame('(() => { const x = ' + (b.l - 6) + ', y = ' + (b.t + 9) + '; for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) { const p = __model.pick(x + dx, y + dy); if (p && p.id === "panel") return true } return false })()') : null }
+          }
+          // picking: the ring round the panel, the pointer on it
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
+          const c = await api.frame('(() => { const r = document.querySelector(".md-canvas").getBoundingClientRect(); for (let y = r.top + 20; y < r.bottom; y += 6) for (let x = r.left + 20; x < r.right; x += 6) { const p = __model.pick(x, y); if (p && p.id === "panel") return [x, y] } return null })()')
+          await api.pointer('mouseMoved', off[0] + c[0], off[1] + c[1]); await api.sleep(400)
+          out.ring = await api.frame('(() => { const b = [...document.querySelectorAll("div[data-hermes-ui]")].find(d => d.style.border.startsWith("2px")); if (!b || b.style.display === "none") return null; const r = b.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] })()')
+          out.at = c
+          return out""", settle=3500)
+        for v in ("iso", "front", "right"):
+            self.assertTrue(o[v]["b"] and o[v]["near"], (v, o))
+        r, c = o["ring"], o["at"]
+        self.assertTrue(r and r[0] <= c[0] <= r[2] and r[1] <= c[1] <= r[3] and r[2] - r[0] > 20, o)
+
     def test_the_floating_groups_have_no_wider_gap_before_their_first_button(self):
         # Owner, 0.20.0: a deck's top right group (download, play, tweaks, zoom) had 21 px from its edge to the first
         # icon, 16 between its icons (an empty status line's margins). Its edge no further from it than its icons are.

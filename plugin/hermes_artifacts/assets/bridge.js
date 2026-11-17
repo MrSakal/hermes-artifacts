@@ -509,7 +509,7 @@
   }, true);
 
   // --- comments: the host turns pick mode on, the page reports the element clicked ----------
-  var picking = false, hoverBox = null, pins = [];
+  var picking = false, hoverBox = null, hoverAt = null, pins = [];
   function selectorOf(el) {
     if (!el || el === document.body || el === document.documentElement) return "body";
     if (el.id && /^[A-Za-z][\w-]*$/.test(el.id)) return "#" + el.id;
@@ -577,9 +577,13 @@
     var el = wholeOf(e.target, e.clientX, e.clientY);
     if (!el || el.hasAttribute("data-hermes-ui")) return;
     hoverBox = hoverBox || box(mark());
-    // What a click there would pick: nothing on the page's blank (no box), else the element.
-    hoverBox.style.display = blank(el, e.clientX, e.clientY) ? "none" : "";
-    place2(hoverBox, el);
+    // A part the page draws itself (hermes.hover: a model's), round its box; what a click there would pick: nothing
+    // on the page's blank (no box), else the element.
+    var at = null;
+    if (hoverAt) try { at = hoverAt(e.clientX, e.clientY); } catch (_) {}
+    hoverBox.style.display = at || !blank(el, e.clientX, e.clientY) ? "" : "none";
+    if (at) { hoverBox.style.left = at.x - 2 + "px"; hoverBox.style.top = at.y - 2 + "px"; hoverBox.style.width = at.w + "px"; hoverBox.style.height = at.h + "px"; }
+    else place2(hoverBox, el);
   }
   /** A click on none of the page's own content: the document itself, or a big box that holds blocks (the page,
    *  its column) where none of them is, with no words of its own (the blank under a doc's last block, the gap
@@ -1331,6 +1335,9 @@
      *  opens the form beside it with its pin, as for a pick, and not in its panel. */
     /** The page finds the parts its comments name its own way: fn(selector) -> an element, {el, box()}, or null. */
     locate: function (fn) { locator = typeof fn === "function" ? fn : null; drawPins(); },
+    /** A page that draws its parts itself (a model's view): fn(x, y) -> the box {x, y, w, h} in the window of the
+     *  part a click there picks, or null; the comment pick's ring goes round it. */
+    hover: function (fn) { hoverAt = typeof fn === "function" ? fn : null; },
     comment: function (anchor, where) {
       var a = Object.assign({}, anchor || {}), el = where && (where.nodeType === 1 ? where : where.el);
       if (el && el.nodeType === 1) {
