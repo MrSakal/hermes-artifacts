@@ -294,6 +294,22 @@ await S('close with the tab strip', () => [...tiles.values()][0].close(), { spli
 await S('to chat B and back after the strip close: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
 await S('reopen from the titlebar', () => click(titlebar().render(), () => true, 'titlebar'), { split: true })
 await S('a second artifact in chat A, late list refresh', async () => { list = [A, A2, B]; routerNav(PAGE); await settle(); routerNav('/chatA') }, { split: true })
+// Hermes empties a chat zone whose tab is closed to a new session (close-tab.ts requestFreshSession).
+const press = (sel, init = {}) => {
+  const e = Object.assign(new Event('pointerdown'), { button: 0, ...init })
+  const target = { closest: s => (s === '[role="tab"]' || s === sel ? {} : null) }
+  Object.defineProperty(e, 'target', { value: target })
+  window.dispatchEvent(e)
+}
+const draftSettles = () => new Promise(r => setTimeout(r, 350)) // the plugin waits for Hermes' new draft first
+await S('the chat\'s tab closed beside its artifact: its own chat back, not a new session', async () => { press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles() },
+  { split: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false })
+await S('the chat\'s tab middle-clicked shut: the same', async () => { press(null, { button: 1 }); routerNav('/'); await settle(); await draftSettles() }, { split: true, route: '#/chatA' })
+await S('the chat\'s tab shut with Ctrl+W: the same', async () => {
+  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routerNav('/'); await settle(); await draftSettles()
+}, { split: true, route: '#/chatA' })
+await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', () => routerNav('/'), { split: false, route: '#/', closed: false })
+await S('back to chat A: beside again', () => routerNav('/chatA'), { split: true, selected: 'a2' })
 await S('gallery: open B full page, then Chat', async () => {
   routerNav(PAGE); await settle(); I.openArtifact(ctx, 'b1'); await settle(); if (buttons(routeEl()).some(b => b.props.title === 'showChat')) throw new Error('Show chat on a gallery-opened page')
   click(routeEl(), b => b.props.title === 'chat', 'Chat')
