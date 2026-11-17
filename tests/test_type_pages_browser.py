@@ -419,6 +419,28 @@ class NothingOverlapsAtAnyWidth(unittest.TestCase):
     def test_design_canvas(self):
         self.check(self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"], settle=3000)
 
+    def test_model_axes_clear_of_its_pills_and_cards(self):
+        # live round V6q: at 1000 px with the panel open the tools' pill ran 12..431 x 688..729 over the axes
+        # (10..86 x 657..733), their Z/Y/X cut; the axes are drawn, not buttons, so PROBE never saw them
+        from test_models import PANEL
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        probe = ("(() => { const R = e => { const r = e.getBoundingClientRect(); for (let p = e; p && p.nodeType === 1; p = p.parentElement) if (getComputedStyle(p).display === 'none') return null; return r.width > 1 ? r : null };"
+                 " const a = R(document.querySelector('.md-axes')); if (!a) return [];"
+                 " return [...document.querySelectorAll('.md-pill, .md-card')].map(e => [e.className, R(e)]).filter(([, r]) => r && a.left < r.right && r.left < a.right && a.top < r.bottom && r.top < a.bottom).map(([c, r]) => c + ' ' + [r.left, r.right, r.top, r.bottom].map(Math.round)) })()")
+        cases = [("panel open", ""), ("panel closed", "document.querySelector('.md-pill-r .kit-btn:last-of-type').click()"),
+                 ("section on, a part selected", "__model.section(true); __model.setSel(['panel'])"),
+                 ("panel open again", "document.querySelector('.md-pill-r .kit-btn:last-of-type').click()")]
+        body = "const out = {}\n"
+        for name, setup in cases:
+            if setup:
+                body += f"await api.frame({json.dumps(setup)}); await api.sleep(500)\n"
+            for w in WIDTHS:
+                body += f"await api.size({w}, 760); await api.sleep(600); out[{json.dumps(name + ' @' + str(w))}] = await api.frame({json.dumps(probe)})\n"
+        r = B.drive(f"await api.size(1500, 760); await api.go({json.dumps(self.host.url(aid, theme=THEME, lang='en'))}, 800); {READY}\n"
+                    "await api.sleep(3000)\n" + body + "return out", timeout=420)
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual({k: v for k, v in r["out"].items() if v}, {})
+
     # Secondary states (rounds 3 and 4 found their faults only there): each page measured at STATE_WIDTHS with a
     # panel, a menu, an opened artboard or a selection showing. `setup` runs once (driver context, may click for
     # real); `again` (frame JS) after each resize, to bring back what a resize closes (a menu) or a width resets.

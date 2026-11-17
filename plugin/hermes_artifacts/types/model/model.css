@@ -58,8 +58,9 @@ body { overflow: hidden; }
 .md-card .kit-btn svg { width: 14px; height: 14px; }
 .md-card-val { min-width: 74px; font-variant-numeric: tabular-nums; text-align: right; color: var(--color-fg); }
 
-/* Axis gizmo, tooltip, messages */
-.md-axes { position: absolute; left: 10px; bottom: 10px; z-index: 20; width: 76px; height: 76px; overflow: visible; }
+/* Axis gizmo, tooltip, messages. The axes sit under the views' pill they also pick from, clear of the tools, the
+   selection and the tool cards along the bottom at any width. */
+.md-axes { position: absolute; left: 10px; top: 58px; z-index: 20; width: 76px; height: 76px; overflow: visible; }
 .md-axes text { font: 600 10px var(--font-sans); fill: #fff; pointer-events: none; text-anchor: middle; dominant-baseline: central; }
 .md-axes .md-ax { cursor: pointer; }
 .md-axes .md-ax-neg { opacity: .45; }
