@@ -4,12 +4,7 @@
  * reduced motion (each drawing whole at once). Styles live in dashboard.css (.vs …). */
 (function () {
   "use strict";
-  var ICONS = {
-    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
-    pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>',
-    next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
-  };
+  var ICONS = { play: kit.icon("play"), pause: kit.icon("pause"), back: kit.icon("prev"), next: kit.icon("next") };
 
   function button(cls, label, html) {
     var b = document.createElement("button");

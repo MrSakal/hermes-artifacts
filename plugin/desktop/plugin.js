@@ -4266,7 +4266,11 @@ function hostTheme() {
     // The radius scale resolved to px (it is calc() on a skin's scalar), for the page's chrome.
     radiusSm: px(C.rSm),
     radiusMd: px(C.rMd),
-    radiusLg: px(C.rLg)
+    radiusLg: px(C.rLg),
+    radiusXl: px(C.rXl),
+    // its button under the pointer and its menu row lit
+    actionHover: color('--chrome-action-hover'),
+    active: color('--ui-control-active-background')
   }
   probe.remove()
   return out

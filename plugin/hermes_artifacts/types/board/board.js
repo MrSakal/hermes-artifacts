@@ -95,25 +95,9 @@
   if (!G) { root.appendChild(h("div", { "class": "kit-empty", text: T.noGeo })); kit.ready(); return; }
 
   // ------------------------------------------------------------------ small helpers
-  var ICONS = {
-    lock: "M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3", unlock: "M6 11h12v9H6zM9 11V8a3 3 0 0 1 5.7-1.3",
-    link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
-    list: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
-    group: "M4 4h6v6H4zM14 14h6v6h-6zM10 7h7v7M7 10v7h7", fit: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
-    ring: "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z", dash: "M3 12h4M10 12h4M17 12h4", solid: "M3 12h18",
-    hNone: "M4 12h16", hArrow: "M4 12h16M14 6l6 6-6 6", hCircle: "M4 12h10M14 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-    hNoneS: "M4 12h16", hArrowS: "M20 12H4M10 6l-6 6 6 6", hCircleS: "M20 12H10M4 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-    width: "M4 6h16M4 11h16M4 11.8h16M4 17h16M4 17.8h16M4 18.6h16", arrange: "M4 4v16M8 7h10v4H8zM8 14h6v4H8z",
-    rowAdd: "M4 5h16v6H4zM12 14v6M9 17h6", colAdd: "M5 4h6v16H5zM14 12h6M17 9v6", tag: "M4 9h12l4 3-4 3H4z",
-    cut: "M6 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 14.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8.2 8.2L20 18M8.2 15.8L20 6",
-    paste: "M9 3h6v3H9zM7 4.5H5v16h14v-16h-2", ungroup: "M4 4h6v6H4zM14 14h6v6h-6z", tidy: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"
-  };
-  // the board's icons for its menus too (kit.menu takes a name): bd-<name>
-  kit.addIcons(Object.keys(ICONS).reduce(function (o, k) { o["bd-" + k] = ICONS[k]; return o; }, {}));
-  function ico(name) {
-    return ICONS[name] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICONS[name] + '"/></svg>' : kit.icon(name);
-  }
-  var CARET = '<svg class="bd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
+  // the board's icons, its menus' too (kit.menu takes a name): bd-<name>, the kit's where it has no own
+  function ico(name) { return kit.icon("bd-" + name); }
+  var CARET = kit.icon("caretDown", "bd-caret");
   function kindIcon(kind) {
     var d = kind === "table" ? "M1 1h20v16H1zM1 6.5h20M1 12h20M8 1v16" : G.shapePath(kind, 20, kind === "person" ? 18 : 15);
     return '<svg viewBox="-2 -2 24 ' + (kind === "person" ? 22 : kind === "table" ? 22 : 19) + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';

@@ -116,28 +116,8 @@
   kit.degraded(T.noHost); // no host: said once; the page still shows what it has
   function fill(s, o) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return o[k] == null ? m : o[k]; }); }
 
-  // Icons the kit does not have (24-unit paths, drawn like kit.icon).
-  var ICO = {
-    wrap: "M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h6",
-    bucket: "M5 11l7-7 7 7-7 7zM5 11h14M20 15c0 1.2-.8 2-1.5 2S17 16.2 17 15s1.5-3 1.5-3 1.5 1.8 1.5 3z",
-    fcolor: "M6 17L12 4l6 13M8.5 12h7",
-    freeze: "M4 4h16v16H4zM4 9h16M9 4v16",
-    sort: "M7 4v16M4 17l3 3 3-3M14 6h6M14 11h4M14 16h2",
-    chart: "M4 20V10M10 20V4M16 20v-7M21 20H3",
-    rows: "M4 5h16v14H4zM4 12h16M12 8v8M8 12h8",
-    search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20",
-    upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
-    num: "M9 4L7 20M17 4l-2 16M4 9h16M3 15h16",
-    eraser: "M8 20h12M5 14l8-8 6 6-6 6H9z",
-    dropdown: "M3 7h18v10H3zM13.5 11l2.5 2.5 2.5-2.5M6.5 12h4",
-    checkbox: "M5 5h14v14H5zM8.5 12l2.5 2.5 4.5-5",
-    filter: "M4 5h16l-6 7.5V19l-4-2v-4.5z"
-  };
-  function ico(name) {
-    var p = ICO[name];
-    if (!p) return kit.icon(name);
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + p + '"/></svg>';
-  }
+  // The sheet's icons, the kit's menus' too: sh-<name>, the kit's where it has no own.
+  function ico(name) { return kit.icon("sh-" + name); }
 
   // ------------------------------------------------------------------ A1 helpers (own, so the grid works even without the engine)
   var MAXR = 5000, MAXC = 100;
@@ -3435,32 +3415,7 @@
     b.addEventListener("click", function (e) { fn(e, b); });
     return b;
   }
-  var CARET = '<svg class="sh-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
-  ICO.borders = "M4 4h16v16H4zM12 4v16M4 12h16";
-  ICO.merge = "M4 5h16v14H4zM6.5 12h4M8.5 10l2 2-2 2M17.5 12h-4M15.5 10l-2 2 2 2";
-  ICO.unmerge = "M4 5h16v14H4zM12 5v14M10 12H6.5M8.5 10l-2 2 2 2M14 12h3.5M15.5 10l2 2-2 2";
-  ICO.rules = "M4 4h16v16H4zM4 10h16M10 4v16M13 13h4v4h-4z";
-  ICO.date = "M5 6h14v14H5zM5 10h14M9 4v4M15 4v4";
-  ICO.replace = "M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3";
-  // The sheet's icons for the kit's menus too (sh- names), with the ones its text-drawn buttons have there.
-  ICO.decLess = "M4 15h.01M8 9h3v6H8zM20 12h-5M17 9.5L14.5 12l2.5 2.5";
-  ICO.decMore = "M3 15h.01M6 9h3v6H6zM11 9h3v6h-3zM17 12h4M19 10l2 2-2 2";
-  ICO.cur = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM14.8 9.5c-.5-.9-1.5-1.4-2.8-1.4-1.6 0-2.8.8-2.8 1.9s1.2 1.6 2.8 1.9 2.8.8 2.8 1.9-1.2 2-2.8 2c-1.4 0-2.4-.5-2.9-1.4M12 6.5v11";
-  ICO.pct = "M19 5L5 19M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z";
-  ICO.rowAbove = "M4 12h16v8H4zM12 3v6M9 6h6";
-  ICO.rowBelow = "M4 4h16v8H4zM12 15v6M9 18h6";
-  ICO.colLeft = "M12 4h8v16h-8zM3 12h6M6 9v6";
-  ICO.colRight = "M4 4h8v16H4zM15 12h6M18 9v6";
-  ICO.rowDel = "M4 9h16v6H4zM9 5l6 0M10 19h4";
-  ICO.colDel = "M9 4h6v16H9zM5 9l-2 3 2 3M19 9l2 3-2 3";
-  ICO.freezeRow = "M4 4h16v16H4zM4 9h16";
-  ICO.freezeCol = "M4 4h16v16H4zM9 4v16";
-  ICO.unfreeze = "M4 4h16v16H4z";
-  ICO.chartLine = "M3 20h18M4 16l5-6 4 3 7-8";
-  ICO.chartPie = "M12 3a9 9 0 1 0 9 9h-9zM14 3.2V10h6.8A9 9 0 0 0 14 3.2z";
-  ICO.fileSheet = "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6M12 11v8";
-  ICO.fileText = "M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h4";
-  (function () { var m = {}; for (var k in ICO) m["sh-" + k] = ICO[k]; kit.addIcons(m); })();
+  var CARET = kit.icon("caretDown", "sh-caret");
   // Each tool's icon in a menu (More), by its id.
   var TOOL_IC = { undo: "undo", redo: "redo", bold: "bold", italic: "italic", underline: "underline", align: "alignL", fg: "sh-fcolor", bg: "sh-bucket",
     borders: "sh-borders", merge: "sh-merge", unmerge: "sh-unmerge", num: "sh-num", decLess: "sh-decLess", decMore: "sh-decMore", cur: "sh-cur", pct: "sh-pct",

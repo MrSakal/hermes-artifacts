@@ -115,29 +115,8 @@
     var f = NF[d] || (NF[d] = new Intl.NumberFormat(L === "hu" ? "hu-HU" : "en-US", { maximumFractionDigits: d }));
     return f.format(Math.abs(v) < Math.pow(10, -d) / 2 ? 0 : v);
   }
-  var ICON = {
-    cube: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
-    move: "M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3",
-    rotate: "M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5",
-    scale: "M4 20V11h9v9zM13 11l7-7M15 4h5v5",
-    section: "M4 6h16v12H4zM2 12h20",
-    ruler: "M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",
-    dims: "M4 7v10M20 7v10M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3",
-    eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-    eyeOff: "M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2",
-    upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
-    fitAll: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
-    fitSel: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5M9 9h6v6H9z",
-    persp: "M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10",
-    ortho: "M5 5h14v14H5z",
-    magnet: "M6 3v8a6 6 0 0 0 12 0V3M6 7h4M14 7h4",
-    target: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
-  };
-  // the model's icons for its menus too (kit.menu takes a name): md-<name>
-  kit.addIcons(Object.keys(ICON).reduce(function (o, k) { o["md-" + k] = ICON[k]; return o; }, {}));
-  function icon(n) {
-    return ICON[n] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICON[n] + '"/></svg>' : kit.icon(n);
-  }
+  // the model's icons, its menus' too (kit.menu takes a name): md-<name>, the kit's where it has no own
+  function icon(n) { return kit.icon("md-" + n); }
 
   // ------------------------------------------------------------------ thumbnail: the saved picture, never WebGL
   var model = kit.json("model.json", null);

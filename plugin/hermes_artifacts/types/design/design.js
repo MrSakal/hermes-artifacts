@@ -428,15 +428,12 @@
     return b;
   }
   function sbtn(icon, title, fn) {
-    var bt = h("button", { type: "button", "class": "dc-sbtn", title: title, "aria-label": title, html: ICON[icon] || kit.icon(icon) });
+    var bt = h("button", { type: "button", "class": "dc-sbtn", title: title, "aria-label": title, html: kit.icon(icon) });
     bt.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     bt.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
     return bt;
   }
-  var ICON = {
-    sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6"/></svg>',
-    stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
-  };
+
   function layoutBoard(b) {
     var p = b.path, g = geo(p), e = entry(p) || {}, z0 = canvas.order.indexOf(p);
     b.el.style.cssText = "left:" + g.x + "px;top:" + g.y + "px;width:" + g.w + "px;height:" + g.h + "px;--bw:" + g.w + "px;z-index:" + (z0 < 0 ? 1 : z0 + 2);
@@ -1410,7 +1407,7 @@
     if (!b.frame) return;
     b.playing = on;
     b.el.classList.toggle("is-playing", on);
-    b.playBtn.innerHTML = on ? ICON.stop : kit.icon("play");
+    b.playBtn.innerHTML = kit.icon(on ? "stop" : "play");
     b.playBtn.title = on ? T.stop : T.play;
     if (on && sel.path === b.path) select(null, []);
     b.frame.send({ t: "mode", mode: on ? "play" : "edit", wheel: "forward" });

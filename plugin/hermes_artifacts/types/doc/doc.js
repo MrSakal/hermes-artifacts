@@ -135,11 +135,10 @@
     }); });
     return list;
   }
-  var ICON = { date: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>' };
   function chipHtml(n) {
     var src = n.kind === "date" ? "{{date:" + n.v + "}}" : n.kind === "mention" ? "{{@" + n.v + "}}" : "{{select:" + n.name + "=" + n.v + "}}";
     var a = ' contenteditable="false" data-md="' + kit.esc(src) + '"';
-    if (n.kind === "date") return '<span class="chip chip-date"' + a + ">" + ICON.date + kit.esc(fmtDate(n.v)) + "</span>";
+    if (n.kind === "date") return '<span class="chip chip-date"' + a + ">" + kit.icon("calendar") + kit.esc(fmtDate(n.v)) + "</span>";
     if (n.kind === "mention") return '<span class="chip chip-mention"' + a + ">@" + kit.esc(n.v) + "</span>";
     var i = optionsOf(n.name).indexOf(n.v), col = n.v ? PALETTE[Math.max(0, i) % PALETTE.length] : "gray";
     return '<span class="chip chip-select c-' + col + '"' + a + ' data-select="' + kit.esc(n.name) + '">' + kit.esc(n.v || "—") + '<i aria-hidden="true">▾</i></span>';
@@ -1177,24 +1176,8 @@
     });
   }
   // ------------------------------------------------------------------ menus like Claude's doc: icons, groups, submenus, a swatch row
-  var MI = {
-    plus: "M12 5v14M5 12h14",
-    text: "M5 7V5h14v2M12 5v14M9 19h6", h1: "M4 6v12M12 6v12M4 12h8M17 10l2-1v9", h2: "M4 6v12M12 6v12M4 12h8M16 10.5a2 2 0 0 1 4 .5c0 2-4 3.5-4 6h4", h3: "M4 6v12M12 6v12M4 12h8M16 9.5h4l-2.5 3a2.3 2.3 0 1 1-1.5 4",
-    table: "M4 5h16v14H4zM4 10h16M4 14.5h16M10 5v14", dropdown: "M4 6h16v12H4zM14 11l2 2 2-2", bullets: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
-    checklist: "M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8", code: "M9 8l-4 4 4 4M15 8l4 4-4 4", date: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4", divider: "M4 12h16",
-    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01", numbers: "M10 6h10M10 12h10M10 18h10M4 5l1.5-1v5M3.5 13.5a1.5 1.5 0 0 1 3 0c0 1.5-3 2-3 3.5h3", quote: "M5 6v12M9 8h10M9 12h10M9 16h6",
-    formula: "M18 5H8l5 7-5 7h10", chart: "M5 19V9M10 19V5M15 19v-7M20 19v-4", mention: "M16 12a4 4 0 1 1-1.2-2.8V13a2 2 0 0 0 4 0v-1a7 7 0 1 0-3 5.7",
-    hermes: "M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2", person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0", tab: "M7 3h7l5 5v12H7zM14 3v5h5",
-    rowAbove: "M4 14h16v6H4zM12 4v7M9 7l3-3 3 3", rowBelow: "M4 4h16v6H4zM12 13v7M9 17l3 3 3-3", colLeft: "M14 4h6v16h-6zM4 12h7M7 9l-3 3 3 3", colRight: "M4 4h6v16H4zM13 12h7M17 9l3 3-3 3",
-    move: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3", width: "M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3M12 5v14",
-    delRow: "M4 8h16v8H4zM9 12h6", delCol: "M8 4h8v16H8zM12 9v6", trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", sortAsc: "M12 19V5M6 11l6-6 6 6", sortDesc: "M12 5v14M6 13l6 6 6-6",
-    alignL: "M4 6h16M4 10h10M4 14h16M4 18h10", alignC: "M4 6h16M7 10h10M4 14h16M7 18h10", alignR: "M4 6h16M10 10h10M4 14h16M10 18h10", header: "M4 5h16v14H4zM4 10h16",
-    duplicate: "M8 8h12v12H8zM16 8V4H4v12h4", up: "M12 19V5M6 11l6-6 6 6", down: "M12 5v14M6 13l6 6 6-6", comment: "M4 5h16v11H9l-5 4z", turn: "M4 7h11l-3-3M20 17H9l3 3",
-    caret: "M10 7l5 5-5 5"
-  };
-  function micon(name) {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (MI[name] || "") + '"/></svg>';
-  }
+  // the doc's icons in its menus: doc-<name>, the kit's where it has no own
+  function micon(name) { return kit.icon("doc-" + name); }
   var menuStack = [];
   function closeMenus(from) {
     while (menuStack.length > (from || 0)) { var m = menuStack.pop(); m.el.remove(); }
@@ -1365,10 +1348,10 @@
     tableMenu(cell, e.clientX, e.clientY);
   });
 
-  // Claude's table handles: a pill on the hovered row's left edge and the hovered column's top edge,
+  // The table's handles: a pill on the hovered row's left edge and the hovered column's top edge,
   // a + bar when the pointer nears the bottom or right edge, a … menu, and ⋮⋮ to move the table.
-  var PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>';
-  var GRIP_V = '<svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></svg>';
+  var PLUS = kit.icon("plus");
+  var GRIP_V = kit.icon("gripper");
   function uiBtn(cls, label, html) {
     var b = h("button", { type: "button", "class": "doc-tui " + cls, "data-comment-hide": "", title: label, "aria-label": label, html: html || "", hidden: true });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); });
@@ -1880,13 +1863,8 @@
     b.addEventListener("click", fn);
     return b;
   }
-  var SVG = function (d, extra) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + (extra || "") + '><path d="' + d + '"/></svg>'; };
-  var I = {
-    hermes: SVG("M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2"), comment: SVG("M4 5h16v11H9l-5 4z"),
-    bold: '<b>B</b>', italic: '<i style="font-family:Georgia,serif">I</i>', underline: '<u>U</u>', strike: '<s>S</s>', code: SVG("M9 8l-4 4 4 4M15 8l4 4-4 4"),
-    color: SVG("M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1.1-.9-1.4-.9-2.4 0-.9.8-1.5 1.7-1.5H17a4 4 0 0 0 4-4c0-4.6-4-8.5-9-8.5z"),
-    link: SVG("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1")
-  };
+  var I = { hermes: kit.icon("doc-hermes"), comment: kit.icon("comment"), bold: kit.icon("bold"), italic: kit.icon("italic"),
+    underline: kit.icon("underline"), strike: kit.icon("strike"), code: kit.icon("code"), color: kit.icon("palette"), link: kit.icon("link") };
   function showSelBar() {
     var sel = live ? selectedBlocks() : null;
     if (!sel || !sel.text) { selBar.hidden = true; return; }
@@ -1917,7 +1895,7 @@
     selBar.style.top = Math.max(floor, top < floor ? sel.rect.bottom + 8 : top) + "px";
     selBar.style.left = Math.max(8, Math.min(innerWidth - selBar.offsetWidth - 8, sel.rect.left + sel.rect.width / 2 - selBar.offsetWidth / 2)) + "px";
   }
-  var CARET_S = '<svg class="doc-sb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
+  var CARET_S = kit.icon("caretDown", "doc-sb-caret");
   function colorMenu(anchor) {
     var r0 = anchor.getBoundingClientRect(), saved0 = E.caretRange() && E.caretRange().cloneRange();
     var back = function () { var s0 = window.getSelection(); s0.removeAllRanges(); if (saved0) s0.addRange(saved0); };
@@ -2426,7 +2404,7 @@
     b.addEventListener("click", fn);
     return b;
   }
-  var CARET = '<svg class="doc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
+  var CARET = kit.icon("caretDown", "doc-caret");
   var tabBtn = barBtn(T.tabs, "", function () { tabMenu(); }, "doc-tabbtn");
   function drawTabs() {
     tabBtn.innerHTML = "<span>" + kit.esc(tab().title || T.untitled) + "</span>" + CARET;
@@ -2471,18 +2449,18 @@
       { on: settings.body === "serif", label: T.serif, onClick: function () { setSettings({ body: "serif" }); } },
       { on: settings.body !== "serif", label: T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
   });
-  var widthBtn = barBtn(T.width, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>', function () { setSettings({ wide: !settings.wide }); });
+  var widthBtn = barBtn(T.width, kit.icon("width"), function () { setSettings({ wide: !settings.wide }); });
   widthBtn.setAttribute("aria-pressed", String(!!settings.wide));
   function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
-  var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); }, "doc-short");
-  var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); }, "doc-short");
-  var checkBtn = barBtn(T.checklist, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8"/></svg>', function () { insertHere({ md: "- [ ] " }); }, "doc-short");
-  var plusBtn = barBtn(T.insert, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>' + CARET, function () {
+  var tableBtn = barBtn(T.table, kit.icon("table"), function () { insertHere({ md: TABLE_MD }); }, "doc-short");
+  var imageBtn = barBtn(T.image, kit.icon("image"), function () { insertHere({ image: true }); }, "doc-short");
+  var checkBtn = barBtn(T.checklist, kit.icon("doc-checklist"), function () { insertHere({ md: "- [ ] " }); }, "doc-short");
+  var plusBtn = barBtn(T.insert, kit.icon("plus") + CARET, function () {
     var r = plusBtn.getBoundingClientRect();
     richMenu(r.left, r.bottom + 6, blockItems().filter(function (it) { return it.k !== "text"; }).map(function (it) { return it.sep ? it : { icon: it.ic, label: it.label, onClick: function () { insertHere(it); } }; })
       .concat([{ sep: true }, { hint: T.slashHint }]), 0, plusBtn);
   }, "doc-plus");
-  var PEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>';
+  var PEN = kit.icon("pencil");
   var modeBtn = barBtn(T.editing, "", function () {
     kit.menu(modeBtn, [
       { icon: "pencil", on: mode === "edit", label: T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },

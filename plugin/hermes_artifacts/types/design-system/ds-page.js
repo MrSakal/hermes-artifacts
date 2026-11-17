@@ -274,20 +274,11 @@
     out.push({ id: "files", title: T.files });
     return out;
   }
-  var NAV_ICON = {
-    overview: "M4 11l8-7 8 7v9h-5v-6H9v6H4z", md: "M7 3h7l5 5v12H7zM14 3v5h5M9 13h6M9 17h6",
-    colors: "M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01",
-    type: "M4 19l5-14 5 14M6 14h6M15 19v-6.5a2.5 2.5 0 0 1 5 0V19M15 15.5h5",
-    spacing: "M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2",
-    radius: "M4 20v-8a8 8 0 0 1 8-8h8", shadow: "M4 4h12v12H4zM8 20h12V8",
-    family: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
-    components: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7",
-    assets: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01", files: "M3 6h6l2 2h10v11H3z",
-    search: "M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4"
-  };
+  // A section's icon in the navigation: ds-<name>, the kit's where it has no own (a family without one: sliders).
+  var NAV_ICONS = ["overview", "md", "colors", "type", "spacing", "radius", "shadow", "family", "components", "assets", "files", "search"];
   function navIcon(id) {
-    var k = id.slice(0, 3) === "md:" ? "md" : id.slice(0, 4) === "fam:" ? (NAV_ICON[id.slice(4)] ? id.slice(4) : "family") : id;
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (NAV_ICON[k] || NAV_ICON.family) + '"/></svg>';
+    var k = id.slice(0, 3) === "md:" ? "md" : id.slice(0, 4) === "fam:" ? id.slice(4) : id;
+    return kit.icon(NAV_ICONS.indexOf(k) < 0 ? "ds-family" : "ds-" + k);
   }
   // Search: tokens, type styles, components, sections and files, by name.
   function searchHits(q) {

@@ -1,0 +1,83 @@
+"""The type pages' chrome wears Hermes Desktop's own look: its icons (the codicons it draws its UI with, 16 units,
+filled), shipped once in the kit with their licence notice, never a page's own stroke icons; its radii from the
+kit's tokens. The owner saw our 24-unit stroke icons and pill-round palettes next to Hermes' own buttons."""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TYPES = ROOT / "plugin" / "hermes_artifacts" / "types"
+KIT = (TYPES / "_kit" / "kit.js").read_text(encoding="utf-8")
+SPRITE = Path(os.environ.get("LOCALAPPDATA", "")) / "hermes/hermes-agent/apps/desktop/node_modules/@vscode/codicons/dist/codicon.svg"
+
+
+def pages():
+    for p in sorted(TYPES.rglob("*.js")):
+        if "vendor" not in p.parts and p.parent.name != "_kit":
+            yield p, p.read_text(encoding="utf-8")
+
+
+def tables():
+    """The kit's CODICON, DRAWN and ICONS tables, as node reads them."""
+    a, b = KIT.index("  var CODICON = {"), KIT.index("  var TURN = ")
+    js = KIT[a:b] + "\nprocess.stdout.write(JSON.stringify({ CODICON, DRAWN, ICONS }));"
+    return json.loads(subprocess.run(["node", "-"], input=js, capture_output=True, text=True, check=True, encoding="utf-8").stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class HermesIcons(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.t = tables()
+
+    def test_every_name_is_a_codicon_or_one_drawn_in_its_style(self):
+        for name, v in self.t["ICONS"].items():
+            glyph, *turn = v.split(" ")
+            table = self.t["DRAWN"] if glyph.startswith("*") else self.t["CODICON"]
+            self.assertIn(glyph.lstrip("*"), table, name)
+            self.assertTrue(not turn or turn[0] == "flip" or re.fullmatch(r"r-?\d+", turn[0]), name)
+        used = {v.split(" ")[0] for v in self.t["ICONS"].values()}
+        for k in self.t["CODICON"]:
+            self.assertIn(k, used, f"codicon {k} shipped and never named")
+        for k in self.t["DRAWN"]:
+            self.assertIn("*" + k, used, f"drawn {k} shipped and never named")
+
+    @unittest.skipUnless(SPRITE.is_file(), "Hermes Desktop's codicons are not installed here")
+    def test_the_codicons_are_hermes_own_unchanged(self):
+        svg = SPRITE.read_text(encoding="utf-8")
+        for name, d in self.t["CODICON"].items():
+            part = svg.split(f'id="{name}"', 1)[1]
+            inner = part[part.index(">") + 1:part.index("</symbol>")]
+            paths = re.findall(r'<path d="([^"]+)"/>', inner)
+            want = "".join(paths) if paths and not re.sub(r'<path d="[^"]+"/>', "", inner) else inner
+            self.assertIn(want, d, name)
+
+    def test_their_licence_notice_is_beside_them(self):
+        head = KIT[:KIT.index("  var CODICON = {")]
+        self.assertIn("@vscode/codicons 0.0.45, (c) Microsoft Corporation, licensed under CC BY 4.0", head)
+        self.assertIn("https://creativecommons.org/licenses/by/4.0/", head)
+
+    def test_no_page_draws_or_adds_icons_of_its_own(self):
+        stroke = re.compile(r'<svg[^>]*viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width')
+        for p, s in pages():
+            self.assertNotIn("addIcons", s, p.name)
+            self.assertIsNone(stroke.search(s), f"{p.name}: a 24-unit stroke icon")
+
+    def test_every_icon_a_page_names_is_there(self):
+        names = set(self.t["ICONS"])
+        has = lambda n: n in names or re.sub(r"^[a-z]+-", "", n) in names  # a type's own name, else the kit's
+        calls = re.compile(r'(?:(?:kit\.icon|\bico|\bmicon|\bicon|\bsbtn|\bbtn|\bcbtn)\(|kit\.button\([^,()]*,)\s*"([A-Za-z][\w-]*)"\s*[,)]|\bicon: "([A-Za-z][\w-]*)"')
+        for p, s in pages():
+            prefix = {"board.js": "bd-", "model.js": "md-", "sheet.js": "sh-", "doc.js": "doc-", "ds-page.js": "ds-"}.get(p.name, "")
+            for m in calls.finditer(s):
+                n = m.group(1) or m.group(2)
+                self.assertTrue(has(n) or has(prefix + n), f"{p.name}: {n}")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1773,9 +1773,6 @@
   function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); refitTools(); }
   function setZoom(z) { zoom = z; fit(); }
 
-  kit.addIcons({ slRect: "M4 6h16v12H4z", slRounded: "M8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z",
-    slDiamond: "M12 3l9 9-9 9-9-9z", slArrowR: "M4 12h15M14 7l5 5-5 5", slArrowL: "M20 12H5M10 7l-5 5 5 5", slArrowU: "M12 20V5M7 10l5-5 5 5",
-    slArrowD: "M12 4v15M7 14l5 5 5-5" });
   var SHAPES = [["rect", T.rect, "slRect"], ["rounded", T.rounded, "slRounded"], ["ellipse", T.ellipse, "oval"], ["diamond", T.diamond, "slDiamond"],
     ["arrow-right", T.arrowR, "slArrowR"], ["arrow-left", T.arrowL, "slArrowL"], ["arrow-up", T.arrowU, "slArrowU"], ["arrow-down", T.arrowD, "slArrowD"], ["line", T.line, "lineD"]];
   function shapeItems() { return SHAPES.map(function (x) { return { icon: x[2], label: x[1], onClick: function () { insertShape(x[0]); } }; }); }
