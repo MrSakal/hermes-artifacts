@@ -264,7 +264,9 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-nowrap { white-space: nowrap; }
 
 /* Files: kinds on the left, the file on the right */
-.ds-fb { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Files: the list at its width on the left, the open file's preview in all the room to its right (no centred page) */
+.ds-page-files { max-width: none; margin: 0; }
+.ds-fb { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
 .ds-fl { display: flex; flex-direction: column; gap: 1px; position: sticky; top: 56px; max-height: calc(100vh - 80px); overflow: auto; }
 .ds-fl-h { margin: 12px 6px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-fg-muted); }
 .ds-fl-h:first-child { margin-top: 0; }
@@ -273,12 +275,12 @@ html[data-ds-thumb] body { overflow: hidden; }
 .ds-fl-i:hover { background: var(--color-hover); }
 .ds-fl-i.on { background: var(--color-accent-soft); color: var(--color-fg); }
 .ds-fl-i code { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ds-fp { border: 1px solid var(--color-border-line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.ds-fp { border-left: 1px solid var(--color-border-line); min-width: 0; }
 .ds-fp-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--color-border-line); }
 .ds-fp-h .ds-btn-danger { margin-left: 0; }
 .ds-fp-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ds-fp-t code { font: 12px var(--font-mono); overflow-wrap: anywhere; }
-.ds-fp-b { padding: 12px; max-height: 70vh; overflow: auto; }
+.ds-fp-b { padding: 12px; max-height: calc(100vh - 150px); overflow: auto; }
 .ds-fp-text { margin: 0; font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ds-fp-img img { max-width: 100%; }
 

@@ -2420,6 +2420,16 @@ class RoundV6mPages(unittest.TestCase):
         self.assertEqual(o["label"], "Costs", o)
         self.assertNotIn("gone", o["after"], o)
 
+    def test_a_design_systems_files_preview_takes_all_the_room_right_of_the_list(self):
+        # Owner, 0.20.0: Files sat in the page's narrow centred column, its preview a box in it. The list keeps its
+        # width; the preview runs to the page's right edge (its padding) at every wide width.
+        aid = self.store.publish(path=str(EX / "design-system"), title="Kiln", type="design-system")["id"]
+        files = "await api.frame('[...document.querySelectorAll(\"#ds-nav button\")].find(b => /Files|Fájlok/.test(b.textContent)).click()'); await api.sleep(800)\n"
+        for w in (1250, 1900):
+            o = self.drive_page(aid, files + "return await api.frame('(() => { const l = document.querySelector(\".ds-fl\").getBoundingClientRect(), p = document.querySelector(\".ds-fp\").getBoundingClientRect(), m = document.getElementById(\"ds-main\").getBoundingClientRect(); return { l: l.width, gap: m.right - p.right } })()')", w=w, settle=2500)
+            self.assertAlmostEqual(o["l"], 300, delta=1, msg=(w, o))
+            self.assertLessEqual(o["gap"], 33, (w, o))
+
     def test_a_design_systems_part_left_and_come_back_to_has_its_pin_again(self):
         # Item 3: a swatch's kept comment was lost on Colors -> Typography -> Colors (and on Colors pressed again): the
         # page draws its parts anew, and one without an id was never found again. Gone while away, back on return.

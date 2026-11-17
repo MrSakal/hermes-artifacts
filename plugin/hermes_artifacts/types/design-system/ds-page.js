@@ -1659,7 +1659,7 @@
     else if (s === "components") kids = componentView();
     else if (s === "assets") kids = assetView();
     else kids = filesView();
-    main.replaceChildren(h("div", s === "files" ? { "class": "ds-page", "data-comment-off": "" } : { "class": "ds-page" }, kids.filter(Boolean)));
+    main.replaceChildren(h("div", s === "files" ? { "class": "ds-page ds-page-files", "data-comment-off": "" } : { "class": "ds-page" }, kids.filter(Boolean)));
     labelCells(main);
     // Only what the system holds is commented on: not the page's own words and controls round it (a section's Edit
     // and comment buttons, its banners and hints, the generated "Consuming this system · Index"), nor the files.
