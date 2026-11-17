@@ -416,7 +416,7 @@
     // the page's to keep off; the artboard picks inside its own frame)
     b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
-    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [b.grip = h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
+    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
       h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
     b.playBtn = sbtn("play", T.play, function () { setPlay(b, !b.playing); });
@@ -1580,29 +1580,14 @@
     return (i > n * 0.4 ? c.slice(0, i) : c).replace(/[\s,;:.·–-]+$/, "") + "…";
   }
   /** A comment on what a frame picked (m: frame.js where(); tid null: the artboard), beside it with its pin: its
-   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). The
-   *  artboard picked by its name strip (strip: its board) has its pin on the strip, after the name and its
-   *  buttons (V6d: left of the artboard, off it). */
-  function framePicked(f, m, strip) {
+   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). */
+  function framePicked(f, m) {
     if (!window.hermes || !window.hermes.comment) return;
     var p = f.path, n = m.tid != null ? nodeOf(p, m.tid) : null, name = titleOf(p);
     var anchor = n ? { selector: selId(p, m.tid), text: String(m.text || labelOf(n) || "").slice(0, 200),
                        label: clipWords(name + " · " + (labelOf(n) || T.kinds[kindOf(n)] || T.kinds.other), 40) }
                    : { selector: enc(p), text: name.slice(0, 200), label: clipWords(name, 40) };
     if (!anchor.selector) return;
-    if (strip) {
-      // the strip is the part: its line ends after the name and its buttons (lr), where the pin goes as after any
-      // words (V6e: a point before the buttons put the pin on the name's end, the box 7 px off the strip)
-      window.hermes.comment(anchor, { el: strip.strip, box: function () {
-        if (!strip.strip.isConnected || !strip.strip.getClientRects().length) return null;
-        var s = strip.strip.getBoundingClientRect(), end = [strip.grip, strip.name, strip.tw, strip.playBtn, strip.full]
-          .filter(function (x) { return x.getClientRects().length; }).map(function (x) { return x.getBoundingClientRect().right; });
-        // beside the strip is a neighbour's strip or the gap to it: the pin goes after the buttons, else above or under
-        // the strip's end (V6f: no room after them on a phone's strip, the pin went left of it, onto the landing page's)
-        return { x: s.left, y: s.top, w: s.width, h: s.height, ly: s.top, lh: s.height, lr: Math.max.apply(null, end.concat(s.left)), fr: false, fl: false };
-      } });
-      return;
-    }
     var inner = m.rect;
     window.hermes.comment(anchor, { el: f.iframe, box: function () {
       if (!f.iframe.isConnected) return null;
@@ -1627,19 +1612,20 @@
       if (commentPicking && window.hermes.pickReady) window.hermes.pickReady();
     });
   }
-  // A click on a frame's own chrome while picking (its name strip): the comment is on that artboard. One the host
-  // held and gives back on an artboard's frame: picked in it, where it was.
+  // A click on an artboard's own box while picking (around its frame): the comment is on that artboard; its name
+  // strip is the design's chrome, a click there picks nothing (bridge.js: data-comment-keep). One the host held and
+  // gives back on an artboard's frame: picked in it, where it was.
   window.addEventListener("click", function (e) {
     if (!commentPicking) return;
     var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
-    if (!b || !b.frame) return;
+    if (!b || !b.frame || e.target.closest(".dc-strip")) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.target === b.frame.iframe) {
       var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
       b.frame.send({ t: "pickAt", x: (e.clientX - ir.left) / k, y: (e.clientY - ir.top) / k });
       return;
     }
-    framePicked(b.frame, { t: "picked", tid: null }, e.target.closest(".dc-strip") ? b : null);
+    framePicked(b.frame, { t: "picked", tid: null });
   }, true);
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.

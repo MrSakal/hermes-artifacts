@@ -387,8 +387,8 @@ BOOT_ANY = """
 @unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
 class CommentPinsOnCanvases(unittest.TestCase):
     """Live round V6: a film's point had no pin on its picture (a point has no size, so the bridge said it was out of
-    sight and the box waited in the corner); a design's pin lay off the strip of the artboard commented on. The pin
-    on the point or the strip, the box a popover by it (8-24 px), at 1500 and at 400 px."""
+    sight and the box waited in the corner). The pin on the point or the part, the box a popover by it (8-24 px), at
+    1500 and at 400 px; an artboard's name strip is the design's chrome (V6q)."""
 
     @classmethod
     def setUpClass(cls):
@@ -430,7 +430,7 @@ class CommentPinsOnCanvases(unittest.TestCase):
                 self.assertAlmostEqual((o["pin"]["t"] + o["pin"]["b"]) / 2, o["at"][1], delta=2, msg=(what, o))
                 self.by_pin(o, what)
 
-    def test_a_designs_pin_after_a_pan_and_on_the_strip_commented_on(self):
+    def test_a_designs_pin_after_a_pan(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
         chrome = '[...document.querySelectorAll(".dc-pill, .dc-strip")]'
         board = '__design.boards["Main.dc.html"].el'
@@ -441,76 +441,28 @@ class CommentPinsOnCanvases(unittest.TestCase):
               for (let i = 0; i < 4; i++) {{ const s = await spot(); await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaX: ${{s[0] - s[2]}}, deltaY: ${{s[1] - s[3]}}, clientX: 200, clientY: 200, bubbles: true, cancelable: true }}))`); await api.sleep(300) }}
               return await pickAt('(() => {{ const r = {board}.querySelector("iframe").getBoundingClientRect(); return [r.left + r.width * 0.3, r.top + Math.min(r.height * 0.2, 120)] }})()', {json.dumps(chrome)})""", w, settle=3000)
             self.by_pin(o, (w, "panned"))
-            # a pick on the landing page's name strip: a comment on that artboard, its pin on the strip (zoomed in on
-            # it until its name shows: at 400 px the whole canvas fitted is too small for any)
-            o = self.drive(aid, board, f"""
-              await api.frame('__design.fitAll()'); await api.sleep(600)
-              for (let i = 0; i < 12 && await api.frame('getComputedStyle({board}.querySelector(".dc-strip")).visibility !== "visible"'); i++) {{
-                await api.frame('(() => {{ const r = {board}.getBoundingClientRect(); document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaY: -120, ctrlKey: true, clientX: r.left + 10, clientY: r.top + 10, bubbles: true, cancelable: true }})) }})()'); await api.sleep(250)
-              }}
-              const o = await pickAt('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left + Math.min(30, r.width / 3), r.top + r.height / 2] }})()', {json.dumps(chrome)})
-              const s = await api.frame('(() => {{ const r = {board}.querySelector(".dc-strip").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()')
-              o.strip = [s[0] + o.off[0], s[1] + o.off[1], s[2] + o.off[0], s[3] + o.off[1]]
-              // the name's words and the strip's buttons, in the window
-              o.parts = (await api.frame('(() => {{ const s = {board}.querySelector(".dc-strip"), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
-                + '; return [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(b => [b.left, b.right]) }})()'))
-                .map(p => [p[0] + o.off[0], p[1] + o.off[0]])
-              return o""", w, settle=3000)
-            self.by_pin(o, (w, "strip"))
-            # V6d: the pin lay 6 px left of the artboard, off it: on the strip picked
-            self.assertTrue(o["pin"], (w, o))
-            cx, cy = (o["pin"]["l"] + o["pin"]["r"]) / 2, (o["pin"]["t"] + o["pin"]["b"]) / 2
-            self.assertTrue(o["strip"][0] <= cx <= o["strip"][2] and o["strip"][1] <= cy <= o["strip"][3], ("pin off the strip", w, o))
-            # V6e: its centre was 11 px before the name's end, on "…age"; the box 7 px off the strip. The pin goes
-            # after the name and its buttons, PIN_GAP (6 px) past the last, as after any words; the box 8 px off
-            end = max(p[1] for p in o["parts"])
-            self.assertTrue(0 <= o["pin"]["l"] - end <= 12, ("pin not right after the name and its buttons", w, o))
 
-    def test_every_artboards_strip_comment_has_its_pin_on_the_strip_and_the_box_by_it(self):
-        # V6f (1506 px window: a 1246 x 750 frame): "App: pick a drink" and "App: your order" (phone artboards: no room
-        # after the strip's buttons before the next strip) opened with no pin (it went left of the strip, onto the
-        # landing page's, a control: not drawn) and the box 235 px under the strip (off every artboard); strips 3 and
-        # 4 had their pin and the same far box. A pin on its strip, after the buttons or over/under its end, never on
-        # the name, a button or another strip; the box a popover by it.
+    def test_no_artboards_name_strip_is_commented_on(self):
+        # V6q: a press on an artboard's name strip (its name, its fullscreen and play buttons) with Comment armed made a
+        # "Landing page" draft. The strip is the design's chrome: no draft, picking stays armed, as on its other chrome.
         aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
-        strips = ('[...Object.values(__design.boards)].map(b => b.strip).filter(s => getComputedStyle(s).visibility === "visible" && s.getClientRects().length)'
-                  '.map(s => { const r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
-                  '; return { r: [r.left, r.top, r.right, r.bottom], parts: [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(b => [b.left, b.top, b.right, b.bottom]) } })')
-        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
+        spots = ('[...Object.values(__design.boards)].map(b => b.strip).filter(s => getComputedStyle(s).visibility === "visible" && s.getClientRects().length)'
+                 '.flatMap(s => { const r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name")); const n = rg.getBoundingClientRect()'
+                 '; return [[n.left + 6, (r.top + r.bottom) / 2], ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => { const q = b.getBoundingClientRect(); return [(q.left + q.right) / 2, (q.top + q.bottom) / 2] })] })')
         url = f"http://127.0.0.1:{self.host.port}/dom/index.html"
-        done = 0
-        for w, h in ((1246, 798), (1500, 900)):
-            for i in range(5):
-                r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = '__design.boards[\"Main.dc.html\"].el', SETTLE = 3000; await api.size({w}, {h});" + BOOT_ANY + f"""
-                  const all = await api.frame({json.dumps(strips)}), off = await frameAt()
-                  if (all.length <= {i}) return null
-                  const s = all[{i}]
-                  await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
-                  await api.mouse(off[0] + s.parts[0][0] + 6, off[1] + (s.r[1] + s.r[3]) / 2); await api.sleep(1200)
-                  const top = await api.top(`(() => {{ const box = q => {{ const b = q.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom] }}
-                    const ta = document.querySelector('textarea'), card = ta && ta.closest('div[style*="z-index: 27"]')
-                    const pin = [...document.querySelectorAll('div')].find(d => d.style.zIndex === '28' && d.style.borderRadius === '50%')
-                    return {{ box: card ? box(card) : null, pin: pin ? box(pin) : null, label: (window.H.M.$draft.get() || {{ anchor: {{}} }}).anchor.label }} }})()`)
-                  const mv = q => [q[0] + off[0], q[1] + off[1], q[2] + off[0], q[3] + off[1]]
-                  // what of the name shows: it is cut at the strip's end (an ellipsis)
-                  const seen = q => [Math.max(q[0], s.r[0]), q[1], Math.min(q[2], s.r[2]), q[3]]
-                  return {{ ...top, strip: mv(s.r), parts: s.parts.map(seen).map(mv), others: all.filter((x, j) => j !== {i}).map(x => mv(x.r)) }}""", timeout=240)
-                self.assertIsNone(r.get("err"), r)
-                o = r["out"]
-                if not o:
-                    continue
-                done += 1
-                what = (w, i, o)
-                self.assertTrue(o["pin"], ("no pin", what))
-                p, s, b = o["pin"], o["strip"], o["box"]
-                for q in o["parts"]:
-                    self.assertFalse(meet(p, q), ("pin on the name or a button", q, what))
-                for q in o["others"]:
-                    self.assertFalse(meet(p, q), ("pin on another strip", q, what))
-                self.assertTrue(s[0] - 0.5 <= (p[0] + p[2]) / 2 <= s[2] + 40 and s[1] - 40 <= (p[1] + p[3]) / 2 <= s[3] + 40, ("pin off its strip", what))
-                gap = max(b[0] - p[2], p[0] - b[2], b[1] - p[3], p[1] - b[3])
-                self.assertTrue(7.5 <= gap <= 25, ("box not by its pin", gap, what))
-        self.assertGreaterEqual(done, 6)
+        r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = '__design.boards[\"Main.dc.html\"].el', SETTLE = 3000; await api.size(1500, 900);" + BOOT_ANY + f"""
+          const all = await api.frame({json.dumps(spots)}), off = await frameAt(), out = []
+          for (const q of all) {{
+            await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
+            await api.mouse(off[0] + q[0], off[1] + q[1]); await api.sleep(700)
+            out.push({{ q, draft: await api.top('(window.H.M.$draft.get() || {{ anchor: {{}} }}).anchor.label || null'), picking: await api.top('window.H.M.$picking.get()') }})
+            await api.top('window.H.M.$draft.set(null)')
+          }}
+          return out""", timeout=240)
+        self.assertIsNone(r.get("err"), r)
+        out = r["out"]
+        self.assertGreaterEqual(len(out), 8, out)
+        self.assertEqual([o for o in out if o["draft"] or not o["picking"]], [], out)
 
     def test_the_box_follows_its_pin_as_the_canvas_zooms(self):
         # V6f: a design's element commented on, the canvas zoomed in and out: the pin followed, the box stayed up to
@@ -1090,39 +1042,6 @@ class RoundV6gPicks(unittest.TestCase):
             self.assertTrue(8 - 0.5 <= gap <= 24, ("box away from its pin", gap, s))
         self.assertGreater(out_of_sight, 0, ("the zoom never took the artboard out of sight", o))
         self.assertTrue(o[-1]["box"] and o[-1]["pin"], ("not back with it", o[-1]))
-
-    def test_a_strip_cut_by_the_window_has_its_pin_off_its_name(self):
-        # V6g N9: the window narrowed (no refit), a design's strip partly past the stage's edge picked: the pin on its
-        # name. Never on the name, its buttons or another strip: over or under the strip's part in sight.
-        aid = store.publish(path=str(D.ROOT / "examples" / "design"), title="Test design", type="design")["id"]
-        strips = ('[...Object.values(__design.boards)].map(b => b.strip).filter(s => getComputedStyle(s).visibility === "visible" && s.getClientRects().length)'
-                  '.map(s => { const r = s.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(s.querySelector(".dc-name"))'
-                  '; const clip = q => [Math.max(q.left, 0), q.top, Math.min(q.right, innerWidth), q.bottom]'
-                  '; return { r: [r.left, r.top, r.right, r.bottom], parts: [rg.getBoundingClientRect(), ...[...s.querySelectorAll("button")].filter(b => b.getClientRects().length).map(b => b.getBoundingClientRect())].map(clip).filter(q => q[2] > q[0]) } })')
-        o = self.drive(aid, '__design.boards["Main.dc.html"].el', f"""
-          await api.size(1000, 764); await api.sleep(800)
-          // pan until the poster's strip straddles the stage's right edge, its name in sight
-          for (let i = 0; i < 4; i++) {{
-            const d = await api.frame('(() => {{ const s = __design.boards["Poster.dc.html"].strip.getBoundingClientRect(); return s.left - (innerWidth - 90) }})()')
-            await api.frame(`document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", {{ deltaX: ${{d}}, deltaY: 0, clientX: 200, clientY: 200, bubbles: true, cancelable: true }}))`); await api.sleep(300)
-          }}
-          const all = await api.frame({json.dumps(strips)}), off = await frameAt(), w = await api.frame('innerWidth')
-          const i = all.findIndex(s => s.r[0] < w - 20 && s.r[2] > w)
-          if (i < 0) return {{ none: all, w }}
-          const s = all[i]
-          await api.top('window.H.M.$picking.set(true)'); await api.sleep(300)
-          await api.mouse(off[0] + s.r[0] + 12, off[1] + (s.r[1] + s.r[3]) / 2); await api.sleep(1200)
-          const d = await api.top({json.dumps(self.DRAFT)})
-          const mv = q => [q[0] + off[0], q[1] + off[1], q[2] + off[0], q[3] + off[1]]
-          return {{ ...d, strip: mv(s.r), parts: s.parts.map(mv), others: all.filter((x, j) => j !== i).map(x => mv(x.r)) }}""", 1250, 764, 3000)
-        self.assertNotIn("none", o, o)
-        meet = lambda a, b: a[0] < b[2] - 0.5 and b[0] < a[2] - 0.5 and a[1] < b[3] - 0.5 and b[1] < a[3] - 0.5
-        p, st = o["pin"], o["stage"]
-        self.assertTrue(p and o["box"], o)
-        self.assertTrue(st[0] <= p[0] and p[2] <= st[2] and st[1] <= p[1] and p[3] <= st[3], ("pin out of the stage", o))
-        for q in o["parts"] + o["others"]:
-            self.assertFalse(meet(p, q), ("pin on the name, a button or another strip", q, o))
-        self.assertTrue(o["strip"][0] - 0.5 <= (p[0] + p[2]) / 2 <= o["strip"][2] + 0.5, ("pin not over or under its strip", o))
 
     def test_a_decks_blank_picked_as_it_shows_is_never_lost_in_40_opens(self):
         aid = store.publish(path=str(D.ROOT / "examples" / "slides"), title="Test slides", type="slides")["id"]
