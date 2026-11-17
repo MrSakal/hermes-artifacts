@@ -29,7 +29,7 @@ html, body { overflow: hidden; }
 
 /* What the top bar held: the rough-cut badge, Continue, Finalize, the save state, over the picture's corner. */
 .mo-float { position: absolute; left: 8px; top: 8px; z-index: 26; display: flex; align-items: center; gap: 2px; padding: 3px;
-  max-width: calc(100% - 16px); flex-wrap: wrap; border-radius: var(--kit-r-lg, 8px);
+  max-width: calc(100% - 16px); flex-wrap: wrap; border-radius: var(--kit-r-lg);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .mo-float[hidden] { display: none; }
@@ -50,9 +50,9 @@ html, body { overflow: hidden; }
 .mo-spacer { flex: 1; }
 .mo-tl { position: relative; height: 48px; cursor: pointer; touch-action: none; outline: none; }
 /* Its own ring (a kit-surface: not the kit's ring round the whole strip, nor none). */
-.mo-tl.kit-surface:focus-visible { box-shadow: 0 0 0 2px var(--color-accent) !important; border-radius: var(--kit-r-sm, 6px); }
+.mo-tl.kit-surface:focus-visible { box-shadow: 0 0 0 2px var(--color-accent) !important; border-radius: var(--kit-r-sm); }
 .mo-segs { position: absolute; left: 0; right: 0; top: 14px; height: 30px; display: flex; gap: 4px; }
-.mo-seg { position: relative; min-width: 0; height: 100%; display: flex; align-items: center; border-radius: var(--kit-r-lg, 8px);
+.mo-seg { position: relative; min-width: 0; height: 100%; display: flex; align-items: center; border-radius: var(--kit-r-lg);
   border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg-secondary); font-size: 12px; overflow: hidden; }
 .mo-seg:hover { border-color: var(--color-border-strong); }
 .mo-seg.on { border-color: var(--color-accent); background: var(--color-accent-soft, var(--color-hover)); color: var(--color-fg); }
@@ -64,9 +64,9 @@ html, body { overflow: hidden; }
 .mo-seg.recut .mo-seg-t i { color: var(--color-accent); }
 .mo-seg.nolen .mo-seg-t i { display: none; } /* too narrow for both: the name stays whole, the length goes (motion.js fitSeg) */
 .mo-more { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 22px; margin-right: 6px; padding: 0; border: 0;
-  border-radius: var(--kit-r-sm, 6px); background: transparent; color: var(--color-fg-secondary); cursor: pointer; }
+  border-radius: var(--kit-r-icon); background: transparent; color: var(--color-fg-secondary); cursor: pointer; }
 .mo-more svg { width: 16px; height: 16px; }
-.mo-more:hover { background: var(--color-hover); color: var(--color-fg); }
+.mo-more:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .mo-seg.on .mo-more { display: inline-flex; }
 .mo-seg .grip { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .mo-seg .grip:hover, .mo-seg .grip.on { background: var(--color-accent); opacity: .5; }
@@ -77,27 +77,27 @@ html, body { overflow: hidden; }
 .mo-range[hidden] { display: none; }
 .mo-pin { position: absolute; top: 0; min-width: 16px; height: 16px; margin-left: -8px; padding: 0 4px; border-radius: 8px; background: var(--color-accent);
   color: var(--color-accent-fg, var(--color-bg)); font: 600 10px/16px var(--font-sans); text-align: center; cursor: pointer; z-index: 2; }
-.mo-pin.range { border-radius: var(--kit-r-sm, 6px); }
+.mo-pin.range { border-radius: var(--kit-r-sm); }
 /* A comment's pin on the point of the picture it was made on, while that moment is shown. */
 .mo-spin { position: absolute; z-index: 25; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; transform: translate(-50%, -50%);
   border-radius: 11px; border: 2px solid var(--color-bg); background: var(--color-accent); color: var(--color-accent-fg, var(--color-bg));
   font: 600 11px/18px var(--font-sans); text-align: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
 
 /* On the picture: retyping a line, the selected thing, comment pick mode. */
-.mo-edit { position: absolute; z-index: 30; margin: 0; padding: 0; border: 2px solid var(--color-accent); border-radius: var(--kit-r-sm, 6px); outline: none;
+.mo-edit { position: absolute; z-index: 30; margin: 0; padding: 0; border: 2px solid var(--color-accent); border-radius: var(--kit-r-sm); outline: none;
   background: var(--color-elevated, var(--color-panel)); color: var(--color-fg); resize: none; overflow: hidden; box-shadow: var(--shadow-popover); }
-.mo-sel { position: absolute; z-index: 20; pointer-events: none; border: 2px dashed var(--color-accent); border-radius: var(--kit-r-sm, 6px); }
+.mo-sel { position: absolute; z-index: 20; pointer-events: none; border: 2px dashed var(--color-accent); border-radius: var(--kit-r-sm); }
 #mo-view.picking { cursor: crosshair; }
 
 /* Popovers, the panel and the dialog share one look. */
 .mo-pop, .mo-dialog { background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
-  color: var(--color-fg); border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 8px); box-shadow: var(--shadow-popover); }
+  color: var(--color-fg); border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg); box-shadow: var(--shadow-popover); }
 .mo-pop { position: fixed; z-index: 120; width: 264px; padding: 10px 12px 8px; font-size: 13px; }
 .mo-pop-name { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .mo-pop-name input { flex: 1; min-width: 0; font-weight: 600; }
 .mo-muted { font-size: 12px; color: var(--color-fg-muted); }
 .mo-desc { margin: 4px 0 6px; line-height: 1.4; max-height: 5.6em; overflow: auto; }
-.mo-choice { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: var(--kit-r-sm, 6px); background: var(--color-hover); }
+.mo-choice { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: var(--kit-r-icon); background: var(--color-hover); }
 .mo-choice .kit-btn { height: 26px; padding: 0 10px; font-size: 12.5px; color: var(--color-fg-secondary); }
 .mo-choice .kit-btn.is-on { background: var(--color-panel); color: var(--color-fg); box-shadow: 0 0 0 1px var(--color-border-strong); }
 .mo-choice .kit-btn:disabled { opacity: .45; cursor: default; background: transparent; }
@@ -121,23 +121,23 @@ html, body { overflow: hidden; }
 .mo-row > label { width: 78px; flex: none; color: var(--color-fg-muted); font-size: 12.5px; }
 .mo-row code { font: 11px var(--font-mono); color: var(--color-fg-muted); }
 .mo-row input[type=text], .mo-row input[type=number], .mo-row select, .mo-pop-name input, .mo-words {
-  flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--kit-r-sm, 6px); border: 1px solid var(--color-border-line);
+  flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: var(--kit-r-btn); border: 1px solid var(--color-border-line);
   background-color: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 13px; outline: none; } /* a select keeps the kit's chevron */
 .mo-words { display: block; width: 100%; }
 .mo-row input:focus, .mo-row select:focus, .mo-pop-name input:focus, .mo-words:focus { border-color: var(--color-accent); }
-.mo-row input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-sm, 6px); background: none; cursor: pointer; }
+.mo-row input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn); background: none; cursor: pointer; }
 .reset { border: 0; background: none; color: var(--color-accent); font: inherit; font-size: 12px; cursor: pointer; padding: 0 4px; white-space: nowrap; }
 .mo-note { font-size: 12px; color: var(--color-fg-muted); margin: 6px 0; line-height: 1.4; }
 .mo-lines { display: flex; flex-direction: column; gap: 2px; }
-.mo-line { display: block; width: 100%; padding: 5px 8px; border: 0; border-radius: var(--kit-r-sm, 6px); background: none; color: var(--color-fg-secondary);
+.mo-line { display: block; width: 100%; padding: 5px 8px; border: 0; border-radius: var(--kit-r-md); background: none; color: var(--color-fg-secondary);
   font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.mo-line:hover { background: var(--color-hover); color: var(--color-fg); }
+.mo-line:hover { background: var(--color-active); color: var(--color-fg); }
 .mo-pals { display: flex; flex-direction: column; gap: 6px; }
-.mo-pal { display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 8px);
+.mo-pal { display: flex; align-items: center; gap: 10px; padding: 5px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg);
   background: none; color: var(--color-fg-secondary); font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .mo-pal:hover { border-color: var(--color-border-strong); }
 .mo-pal.on { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); color: var(--color-fg); }
-.mo-sw { flex: 1; display: flex; height: 22px; border-radius: var(--kit-r-sm, 6px); overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-border-line); }
+.mo-sw { flex: 1; display: flex; height: 22px; border-radius: var(--kit-r-sm); overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-border-line); }
 .mo-sw i { flex: 1; }
 .mo-pal-n { flex: none; min-width: 52px; }
 .mo-chg { display: flex; align-items: center; gap: 8px; margin: 2px 0; font-size: 12px; }
@@ -159,7 +159,7 @@ html, body { overflow: hidden; }
 /* Export progress */
 .mo-busy { position: fixed; inset: 0; z-index: 160; display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--color-bg) 65%, transparent); }
-.mo-busy > div { min-width: min(320px, calc(100vw - 32px)); padding: 16px 18px; border-radius: var(--kit-r-lg, 8px); color: var(--color-fg);
+.mo-busy > div { min-width: min(320px, calc(100vw - 32px)); padding: 16px 18px; border-radius: var(--kit-r-lg); color: var(--color-fg);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .mo-busy .bar { height: 6px; margin: 12px 0; border-radius: 3px; background: var(--color-hover); overflow: hidden; }
@@ -224,7 +224,7 @@ html[data-thumb] #mo-frame { box-shadow: none; }
 .mo-volwrap:hover .mo-volpop, .mo-volwrap:focus-within .mo-volpop { opacity: 1; visibility: visible; transform: translate(-50%, 0);
   transition-delay: 0s; }
 .mo-volbox { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 34px; padding: 8px 0 10px;
-  background: var(--color-elevated); border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg, 10px);
+  background: var(--color-elevated); border: 1px solid var(--color-border-line); border-radius: var(--kit-r-lg);
   box-shadow: var(--shadow-popover, 0 6px 24px rgba(0, 0, 0, .25)); }
 .mo-volbox b { font: 500 11px/1 var(--font-sans); color: var(--color-fg-secondary); font-variant-numeric: tabular-nums; }
 .mo-vol { -webkit-appearance: none; appearance: none; writing-mode: vertical-lr; direction: rtl; width: 14px; height: 88px; margin: 0;
