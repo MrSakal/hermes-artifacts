@@ -434,7 +434,9 @@
     // the page's to keep off; the artboard picks inside its own frame)
     b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
-    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "" }, [h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
+    // chrome that acts while a comment is picked (bridge.js data-comment-use: V6u, its double click opened nothing), but
+    // never drags then (a pick is a look)
+    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "", "data-comment-use": "" }, [h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
       h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
     b.playBtn = sbtn("play", T.play, function () { setPlay(b, !b.playing); });
@@ -445,7 +447,7 @@
     b.resize = h("div", { "class": "dc-resize", title: T.size });
     b.el.append(b.strip, b.wrap, b.guides, b.err, b.resize);
     world.insertBefore(b.el, notesLayer);
-    b.strip.addEventListener("pointerdown", function (e) { if (e.button === 0 && !e.target.closest("button")) dragBoard(e, b); });
+    b.strip.addEventListener("pointerdown", function (e) { if (e.button === 0 && !e.target.closest("button") && !commentPicking) dragBoard(e, b); });
     b.strip.addEventListener("dblclick", function (e) { if (!e.target.closest("button")) openFocus(p); });
     b.resize.addEventListener("pointerdown", function (e) { if (e.button === 0) resizeBoard(e, b); });
     boards[p] = b;

@@ -238,10 +238,13 @@ async function main() {
     size: (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }),
     /** The system's colour scheme the pages see ('light' or 'dark'). */
     scheme: s => send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: s }] }),
-    mouse: async (x, y) => {
+    /** A real click at x, y of the window; n: that many in a row (2: a double click). */
+    mouse: async (x, y, n) => {
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
-      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 })
-      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 })
+      for (let c = 1; c <= (n || 1); c++) {
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: c })
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: c })
+      }
     },
     /** A real drag with the left button from x0, y0 to x1, y1 of the window, in steps. */
     drag: async (x0, y0, x1, y1) => {

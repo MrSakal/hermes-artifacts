@@ -916,7 +916,7 @@
     return clipWords(!own || own.toLowerCase() === name.toLowerCase() ? name : name + " \u00b7 " + own, LABEL_MAX); // a label shown in capitals is the name
   }
   // A control of the page's that acts while picking too ([data-comment-use]: a design's artboard Play and Full window,
-  // V6s; its view's Play and that menu, V6u): its click is its own, picks nothing, and picking stays on.
+  // V6s; its view's Play and that menu, its name strip, V6u): its click is its own, picks nothing, and picking stays on.
   function used(t) { return !!(t && t.closest && t.closest("[data-comment-use]")); }
   function onPick(e) {
     if (!picking) return;

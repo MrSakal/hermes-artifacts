@@ -64,6 +64,26 @@ class RoundV6uPages(unittest.TestCase):
         self.assertEqual(o["back"]["focus"], False, o)
         self.assertEqual(o["picked"], 0, o)
 
+    def test_a_double_click_on_a_strip_opens_its_full_window_while_a_comment_is_picked(self):
+        # V6u B2: with Comment armed a double click on an artboard's name strip did nothing (it opens the artboard's full
+        # window with Comment off). The strip is the design's chrome that acts while picking: no ring, no draft, no drag.
+        for w in (1250, 700, 420):
+            o = self.design(w, 716, self.ARM + """
+              const spot = await api.frame(`(() => { for (const b of Object.values(__design.boards)) { const s = b.strip, r = s.getBoundingClientRect(); if (b.el.hidden || !(r.width > 0 && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight)) continue
+                for (let x = r.left + 2; x < r.right - 2; x += 2) { const y = r.top + r.height / 2, e = document.elementFromPoint(x, y); if (e && e.closest(".dc-strip") === s && !e.closest("button")) return [x, y, b.path, b.el.style.left] } } return null })()`)
+              if (!spot) return { spot }
+              await api.pointer('mouseMoved', spot[0], spot[1], false); await api.sleep(200)
+              await api.mouse(spot[0], spot[1], 2); await api.sleep(900)
+              const o = { spot, open: await st() }
+              await back()
+              o.left = await api.frame(`__design.boards[${JSON.stringify(spot[2])}].el.style.left`)
+              o.picked = await api.top('window.__events.filter(e => e.event === "picked").length')
+              return o""")
+            self.assertTrue(o.get("spot"), (w, o))
+            self.assertEqual(o["open"], {"menu": "", "focus": True, "picking": True, "ring": False}, (w, o))
+            self.assertEqual(o["left"], o["spot"][3], (w, o))  # not dragged
+            self.assertEqual(o["picked"], 0, (w, o))
+
 
 if __name__ == "__main__":
     unittest.main()
