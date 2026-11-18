@@ -1162,11 +1162,51 @@ function watchChatArtifactTool(ctx) {
     e.stopImmediatePropagation()
     if (e.type === (e.button === 1 ? 'auxclick' : 'click')) expandDock(ctx) // the gesture done: once
   }
+  // The chat focused when a close gesture began: Hermes' handler runs before ours (in the same turn) and may have
+  // moved the focus already, to what it fronts in the closed tab's place; changes until the next timer turn are one.
+  let focus = { sid: sidAtom.get(), before: null, moving: false }
+  const onFocus = sid => {
+    if (!focus.moving) later(ctx, () => { focus.moving = false }, 0)
+    focus = { sid, before: focus.moving ? focus.before : focus.sid, moving: true }
+  }
+  const gestureChat = () => (focus.moving ? focus.before : focus.sid)
+  // With another session's tab stacked beside the chat, Hermes' close of the chat's tab moves that session into its
+  // place (close-tab.ts closeWorkspaceTab: its tile closed, its route), and the chat in front changes (V6u: the
+  // artifact closed with it, the other session in front). `away`: that close of the dock, for the gesture's own
+  // handler later in the same turn; `back`: the chat being brought back (bringBack), its artifact kept meanwhile.
+  let away = null, back = null
+  // The chat's tab closed with another session's tab beside it: the artifact over the zone at once; once Hermes has
+  // settled the session it moved in, the chat back in its place behind the artifact and that session back in a tab
+  // of its own, as the tab's x leaves them.
+  const bringBack = was => {
+    away = null
+    if (dockOwner() === was.sid) expandDock(ctx)
+    else {
+      closeDock() // what the session moved in opened meanwhile (its own artifact)
+      if (was.making) dockMaking(ctx, was.making, 'center')
+      else if (was.art) dock(ctx, was.art, 'center')
+    }
+    if (back) return
+    back = was
+    later(ctx, async () => {
+      back = null
+      const moved = sidAtom.get()
+      if (!moved || moved === was.sid || !onChatRoute(moved) || dockOwner() !== was.sid) return
+      await host.openSession(was.sid)
+      await host.openSession(moved, { intent: 'tab' })
+      await host.openSession(was.sid) // the focus (the lit sidebar row) the chat's again, not that session's
+      if (dockClose && $dockPos.get() === 'center' && dockOwner() === was.sid) openTile(ctx, tileTitle)
+    }, 300)
+  }
   let tabClosedAt = 0
   const onTabClose = e => {
     if (e && !((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) return
+    // Another session's tab closed (one stacked beside the chat): Hermes' own close, the artifact stays as it is.
+    const sid = gestureChat()
+    if (!sid || (sid !== dockOwner() && sid !== away?.sid)) return
     tabClosedAt = Date.now()
     if (besideChat()) expandDock(ctx) // its tile in the chat's zone already when Hermes fronts its new session there
+    else if (away) bringBack(away)
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
@@ -1205,9 +1245,14 @@ function watchChatArtifactTool(ctx) {
     // The artifact (or placeholder) belongs to its chat: another chat in front closes it (not the person's close).
     const owner = dockOwner()
     if (owner && owner !== sid) {
+      if (back?.sid === owner) return
+      const was = { sid: owner, art: current(), making: $dockMaking.get() }
+      if (closed()) return void bringBack(was) // the chat's tab closed, the gesture seen first
       closeDock()
       $dockMaking.set(null)
       $chat.set('off')
+      away = was
+      later(ctx, () => { if (away === was) away = null }, 0) // the gesture's handler runs in this turn
     }
     if (closedIn.has(sid)) return
     // Chat on one artifact brings its chat in front: openSplit docks that one, not the chat's newest.
@@ -1229,7 +1274,7 @@ function watchChatArtifactTool(ctx) {
     if (busy && !m && !chatArtifacts(sid).length && !closedIn.has(sid)) fetchMaking(ctx, sid)
     if (!busy && m?.local) endMaking(sid)
   }
-  const offs = [onRouteChange(ctx, both), sidAtom.listen(both), $list.listen(both), $makings.listen(sync),
+  const offs = [sidAtom.listen(onFocus), onRouteChange(ctx, both), sidAtom.listen(both), $list.listen(both), $makings.listen(sync),
     ...['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'auxclick'].map(type => listen(ctx, window, type, keepChatTab, true)),
     listen(ctx, window, 'keydown', onTabClose, true),
     window.hermesDesktop?.onClosePreviewRequested?.(() => onTabClose())]
@@ -4902,6 +4947,10 @@ function chatDocked(ctx) {
     return $dockFloat.set(true)
   }
   $dockFloat.set(false)
+  // Its own chat's tab in front first: closing the expanded tile would front the tab beside it, another session
+  // stacked in the chat's zone (V6v).
+  const owner = dockOwner()
+  if (owner && $dockPos.get() === 'center') host.openSession?.(owner)?.catch?.(() => {})
   collapseDock(ctx)
 }
 

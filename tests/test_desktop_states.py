@@ -99,21 +99,46 @@ globalThis.document = Object.assign(new EventTarget(), { fullscreenElement: null
 
 // ---------------------------------------------------------------- fake host
 const mk = v => { let x = v; const ls = new Set(); return { get: () => x, set: n => { if (n === x) return; x = n; [...ls].forEach(f => f(n)) }, listen: f => (ls.add(f), () => ls.delete(f)) } }
-const selected = mk(null) // $selectedStoredSessionId; no session tiles here, so focused = selected
+const selected = mk(null) // $selectedStoredSessionId: the chat in the zone's main tab
+// The chat zone's tabs: main (the route's chat), sessions stacked beside it (session tiles), and a tile docked over the
+// zone ('center'). The focused stored session is main's, or a stacked session's while its tab is in front.
+const stacked = []
+let front = 'main' // 'main' | a stacked session id | 'tile'
+const focused = mk(null)
+const syncFocus = () => focused.set(stacked.includes(front) ? front : selected.get())
+selected.listen(syncFocus)
+const toFront = f => { front = f; syncFocus() }
 const tiles = new Map() // workspace tiles: id -> {opts, close}
 const log = []
 const host = {
-  state: { focusedStoredSessionId: selected, busyBySession: mk({}), busy: mk(false), focusedSessionId: mk(null) },
+  state: { focusedStoredSessionId: focused, busyBySession: mk({}), busy: mk(false), focusedSessionId: mk(null) },
   request: async (m, p) => (m === 'session.resume' ? { session_id: `rt-${p.session_id}` } : {}),
   composer: {},
   navigate(path) { window.location.hash = `#${path}` },
-  async openSession(sid) { await tick(); routerNav(`/${enc(sid)}`) },
+  // open-session.ts: a chat on screen is fronted (main or its stacked tab); `tab` stacks one beside main, else it
+  // loads into main (its route)
+  async openSession(sid, o = {}) {
+    await tick()
+    if (sid === selected.get() && o.intent !== 'tab') return toFront('main')
+    if (stacked.includes(sid)) return toFront(sid)
+    if (o.intent === 'tab') { stacked.push(sid); return toFront(sid) }
+    routerNav(`/${enc(sid)}`); toFront('main')
+  },
   openWorkspace(id, opts) {
     const prev = tiles.get(id)
     if (prev) log.push(`re-open ${id}`)
-    const close = () => { if (tiles.get(id)?.close === close) tiles.delete(id); opts.onClose?.() }
+    const close = () => {
+      if (tiles.get(id)?.close === close) {
+        // the zone's tab beside a closed tile in front comes in front (the stacked session left of it, else main)
+        if (tiles.get(id).pos === 'center' && front === 'tile') toFront(stacked.length ? stacked[stacked.length - 1] : 'main')
+        tiles.delete(id)
+      }
+      opts.onClose?.()
+    }
     // The dock hint places a tile not yet in the layout; a re-open refreshes it where it is (revealTreePane).
-    tiles.set(id, { opts, close, pos: prev ? prev.pos : (opts.dock?.pos || 'center') })
+    const pos = prev ? prev.pos : (opts.dock?.pos || 'center')
+    tiles.set(id, { opts, close, pos })
+    if (pos === 'center') toFront('tile') // over the chat's zone, its tab in front
     return close
   }
 }
@@ -221,7 +246,7 @@ const hasEl = (el, name) => {
 const fails = []
 let step = ''
 function check(expect = {}) {
-  const sid = selected.get()
+  const sid = focused.get()
   const path = hash.slice(1).split('?')[0]
   const onChat = path === '/' || path === `/${enc(sid || '')}`
   const has = Boolean(sid && (list.some(a => a.session === sid) || I.$makings.get()[sid]))
@@ -232,7 +257,7 @@ function check(expect = {}) {
   const chat = I.$chat.get()
   if ((chat === 'split') !== (tiles.size === 1)) bad(`$chat=${chat} with ${tiles.size} tile(s)`)
   if (tiles.size && pageMounted) bad('a tile beside the Artifacts page')
-  if (chat === 'split' && (I.$dockMaking.get() || I.current()?.session) !== sid) bad(`docked ${I.$dockMaking.get() || I.$selected.get()} beside chat ${sid}`)
+  if (chat === 'split' && !stacked.includes(front) && (I.$dockMaking.get() || I.current()?.session) !== sid) bad(`docked ${I.$dockMaking.get() || I.$selected.get()} beside chat ${sid}`)
   if (I.$dockMaking.get() && chat !== 'split') bad('a placeholder with no tile')
   if ('making' in expect && I.$dockMaking.get() !== expect.making) bad(`expected placeholder for ${expect.making}, got ${I.$dockMaking.get()}`)
   if ('reopens' in expect) { const n = log.filter(x => x.startsWith('re-open')).length; if (n !== expect.reopens) bad(`expected ${expect.reopens} in-place re-open(s), got ${n}`); log.length = 0 }
@@ -343,6 +368,49 @@ await S('the chat\'s tab shut with Ctrl+W (the key): the same', async () => {
 }, COLLAPSED)
 await S('collapsed, its chat\'s tab closed again: nothing more', async () => { log.length = 0; press('button[aria-label="Close"]'); await settle(); await draftSettles() }, { ...COLLAPSED, reopens: 0 })
 await S('Show chat there: beside its own chat', showChat, { split: true, expanded: false, route: '#/chatA' })
+// Another session's tab stacked beside the chat (its strip's +). Hermes' Ctrl+W on the chat's tab moves that session
+// into the chat's place (close-tab.ts closeWorkspaceTab: its tile closed, then its route); on that other tab it closes
+// that tab alone (closeFocusedSessionTab). V6u: the artifact closed with the chat, the other session left in front.
+const stack = sid => { stacked.push(sid); toFront(sid) }
+const ctrlW = (...steps) => steps.forEach(f => f())
+const plugins = () => closeTabRequests.forEach(f => f())
+const intoMain = () => { const next = stacked.shift(); routerNav(`/${enc(next)}`) }
+const closeFront = () => { stacked.splice(stacked.indexOf(front), 1); toFront('main') }
+const turn = () => new Promise(r => setTimeout(r, 5)) // a timer turn: the gesture before is over
+const TWO = { split: true, expanded: false, route: '#/chatA', lit: 'chat:chatA' }
+const keptBeside = () => { if (!stacked.includes('chatU') || front !== 'tile') throw new Error(`stacked [${stacked}], ${front} in front`) }
+await S('another session stacked beside the chat, then the chat\'s own tab in front', async () => { stack('chatU'); await turn(); toFront('main'); await turn() }, TWO)
+await S('Ctrl+W on the chat\'s tab, another session beside it: collapsed under its artifact, the chat back in its tab, the other in its own', async () => {
+  ctrlW(intoMain, plugins)
+  if (tilePos() !== 'center') throw new Error('the artifact not over the zone in the turn of the close')
+  await settle(); await draftSettles(); keptBeside()
+}, COLLAPSED)
+await S('Show chat: its own chat in front, not the other session', async () => {
+  showChat(); await settle()
+  if (front !== 'main' || !stacked.includes('chatU')) throw new Error(`${front} in front, stacked [${stacked}]`)
+}, TWO)
+await S('the same with our handler first: the same', async () => {
+  await turn(); ctrlW(plugins, intoMain)
+  if (tilePos() !== 'center') throw new Error('the artifact not over the zone in the turn of the close')
+  await settle(); await draftSettles(); keptBeside()
+}, COLLAPSED)
+await S('Show chat after it', async () => { showChat(); await settle(); if (front !== 'main') throw new Error(`${front} in front`) }, TWO)
+await S('the same with the focus following the route a turn later: the same', async () => {
+  await turn()
+  const set = selected.set; selected.set = () => {}; intoMain(); selected.set = set
+  plugins(); setTimeout(() => selected.set('chatU'), 50)
+  await new Promise(r => setTimeout(r, 60)); await settle(); await draftSettles(); keptBeside()
+}, COLLAPSED)
+await S('Show chat after that', async () => { showChat(); await settle(); if (front !== 'main') throw new Error(`${front} in front`) }, TWO)
+await S('the chat\'s tab x with another session beside it: collapsed, the other tab kept', async () => {
+  await turn(); press('button[aria-label="Close"]'); await settle(); await draftSettles(); keptBeside()
+}, COLLAPSED)
+await S('Show chat after the x: its own chat in front', async () => { showChat(); await settle(); if (front !== 'main') throw new Error(`${front} in front`) }, TWO)
+await S('Ctrl+W on the other session\'s tab: only that tab closes, the artifact stays beside its chat', async () => {
+  toFront('chatU'); await turn()
+  ctrlW(closeFront, plugins); await settle(); await draftSettles()
+  if (stacked.length || front !== 'main') throw new Error(`stacked [${stacked}], ${front} in front`)
+}, TWO)
 // Told apart from a tab's close once the gesture's events have run (a timer turn).
 await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', async () => { routerNav('/'); await new Promise(r => setTimeout(r, 5)) },
   { split: false, route: '#/', closed: false })
