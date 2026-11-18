@@ -1166,6 +1166,7 @@ function watchChatArtifactTool(ctx) {
   const onTabClose = e => {
     if (e && !((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) return
     tabClosedAt = Date.now()
+    if (besideChat()) expandDock(ctx) // its tile in the chat's zone already when Hermes fronts its new session there
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
