@@ -219,7 +219,7 @@ class RoundV6sPages(unittest.TestCase):
           await api.wheel(g[0], g[1], 0, 100); await api.sleep(400); o.one = await at()
           await api.wheel(g[0], g[1], 0, 3000); await api.sleep(400); o.far = await at()
           await api.wheel(g[0], g[1], 0, -4000); await api.sleep(400); o.back = await at()
-          // its top scrolled under the grid's headers, the rest in sight: its mark below them, on what is seen of it
+          // its top scrolled under the grid's headers, the rest in sight: its mark out of sight, as a cell's (not on them)
           const by = await api.frame(`(() => { ${clip}; return c.getBoundingClientRect().top - p.getBoundingClientRect().top + 40 })()`)
           await api.wheel(g[0], g[1], 0, by); await api.sleep(400); o.under = await at()
           await api.wheel(g[0], g[1], 0, -4000); await api.sleep(400)
@@ -232,15 +232,16 @@ class RoundV6sPages(unittest.TestCase):
         self.assertRegex(o["sel"], r"^#sh-chart-[\w-]+$", o)
         for k in ("a", "one", "back", "old"):
             s = o[k]
+            if k == "one" and s["chart"][1] < s["top"]:
+                continue  # one wheel step took its top under the headers (below)
             self.assertEqual(len([m for m in s["b"] if m["shown"]]), 1, (k, o))
             m, ch = s["b"][0], s["chart"]
-            # its top right; under the grid's headers when its top is (V6s: on what is seen of it)
-            self.assertTrue(0 < m["l"] - ch[2] <= 8 and abs(m["t"] - max(ch[1] - 9, s["top"] if ch[1] < s["top"] else -1e9)) <= 1, (k, s))
+            self.assertTrue(0 < m["l"] - ch[2] <= 8 and abs(m["t"] - (ch[1] - 9)) <= 1, (k, s))  # its top right
         self.assertLess(o["one"]["chart"][1], o["a"]["chart"][1] - 10, o)  # the grid did scroll
         self.assertFalse(any(m["shown"] for m in o["far"]["b"]), o)
         u = o["under"]
         self.assertLess(u["chart"][1], u["top"], u)  # its top under the headers
-        self.assertTrue(u["b"][0]["shown"] and u["b"][0]["t"] >= u["top"] - 0.5, u)
+        self.assertFalse(u["b"][0]["shown"], u)  # not on the headers
         self.assertFalse(any(m["shown"] for m in o["cell"]["b"]), o)  # an old anchor whose words are the title alone: no chart's
 
     def test_a_part_cut_by_the_frames_edge_has_its_mark_in_sight(self):
@@ -259,3 +260,18 @@ class RoundV6sPages(unittest.TestCase):
         self.assertTrue(m["shown"] and 0 <= m["l"] and m["r"] <= o["w"], o)
         self.assertLess(o["chart"][0], m["l"], o)
         self.assertAlmostEqual(m["t"], o["chart"][1] - 9, delta=1, msg=o)
+
+    def test_a_part_whose_top_is_cut_has_its_mark_on_what_is_seen_of_it(self):
+        # V6s 5: a part scrolled up past the top of the box it scrolls in, the rest of it seen, had its mark above that
+        # box (on what is drawn there: a grid's headers). It is at the top of what is seen of it.
+        html = ('<div id="bar" style="position:absolute;top:0;left:0;right:0;height:60px;background:#123">Bar words</div>'
+                '<div id="sc" style="position:absolute;top:60px;left:0;right:0;bottom:0;overflow:auto">'
+                '<div style="height:100px"></div><div id="part" style="width:200px;height:400px;background:#eee">Tall part</div><div style="height:3000px"></div></div>')
+        aid = self.store.publish(title="Cut", type="page", html=html)["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "#part", n: 1}])'); await api.sleep(400)
+          await api.frame('document.getElementById("sc").scrollBy(0, 200)'); await api.sleep(400)
+          return { part: await api.frame('document.getElementById("part").getBoundingClientRect().top'), b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", settle=1500)
+        self.assertLess(o["part"], 60, o)
+        m = o["b"][0]
+        self.assertTrue(m["shown"] and abs(m["t"] - 60) <= 1, o)

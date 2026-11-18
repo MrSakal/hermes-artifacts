@@ -3026,7 +3026,12 @@
     if (id) return { el: vp, box: function () {
       var c = document.getElementById(id);
       if (!c || !c.getClientRects().length) return null;
-      var q = c.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: c };
+      // its top scrolled under the headers or the frozen rows (a chart of the rows below them): out of sight, as a
+      // cell's mark (V6n), not on them
+      var q = c.getBoundingClientRect(), v = vp.getBoundingClientRect(), s = S();
+      var ch = (s.charts || []).filter(function (x) { return chartId(s, x) === id; })[0], a = ch && parseKey(ch.at);
+      if (a && q.top < v.top + (a.r < fr ? HH : HH + FH) - 0.5) return null;
+      return { x: q.left, y: q.top, w: q.width, h: q.height, el: c };
     } };
     var m = /^cell:([^!]+)!\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(sel);
     if (!m) return null;
