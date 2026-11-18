@@ -1144,14 +1144,23 @@ function watchChatArtifactTool(ctx) {
   // entering again. The chat in front, but only while its own route shows.
   const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
   let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
-  // The person closes a chat's tab (its x, a middle click on it, Ctrl/Cmd+W): Hermes empties the chat's zone to a
-  // new session. Beside an artifact that is its own chat coming back, not an empty one. Ctrl/Cmd+W comes as Hermes'
-  // close-tab request (its main process claims the key: main.ts before-input-event), or as the key where it reaches
-  // the page; Hermes' own handler of either runs first and has emptied the zone before ours sees it.
+  // The person closes a chat's tab: Hermes empties the chat's zone to a new session. Beside an artifact that is its
+  // own chat coming back, never an empty one. Its x or a middle click on it never reaches Hermes: the chat stays (V6s:
+  // the new session showed for 250-550 ms before the chat came back; two x's 300 ms apart left one in front of it).
+  // Ctrl/Cmd+W comes as Hermes' close-tab request (its main process claims the key: main.ts before-input-event), or as
+  // the key where it reaches the page; Hermes' own handler of either runs first and has emptied the zone before ours
+  // sees it: the chat comes back after (enter).
+  const keepChatTab = e => {
+    const tab = e.target?.closest?.('[role="tab"][data-pane-tab-id="workspace"]')
+    if (!tab || !(e.button === 1 || e.target.closest('button[aria-label="Close"]'))) return
+    const sid = chatInFront()
+    if (!sid || dockOwner() !== sid) return
+    e.preventDefault()
+    e.stopImmediatePropagation()
+  }
   let tabClosedAt = 0
   const onTabClose = e => {
-    const key = e?.type === 'keydown'
-    if (!e || (key ? (e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w' : e.target?.closest?.('[role="tab"]') && (e.button === 1 || e.target.closest('button[aria-label="Close"]')))) tabClosedAt = Date.now()
+    if (!e || ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) tabClosedAt = Date.now()
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
@@ -1212,7 +1221,8 @@ function watchChatArtifactTool(ctx) {
     if (!busy && m?.local) endMaking(sid)
   }
   const offs = [onRouteChange(ctx, both), sidAtom.listen(both), $list.listen(both), $makings.listen(sync),
-    ...['pointerdown', 'auxclick', 'keydown'].map(type => listen(ctx, window, type, onTabClose, true)),
+    ...['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'auxclick'].map(type => listen(ctx, window, type, keepChatTab, true)),
+    listen(ctx, window, 'keydown', onTabClose, true),
     window.hermesDesktop?.onClosePreviewRequested?.(() => onTabClose())]
   if (host.state?.busy?.listen) offs.push(host.state.busy.listen(onBusy))
   sync()

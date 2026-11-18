@@ -297,17 +297,28 @@ await S('close with the tab strip', () => [...tiles.values()][0].close(), { spli
 await S('to chat B and back after the strip close: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
 await S('reopen from the titlebar', () => click(titlebar().render(), () => true, 'titlebar'), { split: true })
 await S('a second artifact in chat A, late list refresh', async () => { list = [A, A2, B]; routerNav(PAGE); await settle(); routerNav('/chatA') }, { split: true })
-// Hermes empties a chat zone whose tab is closed to a new session (close-tab.ts requestFreshSession).
+// Hermes empties a chat zone whose tab is closed to a new session (close-tab.ts requestFreshSession). Beside its
+// artifact the chat's own tab (pane-tab-id "workspace") keeps it: the x's or the middle button's events reach none of
+// Hermes' handlers (V6s: the new session showed 250-550 ms before the chat came back).
+const CHAT_TAB = '[role="tab"][data-pane-tab-id="workspace"]'
 const press = (sel, init = {}) => {
-  const e = Object.assign(new Event('pointerdown'), { button: 0, ...init })
-  const target = { closest: s => (s === '[role="tab"]' || s === sel ? {} : null) }
-  Object.defineProperty(e, 'target', { value: target })
-  window.dispatchEvent(e)
+  const types = init.button === 1 ? ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick'] : ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
+  const target = { closest: s => (s === '[role="tab"]' || s === CHAT_TAB || s === sel ? {} : null) }
+  let through = 0
+  for (const type of types) {
+    const e = Object.assign(new Event(type, { cancelable: true }), { button: 0, ...init })
+    Object.defineProperty(e, 'target', { value: target })
+    window.dispatchEvent(e)
+    if (!e.defaultPrevented) through++
+  }
+  if (through) throw new Error(`${through} of the close's events reached Hermes`)
 }
 const draftSettles = () => new Promise(r => setTimeout(r, 350)) // the plugin waits for Hermes' new draft first
-await S('the chat\'s tab closed beside its artifact: its own chat back, not a new session', async () => { press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles() },
+await S('the chat\'s tab closed beside its artifact: Hermes never hears of it, its own chat stays', async () => { press('button[aria-label="Close"]'); await settle(); await draftSettles() },
   { split: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false })
-await S('the chat\'s tab middle-clicked shut: the same', async () => { press(null, { button: 1 }); routerNav('/'); await settle(); await draftSettles() }, { split: true, route: '#/chatA' })
+await S('its x twice, 300 ms apart: the same', async () => { press('button[aria-label="Close"]'); await new Promise(r => setTimeout(r, 300)); press('button[aria-label="Close"]'); await settle(); await draftSettles() },
+  { split: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false })
+await S('the chat\'s tab middle-clicked: the same', async () => { press(null, { button: 1 }); await settle(); await draftSettles() }, { split: true, route: '#/chatA' })
 // Hermes' own handler of Ctrl+W (its close-tab request, or the key where it reaches the page) empties the zone
 // before the plugin hears of it.
 await S('the chat\'s tab shut with Ctrl+W (Hermes\' close-tab request): the same', async () => {
@@ -316,9 +327,12 @@ await S('the chat\'s tab shut with Ctrl+W (Hermes\' close-tab request): the same
 await S('the chat\'s tab shut with Ctrl+W (the key): the same', async () => {
   routerNav('/'); window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); await settle(); await draftSettles()
 }, { split: true, route: '#/chatA' })
-await S('expanded, its chat\'s tab closed: its own chat back behind it, the artifact fronted again (re-opened in place)', async () => {
+await S('expanded, its chat\'s tab closed: the same, the artifact still in front of it', async () => {
   click(tileEl(), b => b.props.title === 'expand', 'expand'); await settle(); log.length = 0
-  press('button[aria-label="Close"]'); routerNav('/'); await settle(); await draftSettles()
+  press('button[aria-label="Close"]'); await settle(); await draftSettles()
+}, { split: true, expanded: true, route: '#/chatA', lit: 'chat:chatA', reopens: 0 })
+await S('expanded, its chat\'s tab shut with Ctrl+W: its own chat back behind it, the artifact fronted again (re-opened in place)', async () => {
+  log.length = 0; routerNav('/'); closeTabRequests.forEach(f => f()); await settle(); await draftSettles()
 }, { split: true, expanded: true, route: '#/chatA', lit: 'chat:chatA', reopens: 1 })
 await S('Show chat there: beside its own chat', () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat'), { split: true, expanded: false, route: '#/chatA' })
 // Told apart from a tab's close once the gesture's events have run (a timer turn).
