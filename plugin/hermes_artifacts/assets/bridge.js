@@ -1154,8 +1154,9 @@
    *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). A mark that would
    *  meet one before it goes right of it (V6s: two of a design's elements, their corners 11 px apart zoomed out, had
    *  their marks one over the other; two threads on one part, side by side). A part cut by the edge of what holds it has
-   *  its mark at the top right of what is seen of it, inside the window (V6s: a sheet's chart wider than a narrow
-   *  frame had its mark 360 px past the frame's edge).
+   *  its mark at the top right of what is seen of it, inside the window and under its page's bars (V6s: a sheet's chart
+   *  wider than a narrow frame had its mark 360 px past the frame's edge; scrolled under the grid's frozen rows, it
+   *  would sit on them).
    */
   var MARK_H = 18, MARK_GAP = 2;
   function placePins() {
@@ -1166,7 +1167,7 @@
       if (k === p.key) continue;
       p.key = k; moved = true;
       var seen = w && inSight(p.el, w); // measured only when it moved
-      p.at = seen ? [Math.min(w[0] + w[2], seen) + window.scrollX + EDGE + HALO + 1, w[1] + window.scrollY - 9] : null;
+      p.at = seen ? [Math.min(w[0] + w[2], seen.r) + window.scrollX + EDGE + HALO + 1, Math.max(w[1] - 9, seen.t) + window.scrollY] : null;
     }
     if (!moved) return;
     var placed = [];
@@ -1183,7 +1184,7 @@
     });
   }
   /** Whether any of a box (x, y, w, h in the window) is in sight: inside every box el scrolls or is clipped in, and in
-   *  the band its page's own bars leave (band()); the right end of what is seen of it (0: none). */
+   *  the band its page's own bars leave (band()): the right end and the top of what is seen of it, or null. */
   function inSight(el, w) {
     var l = Math.max(w[0], 0), t = w[1], r = Math.min(w[0] + w[2], innerWidth), b = w[1] + w[3];
     for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
@@ -1192,9 +1193,10 @@
       var q = p.getBoundingClientRect();
       l = Math.max(l, q.left); t = Math.max(t, q.top); r = Math.min(r, q.right); b = Math.min(b, q.bottom);
     }
-    if (r - l < 1 || b - t < 1) return 0;
+    if (r - l < 1 || b - t < 1) return null;
     var bd = band(el);
-    return Math.min(b, bd.b) - Math.max(t, bd.t) >= 1 ? r : 0;
+    var vt = Math.max(t, bd.t); // its top cut (scrolled under a bar, out of its box): what is seen of it starts there
+    return Math.min(b, bd.b) - vt >= 1 ? { r: r, t: vt > w[1] ? vt : -Infinity } : null;
   }
   // A page whose comments name their parts its own way (a sheet's cell:, a model's part:, a deck's whole slide) finds
   // them itself first (hermes.locate): an element, {el, box()} with box() the part's rect in the window (null: not

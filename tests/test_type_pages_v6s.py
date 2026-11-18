@@ -211,13 +211,18 @@ class RoundV6sPages(unittest.TestCase):
           const sel = (await api.top('window.__events.filter(e => e.event === "picked").pop()')).detail.selector
           await api.top('window.__post("comment-mode", {on: false})')
           await api.top(`window.__post("pins", [{selector: ${JSON.stringify(sel)}, n: 1}])`); await api.sleep(500)
+          const clip = 'const c = document.querySelector(".sh-chart"); let p = c.parentElement; while (p && getComputedStyle(p).overflow === "visible") p = p.parentElement; p'
           const at = async () => ({ chart: await api.frame('(() => { const r = document.querySelector(".sh-chart").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] })()'),
-            b: await api.frame(""" + json.dumps(self.BADGES) + """) })
+            top: await api.frame(`(() => { ${clip}; return p.getBoundingClientRect().top })()`), b: await api.frame(""" + json.dumps(self.BADGES) + """) })
           const g = await api.frame('(() => { const r = document.getElementById("sh-grid").getBoundingClientRect(); return [r.left + 100, r.top + 100] })()')
           const o = { sel, a: await at() }
           await api.wheel(g[0], g[1], 0, 100); await api.sleep(400); o.one = await at()
           await api.wheel(g[0], g[1], 0, 3000); await api.sleep(400); o.far = await at()
           await api.wheel(g[0], g[1], 0, -4000); await api.sleep(400); o.back = await at()
+          // its top scrolled under the grid's headers, the rest in sight: its mark below them, on what is seen of it
+          const by = await api.frame(`(() => { ${clip}; return c.getBoundingClientRect().top - p.getBoundingClientRect().top + 40 })()`)
+          await api.wheel(g[0], g[1], 0, by); await api.sleep(400); o.under = await at()
+          await api.wheel(g[0], g[1], 0, -4000); await api.sleep(400)
           const old = "#sh-grid > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(9) > div:nth-of-type(1) > div:nth-of-type(706)"
           await api.top(`window.__post("pins", [{selector: ${JSON.stringify(old)}, label: "Total by Item", quote: "Total by Item Item 1 Item 2", n: 2}])`); await api.sleep(500)
           o.old = await at()
@@ -229,9 +234,13 @@ class RoundV6sPages(unittest.TestCase):
             s = o[k]
             self.assertEqual(len([m for m in s["b"] if m["shown"]]), 1, (k, o))
             m, ch = s["b"][0], s["chart"]
-            self.assertTrue(0 < m["l"] - ch[2] <= 8 and abs(m["t"] - (ch[1] - 9)) <= 1, (k, s))  # its top right
+            # its top right; under the grid's headers when its top is (V6s: on what is seen of it)
+            self.assertTrue(0 < m["l"] - ch[2] <= 8 and abs(m["t"] - max(ch[1] - 9, s["top"] if ch[1] < s["top"] else -1e9)) <= 1, (k, s))
         self.assertLess(o["one"]["chart"][1], o["a"]["chart"][1] - 10, o)  # the grid did scroll
         self.assertFalse(any(m["shown"] for m in o["far"]["b"]), o)
+        u = o["under"]
+        self.assertLess(u["chart"][1], u["top"], u)  # its top under the headers
+        self.assertTrue(u["b"][0]["shown"] and u["b"][0]["t"] >= u["top"] - 0.5, u)
         self.assertFalse(any(m["shown"] for m in o["cell"]["b"]), o)  # an old anchor whose words are the title alone: no chart's
 
     def test_a_part_cut_by_the_frames_edge_has_its_mark_in_sight(self):
