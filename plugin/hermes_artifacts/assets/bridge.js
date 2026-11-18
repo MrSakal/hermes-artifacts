@@ -1237,7 +1237,8 @@
     var b = document.createElement("div");
     b.setAttribute("data-hermes-ui", "");
     b.textContent = String(it.n);
-    b.style.cssText = "position:absolute;z-index:2147483645;min-width:18px;height:18px;padding:0 5px;" +
+    // its own sizing, not the page's (V6u: a free-form page, content-box, drew it 28 x 18 where a type's is 18 x 18)
+    b.style.cssText = "position:absolute;z-index:2147483645;box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;" +
       "border-radius:9px;background:" + mark() + ";color:#fff;font:600 11px/18px system-ui,sans-serif;" +
       "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
     b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });

@@ -104,6 +104,17 @@ class RoundV6uPages(unittest.TestCase):
                 for b in ms[i + 1:]:
                     self.assertFalse(a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"], (w, a, b))
 
+    def test_a_free_form_pages_mark_is_the_same_circle_as_every_types(self):
+        # V6u B4: on a free-form page (no type stylesheet: content-box sizing) a mark was 28 x 18, an oval, where every
+        # other type's is an 18 x 18 circle.
+        aid = self.store.publish(title="Plain", type="page", html='<p id="a" style="margin:40px">One</p>')["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "#a", n: 1}])'); await api.sleep(500)
+          return await api.frame(""" + json.dumps(self.BADGES) + """)""", settle=1500)
+        m = o[0]
+        self.assertTrue(m["shown"], o)
+        self.assertEqual((round(m["r"] - m["l"], 1), round(m["b"] - m["t"], 1)), (18.0, 18.0), o)
+
 
 if __name__ == "__main__":
     unittest.main()
