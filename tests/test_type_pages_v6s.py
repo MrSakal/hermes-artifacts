@@ -275,3 +275,28 @@ class RoundV6sPages(unittest.TestCase):
         self.assertLess(o["part"], 60, o)
         m = o["b"][0]
         self.assertTrue(m["shown"] and abs(m["t"] - 60) <= 1, o)
+
+    def test_a_models_grid_reaches_the_edges_of_every_preset_view(self):
+        # V6s 8: in the Top view at 1500 px the grid ended 488 px in, a plain band past it: it was drawn round the model
+        # only. Its major lines reach as far as the view does on its ground (the corners of the view where they meet it;
+        # a view that never meets it, edge-on or past the horizon: as far as the grid goes), its minor lines round the model.
+        from test_models import PANEL
+        aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        o = self.drive_page(aid, """
+          const out = {}
+          for (const v of ['iso', 'top', 'front', 'right']) {
+            await api.frame('__model.setView("' + v + '")'); await api.sleep(900)
+            out[v] = await api.frame(`(() => { const g = __model.grid(), t = __model.three(), T = window.THREE, rc = new T.Raycaster(), pl = new T.Plane(new T.Vector3(0, 0, 1), -g.z), p = new T.Vector3(), far = []
+              for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { rc.setFromCamera(new T.Vector2(x, y), t.camera); far.push(rc.ray.intersectPlane(pl, p) ? Math.max(Math.abs(p.x - g.cx), Math.abs(p.y - g.cy)) : null) }
+              return { near: g.near, half: g.half, far } })()`)
+          }
+          return out""", settle=3500)
+        for v, g in o.items():
+            self.assertTrue(g["half"] >= g["near"], (v, g))
+            for f in g["far"]:
+                if f is None:
+                    self.assertEqual(g["half"], g["near"] * 16, (v, g))  # a corner past the horizon or edge-on: as far as it goes
+                else:
+                    self.assertGreaterEqual(g["half"], min(f, g["near"] * 16), (v, g))
+        self.assertTrue(all(f is not None for f in o["top"]["far"]), o)
+        self.assertGreater(o["top"]["half"], o["top"]["near"], o)  # the Top view reaches past the model's own grid

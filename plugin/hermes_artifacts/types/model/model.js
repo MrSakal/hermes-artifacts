@@ -905,6 +905,7 @@
   }
   function render() {
     if (!renderer) return;
+    reachGrid();
     updateClipRange();
     draw(true);
     labels.render(scene, camera);
@@ -1028,27 +1029,52 @@
   function visibleChain(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
 
   // ------------------------------------------------------------------ grid and axes
-  var gridKey = "";
+  /** How many times the grid's own reach (whole doublings, 1 to GRID_FAR) covers r times it. */
+  function farOf(r) { return r <= 1 ? 1 : Math.min(GRID_FAR, Math.pow(2, Math.ceil(Math.log2(r)))); }
+  /** The grid as far as the view reaches on its ground: the farthest of the view's corners there from its middle (a
+   *  corner past the horizon, or an edge-on view's: as far as it goes). Drawn again only when that changes its size. */
+  var gridPlane = null, gridRay = null, gridHit = null;
+  function reachGrid() {
+    if (!gridAt) return;
+    gridPlane = gridPlane || new THREE.Plane(); gridRay = gridRay || new THREE.Raycaster(); gridHit = gridHit || new THREE.Vector3();
+    gridPlane.set(new THREE.Vector3(0, 0, 1), -gridAt.z);
+    var far = 0;
+    for (var i = 0; i < 4; i++) {
+      gridRay.setFromCamera(new THREE.Vector2(i % 2 ? 1 : -1, i < 2 ? -1 : 1), camera);
+      var hit = gridRay.ray.intersectPlane(gridPlane, gridHit);
+      far = Math.max(far, hit ? Math.max(Math.abs(hit.x - gridAt.cx), Math.abs(hit.y - gridAt.cy)) : Infinity);
+    }
+    if (gridAt.near * farOf(far / gridAt.near) === gridAt.half) return;
+    gridReach = far; updateGrid();
+  }
+  // The grid round the model (its minor lines), its major lines on as far as the view reaches on the ground, up to
+  // GRID_FAR times as far (V6s: a Top view wider than the model showed the grid ending 488 px in, a plain band past it):
+  // in whole doublings, so a pan or a zoom draws it again only past one.
+  var gridKey = "", gridAt = null, gridReach = 0, GRID_FAR = 16;
   function updateGrid() {
     if (!gridGrp) return;
     var b = bbox || new THREE.Box3(new THREE.Vector3(-500, -500, 0), new THREE.Vector3(500, 500, 500));
     var size = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, (b.max.z - b.min.z) * 0.5, 1);
     var minor = Math.pow(10, Math.floor(Math.log10(size / 10))), major = minor * 10;
-    var half = Math.max(2, Math.ceil(size * 0.9 / major + 0.5)) * major;
+    var near = Math.max(2, Math.ceil(size * 0.9 / major + 0.5)) * major;
     var cx = Math.round((b.min.x + b.max.x) / 2 / major) * major, cy = Math.round((b.min.y + b.max.y) / 2 / major) * major;
     var z = Math.min(0, b.min.z) - minor * 0.01;
-    var key = [minor, half, cx, cy, z].join(",");
+    var half = near * farOf(gridReach / near);
+    gridAt = { cx: cx, cy: cy, z: z, near: near, half: half };
+    var key = [minor, near, half, cx, cy, z].join(",");
     var all = new THREE.Box3(new THREE.Vector3(cx - half, cy - half, z), new THREE.Vector3(cx + half, cy + half, z)).union(b);
     sphere = all.getBoundingSphere(new THREE.Sphere());
     if (key === gridKey) return;
     gridKey = key;
     gridGrp.children.slice().forEach(function (c) { gridGrp.remove(c); c.geometry.dispose(); c.material.dispose(); });
     var lines = { minor: [], major: [], x: [], y: [] };
-    var n = Math.round(half / minor);
+    var n = Math.round(half / minor), nn = Math.round(near / minor);
     for (var i = -n; i <= n; i++) {
-      var v = i * minor, isMajor = i % 10 === 0, isAxisX = cy + v === 0, isAxisY = cx + v === 0;
-      (isAxisX ? lines.x : isMajor ? lines.major : lines.minor).push(cx - half, cy + v, z, cx + half, cy + v, z);
-      (isAxisY ? lines.y : isMajor ? lines.major : lines.minor).push(cx + v, cy - half, z, cx + v, cy + half, z);
+      // a minor line round the model only; the major lines and the axes as far as the grid goes
+      var v = i * minor, isMajor = i % 10 === 0, ax = cy + v === 0, ay = cx + v === 0, round = Math.abs(i) <= nn;
+      var ex = ax || isMajor ? half : near, ey = ay || isMajor ? half : near;
+      if (ax || isMajor || round) (ax ? lines.x : isMajor ? lines.major : lines.minor).push(cx - ex, cy + v, z, cx + ex, cy + v, z);
+      if (ay || isMajor || round) (ay ? lines.y : isMajor ? lines.major : lines.minor).push(cx + v, cy - ey, z, cx + v, cy + ey, z);
     }
     var mk = function (arr, color, op) {
       if (!arr.length) return;
@@ -1980,6 +2006,7 @@
     measure: setMeasure, measurePts: function (a, b) { meas.pts = [new THREE.Vector3().fromArray(a), new THREE.Vector3().fromArray(b)]; drawMeasure(); invalidate(); },
     state: function () { return { dirty: dirty, tool: tool, gizmo: gizmoMode, sec: sec, dims: showDims, latest: latest, glOK: glOK, probs: probs, live: live, tab: tab, narrow: narrow, camera: camera && camera.type }; },
     three: function () { return { renderer: renderer, scene: scene, camera: camera, controls: controls, tc: tc, pivot: pivot }; },
-    drag: function (fn) { dragStart(); fn(pivot); dragMove(); dragEnd(); }, pick: pick, commitParam: commitParam, render: render
+    drag: function (fn) { dragStart(); fn(pivot); dragMove(); dragEnd(); }, pick: pick, commitParam: commitParam, render: render,
+    grid: function () { return gridAt && Object.assign({}, gridAt); }
   };
 })();
