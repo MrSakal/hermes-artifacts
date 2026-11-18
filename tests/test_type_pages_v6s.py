@@ -180,3 +180,18 @@ class RoundV6sPages(unittest.TestCase):
             self.assertTrue(0 < m["l"] - s["want"][0] <= 8 and abs(m["t"] - (s["want"][1] - 9)) <= 1, (k, s))  # its top right
         self.assertNotAlmostEqual(o["a"]["b"][0]["l"], o["pan"]["b"][0]["l"], delta=5, msg=o)
         self.assertFalse(o["away"]["b"][0]["shown"], o)  # panned out of the canvas's sight
+
+    def test_two_marks_that_would_meet_are_side_by_side(self):
+        # V6s 4: zoomed out, two of a design's elements had their top right corners 11 px apart: their numbered marks lay
+        # one over the other. A mark that would meet one before it goes right of it; two threads on one part too.
+        html = ('<p id="a" style="position:absolute;left:40px;top:100px;width:200px;margin:0">One</p>'
+                '<p id="b" style="position:absolute;left:40px;top:111px;width:200px;margin:0">Two</p>')
+        aid = self.store.publish(title="Close", type="page", html=html)["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: "#a", n: 1}, {selector: "#b", n: 2}, {selector: "#b", n: 3}])'); await api.sleep(500)
+          return await api.frame(""" + json.dumps(self.BADGES) + """)""", settle=1500)
+        self.assertEqual([m["n"] for m in o if m["shown"]], ["1", "2", "3"], o)
+        for i, a in enumerate(o):
+            for b in o[i + 1:]:
+                self.assertFalse(a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"], (a, b))
+        self.assertTrue(all(0 < m["l"] - 240 <= 2 * 30 + 8 for m in o), o)  # by the parts' right end, in a row

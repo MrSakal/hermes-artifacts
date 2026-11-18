@@ -1151,17 +1151,34 @@
   });
   /** An open thread's mark by its element's top right, just past the ring its Show flashes round it (EDGE and HALO:
    *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn or is
-   *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). */
+   *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). A mark that would
+   *  meet one before it goes right of it (V6s: two of a design's elements, their corners 11 px apart zoomed out, had
+   *  their marks one over the other; two threads on one part, side by side).
+   */
+  var MARK_H = 18, MARK_GAP = 2;
   function placePins() {
+    var moved = false;
     for (var i = 0; i < pins.length; i++) {
       var p = pins[i];
       var w = where(p), k = w ? w.join() + "," + innerWidth + "," + innerHeight : "gone";
       if (k === p.key) continue;
-      p.key = k;
+      p.key = k; moved = true;
       if (w && !inSight(p.el, w)) w = null; // measured only when it moved
-      p.b.style.display = w ? "" : "none";
-      if (w) { p.b.style.left = w[0] + w[2] + window.scrollX + EDGE + HALO + 1 + "px"; p.b.style.top = w[1] + window.scrollY - 9 + "px"; }
+      p.at = w ? [w[0] + w[2] + window.scrollX + EDGE + HALO + 1, w[1] + window.scrollY - 9] : null;
     }
+    if (!moved) return;
+    var placed = [];
+    pins.forEach(function (p) {
+      p.b.style.display = p.at ? "" : "none";
+      if (!p.at) return;
+      var l = p.at[0], t = p.at[1], bw = p.b.offsetWidth || MARK_H;
+      for (var j = 0; j < placed.length; j++) {
+        var q = placed[j];
+        if (l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H) { l = q.r + MARK_GAP; j = -1; }
+      }
+      placed.push({ l: l, t: t, r: l + bw, b: t + MARK_H });
+      p.b.style.left = l + "px"; p.b.style.top = t + "px";
+    });
   }
   /** Whether any of a box (x, y, w, h in the window) is in sight: inside every box el scrolls or is clipped in, and in
    *  the band its page's own bars leave (band()). */
