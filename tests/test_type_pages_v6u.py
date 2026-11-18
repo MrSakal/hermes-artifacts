@@ -84,6 +84,26 @@ class RoundV6uPages(unittest.TestCase):
             self.assertEqual(o["left"], o["spot"][3], (w, o))  # not dragged
             self.assertEqual(o["picked"], 0, (w, o))
 
+    def test_marks_crowded_at_the_frames_edge_stay_in_it(self):
+        # V6u B3: two open threads on a sheet's chart reaching past the frame's right edge: the first mark was kept in
+        # the frame, the second pushed right of it, out of the frame. Each mark stays inside the frame, none on another.
+        rows = [["Item", "Cost"]] + [[f"Item {i}", i * 10] for i in range(1, 8)]
+        aid = self.store.publish(title="Crowded", type="sheet", files={"sheet.json": {"title": "Crowded", "sheets": [
+            {"name": "Costs", "rows": rows, "charts": [{"type": "bar", "range": "A1:B6", "title": "Total", "at": "D3"}]}]}})["id"]
+        for w in (480, 420):
+            o = self.drive_page(aid, """
+              const id = await api.frame('document.querySelector(".sh-chart").id')
+              await api.top(`window.__post("pins", [{selector: "#${id}", n: 1}, {selector: "#${id}", n: 2}, {selector: "#${id}", n: 3}])`); await api.sleep(500)
+              return { w: await api.frame('innerWidth'), chart: await api.frame('document.querySelector(".sh-chart").getBoundingClientRect().right'),
+                b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", w=w)
+            self.assertGreater(o["chart"], o["w"], o)  # the chart reaches past the frame
+            ms = [m for m in o["b"] if m["shown"]]
+            self.assertEqual(len(ms), 3, (w, o))
+            for i, a in enumerate(ms):
+                self.assertTrue(0 <= a["l"] and a["r"] <= o["w"] and a["t"] >= 0, (w, a, o))
+                for b in ms[i + 1:]:
+                    self.assertFalse(a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"], (w, a, b))
+
 
 if __name__ == "__main__":
     unittest.main()

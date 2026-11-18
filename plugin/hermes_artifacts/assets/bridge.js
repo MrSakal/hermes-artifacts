@@ -1154,7 +1154,7 @@
   /** An open thread's mark by its element's top right, just past the ring its Show flashes round it (EDGE and HALO:
    *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn or is
    *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). A mark that would
-   *  meet one before it goes right of it (V6s: two of a design's elements, their corners 11 px apart zoomed out, had
+   *  meet one before it goes beside it (V6s: two of a design's elements, their corners 11 px apart zoomed out, had
    *  their marks one over the other; two threads on one part, side by side). A part cut by the edge of what holds it has
    *  its mark at the top right of what is seen of it, inside the window and under its page's bars (V6s: a sheet's chart
    *  wider than a narrow frame had its mark 360 px past the frame's edge; scrolled under the grid's frozen rows, it
@@ -1172,14 +1172,22 @@
       p.at = seen ? [Math.min(w[0] + w[2], seen.r) + window.scrollX + EDGE + HALO + 1, Math.max(w[1] - 9, seen.t) + window.scrollY] : null;
     }
     if (!moved) return;
-    var placed = [];
+    // Each inside the window (V6u: the second of two marks kept at a sheet's frame edge went right of the first, out of
+    // the frame): one that meets another goes right of it, left of it where the window ends there, and under it where
+    // neither has room.
+    var placed = [], x0 = window.scrollX + MARK_GAP;
     pins.forEach(function (p) {
       p.b.style.display = p.at ? "" : "none";
       if (!p.at) return;
-      var bw = p.b.offsetWidth || MARK_H, l = Math.min(p.at[0], window.scrollX + innerWidth - bw - MARK_GAP), t = p.at[1];
+      var bw = p.b.offsetWidth || MARK_H, x1 = window.scrollX + innerWidth - bw - MARK_GAP;
+      var l0 = Math.max(x0, Math.min(p.at[0], x1)), l = l0, t = Math.max(window.scrollY + MARK_GAP, p.at[1]), left = false;
       for (var j = 0; j < placed.length; j++) {
         var q = placed[j];
-        if (l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H) { l = q.r + MARK_GAP; j = -1; }
+        if (!(l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H)) continue;
+        if (!left && q.r + MARK_GAP <= x1) l = q.r + MARK_GAP;
+        else if (q.l - MARK_GAP - bw >= x0) { l = q.l - MARK_GAP - bw; left = true; }
+        else { l = l0; t = q.b + MARK_GAP; left = false; }
+        j = -1;
       }
       placed.push({ l: l, t: t, r: l + bw, b: t + MARK_H });
       p.b.style.left = l + "px"; p.b.style.top = t + "px";
