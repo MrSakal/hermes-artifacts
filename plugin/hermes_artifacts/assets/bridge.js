@@ -1153,7 +1153,9 @@
    *  V6m, the mark on a board item's ring), kept there (watch); hidden while the element is not drawn or is
    *  scrolled out of its view (V6n: a sheet's cell gone under its headers kept its mark on the grid). A mark that would
    *  meet one before it goes right of it (V6s: two of a design's elements, their corners 11 px apart zoomed out, had
-   *  their marks one over the other; two threads on one part, side by side).
+   *  their marks one over the other; two threads on one part, side by side). A part cut by the edge of what holds it has
+   *  its mark at the top right of what is seen of it, inside the window (V6s: a sheet's chart wider than a narrow
+   *  frame had its mark 360 px past the frame's edge).
    */
   var MARK_H = 18, MARK_GAP = 2;
   function placePins() {
@@ -1163,15 +1165,15 @@
       var w = where(p), k = w ? w.join() + "," + innerWidth + "," + innerHeight : "gone";
       if (k === p.key) continue;
       p.key = k; moved = true;
-      if (w && !inSight(p.el, w)) w = null; // measured only when it moved
-      p.at = w ? [w[0] + w[2] + window.scrollX + EDGE + HALO + 1, w[1] + window.scrollY - 9] : null;
+      var seen = w && inSight(p.el, w); // measured only when it moved
+      p.at = seen ? [Math.min(w[0] + w[2], seen) + window.scrollX + EDGE + HALO + 1, w[1] + window.scrollY - 9] : null;
     }
     if (!moved) return;
     var placed = [];
     pins.forEach(function (p) {
       p.b.style.display = p.at ? "" : "none";
       if (!p.at) return;
-      var l = p.at[0], t = p.at[1], bw = p.b.offsetWidth || MARK_H;
+      var bw = p.b.offsetWidth || MARK_H, l = Math.min(p.at[0], window.scrollX + innerWidth - bw - MARK_GAP), t = p.at[1];
       for (var j = 0; j < placed.length; j++) {
         var q = placed[j];
         if (l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H) { l = q.r + MARK_GAP; j = -1; }
@@ -1181,7 +1183,7 @@
     });
   }
   /** Whether any of a box (x, y, w, h in the window) is in sight: inside every box el scrolls or is clipped in, and in
-   *  the band its page's own bars leave (band()). */
+   *  the band its page's own bars leave (band()); the right end of what is seen of it (0: none). */
   function inSight(el, w) {
     var l = Math.max(w[0], 0), t = w[1], r = Math.min(w[0] + w[2], innerWidth), b = w[1] + w[3];
     for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
@@ -1190,9 +1192,9 @@
       var q = p.getBoundingClientRect();
       l = Math.max(l, q.left); t = Math.max(t, q.top); r = Math.min(r, q.right); b = Math.min(b, q.bottom);
     }
-    if (r - l < 1 || b - t < 1) return false;
+    if (r - l < 1 || b - t < 1) return 0;
     var bd = band(el);
-    return Math.min(b, bd.b) - Math.max(t, bd.t) >= 1;
+    return Math.min(b, bd.b) - Math.max(t, bd.t) >= 1 ? r : 0;
   }
   // A page whose comments name their parts its own way (a sheet's cell:, a model's part:, a deck's whole slide) finds
   // them itself first (hermes.locate): an element, {el, box()} with box() the part's rect in the window (null: not

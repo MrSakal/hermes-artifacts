@@ -233,3 +233,20 @@ class RoundV6sPages(unittest.TestCase):
         self.assertLess(o["one"]["chart"][1], o["a"]["chart"][1] - 10, o)  # the grid did scroll
         self.assertFalse(any(m["shown"] for m in o["far"]["b"]), o)
         self.assertFalse(any(m["shown"] for m in o["cell"]["b"]), o)  # an old anchor whose words are the title alone: no chart's
+
+    def test_a_part_cut_by_the_frames_edge_has_its_mark_in_sight(self):
+        # V6s 5: in a narrow frame a sheet's chart reached past the frame's edge: its mark, at its top right, was 360 px
+        # out of the window. It is at the top right of what is seen of it, inside the window.
+        rows = [["Item", "Cost"]] + [[f"Item {i}", i * 10] for i in range(1, 8)]
+        aid = self.store.publish(title="Narrow", type="sheet", files={"sheet.json": {"title": "Narrow", "sheets": [
+            {"name": "Costs", "rows": rows, "charts": [{"type": "bar", "range": "A1:B6", "title": "Total", "at": "D3"}]}]}})["id"]
+        o = self.drive_page(aid, """
+          const id = await api.frame('document.querySelector(".sh-chart").id')
+          await api.top(`window.__post("pins", [{selector: "#${id}", n: 1}])`); await api.sleep(500)
+          return { w: await api.frame('innerWidth'), chart: await api.frame('(() => { const r = document.querySelector(".sh-chart").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] })()'),
+            b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", w=480)
+        self.assertGreater(o["chart"][2], o["w"], o)  # the chart reaches past the frame
+        m = o["b"][0]
+        self.assertTrue(m["shown"] and 0 <= m["l"] and m["r"] <= o["w"], o)
+        self.assertLess(o["chart"][0], m["l"], o)
+        self.assertAlmostEqual(m["t"], o["chart"][1] - 9, delta=1, msg=o)
