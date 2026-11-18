@@ -1149,9 +1149,9 @@ function watchChatArtifactTool(ctx) {
   // never reaches Hermes, which would empty the chat's zone to a new session (V6s: shown 250-550 ms before the chat
   // came back; two x's 300 ms apart left one in front of it). Ctrl/Cmd+W comes as Hermes' close-tab request (its main
   // process claims the key: main.ts before-input-event), or as the key where it reaches the page; Hermes' handler of
-  // either asks for a new session (close-tab.ts), drawn once the gesture's handlers have run. The chat collapses then,
-  // after Hermes' handler (run before it, the artifact fronted in the chat's zone was the tab Hermes closed) and before
-  // the new session is drawn, behind the artifact; the chat's own session comes back into its tab (enter).
+  // either runs first and asks for a new session (close-tab.ts), which fronts the chat's tab with it in the same turn
+  // as its route: the chat collapses there, before it is drawn, the new session behind the artifact, and the chat's own
+  // session comes back into its tab (enter).
   const besideChat = () => { const sid = chatInFront(); return sid && dockOwner() === sid ? sid : null }
   const keepChatTab = e => {
     const tab = e.target?.closest?.('[role="tab"][data-pane-tab-id="workspace"]')
@@ -1164,7 +1164,6 @@ function watchChatArtifactTool(ctx) {
   const onTabClose = e => {
     if (e && !((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) return
     tabClosedAt = Date.now()
-    queueMicrotask(() => { if (besideChat()) expandDock(ctx) })
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
@@ -1176,24 +1175,27 @@ function watchChatArtifactTool(ctx) {
     // Told apart once the gesture's events have all run (Ctrl/Cmd+W: the new session comes before ours see it).
     const left = !sid && onChatRoute(null) ? dockOwner() : null
     const still = () => !sidAtom.get() && onChatRoute(null) && dockOwner() === left
+    const closed = () => { const c = Date.now() - tabClosedAt < 1500; tabClosedAt = 0; return c }
+    // The chat's tab closed: collapsed now, in the turn Hermes fronted its new session (the artifact fronted over it
+    // before it is drawn), then the chat's own session back into the tab behind it once Hermes has settled its new
+    // draft (an open in the same turn is undone by it: an endless spinner); the artifact stays in front.
+    const collapse = () => {
+      if ($dockPos.get() === 'center') openTile(ctx, tileTitle)
+      else expandDock(ctx)
+      later(ctx, async () => {
+        if (!still()) return
+        await host.openSession(left)
+        if (dockClose && $dockPos.get() === 'center' && dockOwner() === left) openTile(ctx, tileTitle)
+      }, 300)
+    }
+    if (left && closed()) return void collapse()
     if (left) {
       return void later(ctx, () => {
         if (!still()) return
-        const closed = Date.now() - tabClosedAt < 1500
-        tabClosedAt = 0
-        if (!closed) {
-          closeDock()
-          $dockMaking.set(null)
-          $chat.set('off')
-          return
-        }
-        // Once Hermes has settled its new draft (an open in the same turn is undone by it: an endless spinner).
-        // Expanded, the artifact stays in front of its chat's tab (re-opening its tile fronts it).
-        later(ctx, async () => {
-          if (!still()) return
-          await host.openSession(left)
-          if (dockClose && $dockPos.get() === 'center' && dockOwner() === left) openTile(ctx, tileTitle)
-        }, 300)
+        if (closed()) return void collapse()
+        closeDock()
+        $dockMaking.set(null)
+        $chat.set('off')
       }, 0)
     }
     if (!sid) return // on a page: the dock stays as it is

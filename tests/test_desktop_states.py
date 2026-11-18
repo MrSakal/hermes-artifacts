@@ -325,18 +325,18 @@ await S('Show chat again', showChat, { split: true, expanded: false, route: '#/c
 await S('the chat\'s tab middle-clicked: collapsed, the same', async () => { press(null, { button: 1 }); await settle(); await draftSettles() }, COLLAPSED)
 await S('Show chat once more', showChat, { split: true, expanded: false, route: '#/chatA' })
 // Ctrl+W: Hermes' handler (its close-tab request, or the key where it reaches the page) asks for a new session
-// (requestFreshSession), drawn after the gesture's handlers and their microtasks: the artifact is over the chat's area by then;
+// (requestFreshSession), its route in the turn it fronts the chat's tab: the chat collapses in that turn, the artifact over it;
 // the new session is drawn behind it (the route goes to "/") and the chat's own comes back into its tab.
 await S('the chat\'s tab shut with Ctrl+W (Hermes\' close-tab request): collapsed, its own chat back behind the artifact', async () => {
-  closeTabRequests.forEach(f => f()); await Promise.resolve()
-  if (tilePos() !== 'center') throw new Error('not collapsed before the new session is drawn')
-  routerNav('/'); await settle(); await draftSettles()
+  closeTabRequests.forEach(f => f()); routerNav('/') // Hermes' new session: its route, fronted in the same turn
+  if (tilePos() !== 'center') throw new Error('not collapsed in the turn the new session comes')
+  await settle(); await draftSettles()
 }, COLLAPSED)
 await S('Show chat after Ctrl+W', showChat, { split: true, expanded: false, route: '#/chatA' })
 await S('the chat\'s tab shut with Ctrl+W (the key): the same', async () => {
-  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); await Promise.resolve()
-  if (tilePos() !== 'center') throw new Error('not collapsed before the new session is drawn')
-  routerNav('/'); await settle(); await draftSettles()
+  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routerNav('/')
+  if (tilePos() !== 'center') throw new Error('not collapsed in the turn the new session comes')
+  await settle(); await draftSettles()
 }, COLLAPSED)
 await S('collapsed, its chat\'s tab closed again: nothing more', async () => { log.length = 0; press('button[aria-label="Close"]'); await settle(); await draftSettles() }, { ...COLLAPSED, reopens: 0 })
 await S('Show chat there: beside its own chat', showChat, { split: true, expanded: false, route: '#/chatA' })
