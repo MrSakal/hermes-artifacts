@@ -1142,7 +1142,9 @@ function watchChatArtifactTool(ctx) {
   // Entering a chat that made an artifact opens it beside the chat, as Claude does, unless the person
   // closed it in that chat (closedIn). Coming back from a page (the Artifacts page, an expand) counts as
   // entering again. The chat in front, but only while its own route shows.
-  const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
+  // Not on "/" (a new session's draft): Hermes takes that route before it clears the focused chat (V6s: the chat's
+  // tab closed, the collapse came a frame after the new session was drawn)
+  const chatInFront = () => { const sid = sidAtom.get(); return sid && !onChatRoute(null) && onChatRoute(sid) ? sid : null }
   let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
   // The person closes the tab of the chat beside its artifact: the chat collapses, the artifact over its area
   // (expanded; "Show chat" brings it back), never an empty new session in front (owner, V6s). Its x or a middle click

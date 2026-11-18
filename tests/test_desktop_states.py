@@ -316,6 +316,8 @@ const press = (sel, init = {}) => {
 }
 const draftSettles = () => new Promise(r => setTimeout(r, 350)) // the plugin waits for Hermes' new draft first
 const showChat = () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat')
+// Hermes' route to a new session's draft comes before its focused chat is cleared (a later turn)
+const routeFirst = path => { const set = selected.set; selected.set = () => {}; routerNav(path); selected.set = set; setTimeout(() => selected.set(null), 100) }
 const COLLAPSED = { split: true, expanded: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false }
 await S('the chat\'s tab closed beside its artifact: Hermes never hears of it, the chat collapses under its artifact', async () => { log.length = 0; press('button[aria-label="Close"]'); await settle(); await draftSettles() },
   { ...COLLAPSED, reopens: 0 })
@@ -328,13 +330,14 @@ await S('Show chat once more', showChat, { split: true, expanded: false, route: 
 // (requestFreshSession), its route in the turn it fronts the chat's tab: the chat collapses in that turn, the artifact over it;
 // the new session is drawn behind it (the route goes to "/") and the chat's own comes back into its tab.
 await S('the chat\'s tab shut with Ctrl+W (Hermes\' close-tab request): collapsed, its own chat back behind the artifact', async () => {
-  closeTabRequests.forEach(f => f()); routerNav('/') // Hermes' new session: its route, fronted in the same turn
+  // Hermes' new session: its route, fronted in the same turn, the focused chat cleared after
+  closeTabRequests.forEach(f => f()); routeFirst('/')
   if (tilePos() !== 'center') throw new Error('not collapsed in the turn the new session comes')
   await settle(); await draftSettles()
 }, COLLAPSED)
 await S('Show chat after Ctrl+W', showChat, { split: true, expanded: false, route: '#/chatA' })
 await S('the chat\'s tab shut with Ctrl+W (the key): the same', async () => {
-  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routerNav('/')
+  window.dispatchEvent(Object.assign(new Event('keydown'), { key: 'w', ctrlKey: true })); routeFirst('/')
   if (tilePos() !== 'center') throw new Error('not collapsed in the turn the new session comes')
   await settle(); await draftSettles()
 }, COLLAPSED)
