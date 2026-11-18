@@ -17,8 +17,6 @@ body { overflow: hidden; }
 .dc-strip { position: absolute; left: 0; bottom: 100%; width: calc(var(--bw) * var(--z)); height: 28px; display: flex; align-items: center; gap: 2px;
   transform: scale(var(--inv)); transform-origin: 0 100%; font-size: 12px; color: var(--color-fg-muted); white-space: nowrap; cursor: grab;
   overflow: hidden; container-type: inline-size; box-sizing: border-box; }
-/* a frame narrow on screen keeps its name (cut with an ellipsis) and drops the buttons */
-@container (max-width: 110px) { .dc-strip .dc-sbtn { display: none; } }
 .dc-strip:active { cursor: grabbing; }
 .dc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
 /* an interactive frame (it plays): a small play mark before its name, in the play colour; a triangle, never a
@@ -32,6 +30,10 @@ body { overflow: hidden; }
 @container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name, .dc-board.is-interactive .dc-strip:not([data-short]) .dc-dot { display: none; }
   .dc-strip:not([data-short]) .dc-grip { display: inline-flex; } }
 @container (max-width: 15px) { .dc-strip .dc-grip { display: none; } }
+/* a frame narrow on screen (design.js stripFit): its buttons and its handle, the name in the tooltip; narrower, no buttons */
+.dc-strip[data-fit=grip] .dc-name, .dc-board.is-interactive .dc-strip[data-fit=grip] .dc-dot { display: none; }
+.dc-strip[data-fit=grip] .dc-grip { display: inline-flex; }
+.dc-strip[data-fit=none] .dc-sbtn { display: none; }
 .dc-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--kit-r-icon);
   background: transparent; color: var(--color-fg-muted); cursor: pointer; flex-shrink: 0; }
 .dc-sbtn:hover { background: var(--color-action-hover); color: var(--color-fg); }

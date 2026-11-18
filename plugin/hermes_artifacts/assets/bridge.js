@@ -915,8 +915,12 @@
     var name = named.getAttribute("data-comment-label") || "", own = named !== el && direct ? clipWords(wordsOf(el), LABEL_MAX) : "";
     return clipWords(!own || own.toLowerCase() === name.toLowerCase() ? name : name + " \u00b7 " + own, LABEL_MAX); // a label shown in capitals is the name
   }
+  // A control of the page's that acts while picking too ([data-comment-use]: a design's artboard Play and Full window,
+  // V6s): its click is its own, picks nothing, and picking stays on.
+  function used(t) { return !!(t && t.closest && t.closest("[data-comment-use]")); }
   function onPick(e) {
     if (!picking) return;
+    if (used(e.target)) { atNone = true; return; }
     e.preventDefault(); e.stopImmediatePropagation();
     var el = wholeOf(e.target, e.clientX, e.clientY);
     if (blank(el, e.clientX, e.clientY)) { atNone = true; return; }
@@ -1124,7 +1128,7 @@
   // touch, a press sent to the frame; V6g, 7 of 12 such clicks in a sheet just opened picked nothing): held, the
   // first one, and picked once the page is ready, as the host's pick-at. First of the page's click listeners.
   window.addEventListener("click", function (e) {
-    if (!picking || pickOn() || !e.isTrusted) return;
+    if (!picking || pickOn() || !e.isTrusted || used(e.target)) return;
     if (e.target && e.target.closest && e.target.closest("[data-hermes-ui]")) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (!heldPick) heldPick = { x: e.clientX, y: e.clientY };

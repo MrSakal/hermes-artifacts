@@ -340,8 +340,26 @@
       // 26 px sliver read as no strip at all); its full name in its tooltip
       var cut = Math.max(0, Math.min(r.width, left - r.left)), pad = cut >= 1 ? Math.round(cut) + "px" : "";
       if (b.strip.style.paddingLeft !== pad) b.strip.style.paddingLeft = pad;
+      var fit = stripFit(b, r.width - cut);
+      if (b.strip.getAttribute("data-fit") !== fit) b.strip.setAttribute("data-fit", fit);
     });
     placeCrumbs(); // the strips it keeps off are the ones shown now
+  }
+  /** What a strip w px wide on screen shows (design.css data-fit): its buttons and its name (cut with an ellipsis, at
+   *  least six letters' room: ""), or, too narrow for that, its buttons and its handle ("grip"), or, too narrow
+   *  for its buttons, its name or handle alone ("none"). Its buttons go last (V6s: Play and Full window were gone from
+   *  every frame under 110 px, a 99 px one in a 1500 px window too). */
+  var SBTN = 24, GRIP = 16, measure = null;
+  function stripFit(b, w) {
+    var n = b.strip.querySelectorAll(".dc-sbtn:not([hidden])").length, room = w - n * SBTN;
+    if (!n) return "";
+    if (b.nameW == null || b.nameFor !== b.name.textContent) {
+      measure = measure || document.createElement("canvas").getContext("2d");
+      measure.font = getComputedStyle(b.strip).font;
+      b.nameFor = b.name.textContent; b.nameW = measure.measureText(b.nameFor).width;
+    }
+    var dot = b.el.classList.contains("is-interactive") ? 13 : 0;
+    return room >= Math.min(dot + b.nameW + 6, dot + 52) ? "" : room >= GRIP ? "grip" : "none";
   }
   function vrect() { return viewEl.getBoundingClientRect(); }
   function zoomAt(f, sx, sy) {
@@ -434,8 +452,8 @@
     layoutBoard(b);
     return b;
   }
-  function sbtn(icon, title, fn) {
-    var bt = h("button", { type: "button", "class": "dc-sbtn", title: title, "aria-label": title, html: kit.icon(icon) });
+  function sbtn(icon, title, fn) { // acts while a comment is picked too (bridge.js data-comment-use: V6s)
+    var bt = h("button", { type: "button", "class": "dc-sbtn", "data-comment-use": "", title: title, "aria-label": title, html: kit.icon(icon) });
     bt.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     bt.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
     return bt;
@@ -1445,7 +1463,7 @@
     var nextB = kit.button("", "next", function () { if (i < list.length - 1) openFocus(list[i + 1]); }, T.next);
     prevB.setAttribute("aria-label", T.prev); nextB.setAttribute("aria-label", T.next);
     prevB.disabled = i <= 0; nextB.disabled = i >= list.length - 1;
-    var head = h("div", { "class": "dc-fhead" }, [
+    var head = h("div", { "class": "dc-fhead", "data-comment-keep": "", "data-comment-use": "" }, [ // the strip's Full window opened it while picking (V6s)
       kit.labelled(kit.button(T.back, "prev", function () { closeFocus(); }, T.back), T.back),
       h("span", { "class": "dc-ftitle", text: titleOf(p) }), prevB,
       h("span", { "class": "dc-fcount", text: (i + 1) + " / " + list.length }), nextB]);
