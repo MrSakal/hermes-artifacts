@@ -104,16 +104,20 @@ class RoundV6uPages(unittest.TestCase):
                 for b in ms[i + 1:]:
                     self.assertFalse(a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"], (w, a, b))
 
-    def test_a_free_form_pages_mark_is_the_same_circle_as_every_types(self):
+    def test_a_free_form_pages_mark_is_the_same_circle_as_every_types_and_keeps_off_controls(self):
         # V6u B4: on a free-form page (no type stylesheet: content-box sizing) a mark was 28 x 18, an oval, where every
-        # other type's is an 18 x 18 circle.
-        aid = self.store.publish(title="Plain", type="page", html='<p id="a" style="margin:40px">One</p>')["id"]
+        # other type's is an 18 x 18 circle; the mark of "+1" lay on the corner of the Reset 6 px right of it. It is the
+        # circle, at the part's top right, off the Reset.
+        aid = self.store.publish(title="Plain", type="page", html='<p style="margin:40px"><button id="a">+1</button> <button id="r">Reset</button></p>')["id"]
         o = self.drive_page(aid, """
           await api.top('window.__post("pins", [{selector: "#a", n: 1}])'); await api.sleep(500)
-          return await api.frame(""" + json.dumps(self.BADGES) + """)""", settle=1500)
-        m = o[0]
+          const box = id => api.frame(`(() => { const r = document.getElementById("${id}").getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom } })()`)
+          return { b: await api.frame(""" + json.dumps(self.BADGES) + """), a: await box("a"), reset: await box("r") }""", settle=1500)
+        m, a, r = o["b"][0], o["a"], o["reset"]
         self.assertTrue(m["shown"], o)
         self.assertEqual((round(m["r"] - m["l"], 1), round(m["b"] - m["t"], 1)), (18.0, 18.0), o)
+        self.assertFalse(m["l"] < r["r"] and r["l"] < m["r"] and m["t"] < r["b"] and r["t"] < m["b"], o)  # off the Reset
+        self.assertTrue(0 < m["l"] - a["r"] <= 8 and a["t"] - 9 - 18 <= m["t"] <= a["t"] - 9 + 1, o)  # at +1's top right
 
 
 if __name__ == "__main__":

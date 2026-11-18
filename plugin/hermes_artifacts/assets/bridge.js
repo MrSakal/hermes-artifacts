@@ -878,7 +878,7 @@
     for (var k = 0; k < all.length && k < 2000; k++) {
       var n = all[k];
       // the part's own buttons too (the pin never on them): not el nor one holding it
-      if (n.closest("[data-comment-keep],[data-hermes-ui],[data-comment-under],[data-comment-hide]") || n.contains(el) || n.hasAttribute("contenteditable")) continue;
+      if (n.closest(NOT_KEPT) || n.contains(el) || n.hasAttribute("contenteditable")) continue;
       var q = n.getBoundingClientRect();
       if (q.width < 1 || q.height < 1 || q.right <= 0 || q.bottom <= 0 || q.left >= innerWidth || q.top >= innerHeight || q.width * q.height > innerWidth * innerHeight / 4) continue;
       if (getComputedStyle(n).visibility === "hidden") continue; // shown on hover (opacity 0) counts: it comes under the pointer
@@ -888,6 +888,7 @@
     for (k = 0; k < more.length && out.length < KEEP_MAX; k++) push(more[k].n);
     return out;
   }
+  var NOT_KEPT = "[data-comment-keep],[data-hermes-ui],[data-comment-under],[data-comment-hide]"; // controls kept off another way, or not at all
   var FOCUSABLE = CONTROL + ", [role=checkbox], [role=switch], [role=menuitem], [role=option], [role=slider], [role=combobox], summary, [tabindex]:not([tabindex='-1'])";
   // What the host titles a comment with: the part's name where the page gave one (data-comment-label on it or
   // around it: "Note", "Slide 3", "Region filter"), with the clicked words after it; else the words; else ""
@@ -1174,13 +1175,19 @@
     if (!moved) return;
     // Each inside the window (V6u: the second of two marks kept at a sheet's frame edge went right of the first, out of
     // the frame): one that meets another goes right of it, left of it where the window ends there, and under it where
-    // neither has room.
-    var placed = [], x0 = window.scrollX + MARK_GAP;
+    // neither has room. Not on another of the page's controls (V6u: a free-form page's "+1" had its mark on the corner
+    // of the Reset beside it): up off it, by its own height at most, still at the part's top right.
+    var placed = [], sx = window.scrollX, sy = window.scrollY, x0 = sx + MARK_GAP;
     pins.forEach(function (p) {
       p.b.style.display = p.at ? "" : "none";
       if (!p.at) return;
-      var bw = p.b.offsetWidth || MARK_H, x1 = window.scrollX + innerWidth - bw - MARK_GAP;
-      var l0 = Math.max(x0, Math.min(p.at[0], x1)), l = l0, t = Math.max(window.scrollY + MARK_GAP, p.at[1]), left = false;
+      var bw = p.b.offsetWidth || MARK_H, x1 = sx + innerWidth - bw - MARK_GAP;
+      var l0 = Math.max(x0, Math.min(p.at[0], x1)), l = l0, t = Math.max(sy + MARK_GAP, p.at[1]), left = false, o;
+      while ((o = controlUnder(p.el, l - sx, t - sy, bw))) {
+        var up = o.top + sy - MARK_GAP - MARK_H;
+        if (up < p.at[1] - MARK_H || up < sy + MARK_GAP) break;
+        t = up;
+      }
       for (var j = 0; j < placed.length; j++) {
         var q = placed[j];
         if (!(l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H)) continue;
@@ -1192,6 +1199,25 @@
       placed.push({ l: l, t: t, r: l + bw, b: t + MARK_H });
       p.b.style.left = l + "px"; p.b.style.top = t + "px";
     });
+  }
+  /** The box of a control of the page's (as the pin keeps off: keeps) seen under a mark at x, y (w wide, in the window),
+   *  not el's own nor one holding it; null when none is. */
+  function controlUnder(el, x, y, w) {
+    if (!document.elementsFromPoint) return null;
+    var pts = [[x + 1, y + 1], [x + w - 1, y + 1], [x + 1, y + MARK_H - 1], [x + w - 1, y + MARK_H - 1], [x + w / 2, y + MARK_H / 2]];
+    for (var i = 0; i < pts.length; i++) {
+      var hits = document.elementsFromPoint(pts[i][0], pts[i][1]);
+      for (var k = 0; k < hits.length; k++) {
+        if (hits[k].closest("[data-hermes-ui]")) continue;
+        var c = hits[k].closest(FOCUSABLE);
+        if (c && !c.closest(NOT_KEPT) && !c.hasAttribute("contenteditable") && !c.contains(el) && !el.contains(c)) {
+          var q = c.getBoundingClientRect();
+          if (q.width * q.height <= innerWidth * innerHeight / 4) return q;
+        }
+        break; // what is seen there
+      }
+    }
+    return null;
   }
   /** Whether any of a box (x, y, w, h in the window) is in sight: inside every box el scrolls or is clipped in, and in
    *  the band its page's own bars leave (band()): the right end and the top of what is seen of it, or null. */
