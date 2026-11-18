@@ -157,17 +157,48 @@ DRIVER = r"""
 const fs = require('fs'), path = require('path'), cp = require('child_process')
 const [chrome, scriptFile, prof] = process.argv.slice(2)
 const sleep = ms => new Promise(r => setTimeout(r, ms))
-async function main() {
-  const proc = cp.spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + prof, '--no-first-run',
+// Every wait on Chrome is bounded: a stalled step fails with its name instead of hanging the test until
+// drive()'s timeout. One CDP call (a page's await included) gets STEP ms.
+const STEP = 60000
+let proc = null, ws = null
+/** Chrome on the profile `dir`, up to its page's open DevTools socket; throws, naming the step, if one stalls. */
+async function start(dir) {
+  proc = cp.spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + dir, '--no-first-run',
     '--no-default-browser-check', '--disable-gpu', '--window-size=1200,800', 'about:blank'], { stdio: 'ignore' })
   let port = null
-  for (let i = 0; i < 200 && !port; i++) { try { port = fs.readFileSync(path.join(prof, 'DevToolsActivePort'), 'utf8').split('\n')[0] } catch (_) { await sleep(100) } }
-  if (!port) throw new Error('chrome did not start')
-  let list = []
-  for (let i = 0; i < 50; i++) { try { list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json(); if (list.find(t => t.type === 'page')) break } catch (_) {} await sleep(100) }
-  const ws = new WebSocket(list.find(t => t.type === 'page').webSocketDebuggerUrl)
-  await new Promise((r, j) => { ws.onopen = r; ws.onerror = j })
+  for (let i = 0; i < 200 && !port; i++) { try { port = fs.readFileSync(path.join(dir, 'DevToolsActivePort'), 'utf8').split('\n')[0] } catch (_) { await sleep(100) } }
+  if (!port) throw new Error('chrome start-up: no DevToolsActivePort in 20 s')
+  let page = null
+  for (let i = 0; i < 50 && !page; i++) {
+    try { page = (await (await fetch('http://127.0.0.1:' + port + '/json/list', { signal: AbortSignal.timeout(2000) })).json()).find(t => t.type === 'page') } catch (_) {}
+    if (!page) await sleep(100)
+  }
+  if (!page) throw new Error('chrome start-up: no page in /json/list on port ' + port)
+  ws = new WebSocket(page.webSocketDebuggerUrl)
+  await new Promise((r, j) => {
+    const t = setTimeout(() => j(new Error('chrome start-up: the DevTools socket did not open in 10 s')), 10000)
+    ws.onopen = () => { clearTimeout(t); r() }
+    ws.onerror = ws.onclose = () => { clearTimeout(t); j(new Error('chrome start-up: the DevTools socket failed to open')) }
+  })
+}
+/** Chrome closed and gone: Browser.close, then its process ended if it has not exited within 5 s. */
+async function stop() {
+  if (proc && proc.exitCode === null && proc.signalCode === null) {
+    const gone = new Promise(r => proc.once('exit', r))
+    try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id: 0, method: 'Browser.close' })) } catch (_) {}
+    if (await Promise.race([gone.then(() => true), sleep(5000).then(() => false)]) === false) { proc.kill(); await Promise.race([gone, sleep(2000)]) }
+  }
+}
+async function main() {
+  try { await start(prof) }
+  catch (e) {  // Chrome failed before the test's script ran: once more on a fresh profile, said on stderr
+    process.stderr.write('drv: ' + e.message + '; retrying once on a fresh profile\n')
+    await stop()
+    await start(prof + '-retry')
+  }
   let id = 0; const pend = new Map(), ctxs = new Map(), logs = []
+  // Chrome gone, the socket closed: every call still waiting fails now (no answer can come).
+  ws.onclose = () => { for (const [i, { j, method }] of pend) { pend.delete(i); j(new Error('CDP ' + method + ': the DevTools socket closed before an answer')) } }
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data)
     if (m.id && pend.has(m.id)) { const { r, j } = pend.get(m.id); pend.delete(m.id); m.error ? j(new Error(JSON.stringify(m.error))) : r(m.result); return }
@@ -176,7 +207,13 @@ async function main() {
     if (m.method === 'Runtime.executionContextsCleared') ctxs.clear()
     if (m.method === 'Runtime.exceptionThrown') logs.push(String(m.params.exceptionDetails.exception && m.params.exceptionDetails.exception.description || m.params.exceptionDetails.text).slice(0, 300))
   }
-  const send = (method, params = {}) => new Promise((r, j) => { const i = ++id; pend.set(i, { r, j }); ws.send(JSON.stringify({ id: i, method, params })) })
+  const send = (method, params = {}) => new Promise((r, j) => {
+    if (ws.readyState !== WebSocket.OPEN) return j(new Error('CDP ' + method + ': the DevTools socket is closed'))
+    const i = ++id
+    const t = setTimeout(() => { pend.delete(i); j(new Error('CDP ' + method + ': no answer in ' + STEP / 1000 + ' s')) }, STEP)
+    pend.set(i, { method, r: v => { clearTimeout(t); r(v) }, j: e => { clearTimeout(t); j(e) } })
+    ws.send(JSON.stringify({ id: i, method, params }))
+  })
   await send('Page.enable'); await send('Runtime.enable')
   await send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false })
   async function ev(expr, contextId) {
@@ -237,12 +274,13 @@ async function main() {
   let out, err = null
   try { out = await (new Function('api', 'return (async () => {' + fs.readFileSync(scriptFile, 'utf8') + '})()'))(api) }
   catch (e) { err = String(e && e.stack || e) }
-  try { await send('Browser.close') } catch (_) {}
-  setTimeout(() => { try { proc.kill() } catch (_) {} }, 500)
-  process.stdout.write(JSON.stringify({ out, err, logs }))
-  setTimeout(() => process.exit(0), 700)
+  return { out, err, logs }
 }
-main().catch(e => { process.stdout.write(JSON.stringify({ err: String(e && e.stack || e) })); process.exit(0) })
+// The answer is written only once Chrome is gone (its profile let go), and always: Chrome may drop the socket
+// without answering Browser.close, which left an await nothing could settle (the driver exiting with no output,
+// or, with Chrome slow to exit, hanging until drive()'s timeout).
+main().catch(e => ({ err: String(e && e.stack || e) }))
+  .then(async res => { await stop(); process.stdout.write(JSON.stringify(res), () => process.exit(0)) })
 """
 
 
@@ -256,6 +294,8 @@ def drive(script: str, timeout: int = 180) -> dict:
         prof.mkdir()
         r = subprocess.run([NODE, str(dp / "drv.js"), CHROME, str(dp / "script.js"), str(prof)],
                            capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        if r.stderr:  # the driver's own notes (a retried Chrome start-up), shown with the test's output
+            sys.stderr.write(r.stderr)
         try:
             return json.loads(r.stdout)
         except ValueError:
