@@ -87,7 +87,6 @@
   var view = document.getElementById("doc-view");
   bar.className = "kit-bar doc-bar";
   var live = !!(hm && hm.doc) && !C.thumb;
-  if (live) document.documentElement.setAttribute("data-own-pins", ""); // comments show as cards in the margin
   if (live) document.documentElement.classList.add("doc-live"); // room for the block handles
 
   // ------------------------------------------------------------------ the doc
@@ -2231,9 +2230,18 @@
     var want = {};
     pins.forEach(function (p) { if (p.quote) want[p.selector + "\n" + p.quote] = true; });
     page.querySelectorAll("mark.doc-cq").forEach(function (m) { if (!want[m.getAttribute("data-cq")]) unQuote(m); });
-    pins.forEach(function (p) {
-      var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
-      if (!anchor) return;
+    // Beside the page when there is room; else each suggestion's card folds to a small mark that opens on a click,
+    // and a comment shows only its numbered mark by its part (bridge.js badge, as in every type: V6s, its folded card
+    // was a second, unnumbered mark for the same thread).
+    view.classList.remove("has-mini");
+    var pr = page.getBoundingClientRect(), vr0 = view.getBoundingClientRect();
+    var marked = pins.filter(function (p) { try { return !!page.querySelector(p.selector); } catch (_) { return false; } });
+    // the cards past the commented parts' numbered marks (by their parts' right: up to 24 px wide, 6 px off)
+    var edge = marked.reduce(function (m, p) { return Math.max(m, page.querySelector(p.selector).getBoundingClientRect().right + 38); }, pr.right + 24);
+    var left = edge - vr0.left, room = vr0.width - left - 12;
+    var mini = vr0.right - pr.right - 36 < 170 && cards.length + marked.length > 0; // as before the marks: 170 px past the page
+    if (!mini) marked.forEach(function (p) {
+      var anchor = page.querySelector(p.selector);
       var node = h("div", { "class": "doc-card", "data-comment-keep": "", tabindex: "0", role: "button" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (p.author === "hermes" ? " is-hermes" : ""), text: p.author === "hermes" ? T.byH : T.byYou }),
@@ -2241,13 +2249,9 @@
         h("div", { "class": "doc-card-text", text: p.text }),
         p.replies ? h("div", { "class": "doc-card-rep", text: p.replies + " " + (p.replies === 1 ? T.reply1 : T.replies) }) : null]);
       node.addEventListener("click", function () { hm.openPin && hm.openPin(p.n); });
-      if (p.quote) hiQuote(anchor, p.quote, p.selector + "\n" + p.quote);
       cards.push({ el: anchor, node: node });
     });
-    // Beside the page when there is room; else each card folds to a small mark that opens on a click.
-    view.classList.remove("has-mini");
-    var pr = page.getBoundingClientRect(), vr0 = view.getBoundingClientRect();
-    var left = pr.right - vr0.left + 24, room = vr0.width - left - 12, mini = room < 170 && cards.length > 0;
+    marked.forEach(function (p) { if (p.quote) hiQuote(page.querySelector(p.selector), p.quote, p.selector + "\n" + p.quote); });
     view.classList.toggle("has-mini", mini); // the page leaves a lane for the marks
     if (mini) pr = page.getBoundingClientRect();
     margin.style.left = (mini ? pr.right - vr0.left - 28 : left) + "px";
@@ -2292,6 +2296,15 @@
     p.normalize();
   }
   if (live && hm.on) hm.on("pins", function (items) { pins = items || []; drawMargin(); });
+  // An open thread's numbered mark by its part (bridge.js), found again wherever the part is drawn: a block drawn
+  // again, another tab shown (V6s: a thread's part not drawn when the marks came had none).
+  if (live && hm.locate) hm.locate(function (sel) {
+    return { el: page, box: function () {
+      var a; try { a = page.querySelector(sel); } catch (_) {}
+      if (!a || !a.getClientRects().length) return null;
+      var r = a.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height };
+    } };
+  });
   var marginRaf = 0; // a resize fires many times a frame; the cards are laid out once
   window.addEventListener("resize", function () { if (!marginRaf) marginRaf = requestAnimationFrame(function () { marginRaf = 0; drawMargin(); }); });
   function decide(sid, verdict) {

@@ -1184,7 +1184,6 @@
   on("pins", function (items) { pinItems = items || []; pinTries = 0; drawPins(); });
   function drawPins() { // [{selector, n}] numbered badges on commented elements, each part with an open thread
     pins.forEach(function (p) { p.b.remove(); }); pins = [];
-    if (document.documentElement.hasAttribute("data-own-pins")) return; // the page draws its own (a doc's margin cards)
     clearTimeout(pinTimer);
     var missing = false;
     pinItems.forEach(function (it) {

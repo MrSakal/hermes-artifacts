@@ -52,17 +52,22 @@ class ViewerComments(unittest.TestCase):
         return r["out"]
 
     def test_open_threads_are_marked_on_load_and_a_thread_clicked_flashes_its_element(self):
-        for w in (1300, 600):  # the full page, and narrow (the doc's cards fold to small marks)
+        # a card per thread beside the page where there is room for them; else (V6s) each thread's numbered mark by its
+        # part alone (its folded card was a second, unnumbered mark); the numbered marks either way
+        for w in (1300, 600):
             out = self.drive("""
               const marks = await api.frame('[...document.querySelectorAll("mark.doc-cq")].map(m => m.textContent)')
               const cards = await api.frame('document.querySelectorAll(".doc-card").length')
+              const room = !(await api.frame('document.getElementById("doc-view").classList.contains("has-mini")'))
+              const numbered = await api.frame('[...document.querySelectorAll("div[data-hermes-ui]")].filter(b => /^[0-9]+$/.test(b.textContent) && b.style.display !== "none").map(b => b.textContent).sort()')
               await btn('More comment options'); await btn('All comments')
               const thread = await api.top('(() => { const t = [...document.querySelectorAll("aside div")].find(d => d.textContent.trim() === "note Second"); const b = t.getBoundingClientRect(); return [b.left + 10, b.top + b.height / 2] })()')
               await api.mouse(thread[0], thread[1]); await api.sleep(250)
               const flash = await api.frame('document.querySelectorAll("[data-hermes-ui]").length')
-              return { marks, cards, flash }""", w)
+              return { marks, cards, room, numbered, flash }""", w)
             self.assertEqual(sorted(out["marks"]), ["Second", "describes"], (w, out))
-            self.assertEqual(out["cards"], 2, (w, out))
+            self.assertEqual(out["cards"], 2 if out["room"] else 0, (w, out))
+            self.assertEqual(out["numbered"], ["1", "2"], (w, out))
             self.assertGreaterEqual(out["flash"], 1, (w, out))  # the bridge's flash box on the element
 
     def test_under_700_px_every_way_opens_the_whole_stage_list_at_the_first_click(self):
@@ -259,17 +264,21 @@ class ViewerComments(unittest.TestCase):
         self.assertEqual((out["gone"]["subs"], out["gone"]["timer"], out["gone"]["watching"]), (0, False, False), out)
 
     def test_a_flashed_block_keeps_clear_of_its_margin_icon(self):
-        # V4: docked at 1500 the "Show" flash covered the doc's comment icon in the margin for its 1.6 s
+        # V4: docked at 1500 the "Show" flash covered the doc's comment icon in the margin for its 1.6 s. Its cards keep
+        # 4 px clear of the flash's halo; with no room for them (V6s) the thread's numbered mark is past the halo, as in
+        # every type (bridge.js placePins).
         for w in (1000, 1300, 1500):
             out = self.drive("""
               await btn('More comment options'); await btn('All comments')
               const show = await api.top('(() => { const t = [...document.querySelectorAll("aside div")].find(d => d.textContent.trim() === "note describes").parentElement; const s = [...t.querySelectorAll("button")].find(x => x.textContent === "Show"); const b = s.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()')
               await api.mouse(show[0], show[1]); await api.sleep(600)
-              return await api.frame(`(() => { const f = [...document.querySelectorAll("div[data-hermes-ui]")].pop(); if (!f) return null; const r = f.getBoundingClientRect()
-                return { box: [r.left, r.right], cards: [...document.querySelectorAll(".doc-margin > *")].filter(c => { const q = c.getBoundingClientRect(); return q.width && q.top < r.bottom + 7 && q.bottom > r.top - 7 })
-                  .map(c => { const q = c.getBoundingClientRect(); return Math.max(q.left - r.right, r.left - q.right) }) } })()`)""", w)
-            self.assertTrue(out and out["cards"], (w, out))  # a card or icon beside the flashed block
+              return await api.frame(`(() => { const f = [...document.querySelectorAll("div[data-hermes-ui]")].filter(e => !e.textContent).pop(); if (!f) return null; const r = f.getBoundingClientRect()
+                const by = c => { const q = c.getBoundingClientRect(); return q.width && q.top < r.bottom + 7 && q.bottom > r.top - 7 }, gap = c => { const q = c.getBoundingClientRect(); return Math.max(q.left - r.right, r.left - q.right) }
+                return { box: [r.left, r.right], cards: [...document.querySelectorAll(".doc-margin > *")].filter(by).map(gap),
+                  marks: [...document.querySelectorAll("div[data-hermes-ui]")].filter(e => /^[0-9]+$/.test(e.textContent) && e.style.display !== "none").filter(by).map(gap) } })()`)""", w)
+            self.assertTrue(out and (out["cards"] or out["marks"]), (w, out))  # a card or numbered mark beside the flashed block
             self.assertTrue(all(g >= 3 + 4 - 0.5 for g in out["cards"]), (w, out))  # its 3 px halo and 4 px clear
+            self.assertTrue(all(g >= 3 - 0.5 for g in out["marks"]), (w, out))  # past its 3 px halo
 
 
     def test_picking_presses_the_comment_button_until_it_ends(self):
@@ -1286,7 +1295,9 @@ class CommentPlacementProperty(unittest.TestCase):
                 r = B.drive(f"const URL = {json.dumps(url)}, AID = {json.dumps(aid)}, SEL = {json.dumps(ready)}, SETTLE = 2000; await api.size({w}, 764);" + BOOT_ANY
                             + f"return await api.frame('({sel}).filter(e => e.getClientRects().length).map(e => e.hasAttribute(\"data-comment-keep\"))')", timeout=240)
                 self.assertIsNone(r.get("err"), r)
-                self.assertTrue(r["out"], (kind, w, "none shown"))
+                # a doc's cards only where there is room beside its page (else a numbered mark by each part, the
+                # bridge's own: V6s)
+                self.assertTrue(r["out"] or kind == "doc", (kind, w, "none shown"))
                 self.assertTrue(all(r["out"]), (kind, w, r["out"]))
 
     def test_page(self):

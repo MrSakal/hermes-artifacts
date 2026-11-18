@@ -152,11 +152,11 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .doc-card-ok { margin-left: auto; }
 .doc-card-ok:hover { background: var(--bg-green); color: var(--c-green); }
 .doc-card-no:hover { background: var(--bg-red); color: var(--c-red); }
-/* no room beside the page: a small mark per card; a click opens it over the page edge */
+/* no room beside the page: a small mark per suggestion's card; a click opens it over the page edge (a comment has
+   only its numbered mark by its part there: doc.js drawMargin) */
 .doc-card.is-mini { width: 22px; height: 22px; padding: 0; border-radius: var(--doc-r-lg); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .doc-card.is-mini > * { display: none; }
-.doc-card.is-mini::before { content: ""; width: 12px; height: 12px; background: currentColor; color: var(--color-fg-muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 5h16v11H9l-5 4z%27/%3E%3C/svg%3E") center / contain no-repeat; }
-.doc-card.is-mini.is-sug::before { color: var(--c-green); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 20h4L19 9l-4-4L4 16z%27/%3E%3C/svg%3E"); }
+.doc-card.is-mini::before { content: ""; width: 12px; height: 12px; background: currentColor; color: var(--c-green); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 20h4L19 9l-4-4L4 16z%27/%3E%3C/svg%3E") center / contain no-repeat; }
 .doc-card.is-mini.is-open { width: 250px; height: auto; padding: 9px 11px; border-radius: var(--doc-r-lg); right: 0; left: auto; display: block; z-index: 44; overflow: visible; }
 .doc-card.is-mini.is-open > * { display: flex; }
 .doc-card.is-mini.is-open > .doc-card-text { display: -webkit-box; }

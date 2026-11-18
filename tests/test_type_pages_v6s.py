@@ -111,3 +111,39 @@ class RoundV6sPages(unittest.TestCase):
             self.assertTrue(s["open"], s)
             self.assertEqual(s["sheet"], s["over"], s)  # the page and its stylesheet say the same
             self.assertEqual(s["hits"], [], s)
+
+    BADGES = ("[...document.querySelectorAll('div[data-hermes-ui]')].filter(b => /^\d+$/.test(b.textContent))"
+              ".map(b => { const r = b.getBoundingClientRect(); return { n: b.textContent, shown: b.style.display !== 'none', l: r.left, t: r.top, r: r.right, b: r.bottom } })")
+
+    def test_a_docs_commented_part_has_its_numbered_mark(self):
+        # V6s 3: a doc's open threads showed only as unnumbered 22 px margin icons. Every part with an open thread has
+        # its small numbered mark at its top right, as in every type: one mark (no folded card beside it), with the
+        # part as it scrolls, hidden out of sight, back with it; beside the page's cards where there is room for them.
+        md = "# Doc\n\n" + "\n\n".join(f"Paragraph {i} with a few words." for i in range(40))
+        aid = self.store.publish(title="Doc", type="doc", files={"doc.md": md})["id"]
+        for w in (700, 1400):
+            o = self.drive_page(aid, f"""
+              const id = await api.frame('document.querySelectorAll(".doc-blk")[3].id')
+              await api.top(`window.__post("pins", [{{selector: "#${{id}}", n: 2, text: "Why?", author: "you", replies: 0}}])`); await api.sleep(600)
+              const at = async () => ({{ part: await api.frame(`(() => {{ const r = document.getElementById("${{id}}").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})()`),
+                b: await api.frame({json.dumps(self.BADGES)}), mini: await api.frame('document.querySelectorAll(".doc-card.is-mini:not(.is-sug)").length'),
+                cards: await api.frame('[...document.querySelectorAll(".doc-card")].map(c => {{ const r = c.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] }})') }})
+              const sc = by => api.frame(`(() => {{ const v = document.getElementById("doc-view"), e = v.scrollHeight > v.clientHeight + 1 ? v : document.scrollingElement; if (${{by}}) e.scrollBy(0, ${{by}}); else e.scrollTop = 0 }})()`)
+              const a = await at()
+              await sc(120); await api.sleep(400)
+              const b = await at()
+              await sc(3000); await api.sleep(400)
+              const c = await at()
+              await sc(0); await api.sleep(400)
+              return {{ a, b, c, d: await at() }}""", w=w)
+            a, b, c, d = o["a"], o["b"], o["c"], o["d"]
+            for s in (a, b, d):
+                self.assertEqual(len(s["b"]), 1, (w, o))
+                m, p = s["b"][0], s["part"]
+                self.assertTrue(m["shown"] and m["n"] == "2", (w, o))
+                self.assertTrue(0 < m["l"] - p[2] <= 8 and abs(m["t"] - (p[1] - 9)) <= 1, (w, s))  # its top right
+                self.assertEqual(s["mini"], 0, (w, s))  # no second, unnumbered mark
+                for q in s["cards"]:
+                    self.assertFalse(m["l"] < q[2] and q[0] < m["r"] and m["t"] < q[3] and q[1] < m["b"], ("the mark on a card", w, s))
+            self.assertAlmostEqual(b["b"][0]["t"] - a["b"][0]["t"], -120, delta=1, msg=o)
+            self.assertFalse(c["b"][0]["shown"], (w, o))
