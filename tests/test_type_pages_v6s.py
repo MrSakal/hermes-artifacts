@@ -279,7 +279,8 @@ class RoundV6sPages(unittest.TestCase):
     def test_a_models_grid_reaches_the_edges_of_every_preset_view(self):
         # V6s 8: in the Top view at 1500 px the grid ended 488 px in, a plain band past it: it was drawn round the model
         # only. Its major lines reach as far as the view does on its ground (the corners of the view where they meet it;
-        # a view that never meets it, edge-on or past the horizon: as far as the grid goes), its minor lines round the model.
+        # a view that never meets it, edge-on or past the horizon: as far as the grid goes); its minor lines at most 4 times
+        # as far as the model's own grid (the Top view at 1500 px: all of it).
         from test_models import PANEL
         aid = self.store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
         o = self.drive_page(aid, """
@@ -300,3 +301,4 @@ class RoundV6sPages(unittest.TestCase):
                     self.assertGreaterEqual(g["half"], min(f, g["near"] * 16), (v, g))
         self.assertTrue(all(f is not None for f in o["top"]["far"]), o)
         self.assertGreater(o["top"]["half"], o["top"]["near"], o)  # the Top view reaches past the model's own grid
+        self.assertLessEqual(o["top"]["half"], o["top"]["near"] * 4, o)  # its minor lines too

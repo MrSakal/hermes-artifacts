@@ -1047,10 +1047,11 @@
     if (gridAt.near * farOf(far / gridAt.near) === gridAt.half) return;
     gridReach = far; updateGrid();
   }
-  // The grid round the model (its minor lines), its major lines on as far as the view reaches on the ground, up to
-  // GRID_FAR times as far (V6s: a Top view wider than the model showed the grid ending 488 px in, a plain band past it):
-  // in whole doublings, so a pan or a zoom draws it again only past one.
-  var gridKey = "", gridAt = null, gridReach = 0, GRID_FAR = 16;
+  // The grid as far as the view reaches on the ground, up to GRID_FAR times the model's own (V6s: a Top view wider than
+  // the model showed the grid ending 488 px in, a plain band past it), its minor lines up to GRID_MINOR times (past
+  // that only the major lines, dense ones far off are noise): in whole doublings, so a pan or a zoom draws it again
+  // only past one.
+  var gridKey = "", gridAt = null, gridReach = 0, GRID_FAR = 16, GRID_MINOR = 4;
   function updateGrid() {
     if (!gridGrp) return;
     var b = bbox || new THREE.Box3(new THREE.Vector3(-500, -500, 0), new THREE.Vector3(500, 500, 500));
@@ -1068,11 +1069,11 @@
     gridKey = key;
     gridGrp.children.slice().forEach(function (c) { gridGrp.remove(c); c.geometry.dispose(); c.material.dispose(); });
     var lines = { minor: [], major: [], x: [], y: [] };
-    var n = Math.round(half / minor), nn = Math.round(near / minor);
+    var fine = Math.min(half, near * GRID_MINOR), n = Math.round(half / minor), nn = Math.round(fine / minor);
     for (var i = -n; i <= n; i++) {
-      // a minor line round the model only; the major lines and the axes as far as the grid goes
+      // the minor lines as far as they go; the major lines and the axes as far as the grid goes
       var v = i * minor, isMajor = i % 10 === 0, ax = cy + v === 0, ay = cx + v === 0, round = Math.abs(i) <= nn;
-      var ex = ax || isMajor ? half : near, ey = ay || isMajor ? half : near;
+      var ex = ax || isMajor ? half : fine, ey = ay || isMajor ? half : fine;
       if (ax || isMajor || round) (ax ? lines.x : isMajor ? lines.major : lines.minor).push(cx - ex, cy + v, z, cx + ex, cy + v, z);
       if (ay || isMajor || round) (ay ? lines.y : isMajor ? lines.major : lines.minor).push(cx + v, cy - ey, z, cx + v, cy + ey, z);
     }
