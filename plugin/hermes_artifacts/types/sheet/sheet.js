@@ -2369,7 +2369,9 @@
     var menuBtn = h("button", { type: "button", "class": "kit-btn", title: T.chart, "aria-label": T.chart, html: kit.icon("more") });
     var head = h("div", { "class": "sh-chart-h" }, [h("span", { "class": "sh-chart-t", text: ch.title || ch.range }), ro() ? null : menuBtn]);
     // picked whole while commenting, titled by its name (V6k: a press on it picked the cell under it)
-    var card = h("div", { "class": "sh-chart", "data-chart": ch.id, "data-comment-whole": "", "data-comment-label": ch.title || ch.range || T.chart });
+    // its id: a comment's anchor on it (bridge.js selectorOf) that names it, not its place among the grid's cells (V6s:
+    // "…div:nth-of-type(526)…", lost once the grid drew another number of cells)
+    var card = h("div", { "class": "sh-chart", id: chartId(s, ch), "data-chart": ch.id, "data-comment-whole": "", "data-comment-label": ch.title || ch.range || T.chart });
     card.appendChild(head);
     card.insertAdjacentHTML("beforeend", chartSvg(type, d, 378, legend ? 186 : 206));
     if (legend) card.appendChild(legend);
@@ -2403,6 +2405,7 @@
     });
     return card;
   }
+  function chartId(s, ch) { return /^[\w-]+$/.test(s.id + ch.id) ? "sh-chart-" + s.id + "-" + ch.id : null; }
   /** A chart as the op that adds it, tagged (cid) for the undo step that deletes it again by its new id. */
   function chartOp(ch, cid) { return { op: "add_chart", type: ch.type === "line" || ch.type === "pie" ? ch.type : "bar", range: ch.range, title: ch.title || "", at: ch.at, cid: cid }; }
   /** A chart changed (its type, or moved): the old one goes and the new one comes, one undo step. */
@@ -3017,7 +3020,14 @@
     setTimeout(function () { el.remove(); }, 1900);
   }
   // A cell with an open thread: its numbered mark by it whenever its sheet shows and it is in sight (hermes.locate).
-  if (hm && hm.locate && !C.thumb) hm.locate(function (sel) {
+  // A chart's: by it whenever drawn (its sheet shown), the grid drawing it again as it scrolls.
+  if (hm && hm.locate && !C.thumb) hm.locate(function (sel, it) {
+    var id = /^#sh-chart-[\w-]+$/.test(sel) ? sel.slice(1) : oldChart(sel, it);
+    if (id) return { el: vp, box: function () {
+      var c = document.getElementById(id);
+      if (!c || !c.getClientRects().length) return null;
+      var q = c.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: c };
+    } };
     var m = /^cell:([^!]+)!\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(sel);
     if (!m) return null;
     return { el: vp, box: function () {
@@ -3030,6 +3040,18 @@
       return { x: v.left + b.x, y: v.top + b.y, w: b.w, h: b.h };
     } };
   });
+  /** A chart's anchor from before charts had ids: its place in the grid ("#sh-grid > … > div:nth-of-type(706) > …"),
+   *  its label the chart's title, its words the chart's (title, then its axis and legend): the one chart in the book
+   *  with that title, whose words start so, else none (a cell picked so would have its own words alone). */
+  function oldChart(sel, it) {
+    if (sel.indexOf("#sh-grid >") !== 0 || !it || !it.label) return null;
+    var q = String(it.quote || ""), found = [];
+    book.forEach(function (s) { (s.charts || []).forEach(function (ch) {
+      var t = ch.title || ch.range || "";
+      if (t === it.label && q.indexOf(t + " ") === 0 && chartId(s, ch)) found.push(chartId(s, ch));
+    }); });
+    return found.length === 1 ? found[0] : null;
+  }
   if (hm && hm.on && !C.thumb) {
     // A comment's anchor clicked in the host: show that cell.
     hm.on("flash", function (d) {

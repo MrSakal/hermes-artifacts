@@ -4441,7 +4441,7 @@ function sendPins(portRef) {
   const all = $comments.get()
   const roots = all.filter(c => !c.parent && !c.resolved && c.anchor?.selector)
   // A page may draw its own marks (a doc's margin cards): it gets each thread's words too.
-  postToPage(portRef, 'pins', roots.map((c, i) => ({ selector: c.anchor.selector, n: i + 1, id: c.id, author: c.author,
+  postToPage(portRef, 'pins', roots.map((c, i) => ({ selector: c.anchor.selector, label: String(c.anchor.label || ''), n: i + 1, id: c.id, author: c.author,
     text: String(c.text || '').slice(0, 280), quote: String(c.anchor.text || '').slice(0, 80),
     replies: all.filter(r => r.parent === c.id).length, at: c.ts || null })))
 }

@@ -1196,7 +1196,8 @@
   }
   // A page whose comments name their parts its own way (a sheet's cell:, a model's part:, a deck's whole slide) finds
   // them itself first (hermes.locate): an element, {el, box()} with box() the part's rect in the window (null: not
-  // drawn now), or a list of them (a slide: its thumbnail and its frame). Else the selector.
+  // drawn now), or a list of them (a slide: its thumbnail and its frame). Else the selector. It gets the thread too
+  // (its label and words: a sheet's chart from before charts had ids).
   var locator = null, pinItems = [], pinTries = 0, pinTimer = 0;
   on("pins", function (items) { pinItems = items || []; pinTries = 0; drawPins(); });
   function drawPins() { // [{selector, n}] numbered badges on commented elements, each part with an open thread
@@ -1205,7 +1206,7 @@
     var missing = false;
     pinItems.forEach(function (it) {
       var L = null;
-      if (locator) try { L = locator(String(it.selector || "")); } catch (_) {}
+      if (locator) try { L = locator(String(it.selector || ""), it); } catch (_) {}
       if (!L) try { L = document.querySelector(it.selector); } catch (_) {}
       if (!L) missing = true;
       [].concat(L || []).forEach(function (t) {

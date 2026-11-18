@@ -195,3 +195,41 @@ class RoundV6sPages(unittest.TestCase):
             for b in o[i + 1:]:
                 self.assertFalse(a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"], (a, b))
         self.assertTrue(all(0 < m["l"] - 240 <= 2 * 30 + 8 for m in o), o)  # by the parts' right end, in a row
+
+    def test_a_sheets_chart_thread_is_anchored_by_the_chart_and_keeps_its_mark(self):
+        # V6s 5: a chart's comment anchor was its place among the grid's cells ("…div:nth-of-type(526)…"): an old thread
+        # on "Total by Item" never showed its mark, a new one's went after one wheel step and never came back. A chart
+        # is picked by its id; its mark goes with the grid's scroll, hidden out of sight, back with it. An old anchor
+        # comes to its chart when its title and words name one chart only.
+        rows = [["Item", "Cost", "Qty"]] + [[f"Item {i}", i * 10, i] for i in range(1, 60)]
+        aid = self.store.publish(title="Book", type="sheet", files={"sheet.json": {"title": "Book", "sheets": [
+            {"name": "Costs", "rows": rows, "charts": [{"type": "bar", "range": "A1:B6", "title": "Total by Item", "at": "E3"}]}]}})["id"]
+        o = self.drive_page(aid, """
+          const c = await api.frame('(() => { const r = document.querySelector(".sh-chart").getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.6] })()')
+          await api.top('window.__post("comment-mode", {on: true})'); await api.sleep(300)
+          await api.mouse(c[0], c[1]); await api.sleep(600)
+          const sel = (await api.top('window.__events.filter(e => e.event === "picked").pop()')).detail.selector
+          await api.top('window.__post("comment-mode", {on: false})')
+          await api.top(`window.__post("pins", [{selector: ${JSON.stringify(sel)}, n: 1}])`); await api.sleep(500)
+          const at = async () => ({ chart: await api.frame('(() => { const r = document.querySelector(".sh-chart").getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom] })()'),
+            b: await api.frame(""" + json.dumps(self.BADGES) + """) })
+          const g = await api.frame('(() => { const r = document.getElementById("sh-grid").getBoundingClientRect(); return [r.left + 100, r.top + 100] })()')
+          const o = { sel, a: await at() }
+          await api.wheel(g[0], g[1], 0, 100); await api.sleep(400); o.one = await at()
+          await api.wheel(g[0], g[1], 0, 3000); await api.sleep(400); o.far = await at()
+          await api.wheel(g[0], g[1], 0, -4000); await api.sleep(400); o.back = await at()
+          const old = "#sh-grid > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(9) > div:nth-of-type(1) > div:nth-of-type(706)"
+          await api.top(`window.__post("pins", [{selector: ${JSON.stringify(old)}, label: "Total by Item", quote: "Total by Item Item 1 Item 2", n: 2}])`); await api.sleep(500)
+          o.old = await at()
+          await api.top(`window.__post("pins", [{selector: ${JSON.stringify(old)}, label: "Total by Item", quote: "Total by Item", n: 2}])`); await api.sleep(500)
+          o.cell = await at()
+          return o""", w=1100)
+        self.assertRegex(o["sel"], r"^#sh-chart-[\w-]+$", o)
+        for k in ("a", "one", "back", "old"):
+            s = o[k]
+            self.assertEqual(len([m for m in s["b"] if m["shown"]]), 1, (k, o))
+            m, ch = s["b"][0], s["chart"]
+            self.assertTrue(0 < m["l"] - ch[2] <= 8 and abs(m["t"] - (ch[1] - 9)) <= 1, (k, s))  # its top right
+        self.assertLess(o["one"]["chart"][1], o["a"]["chart"][1] - 10, o)  # the grid did scroll
+        self.assertFalse(any(m["shown"] for m in o["far"]["b"]), o)
+        self.assertFalse(any(m["shown"] for m in o["cell"]["b"]), o)  # an old anchor whose words are the title alone: no chart's
