@@ -9,7 +9,7 @@
   var DC = window.DC, kit = window.kit;
   var standalone = document.getElementById("dc-standalone");
   var st = { id: null, file: null, sources: {}, parsed: {}, urls: {}, css: {}, props: {}, propsAll: {}, mode: "edit", wheel: "forward",
-    inst: null, map: new WeakMap(), sel: [], editing: null, editStart: "", space: false, errors: [], hover: null, ready: false };
+    inst: null, map: new WeakMap(), sel: [], editing: null, editStart: "", space: false, errors: [], hover: null, ready: false, marks: [], marksSent: "" };
 
   function post(m) {
     if (standalone || window.parent === window) return;
@@ -225,7 +225,19 @@
   function size() {
     var h = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
     if (h !== lastH) { lastH = h; post({ t: "size", h: h }); }
+    sendMarks();
   }
+  /** The canvas's open threads' parts here (st.marks: their template ids): where each is drawn (null: not drawn), sent
+   *  when that changed (a render, its pictures come, a resize), for their numbered marks on the canvas (design.js
+   *  locate: V6s, an element's thread had none, the artboard drawn in a frame of its own). */
+  function sendMarks() {
+    if (!st.marks.length) return;
+    var rects = {};
+    st.marks.forEach(function (tid) { var el = elementsOf(tid)[0]; rects[tid] = el ? rectOf(el) : null; });
+    var k = JSON.stringify(rects);
+    if (k !== st.marksSent) { st.marksSent = k; post({ t: "marks", rects: rects }); }
+  }
+  window.addEventListener("resize", sendMarks);
   function settle() {
     var imgs = Array.prototype.map.call(document.images, function (i) { return i.decode ? i.decode().catch(function () {}) : 0; });
     // A frame the browser isn't drawing may never finish decoding: wait 4 s at most.
@@ -699,6 +711,7 @@
         if (!st.pick && st.pickCss) { st.pickCss.remove(); st.pickCss = null; }
         break;
       case "pickAt": if (st.pick) post(where(pick(document.elementFromPoint(m.x, m.y)), st.pick.k, 0)); break; // a click the host held
+      case "marks": st.marks = (m.tids || []).filter(function (x) { return typeof x === "number"; }); st.marksSent = ""; sendMarks(); break;
       case "where": var we = elementsOf(m.tid)[0]; if (we) post(where(we, +m.k || 1)); break;
       case "ds": setDs(m.css); if (installSystems(m.scripts) && st.inst) mount(); break;
       case "theme": setTheme(m.theme); break;

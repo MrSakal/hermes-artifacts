@@ -147,3 +147,36 @@ class RoundV6sPages(unittest.TestCase):
                     self.assertFalse(m["l"] < q[2] and q[0] < m["r"] and m["t"] < q[3] and q[1] < m["b"], ("the mark on a card", w, s))
             self.assertAlmostEqual(b["b"][0]["t"] - a["b"][0]["t"], -120, delta=1, msg=o)
             self.assertFalse(c["b"][0]["shown"], (w, o))
+
+    def test_an_artboard_elements_thread_has_its_numbered_mark_on_the_canvas(self):
+        # V6s 4: an open thread on an element of an artboard ("Coffee roasted on Tuesday") had no numbered mark: the
+        # artboard draws in a frame of its own. Its frame says where the element is drawn; the mark sits at its top
+        # right and goes with a pan and a zoom of the canvas.
+        o = self.design(1250, 716, """
+          const f = await api.frame('(() => { const b = __design.boards["Main.dc.html"].frame.iframe.getBoundingClientRect(); return [b.left + b.width * 0.25, b.top + b.height * 0.35] })()')
+          await api.top('window.__post("comment-mode", {on: true})')
+          for (let i = 0; i < 40 && !(await api.top('window.__events.some(e => e.event === "pick-ready")')); i++) await api.sleep(150)
+          await api.mouse(f[0], f[1]); await api.sleep(700)
+          const ev = await api.top('window.__events.filter(e => e.event === "picked" || e.event === "comment").pop()')
+          await api.top('window.__post("comment-mode", {on: false})')
+          const sel = ev.detail.selector || (ev.detail.anchor || {}).selector
+          await api.top(`window.__post("pins", [{selector: ${JSON.stringify(sel)}, n: 3}])`); await api.sleep(800)
+          const at = async () => ({ b: await api.frame(""" + json.dumps(self.BADGES) + """), want: await api.frame(`(() => { const b = __design.boards["Main.dc.html"], t = +${JSON.stringify(sel)}.split("#")[1].split(":")[0], r = b.marks && b.marks[t]; if (!r) return null
+              const ir = b.frame.iframe.getBoundingClientRect(), k = ir.width / b.frame.iframe.offsetWidth; return [ir.left + (r.x + r.w) * k, ir.top + r.y * k] })()`) })
+          const o = { sel, a: await at() }
+          await api.frame('document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaX: 60, deltaY: 40, clientX: 300, clientY: 300, bubbles: true, cancelable: true }))'); await api.sleep(400)
+          o.pan = await at()
+          await api.frame('document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaY: -200, ctrlKey: true, clientX: 300, clientY: 300, bubbles: true, cancelable: true }))'); await api.sleep(400)
+          o.zoom = await at()
+          await api.frame('document.getElementById("dc-view").dispatchEvent(new WheelEvent("wheel", { deltaX: 5000, deltaY: 0, clientX: 300, clientY: 300, bubbles: true, cancelable: true }))'); await api.sleep(400)
+          o.away = await at()
+          return o""")
+        self.assertRegex(o["sel"], r"^Main\.dc\.html#\d+:", o)
+        for k in ("a", "pan", "zoom"):
+            s = o[k]
+            self.assertEqual(len(s["b"]), 1, (k, o))
+            m = s["b"][0]
+            self.assertTrue(m["shown"] and m["n"] == "3" and s["want"], (k, o))
+            self.assertTrue(0 < m["l"] - s["want"][0] <= 8 and abs(m["t"] - (s["want"][1] - 9)) <= 1, (k, s))  # its top right
+        self.assertNotAlmostEqual(o["a"]["b"][0]["l"], o["pan"]["b"][0]["l"], delta=5, msg=o)
+        self.assertFalse(o["away"]["b"][0]["shown"], o)  # panned out of the canvas's sight

@@ -477,6 +477,7 @@
     stripsSoon();
     if (!b.frame && !b.el.hidden && files[p]) {
       b.frame = new Frame({ path: p, mode: "edit", wheel: "forward", parent: b.wrap, onMsg: function (m) { boardMsg(b, m); } });
+      if (b.markTids) b.frame.send({ t: "marks", tids: b.markTids });
     }
   }
   function drawGuides(b, gs) {
@@ -693,6 +694,7 @@
       case "link": followLink(b.path, m.file); break;
       case "drop": replaceImage(b.path, m.tid, m.url, m.type, m.size); break;
       case "size": b.contentH = m.h; break;
+      case "marks": b.marks = m.rects || {}; break;
     }
   }
   function toView(b, x, y) {
@@ -1651,9 +1653,11 @@
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.
     window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); if (commentPicking) pickWhenDrawn(); });
-    // An artboard with an open thread: its numbered mark by the artboard while it is drawn (an element in it is
-    // drawn in the artboard's own frame: its mark is not drawn here).
+    // An artboard with an open thread: its numbered mark by the artboard while it is drawn; an element with one, by
+    // the element, where its artboard's frame says it is drawn (frame.js sendMarks), with the canvas panned and zoomed.
     if (window.hermes.locate) window.hermes.locate(function (sel) {
+      var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(sel), ep = m && Object.keys(boards).filter(function (f) { return enc(f) === m[1]; })[0];
+      if (ep) return markOf(ep, +m[2]);
       var p = Object.keys(boards).filter(function (f) { return enc(f) === sel; })[0];
       return p ? { el: boards[p].el, box: function () {
         var b = boards[p], n = b && b.el;
@@ -1670,6 +1674,26 @@
       center(p);
       select(p, [+m[2]], true);
     });
+  }
+
+  /** An element's mark (tid in the artboard p): asked of its frame with the other marks the host asked for at once
+   *  (its pins, each time: the frames measure only those), its box on the canvas while the frame has it drawn. */
+  var markWant = null;
+  function markOf(p, tid) {
+    if (!markWant) {
+      markWant = {};
+      Promise.resolve().then(function () {
+        var w = markWant; markWant = null;
+        Object.keys(boards).forEach(function (q) { var b = boards[q]; b.markTids = w[q] || []; if (b.frame) b.frame.send({ t: "marks", tids: b.markTids }); });
+      });
+    }
+    (markWant[p] = markWant[p] || []).push(tid);
+    return { el: document.body, box: function () {
+      var b = boards[p], r = b && b.marks && b.marks[tid];
+      if (!r || focus || b.el.hidden || !b.frame || !b.frame.iframe.isConnected) return null;
+      var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
+      return { x: ir.left + r.x * k, y: ir.top + r.y * k, w: r.w * k, h: r.h * k, el: b.frame.iframe };
+    } };
   }
 
   // ------------------------------------------------------------------ saving (every change, as a new version)
