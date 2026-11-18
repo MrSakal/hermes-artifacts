@@ -119,6 +119,35 @@ class RoundV6uPages(unittest.TestCase):
         self.assertFalse(m["l"] < r["r"] and r["l"] < m["r"] and m["t"] < r["b"] and r["t"] < m["b"], o)  # off the Reset
         self.assertTrue(0 < m["l"] - a["r"] <= 8 and a["t"] - 9 - 18 <= m["t"] <= a["t"] - 9 + 1, o)  # at +1's top right
 
+    def test_a_design_measured_tiny_at_load_fits_again_once_it_has_its_size(self):
+        # V6v D2: right after a restart a design opened at 2% (its artboards crammed top left), later opens at 8%: it fit
+        # its view once, at load, against the size its tile had while still being laid out. Until the person moves the
+        # view it fits again when the view gets its size; a view they zoomed or panned stays as they put it.
+        STATE = "(() => { const s = __design.state(); return { z: s.z, tx: s.tx, ty: s.ty } })()"
+        o = self.design(160, 120, """
+          const o = { small: await api.frame('""" + STATE + """') }
+          await api.size(1250, 716); await api.sleep(800)
+          o.grown = await api.frame('""" + STATE + """')
+          await api.frame('__design.fitAll()'); o.fit = await api.frame('""" + STATE + """')
+          const v = await api.frame('(() => { const r = document.getElementById("dc-view").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+          await api.wheel(v[0], v[1], 0, -200, true); await api.sleep(300)
+          o.zoomed = await api.frame('""" + STATE + """')
+          await api.size(900, 600); await api.sleep(800)
+          o.after = await api.frame('""" + STATE + """')
+          return o""")
+        self.assertLess(o["small"]["z"], 0.05, o)  # the tiny view's fit
+        self.assertEqual(o["grown"], o["fit"], o)  # fitted again at its real size
+        self.assertGreater(o["grown"]["z"], 0.2, o)
+        self.assertNotEqual(o["zoomed"]["z"], o["fit"]["z"], o)
+        self.assertEqual(o["after"], o["zoomed"], o)  # the person's zoom kept through a resize
+        p = self.design(160, 120, """
+          const v = await api.frame('(() => { const r = document.getElementById("dc-view").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+          await api.wheel(v[0], v[1], 0, 40, false); await api.sleep(300)
+          const panned = await api.frame('""" + STATE + """')
+          await api.size(1250, 716); await api.sleep(800)
+          return { panned, after: await api.frame('""" + STATE + """') }""")
+        self.assertEqual(p["after"], p["panned"], p)  # a pan while small is kept too
+
 
 if __name__ == "__main__":
     unittest.main()

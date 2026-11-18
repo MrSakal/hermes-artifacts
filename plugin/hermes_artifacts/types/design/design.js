@@ -2094,6 +2094,16 @@
   drawPages();
   layoutAll();
   fitAll();
+  // The view fits its artboards until the person moves it or works in it: one measured while its tile was still being
+  // laid out fits again once it has its real size (V6u: 2% after a restart, the artboards crammed top left). A pan, a
+  // zoom, a page or a fit of their own, a press or a pick leaves the view as they put it.
+  var autoFit = { z: z, tx: tx, ty: ty };
+  document.addEventListener("pointerdown", function () { autoFit = null; }, true);
+  function refit() {
+    if (!autoFit || sel.path || selBoard || z !== autoFit.z || tx !== autoFit.tx || ty !== autoFit.ty) { autoFit = null; return; }
+    fitAll();
+    autoFit = { z: z, tx: tx, ty: ty };
+  }
   if (launch.view === "focused" && files[launch.file]) openFocus(launch.file);
   var wasNarrow = narrow();
   function resized() {
@@ -2109,7 +2119,7 @@
   }
   window.addEventListener("resize", resized);
   NARROW.addEventListener("change", resized); // across 760 px within a pixel: innerWidth, and maybe no resize, unchanged
-  new ResizeObserver(function () { placeTools(); fitFocus(); }).observe(viewEl);
+  new ResizeObserver(function () { refit(); placeTools(); fitFocus(); }).observe(viewEl);
   window.addEventListener("beforeunload", function () { if (pending) save(); });
   window.__design = { select: select, selectBoard: selectBoard, boards: boards, files: files, cur: cur, canvas: function () { return canvas; },
     state: function () { return { z: z, tx: tx, ty: ty, sel: sel, selBoard: selBoard, focus: focus && focus.path, page: page, pending: pending }; },
