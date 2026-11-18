@@ -1965,6 +1965,7 @@
     var item = function (p) { return { label: titleOf(p), onClick: function () { openFocus(p); } }; };
     kit.menu(playBtn, (live.length ? [{ hint: T.prototypes }].concat(live.map(item)) : []).concat(rest.length ? [{ hint: T.statics }].concat(rest.map(item)) : []));
   });
+  playBtn.setAttribute("data-comment-use", ""); // it and its menu act while a comment is picked, as a strip's Play (V6u)
   var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () {
     var open = panelEl.hidden; // shown or not, not by its own flag alone (nothing selected hides it too)
     if (narrow()) sheetAsked = open; else panelHidden = !open;

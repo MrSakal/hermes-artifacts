@@ -916,7 +916,7 @@
     return clipWords(!own || own.toLowerCase() === name.toLowerCase() ? name : name + " \u00b7 " + own, LABEL_MAX); // a label shown in capitals is the name
   }
   // A control of the page's that acts while picking too ([data-comment-use]: a design's artboard Play and Full window,
-  // V6s): its click is its own, picks nothing, and picking stays on.
+  // V6s; its view's Play and that menu, V6u): its click is its own, picks nothing, and picking stays on.
   function used(t) { return !!(t && t.closest && t.closest("[data-comment-use]")); }
   function onPick(e) {
     if (!picking) return;
@@ -1029,9 +1029,10 @@
     if (!picking && pickStyle) { pickStyle.remove(); pickStyle = null; }
     if (!picking && hoverBox) { hoverBox.remove(); hoverBox = null; }
   }
-  // Esc while picking ends it (the host's band says so): the page's own Esc handlers never see that press.
+  // Esc while picking ends it (the host's band says so): the page's own Esc handlers never see that press. One while a
+  // menu of a control that acts while picking is open (a design's Play: V6u) closes that menu first, as Esc does.
   window.addEventListener("keydown", function (e) {
-    if (!picking || e.key !== "Escape") return;
+    if (!picking || e.key !== "Escape" || document.querySelector("[role=menu][data-comment-use]")) return;
     e.preventDefault(); e.stopImmediatePropagation();
     setPicking(false);
     emit("pick-cancel", {});
@@ -1070,11 +1071,12 @@
   // editor, place a caret, start a drag or a selection (a pick is a look, never an edit). The click itself
   // still comes (onPick; a page that picks on its own, like motion, takes it on window first). A finger's tap
   // is a pointerdown too (its default kept from the page: no mouse events, no focus after it); its touch events
-  // only stay from the page's handlers: cancelling them would cancel the tap's click, the pick itself.
+  // only stay from the page's handlers: cancelling them would cancel the tap's click, the pick itself. A control that
+  // acts while picking (used) keeps its presses as its clicks: focused by them, so Esc reaches its menu (V6u).
   function swallow(e) {
     if (!picking) return;
     var t = e.target;
-    if (t && t.closest && t.closest("[data-hermes-ui]")) return;
+    if (t && t.closest && (t.closest("[data-hermes-ui]") || used(t))) return;
     if (e.cancelable && e.type.slice(0, 5) !== "touch") e.preventDefault();
     e.stopImmediatePropagation();
   }

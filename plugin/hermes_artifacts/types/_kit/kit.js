@@ -280,7 +280,9 @@
       openMenu.close();
       if (same) return;
     }
-    var m = h("div", { "class": "kit-menu", role: "menu", "data-comment-off": "" });
+    // The menu of a control that acts while a comment is picked (bridge.js data-comment-use: a design's Play) acts too.
+    var use = !!(anchor.closest && anchor.closest("[data-comment-use]"));
+    var m = h("div", { "class": "kit-menu", role: "menu", "data-comment-off": "", "data-comment-use": use });
     // As Hermes' menus: an item's icon leads (icon: a kit icon's name; when any item has one, every item keeps
     // the slot, so the labels line up), the picked one (on: true) ends with a check, sep: true is a divider
     // (never first, last or twice in a row), disabled: true greys it.
@@ -322,7 +324,7 @@
     function close() {
       m.remove(); openMenu = null; menuAnchor = null;
       document.removeEventListener("pointerdown", out, true); document.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close); window.removeEventListener("click", outClick, true);
       if (onClose) { var f = onClose; onClose = null; f(); }
     }
     function onScroll(e) { if (!m.contains(e.target)) close(); } // the page scrolling closes it; the menu's own list scrolling does not
@@ -330,6 +332,13 @@
     function out(e) {
       if (m.contains(e.target) || (anchor.contains && anchor.contains(e.target))) return;
       swallowPress(e);
+      close();
+    }
+    // While a comment is picked the press outside never comes here (bridge.js swallows it): its click only closes the
+    // menu, before the pick sees it.
+    function outClick(e) {
+      if (m.contains(e.target) || (anchor.contains && anchor.contains(e.target))) return;
+      e.preventDefault(); e.stopImmediatePropagation();
       close();
     }
     // Esc closes it (the focus back on its button); the arrows walk its items
@@ -341,7 +350,7 @@
       e.preventDefault();
       bs[i < 0 ? (e.key === "ArrowDown" ? 0 : bs.length - 1) : (i + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % bs.length].focus();
     }
-    setTimeout(function () { document.addEventListener("pointerdown", out, true); document.addEventListener("keydown", onKey, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", out, true); document.addEventListener("keydown", onKey, true); window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", close); if (use) window.addEventListener("click", outClick, true); }, 0);
     m.close = close;
     openMenu = m; menuAnchor = anchor;
   }
