@@ -1144,23 +1144,26 @@ function watchChatArtifactTool(ctx) {
   // entering again. The chat in front, but only while its own route shows.
   const chatInFront = () => { const sid = sidAtom.get(); return sid && onChatRoute(sid) ? sid : null }
   let lastSid = null // the first chat shown (also at start) counts as entered, once the list is in
-  // The person closes a chat's tab: Hermes empties the chat's zone to a new session. Beside an artifact that is its
-  // own chat coming back, never an empty one. Its x or a middle click on it never reaches Hermes: the chat stays (V6s:
-  // the new session showed for 250-550 ms before the chat came back; two x's 300 ms apart left one in front of it).
-  // Ctrl/Cmd+W comes as Hermes' close-tab request (its main process claims the key: main.ts before-input-event), or as
-  // the key where it reaches the page; Hermes' own handler of either runs first and has emptied the zone before ours
-  // sees it: the chat comes back after (enter).
+  // The person closes the tab of the chat beside its artifact: the chat collapses, the artifact over its area
+  // (expanded; "Show chat" brings it back), never an empty new session in front (owner, V6s). Its x or a middle click
+  // never reaches Hermes, which would empty the chat's zone to a new session (V6s: shown 250-550 ms before the chat
+  // came back; two x's 300 ms apart left one in front of it). Ctrl/Cmd+W comes as Hermes' close-tab request (its main
+  // process claims the key: main.ts before-input-event), or as the key where it reaches the page; Hermes' own handler
+  // of either runs first and asks for a new session, drawn after ours has run: the artifact is over the chat's area by
+  // then, and the chat's own session comes back into its tab behind it (enter).
+  const besideChat = () => { const sid = chatInFront(); return sid && dockOwner() === sid ? sid : null }
   const keepChatTab = e => {
     const tab = e.target?.closest?.('[role="tab"][data-pane-tab-id="workspace"]')
-    if (!tab || !(e.button === 1 || e.target.closest('button[aria-label="Close"]'))) return
-    const sid = chatInFront()
-    if (!sid || dockOwner() !== sid) return
+    if (!tab || !(e.button === 1 || e.target.closest('button[aria-label="Close"]')) || !besideChat()) return
     e.preventDefault()
     e.stopImmediatePropagation()
+    if (e.type === (e.button === 1 ? 'auxclick' : 'click')) expandDock(ctx) // the gesture done: once
   }
   let tabClosedAt = 0
   const onTabClose = e => {
-    if (!e || ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) tabClosedAt = Date.now()
+    if (e && !((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) return
+    tabClosedAt = Date.now()
+    if (besideChat()) expandDock(ctx)
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
