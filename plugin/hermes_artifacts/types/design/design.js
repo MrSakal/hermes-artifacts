@@ -1140,7 +1140,10 @@
   // ------------------------------------------------------------------ properties panel
   // emptyAsked: the panel opened (Properties pressed) with nothing selected: it shows what to select
   var tab = "design", panelHidden = false, sheetAsked = false, emptyAsked = false;
-  function narrow() { return innerWidth < 760; }
+  // The stylesheet's own test (design.css: max-width 759.98px), not innerWidth, a whole number: a frame 759.63 px wide
+  // has innerWidth 760, laid out beside while the stylesheet made the panel a sheet over the view (V6s)
+  var NARROW = matchMedia("(max-width: 759.98px)");
+  function narrow() { return NARROW.matches; }
   function setTab(t) { tab = t; panelHidden = false; if (narrow()) sheetAsked = true; renderPanel(); drawTools(); }
   function computed(k) { var i = sel.info[sel.tids[0]]; return i && i.computed ? i.computed[k] || "" : ""; }
   function inline(prop) { var n = nodeOf(sel.path, sel.tids[0]); return n ? DC.styleGet(n.getAttribute("style") || "", prop) : ""; }
@@ -2066,7 +2069,7 @@
   fitAll();
   if (launch.view === "focused" && files[launch.file]) openFocus(launch.file);
   var wasNarrow = narrow();
-  window.addEventListener("resize", function () {
+  function resized() {
     apply(); fitFocus();
     // across 760 px an open panel stays open in the other layout (a sheet below, beside the canvas above); it was
     // closed silently by a resize before
@@ -2076,7 +2079,9 @@
       if (wasNarrow) sheetAsked = wasOpen; else if (wasOpen) panelHidden = false;
       renderPanel(); drawTools();
     }
-  });
+  }
+  window.addEventListener("resize", resized);
+  NARROW.addEventListener("change", resized); // across 760 px within a pixel: innerWidth, and maybe no resize, unchanged
   new ResizeObserver(function () { placeTools(); fitFocus(); }).observe(viewEl);
   window.addEventListener("beforeunload", function () { if (pending) save(); });
   window.__design = { select: select, selectBoard: selectBoard, boards: boards, files: files, cur: cur, canvas: function () { return canvas; },

@@ -81,3 +81,33 @@ class RoundV6sPages(unittest.TestCase):
             if w == 987:
                 order = [s for s in o if s["path"] == "Order.dc.html"][0]
                 self.assertEqual(len(order["btns"]), 2, order)
+
+    def test_a_designs_panel_is_laid_out_by_the_stylesheets_width_test(self):
+        # V6s 2: in a frame 759.63 px wide (innerWidth 760) design.js laid the Properties panel out beside the canvas
+        # while the stylesheet (max-width 759.98px) made it a sheet over the view: its tabs under the canvas pills.
+        # On each side of 760 px, with an element selected and Properties open, no pill is over the panel. Headless
+        # Chrome lays a frame out whole css px: Hermes' rounding (759.63 laid out, innerWidth 760) is a 759 px frame
+        # whose innerWidth says 760.
+        o = self.design(1000, 716, """
+          const out = []
+          for (const [w, iw] of [[759, 0], [760, 0], [761, 0], [759, 760]]) { // the made-up innerWidth last: it stays
+            await api.top(`document.getElementById("f").style.width = "${w}px"`); await api.sleep(300)
+            await api.frame(`(() => { if (${iw}) Object.defineProperty(window, "innerWidth", { configurable: true, get: () => ${iw} }); dispatchEvent(new Event("resize")) })()`); await api.sleep(300)
+            await api.frame('__design.selectBoard(null); __design.select("Main.dc.html", [])'); await api.sleep(200)
+            await api.frame('__design.selectBoard("Main.dc.html")'); await api.sleep(300)
+            const st = () => api.frame(`(() => { const p = document.getElementById("dc-panel"), q = p.getBoundingClientRect()
+              const pills = [...document.querySelectorAll(".dc-pill, .dc-tools")].filter(e => !e.hidden && e.getClientRects().length && getComputedStyle(e).display !== "none" && getComputedStyle(e).visibility !== "hidden")
+              return { w: document.documentElement.getBoundingClientRect().width, open: !p.hidden && q.width > 0, sheet: document.getElementById("dc-app").classList.contains("is-sheet"), over: getComputedStyle(p).position === "absolute",
+                hits: pills.filter(e => { const r = e.getBoundingClientRect(); return r.left < q.right - 0.5 && q.left < r.right - 0.5 && r.top < q.bottom - 0.5 && q.top < r.bottom - 0.5 }).map(e => e.className) } })()`)
+            let s = await st()
+            if (!s.open) {
+              const b = await api.frame('(() => { const b = [...document.querySelectorAll(".dc-pill button")].find(b => /propert/i.test(b.getAttribute("aria-label") || b.title)); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+              await api.mouse(b[0], b[1]); await api.sleep(400); s = await st()
+            }
+            out.push(s)
+          }
+          return out""")
+        for s in o:
+            self.assertTrue(s["open"], s)
+            self.assertEqual(s["sheet"], s["over"], s)  # the page and its stylesheet say the same
+            self.assertEqual(s["hits"], [], s)
