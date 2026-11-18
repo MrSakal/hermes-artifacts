@@ -1148,9 +1148,10 @@ function watchChatArtifactTool(ctx) {
   // (expanded; "Show chat" brings it back), never an empty new session in front (owner, V6s). Its x or a middle click
   // never reaches Hermes, which would empty the chat's zone to a new session (V6s: shown 250-550 ms before the chat
   // came back; two x's 300 ms apart left one in front of it). Ctrl/Cmd+W comes as Hermes' close-tab request (its main
-  // process claims the key: main.ts before-input-event), or as the key where it reaches the page; Hermes' own handler
-  // of either runs first and asks for a new session, drawn after ours has run: the artifact is over the chat's area by
-  // then, and the chat's own session comes back into its tab behind it (enter).
+  // process claims the key: main.ts before-input-event), or as the key where it reaches the page; Hermes' handler of
+  // either asks for a new session (close-tab.ts), drawn once the gesture's handlers have run. The chat collapses then,
+  // after Hermes' handler (run before it, the artifact fronted in the chat's zone was the tab Hermes closed) and before
+  // the new session is drawn, behind the artifact; the chat's own session comes back into its tab (enter).
   const besideChat = () => { const sid = chatInFront(); return sid && dockOwner() === sid ? sid : null }
   const keepChatTab = e => {
     const tab = e.target?.closest?.('[role="tab"][data-pane-tab-id="workspace"]')
@@ -1163,7 +1164,7 @@ function watchChatArtifactTool(ctx) {
   const onTabClose = e => {
     if (e && !((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'w')) return
     tabClosedAt = Date.now()
-    if (besideChat()) expandDock(ctx)
+    queueMicrotask(() => { if (besideChat()) expandDock(ctx) })
   }
   const enter = () => {
     if (!listedOnce) return // try again when the list arrives
