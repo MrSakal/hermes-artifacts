@@ -1986,8 +1986,9 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
 
 
 def _drop_kept_view(aid: str, out: dict) -> None:
-    """A dashboard's filters and draft view last for the session since 0.20.0: what older versions kept of them
-    in its storage goes (ha_read showed them). Decided on storage.json's own read, never a copy's."""
+    """A dashboard's filters last for the session since 0.20.0 and its drafts are gone: what older versions kept
+    of them (dash.params, dash.draftView.*) in its storage goes (ha_read showed them). Decided on storage.json's
+    own read, never a copy's."""
     try:
         data, fell_back = read_json_from(_kv_path(aid))
     except (OSError, ValueError):

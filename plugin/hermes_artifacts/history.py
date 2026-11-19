@@ -57,13 +57,10 @@ def _docs(files: dict[str, bytes], kind: str) -> dict[str, dict]:
         if spec.get("layout") is not None:
             out["page:layout"] = {"kind": "page", "name": "dashboard.json layout", "text": json.dumps(spec.get("layout"), indent=2, ensure_ascii=False)}
         for rel, b in files.items():
+            # drafts/: what versions before 0.20.0 wrote beside the page; a file, never the page.
             if rel.endswith(PAGE_EXT) and not rel.startswith("drafts/"):
                 out[f"page:{rel}"] = {"kind": "page", "name": rel, "text": _text(b) or ""}
-            elif rel.startswith("drafts/"):
-                did = rel.split("/")[1]
-                out.setdefault(f"draft:{did}", {"kind": "draft", "name": f"Draft {did}", "text": ""})
-                out[f"draft:{did}"]["text"] += rel + ":" + str(len(b)) + chr(10)
-            elif rel.startswith("data/"):
+            elif rel.startswith(("data/", "drafts/")):
                 out[f"file:{rel}"] = {"kind": "file", "name": rel, "text": _text(b) if len(b) < 400_000 else None, "size": len(b)}
     else:
         for rel, b in files.items():
@@ -95,7 +92,6 @@ def _summary(changes: list[dict], first: bool, restored: Optional[int]) -> dict:
     filters = any(c["doc"] == "filters" for c in changes)
     title = any(c["doc"] == "title" for c in changes)
     look = any(c["doc"] == "look" for c in changes)
-    drafts = [c for c in changes if c["doc"] == "draft"]
     things = []
     if page:
         things.append({"t": "page"})
@@ -109,8 +105,6 @@ def _summary(changes: list[dict], first: bool, restored: Optional[int]) -> dict:
         things.append({"t": "title"})
     if look:
         things.append({"t": "look"})
-    if drafts and not things:
-        things.append({"t": "draft", "kind": drafts[0]["kind"]})
     if not things:
         files = [c for c in changes if c["doc"] == "file"]
         if files:

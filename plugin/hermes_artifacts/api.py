@@ -130,9 +130,8 @@ _VENDOR = render.TYPES_DIR / "vendor"
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
 _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
                "doc": r"^doc\.md$",
-               # Dashboard: the editor (page text, cards), Design (dashboard.json look), a replaced data file, drafts.
-               "dashboard": r"^(dashboard\.json|[A-Za-z0-9_-]{1,64}\.(html|css|js)|data/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\.(csv|tsv|json)"
-                            r"|drafts/[A-Za-z0-9_-]{1,40}/[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(html|css|js|json))$",
+               # Dashboard: the editor (page text, cards), Design (dashboard.json look), a replaced data file.
+               "dashboard": r"^(dashboard\.json|[A-Za-z0-9_-]{1,64}\.(html|css|js)|data/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\.(csv|tsv|json))$",
                # Design: the index, artboard sources (the canvas edits text, styles, positions, tweaks) and uploads.
                "design": r"^(canvas\.json|[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}){0,3}\.dc\.html"
                          r"|uploads/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",

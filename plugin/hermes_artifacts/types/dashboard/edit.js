@@ -122,7 +122,7 @@
       if (!on) { if (barEl) { barEl.remove(); barEl = null; } return; }
       var box = h("div", { "class": "dash-notice dash-edit-bar" }, [
         h("b", { text: T.editorMode }), h("span", { style: "flex:1;min-width:0", text: status || T.editEvery }),
-        kit.button("", "undo", undo, T.draftUndo), kit.button("", "redo", redo, T.draftRedo),
+        kit.button("", "undo", undo, T.undo), kit.button("", "redo", redo, T.redo),
         kit.labelled(kit.button(T.editDone, "", stop), T.editDone)
       ]);
       if (barEl) barEl.replaceWith(box); else api.root.parentNode.insertBefore(box, api.root);

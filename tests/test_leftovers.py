@@ -402,7 +402,7 @@ class SweepTests(unittest.TestCase):
         store._rmtree(young)
 
     def test_a_dashboards_old_filters_and_draft_view_go(self):
-        """0.20.0: a dashboard opens on its default filters and draft view; what older versions kept of them in
+        """0.20.0: a dashboard opens on its default filters and has no drafts; what older versions kept of them in
         its storage goes (ha_read no longer shows stale filters), and nothing else there."""
         dash = store.publish(type="dashboard", title="d", files={"dashboard.json": {"params": {"region": ""}}, "index.html": "<p>d</p>"})["id"]
         page = store.publish(html="<p>p</p>", title="p")["id"]

@@ -55,7 +55,7 @@
       hTheTitle: "the title", hTheLook: "the look", hNFiles: "{n} files", hEditedMany: "Edited {things}", and: "and",
       backToHistory: "Back to History", hIsNow: "This is the dashboard as it is now.", hRestore: "Restore", hRestoredToast: "Restored.",
       hRestoreHint: "Restore makes this the dashboard again, as a new version; the versions after it stay in History.",
-      hKAdded: "added", hKRemoved: "removed", hKEdited: "edited", hTooMuch: "Too much changed to show line by line.", hDraftAsked: "Asked for a draft", hDraftWrote: "Wrote the draft", hDraftDone: "Saved or discarded a draft",
+      hKAdded: "added", hKRemoved: "removed", hKEdited: "edited", hTooMuch: "Too much changed to show line by line.",
       hEarlier: "Showing an earlier version with today’s data.", hBackLatest: "Back to latest", fullScreen: "Full screen", exitFull: "Exit full screen",
       askAbout: "Ask Hermes", aboutSel: "About this on the dashboard", staged: "Added to your message to Hermes. Send it when you’re ready.",
       testIt: "Test without saving", testResult: "Test result", replaceFile: "Replace with a file…", chooseFile: "Choose a .csv, .tsv or .json file.",
@@ -65,13 +65,7 @@
       look: "Look", lookCustom: "custom", lookDefault: "default", lookChange: "Change",
       lookMsg: "[dashboard look] The user wants to change this dashboard's look (dashboard.json \"look\"; now: {now}). List the design systems (ha_list type=design-system), offer them and the default look, ask which, then record the chosen one as ha_guide type=dashboard topic=look says.",
       editAsk: "Edit",
-      fmt_dashboard: "Dashboard",
-      "fmt_scrollyteller": "Scrollyteller",
-      "fmt_visual-analysis": "Visual analysis",
-      "fmt_visual-short": "Visual short",
-      draftMaking: "Hermes is making your {format} draft. Nothing changes until you save it.", draftShowing: "Showing the draft. Nothing changes until you save.",
-      draftAsIs: "The dashboard as it is. Press Redo to see the draft again.", draftUndo: "Undo", draftRedo: "Redo", draftCancel: "Cancel", draftSave: "Save",
-      draftSaved: "The draft is now the dashboard.", draftCancelled: "Draft discarded",
+      undo: "Undo", redo: "Redo",
       editorMode: "Editor mode", editEvery: "Every change saves automatically.", editSaving: "Saving…", editSaved: "Saved automatically",
       editFailed: "Autosave failed — retrying.", editConflict: "This dashboard changed meanwhile: press Done, then edit again.",
       editDone: "Done editing", editWritten: "The page writes this, so it can’t be edited. You can delete its card, or ask Hermes to change it.",
@@ -117,7 +111,7 @@
       hTheTitle: "a címet", hTheLook: "a megjelenést", hNFiles: "{n} fájlt", hEditedMany: "Módosította {things}", and: "és",
       backToHistory: "Vissza az Előzményekhez", hIsNow: "Ez a dashboard jelenlegi állapota.", hRestore: "Visszaállítás", hRestoredToast: "Visszaállítva.",
       hRestoreHint: "A visszaállítás új verzióként ezt teszi újra a dashboarddá; az utána jövő verziók megmaradnak az Előzményekben.",
-      hKAdded: "hozzáadva", hKRemoved: "eltávolítva", hKEdited: "módosítva", hTooMuch: "Túl sok változott ahhoz, hogy soronként mutassa.", hDraftAsked: "Vázlatot kért", hDraftWrote: "Megírta a vázlatot", hDraftDone: "Mentett vagy elvetett egy vázlatot",
+      hKAdded: "hozzáadva", hKRemoved: "eltávolítva", hKEdited: "módosítva", hTooMuch: "Túl sok változott ahhoz, hogy soronként mutassa.",
       hEarlier: "Egy korábbi verziót látsz, a mai adatokkal.", hBackLatest: "Vissza a legújabbra", fullScreen: "Teljes képernyő", exitFull: "Kilépés a teljes képernyőből",
       askAbout: "Kérdezd a Hermest", staged: "Beírva a Hermesnek szóló üzenetedbe. Küldd el, amikor kész vagy.",
       testIt: "Teszt mentés nélkül", testResult: "A teszt eredménye", replaceFile: "Csere egy fájlra…", chooseFile: "Válassz egy .csv, .tsv vagy .json fájlt.",
@@ -126,13 +120,7 @@
       editPage: "Az oldal szerkesztése",
       look: "Kinézet", lookCustom: "egyedi", lookDefault: "alapértelmezett", lookChange: "Módosítás",
       editAsk: "Szerkesztés",
-      fmt_dashboard: "Dashboard",
-      "fmt_scrollyteller": "Scrollyteller",
-      "fmt_visual-analysis": "Vizuális elemzés",
-      "fmt_visual-short": "Visual short",
-      draftMaking: "A Hermes készíti a(z) {format} vázlatot. Mentésig semmi nem változik.", draftShowing: "A vázlatot látod. Mentésig semmi nem változik.",
-      draftAsIs: "A dashboard jelenlegi állapota. Az Újra gombbal visszakapod a vázlatot.", draftUndo: "Visszavonás", draftRedo: "Újra", draftCancel: "Elvetés", draftSave: "Mentés",
-      draftSaved: "A vázlat lett a dashboard.", draftCancelled: "Vázlat elvetve",
+      undo: "Visszavonás", redo: "Újra",
       editorMode: "Szerkesztő mód", editEvery: "Minden változás magától mentődik.", editSaving: "Mentés…", editSaved: "Automatikusan mentve",
       editFailed: "Az automatikus mentés nem sikerült — újrapróbálja.", editConflict: "A dashboard közben megváltozott: nyomd meg a Kész gombot, és szerkeszd újra.",
       editDone: "Kész", editWritten: "Ezt az oldal kódja írja, ezért kézzel nem szerkeszthető. A kártyáját törölheted, vagy megkérheted a Hermest, hogy módosítsa.",
@@ -580,7 +568,6 @@
   }
 
   function mount() {
-    if (showingDraft()) { mountHtml(kit.fileText(draft.page), draft.page, root); return; } // a draft is the whole page
     var pagePath = (spec && spec.page) || "index.html";
     var html = kit.fileText(pagePath);
     if (spec && Array.isArray(spec.layout) && window.dashLayout) {
@@ -946,7 +933,7 @@
 
   // The design system the dashboard wears (look.system), with a request to Hermes to change it.
   function lookRow() {
-    if (C.thumb || shownVersion !== latestVersion || showingDraft() || !spec || !window.hermes || !window.hermes.send) return null;
+    if (C.thumb || shownVersion !== latestVersion || !spec || !window.hermes || !window.hermes.send) return null;
     var look = spec.look, name = look && look.system && look.system.name ? String(look.system.name) : look ? T.lookCustom : T.lookDefault;
     return h("div", { "class": "src-look" }, [
       h("span", { "class": "src-look-t", text: T.look + ": " + name }),
@@ -1062,7 +1049,6 @@
       if (t.t === "filters") return T.hEditedFilters;
       if (t.t === "title") return T.hEditedTitle;
       if (t.t === "look") return T.hEditedLook;
-      if (t.t === "draft") return t.kind === "added" ? T.hDraftAsked : t.kind === "removed" ? T.hDraftDone : T.hDraftWrote;
       if (t.t === "sources") return T.hEditedSources.replace("{n}", t.n);
       if (t.t === "files") return t.name ? T.hEditedX.replace("{name}", t.name) : T.hEditedFiles.replace("{n}", t.n);
     }
@@ -1406,7 +1392,7 @@
       var place = near && near.closest ? near.closest("[id]") : null;
       if (place === root || (place && !root.contains(place))) place = null;
       var ask = h("button", { "class": "dash-ask-sel-b", type: "button", html: kit.icon("sparkle") + "<span>" + kit.esc(T.askAbout) + "</span>" });
-      var canEdit = !!(window.dashEdit && window.hermes && window.hermes.save) && !showingDraft();
+      var canEdit = !!(window.dashEdit && window.hermes && window.hermes.save);
       var edit = canEdit ? h("button", { "class": "dash-ask-sel-b", type: "button", title: T.editPage, "aria-label": T.editPage,
         html: kit.icon("pencil") + "<span>" + kit.esc(T.editAsk) + "</span>" }) : null;
       askBtn = h("div", { "class": "dash-ask-sel", "data-comment-keep": "", role: "toolbar", style: "left:" + Math.max(8, Math.min(r.left, innerWidth - 260)) + "px;top:" + Math.max(8, r.top - 40) + "px" },
@@ -1582,49 +1568,9 @@
     bannerEl = box;
   }
 
-  // ------------------------------------------------------------------ Design: the look, drafts, Edit the page
+  // ------------------------------------------------------------------ Design: the look, Edit the page
   var DK = window.dashDesignKit || null;
-  var draft = DK ? DK.draftOf(kit.content.files) : null;
-  var draftView = "draft"; // "draft" | "dashboard": Undo / Redo between the draft and the dashboard as it is
-  var showingDraft = function () { return !!(draft && draft.page && draftView === "draft"); };
   if (DK && spec && spec.look) DK.wear(spec.look);
-
-  var draftBar = null;
-  function saveDraft() {
-    var files = DK.saveDraftFiles(kit.content.files, spec, draft);
-    window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
-      kit.toast(T.draftSaved, 0, "success");
-      window.hermes.history.show(null, null);
-    }, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
-  }
-  function cancelDraft() {
-    var files = {};
-    DK.draftFiles(kit.content.files, draft).forEach(function (p) { files[p] = null; });
-    window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { kit.toast(T.conflict, 0, "error"); return; }
-      kit.toast(T.draftCancelled);
-      window.hermes.history.show(null, null);
-    }, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
-  }
-  function setDraftView(v) {
-    draftView = v;
-    window.hermes.history.show(null, null);
-  }
-  function showDraftBar() {
-    if (!draft || C.thumb) return;
-    var kids;
-    if (!draft.page) kids = [h("span", { style: "flex:1;min-width:0", text: T.draftMaking.replace("{format}", T["fmt_" + draft.format]) }),
-      kit.labelled(kit.button(T.draftCancel, "close", cancelDraft), T.draftCancel)];
-    else kids = [h("span", { style: "flex:1;min-width:0", text: showingDraft() ? T.draftShowing : T.draftAsIs }),
-      showingDraft() ? kit.labelled(kit.button(T.draftUndo, "undo", function () { setDraftView("dashboard"); }), T.draftUndo)
-        : kit.labelled(kit.button(T.draftRedo, "redo", function () { setDraftView("draft"); }), T.draftRedo),
-      kit.labelled(kit.button(T.draftCancel, "close", cancelDraft), T.draftCancel),
-      kit.labelled(kit.button(T.draftSave, "", saveDraft), T.draftSave)];
-    var box = h("div", { "class": "dash-notice dash-draft-bar" }, kids);
-    if (draftBar) draftBar.replaceWith(box); else root.parentNode.insertBefore(box, root);
-    draftBar = box;
-  }
 
   function remount(html) {
     document.querySelectorAll("style[data-page]").forEach(function (n) { n.remove(); });
@@ -1634,7 +1580,6 @@
     gen++; redraw();
   }
   function editPath() {
-    if (showingDraft()) return draft.page;
     if (spec && Array.isArray(spec.layout)) return null; // drawn from its layout: Hermes rewrites it to be edited by hand
     var p = (spec && spec.page) || "index.html";
     return kit.fileText(p) != null ? p : null;
@@ -1648,14 +1593,6 @@
     kit.ready();
     return;
   }
-  // Every load starts on the default filters and the draft (owner): both last for this session only.
-  if (showingDraft()) {
-    // A draft reads the dashboard's sources by id; a new or changed one is in its datasets.json.
-    try { Object.assign(datasets, JSON.parse(kit.fileText("drafts/" + draft.id + "/datasets.json") || "{}")); } catch (e) {}
-    // Its own filter defaults, the dashboard's for the keys it lacks.
-    try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = Object.assign({}, paramDefaults, dp); params = JSON.parse(JSON.stringify(paramDefaults)); } } catch (e) {}
-  }
-  showDraftBar();
   mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
   redraw();
   kit.ready();

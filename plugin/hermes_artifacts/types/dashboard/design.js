@@ -1,11 +1,8 @@
 /* hermes-artifacts Dashboard: Design.
  *
- *  - Looks: dashboard.json "look" ({system, light, dark, corners, sizes, fonts}), the ready-made Mist,
- *    Ocean and Meadow, or a design system recorded once as values. Every value is checked (forms,
- *    ground bounds, contrast) before it becomes the dashboard's tokens, in light and dark.
- *  - Drafts: a new format (Dashboard, Scrollyteller, Visual analysis, Visual short) is written by
- *    Hermes beside the dashboard under drafts/<id>/; the page shows it with Save / Cancel and Undo /
- *    Redo between the dashboard as it is and the draft.
+ *  Looks: dashboard.json "look" ({system, light, dark, corners, sizes, fonts}), the ready-made Mist,
+ *  Ocean and Meadow, or a design system recorded once as values. Every value is checked (forms,
+ *  ground bounds, contrast) before it becomes the dashboard's tokens, in light and dark.
  */
 (function () {
   "use strict";
@@ -149,46 +146,5 @@
     return worn;
   }
 
-  var FORMATS = ["dashboard", "scrollyteller", "visual-analysis", "visual-short"];
-  /** The newest draft request in this version's files: {id, format, at, page?} or null. */
-  function draftOf(files) {
-    var best = null;
-    Object.keys(files || {}).forEach(function (p) {
-      var m = /^drafts\/([A-Za-z0-9_-]{1,40})\/request\.json$/.exec(p);
-      if (!m) return;
-      var r = null;
-      try { r = JSON.parse(files[p]); } catch (e) {}
-      if (!r || FORMATS.indexOf(r.format) < 0) return;
-      if (!best || String(r.at) > String(best.at)) best = { id: m[1], format: r.format, at: String(r.at || "") };
-    });
-    if (best && typeof files["drafts/" + best.id + "/index.html"] === "string") best.page = "drafts/" + best.id + "/index.html";
-    return best;
-  }
-  function draftFiles(files, d) {
-    var pre = "drafts/" + d.id + "/";
-    return Object.keys(files).filter(function (p) { return p.indexOf(pre) === 0; });
-  }
-  function isPageFile(p) { return /^[A-Za-z0-9_-]{1,64}\.(html|css|js)$/.test(p); }
-  /** The files a Save writes: the draft's page over the dashboard's (the old page's other files go). */
-  function saveDraftFiles(files, spec, d) {
-    var out = {}, pre = "drafts/" + d.id + "/", next = JSON.parse(JSON.stringify(spec || {}));
-    var dfiles = draftFiles(files, d), names = {};
-    dfiles.forEach(function (p) {
-      var rel = p.slice(pre.length);
-      out[p] = null;
-      if (rel === "request.json") return;
-      if (rel === "datasets.json") {
-        try { var ds = JSON.parse(files[p]); next.datasets = Object.assign({}, next.datasets || {}, ds || {}); } catch (e) {}
-        return;
-      }
-      if (rel === "params.json") { try { next.params = JSON.parse(files[p]); } catch (e) {} return; }
-      if (isPageFile(rel)) { out[rel] = files[p]; names[rel] = 1; }
-    });
-    Object.keys(files).forEach(function (p) { if (isPageFile(p) && !names[p]) out[p] = null; });
-    delete next.layout; delete next.page; // the draft's page is the whole page now
-    out["dashboard.json"] = JSON.stringify(next, null, 2);
-    return out;
-  }
-
-  window.dashDesignKit = { LOOKS: LOOKS, rgb: rgb, contrast: contrast, flat: flat, check: check, wear: wear, draftOf: draftOf, saveDraftFiles: saveDraftFiles, draftFiles: draftFiles };
+  window.dashDesignKit = { LOOKS: LOOKS, rgb: rgb, contrast: contrast, flat: flat, check: check, wear: wear };
 })();
