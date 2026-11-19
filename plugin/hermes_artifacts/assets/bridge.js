@@ -593,7 +593,9 @@
    *  its column) where none of them is, with no words of its own (the blank under a doc's last block, the gap
    *  between a dashboard's tiles). Picks nothing: pick mode stays on. */
   function blank(el, x, y) {
-    if (!el || el === document.body || el === document.documentElement || off(el)) return true;
+    // a grid that keeps pins in its parts ([data-comment-pin-in]) is the ground of its cells: its own surface (round
+    // them, its scrollbars) picks nothing (V6w: a sheet's grid at 417 px rang whole there)
+    if (!el || el === document.body || el === document.documentElement || off(el) || el.hasAttribute("data-comment-pin-in")) return true;
     if (!el.children.length || el.closest("[data-comment-label]")) return false; // in a part the page named (a slide)
     for (var i = 0; i < el.childNodes.length; i++) { var n = el.childNodes[i]; if (n.nodeType === 3 && /\S/.test(n.nodeValue)) return false; }
     for (i = 0; i < el.children.length; i++) {

@@ -133,3 +133,26 @@ class RoundV6wPages(unittest.TestCase):
             for a, b in zip(ms, ms[1:]):
                 self.assertTrue(b["t"] >= a["b"] or (abs(b["t"] - a["t"]) < 1 and b["l"] >= a["r"]), (w, a, b))
                 self.assertTrue(0 <= b["l"] and b["r"] <= o["w"], (w, b))
+
+    def test_a_sheets_grid_round_its_cells_is_not_a_part(self):
+        # V6w 8: at 417 px the sheet's grid surface itself (its scrollbars, its corner) rang whole while picking: the grid
+        # is the ground its cells lie on. No ring, no pick there; a cell still rings.
+        rows = [["Item", "Cost", "Qty", "Note"]] + [[f"Item {i}", i * 10, i, "x"] for i in range(1, 60)]
+        aid = self.store.publish(title="Grid", type="sheet", files={"sheet.json": {"title": "Grid", "sheets": [{"name": "Costs", "rows": rows}]}})["id"]
+        o = self.drive_page(aid, ARM + """
+          const g = await api.frame('(() => { const g = document.getElementById("sh-grid"), r = g.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, sw: g.offsetWidth - g.clientWidth, sh: g.offsetHeight - g.clientHeight } })()')
+          const o = { g, at: [] }
+          for (const [x, y] of [[g.r - 2, g.b - 2], [g.r - 3, (g.t + g.b) / 2], [(g.l + g.r) / 2, g.b - 3]]) {
+            await api.pointer('mouseMoved', x, y, false); await api.sleep(250)
+            o.at.push({ x, y, under: await api.frame(`document.elementFromPoint(${x}, ${y}).id`), ring: await api.frame(""" + json.dumps(RING) + """) })
+          }
+          await api.mouse(g.r - 2, g.b - 2); await api.sleep(400)
+          o.picked = await api.top('window.__events.filter(e => e.event === "picked" || e.event === "comment").length')
+          const c = await api.frame('(() => { const r = document.querySelector(".sh-c.n").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })()')
+          await api.pointer('mouseMoved', c[0], c[1], false); await api.sleep(250)
+          o.cell = await api.frame(""" + json.dumps(RING) + """)
+          return o""", w=417)
+        self.assertGreater(o["g"]["sw"] + o["g"]["sh"], 0, o)  # it scrolls: its bars are there
+        self.assertTrue(all(a["under"] == "sh-grid" and a["ring"] == [] for a in o["at"]), o)
+        self.assertEqual(o["picked"], 0, o)
+        self.assertEqual(len(o["cell"]), 1, o)
