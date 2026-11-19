@@ -818,8 +818,8 @@
     controls.screenSpacePanning = true; controls.zoomToCursor = true;
     controls.rotateSpeed = 0.8; controls.minDistance = 0.5; controls.maxDistance = 5e6;
     controls.addEventListener("change", invalidate);
-    controls.addEventListener("start", function () { interacting = true; camMoved = true; tipEl.hidden = true; invalidate(); });
-    controls.addEventListener("end", function () { interacting = false; invalidate(); sendView(); });
+    controls.addEventListener("start", function () { interacting = true; tipEl.hidden = true; invalidate(); });
+    controls.addEventListener("end", function () { interacting = false; invalidate(); });
     helpers = new THREE.Group(); helpers.name = "md-helpers"; scene.add(helpers);
     // the grid is drawn in a pass of its own before the model, then the depth is cleared: parts always cover it
     gridScene = new THREE.Scene(); gridGrp = new THREE.Group(); gridScene.add(gridGrp);
@@ -1167,26 +1167,7 @@
     return b.isEmpty() ? null : b;
   }
   function focusSel() { if (!camera) return; var b = selBox(); if (!b) return fitAll(true); goTo(framing(b, curDir()), true); }
-  // The camera as it was before Hermes loaded the model again (its chat collapsed or shown): instead of its first view,
-  // or at once when that was shown already and not moved since.
-  var camBack = null, camMoved = false;
-  function camKept(kp) {
-    var ok = function (a) { return Array.isArray(a) && a.length === 3 && a.every(isFinite); };
-    return ok(kp.pos) && ok(kp.target) ? kp : null;
-  }
-  function putCamBack(kp) {
-    setOrtho(!!kp.ortho);
-    goTo({ pos: new THREE.Vector3().fromArray(kp.pos), target: new THREE.Vector3().fromArray(kp.target), h: kp.ortho && kp.h > 0 ? kp.h : 0 }, false);
-    drawChrome();
-  }
-  kit.restored(function (kp) {
-    kp = camKept(kp);
-    if (!kp) return;
-    if (firstBuild || !camera) camBack = kp;
-    else if (!camMoved) putCamBack(kp);
-  });
   function startView() {
-    if (camBack) { var kb = camBack; camBack = null; putCamBack(kb); return; }
     var v = views()[0];
     if (v) { namedView(v); anim && (anim.dur = 1); return; }
     goTo(framing(sceneBox(), new THREE.Vector3(VIEWS.iso[0], VIEWS.iso[1], VIEWS.iso[2])), false);
@@ -1954,9 +1935,6 @@
       if (tool === "measure" && meas.pts.length === 2) ctx.measured = round(meas.pts[0].distanceTo(meas.pts[1]), 1);
       if (probs.length) { ctx.problems = probs.length; ctx.firstProblem = (String(probs[0].path || "") + ": " + String(probs[0].msg || "")).slice(0, 120); }
       if (!latest) ctx.readOnly = true;
-      // the host's only: the camera (where it is, what it looks at, orthographic or not and how much that shows)
-      if (camera) ctx.keep = { pos: camera.position.toArray().map(function (v) { return round(v, 2); }), target: controls.target.toArray().map(function (v) { return round(v, 2); }),
-        ortho: !!camera.isOrthographicCamera, h: camera.isOrthographicCamera ? round((ortho.top - ortho.bottom) / ortho.zoom, 2) : 0 };
       return ctx;
     });
   }

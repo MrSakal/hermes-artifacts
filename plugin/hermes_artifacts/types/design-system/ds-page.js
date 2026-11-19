@@ -156,8 +156,6 @@
       if (state.sel && state.sel.kind === "token") ctx.selectedToken = { family: state.sel.family, name: state.sel.name };
       if (state.sel && state.sel.kind === "component") ctx.selectedComponent = state.sel.name;
       if (state.editing) ctx.editing = state.editing;
-      // the host's only: the scroll, and the theme the person chose to preview in
-      ctx.keep = { y: Math.round(window.scrollY), theme: state.chosenTheme ? state.theme : null };
       return ctx;
     });
   }
@@ -1710,13 +1708,4 @@
 
   render();
   kit.ready();
-  window.addEventListener("scroll", sendView, { passive: true });
-  // The page as it was before Hermes loaded it again (its chat collapsed or shown): its section, the theme chosen and
-  // its scroll, unless the person has moved on since.
-  kit.restored(function (kp, ctx) {
-    if (state.section !== "overview" || state.chosenTheme || window.scrollY > 0) return;
-    if (kp.theme && S.m.themes.some(function (t) { return t.id === kp.theme; })) { state.chosenTheme = true; setTheme(kp.theme); }
-    if (ctx.section && ctx.section !== state.section && navItems().some(function (x) { return x.id === ctx.section; })) go(ctx.section);
-    kit.scrollBack(null, kp.y);
-  });
 })();

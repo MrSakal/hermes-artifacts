@@ -1791,7 +1791,7 @@
   muteIcon();
   floatSync();
 
-  var started = boot().then(function () {
+  boot().then(function () {
     if (bootErr && !timeline.length && !custom) {
       view.appendChild(h("div", { "class": "kit-empty", text: bootErr, style: "position:absolute;inset:0;min-height:0" }));
     }
@@ -1809,16 +1809,6 @@
     kit.ready();
     firstPreview();
   }).catch(function (e) { console.error(e); kit.ready(); });
-  // Where the film was before Hermes loaded it again (its chat collapsed or shown): its time (the strip's scene with
-  // it) and its marked stretch, unless the person has moved it since.
-  kit.restored(function (keep, ctx) {
-    started.then(function () {
-      if (typeof ctx.time !== "number" || !(ctx.time > 0) || playing || cur !== 0 || range) return;
-      var r = ctx.range;
-      if (r && typeof r.from === "number" && typeof r.to === "number" && r.to > r.from) range = [fmap(r.from), fmap(r.to)];
-      seek(Math.min(ctx.time, total));
-    });
-  });
 
   // The gallery's card: the film's first frame as a picture, drawn once per version (hermes.preview: no
   // version, not an edit), so the card shows it instead of running the film. A film keeps its own colours, so

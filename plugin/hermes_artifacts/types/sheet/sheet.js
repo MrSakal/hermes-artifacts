@@ -3077,10 +3077,7 @@
     kit.view(function () {
       var s = book[cur];
       return { sheet: { id: s.id, name: s.name, rev: s.rev }, selection: rangeName(selR()), active: key(sr, sc),
-        editing: !!ed || undefined, preview: preview ? preview.snapRev : undefined, version: C.version, edits: edits, dirty: !!(inflight || pending()),
-        // the host's only: the selection and the grid's scroll (as a tab keeps them), and this viewer's own view (its
-        // localStorage throws in the sandboxed data: frame)
-        keep: { sheet: s.id, sr: sr, sc: sc, er: er, ec: ec, selMode: selMode, sl: Math.round(grid.scrollLeft), st: Math.round(grid.scrollTop), prefs: prefs } };
+        editing: !!ed || undefined, preview: preview ? preview.snapRev : undefined, version: C.version, edits: edits, dirty: !!(inflight || pending()) };
     });
   }
 
@@ -3143,7 +3140,7 @@
     if (ed) commitEdit(0, 0);
     if (preview) closePreview();
     var old = book[cur];
-    if (old && old !== book[i]) old._view = { sr: sr, sc: sc, er: er, ec: ec, selMode: selMode, sl: grid.scrollLeft, st: grid.scrollTop };
+    if (old) old._view = { sr: sr, sc: sc, er: er, ec: ec, selMode: selMode, sl: grid.scrollLeft, st: grid.scrollTop };
     cur = i;
     var s = book[cur], v = s._view || { sr: 0, sc: 0, er: 0, ec: 0, selMode: "cells", sl: 0, st: 0 };
     sr = v.sr; sc = v.sc; er = v.er; ec = v.ec; selMode = v.selMode;
@@ -3414,7 +3411,7 @@
     // typing, scrolling or opening the editor puts the bubble away (the selection moving brings the next one)
     grid.addEventListener("keydown", function (e) { if (!/^(Shift|Control|Alt|Meta)$/.test(e.key)) hideErr(); }, true);
     // a scroll puts it away; once the grid rests it comes back by its cell, if that is still in view
-    grid.addEventListener("scroll", function () { hideErr(); errTimer = setTimeout(errSync, 200); sendView(); }, { passive: true });
+    grid.addEventListener("scroll", function () { hideErr(); errTimer = setTimeout(errSync, 200); }, { passive: true });
     grid.addEventListener("dblclick", hideErr, true);
     fxTa.addEventListener("focus", hideErr);
     kit.onResize(grid, placeErr);
@@ -4419,24 +4416,6 @@
   afterSel();
   drawUndo();
   kit.ready();
-  // The sheet as it was before Hermes loaded it again (its chat collapsed or shown): this viewer's zoom and view, its
-  // tab, selection and scroll (as switching tabs keeps them), unless the person has moved on since.
-  kit.restored(function (kp) {
-    var i = book.findIndex(function (x) { return x.id === kp.sheet; });
-    if (i < 0 || ed || sr || sc || er || ec || grid.scrollTop || grid.scrollLeft) return;
-    var p = kp.prefs;
-    if (p && typeof p === "object") {
-      var was = JSON.stringify(prefs);
-      if (ZOOMS.indexOf(p.zoom) >= 0) prefs.zoom = p.zoom;
-      prefs.fx = p.fx === true; prefs.compact = p.compact === true;
-      if (p.theme === "light" || p.theme === "dark" || p.theme === "auto") prefs.theme = p.theme;
-      if (AGGS.indexOf(p.agg) >= 0) prefs.agg = p.agg;
-      if (JSON.stringify(prefs) !== was) { setPref("zoom", prefs.zoom); applyMetrics(); layout(); applyTheme(); barSync(true); }
-    }
-    var n = function (x) { return typeof x === "number" && x >= 0 ? x : 0; };
-    book[i]._view = { sr: n(kp.sr), sc: n(kp.sc), er: n(kp.er), ec: n(kp.ec), selMode: /^(cells|rows|cols|all)$/.test(kp.selMode) ? kp.selMode : "cells", sl: n(kp.sl), st: n(kp.st) };
-    switchTo(i);
-  });
   if (live) {
     hm.on("sheet", function () { pull(); });
     setInterval(function () { if (!document.hidden && !ed && !inflight && !pending()) pull(); }, 4000);

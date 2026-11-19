@@ -409,8 +409,7 @@
       var info = (pres ? [] : sel).map(function (el) { return { kind: el.tagName.toLowerCase(), label: labelOf(el), selector: selectorOf(el) }; });
       return { mode: pres ? (pres.presenter ? "presenter" : "present") : gridEl ? "grid" : "edit", slideId: s ? s.id : null,
         slideTitle: s ? titleOf(s) : null, slideIndex: s ? i + 1 : 0, slideCount: slides.length,
-        hidden: isHidden(s), section: sectionOf(s), editingText: !!editing, dirty: pending, selected: info.map(function (x) { return x.label; }), selection: info,
-        keep: { strip: stripOn, props: propsOn } }; // the host's only: its frame's localStorage throws (a sandboxed data: page)
+        hidden: isHidden(s), section: sectionOf(s), editingText: !!editing, dirty: pending, selected: info.map(function (x) { return x.label; }), selection: info };
     });
   }
 
@@ -1770,8 +1769,8 @@
   function narrow() { return innerWidth < 760; }
   function propsShown() { return propsOn && editable && !C.thumb && !gridEl && (!narrow() || sheetAsked); }
   function toggleNotes() { notesEl.hidden = !notesEl.hidden; drawChrome(); fit(); }
-  function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); sendView(); }
-  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); refitTools(); sendView(); }
+  function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); }
+  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); refitTools(); }
   function setZoom(z) { zoom = z; fit(); }
 
   var SHAPES = [["rect", T.rect, "slRect"], ["rounded", T.rounded, "slRounded"], ["ellipse", T.ellipse, "oval"], ["diamond", T.diamond, "slDiamond"],
@@ -2049,14 +2048,6 @@
   buildRail();
   show(cur);
   drawChrome(); drawProps();
-  // The deck as it was before Hermes loaded it again (its chat collapsed or shown): its slide (found by its id), the
-  // thumbnails and the properties shown or hidden; not over a slide or a presentation the person went to since.
-  kit.restored(function (kp, ctx) {
-    if (typeof kp.strip === "boolean" && kp.strip !== stripOn) setStrip(kp.strip);
-    if (typeof kp.props === "boolean" && kp.props !== propsOn) setProps(kp.props);
-    var i = ctx.slideId ? slides.findIndex(function (s) { return s.id === ctx.slideId; }) : -1;
-    if (i >= 0 && i !== cur && cur === 0 && !pres) show(i);
-  });
   function relayout() {
     // Layout slides nobody changed follow the theme (the design system's, else the layouts' default look).
     slides.forEach(function (s) {

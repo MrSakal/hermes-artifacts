@@ -1524,11 +1524,8 @@
       return call("notify", { message: String(message == null ? "" : message).slice(0, 300),
         kind: kind === "error" || kind === "success" ? kind : "info", ms: typeof ms === "number" && ms > 0 ? Math.min(ms, 15000) : null });
     },
-    /** Type runtimes: where the user is in the page (sent along with their next chat message); keep: what else the
-     *  page needs to be drawn as it is (a scroll, a camera), for the host only. The host hands the last of both back
-     *  to the page when it loads it again ("view-restore": Hermes mounts the artifact's tile anew when its chat is
-     *  collapsed or shown). */
-    view: function (context, keep) { return call("view", { context: context || {}, keep: keep == null ? null : keep }); },
+    /** Type runtimes: where the user is in the page (sent along with their next chat message). */
+    view: function (context) { return call("view", { context: context || {} }); },
     /** Live types: the parts the user is typing in now (a doc's block ids, "<sheet>!A1", a board's item ids),
      *  words not saved yet; Hermes' edit of them is refused until the save (a few seconds). */
     typing: function (keys) { return call("typing", { keys: (keys || []).slice(0, 20).map(String) }); },

@@ -2404,8 +2404,7 @@
       return { mode: focused ? "edit" : "read", suggesting: mode === "suggest" || undefined, tab: { id: tab().id, title: tab().title, rev: tab().rev },
         section: head ? head.textContent.trim().slice(0, 80) : null,
         selected: sel ? [sel.trim().slice(0, 300)] : [], blocks: blocks.slice(0, 20),
-        asking: Object.keys(pendingAsks), version: C.version, edits: edits, dirty: !!(outbox.length || focused && focused.timer),
-        keep: { y: Math.round(window.scrollY) } }; // the host's only: where it was scrolled to
+        asking: Object.keys(pendingAsks), version: C.version, edits: edits, dirty: !!(outbox.length || focused && focused.timer) };
     });
   }
   window.addEventListener("scroll", sendView, { passive: true });
@@ -2865,14 +2864,6 @@
   kit.status(status); // "Saved" whole, or a dot with it as its tooltip when the bar is tight: never a clipped letter
   setMode(mode);
 
-  // The doc as it was before Hermes loaded it again (its chat collapsed or shown): its tab, and its scroll, unless the
-  // person has moved on since.
-  kit.restored(function (kp, ctx) {
-    if (window.scrollY > 0 || focused) return;
-    var i = ctx.tab && ctx.tab.id ? tabs.findIndex(function (t) { return t.id === ctx.tab.id; }) : -1;
-    if (i >= 0 && i !== cur) { cur = i; render(); if (live) pull(true); }
-    kit.scrollBack(null, kp.y);
-  });
   // The first render, then ready for the host, once: also when the render throws (the bridge then says threw;
   // an error before this point gets the bridge's own fallback, 1 s after it). An empty doc renders like any other.
   try {

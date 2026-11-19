@@ -2731,10 +2731,7 @@
     if (C.thumb || !live) return;
     kit.view(function () {
       var v = viewWorld();
-      // keep, the host's only: the point at the view's middle and the zoom (its localStorage throws in the sandboxed
-      // data: frame), so a view loaded again at another width shows the same middle
-      return { selected: sel.slice(0, 100), viewport: { x: rnd(v.x), y: rnd(v.y), w: rnd(v.w), h: rnd(v.h) },
-        keep: { cx: rnd(v.x + v.w / 2), cy: rnd(v.y + v.h / 2), z: +cam.z.toFixed(3) } };
+      return { selected: sel.slice(0, 100), viewport: { x: rnd(v.x), y: rnd(v.y), w: rnd(v.w), h: rnd(v.h) } };
     });
   }
 
@@ -2828,20 +2825,13 @@
     toolSync();
     kit.exports(exportList).then(function (took) { expBtn.hidden = !!took; });
   }
-  var booted = false, camBack = null;
-  // The view as it was before Hermes loaded the board again (its chat collapsed or shown): its middle and zoom.
-  kit.restored(function (kp) {
-    if (ro || !isFinite(kp.cx + kp.cy + kp.z) || kp.z < 0.1 || kp.z > 4) return;
-    if (!booted) { camBack = kp; return; }
-    setCam(vw / 2 - kp.cx * kp.z, vh / 2 - kp.cy * kp.z, kp.z);
-  });
+  var booted = false;
   function boot() {
     measureView();
     if (booted || vw < 2 || vh < 2) return;
     booted = true;
     var sv = ro ? null : loadJson(VKEY);
-    if (camBack) { cam.z = camBack.z; cam.x = vw / 2 - camBack.cx * cam.z; cam.y = vh / 2 - camBack.cy * cam.z; camBack = null; applyCam(); }
-    else if (sv && isFinite(sv.x + sv.y + sv.z) && sv.z >= 0.05 && sv.z <= 4) { cam.x = sv.x; cam.y = sv.y; cam.z = sv.z; applyCam(); }
+    if (sv && isFinite(sv.x + sv.y + sv.z) && sv.z >= 0.05 && sv.z <= 4) { cam.x = sv.x; cam.y = sv.y; cam.z = sv.z; applyCam(); }
     else fitAll(true);
     drawCtx(); undoSync();
     kit.ready();
