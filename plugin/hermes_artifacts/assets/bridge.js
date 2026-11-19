@@ -955,7 +955,12 @@
       if (b && b.el && b.el.nodeType === 1) p.el = b.el; // what holds the part now (a slide's canvas made again)
       return b ? [b.x, b.y, b.w, b.h] : null;
     }
-    if (!p.el.isConnected && p.sel) {
+    // an open thread's mark: its part found again as it was found at first (V6w: a dashboard's chart drawn again at a
+    // new width, its new svg not taken for the old one by its words, the mark hidden for good)
+    if (!p.el.isConnected && p.it) {
+      var t = locate(p.it)[p.i];
+      if (t && t.nodeType === 1) p.el = t;
+    } else if (!p.el.isConnected && p.sel) {
       var did = p.el.getAttribute("data-id"), again = null;
       try { again = (did && window.CSS && CSS.escape ? document.querySelector("[data-id=\"" + CSS.escape(did) + "\"]") : null) || document.querySelector(p.sel); } catch (_) {}
       if (again && same(again, p)) p.el = again;
@@ -1249,18 +1254,23 @@
   // (its label and words: a sheet's chart from before charts had ids).
   var locator = null, pinItems = [], pinTries = 0, pinTimer = 0;
   on("pins", function (items) { pinItems = items || []; pinTries = 0; drawPins(); });
+  /** Where a thread's part is now: the page's own finding (locator), else its selector; a list, empty when none. */
+  function locate(it) {
+    var L = null;
+    if (locator) try { L = locator(String(it.selector || ""), it); } catch (_) {}
+    if (!L) try { L = document.querySelector(it.selector); } catch (_) {}
+    return [].concat(L || []);
+  }
   function drawPins() { // [{selector, n}] numbered badges on commented elements, each part with an open thread
     pins.forEach(function (p) { p.b.remove(); }); pins = [];
     clearTimeout(pinTimer);
     var missing = false;
     pinItems.forEach(function (it) {
-      var L = null;
-      if (locator) try { L = locator(String(it.selector || ""), it); } catch (_) {}
-      if (!L) try { L = document.querySelector(it.selector); } catch (_) {}
-      if (!L) missing = true;
-      [].concat(L || []).forEach(function (t) {
+      var L = locate(it);
+      if (!L.length) missing = true;
+      L.forEach(function (t, i) {
         var el = t && t.nodeType === 1 ? t : t && typeof t.box === "function" ? (t.el && t.el.nodeType === 1 ? t.el : document.body) : null;
-        if (el) badge(it, el, t.nodeType === 1 ? null : t.box);
+        if (el) badge(it, el, t.nodeType === 1 ? null : t.box, i);
       });
     });
     // a part the page has not drawn yet (a board's items come after the threads): looked for again, for 6 s at most
@@ -1268,7 +1278,7 @@
     placePins();
     watchOn();
   }
-  function badge(it, el, box) {
+  function badge(it, el, box, i) {
     var b = document.createElement("div");
     b.setAttribute("data-hermes-ui", "");
     b.textContent = String(it.n);
@@ -1278,7 +1288,7 @@
       "text-align:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)";
     b.addEventListener("mousedown", function (e) { e.preventDefault(); e.stopPropagation(); });
     b.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); emit("pinOpen", { n: it.n }); });
-    document.body.appendChild(b); pins.push({ b: b, el: el, box: box, sel: it.selector, key: "" });
+    document.body.appendChild(b); pins.push({ b: b, el: el, box: box, it: it, i: i, key: "" });
   }
   /** The flashed box kept off the page's own comment marks (the children of a [data-flash-keep]: a doc's margin
    *  icons beside its blocks): its side towards a mark it would cover, or come within 4 px of (its 3 px halo

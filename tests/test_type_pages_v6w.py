@@ -71,3 +71,21 @@ class RoundV6wPages(unittest.TestCase):
         r = ring[0]
         self.assertTrue(r["l"] < lbl["r"] and lbl["l"] < r["r"] and r["t"] < lbl["b"] and lbl["t"] < r["b"], o)  # through its label
         self.assertTrue(ink["l"] - 8 <= r["l"] and r["r"] <= ink["r"] + 8 and ink["t"] - 8 <= r["t"] and r["b"] <= ink["b"] + 8, o)  # round the line
+
+    def test_a_marked_chart_drawn_again_keeps_its_mark(self):
+        # V6w 4: a dashboard's chart drawn again at another width (a new svg) had its marks hidden for good, even after the
+        # dashboard was opened again: the mark followed the old svg, and the new one was not taken for it by its words
+        # (its axis changed with the width). The mark finds its part again as it found it at first.
+        aid = self.store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        o = self.drive_page(aid, """
+          await api.top('window.__post("pins", [{selector: ".c-chart svg", n: 1}, {selector: ".c-chart svg", n: 2}])'); await api.sleep(600)
+          const svg = () => api.frame('(() => { const s = document.querySelector(".c-chart svg"); s.__seen = s.__seen || ++window.__svgs || (window.__svgs = 1); const r = s.getBoundingClientRect(); return { id: s.__seen, l: r.left, t: r.top, r: r.right, b: r.bottom } })()')
+          const o = { before: await svg(), b0: await api.frame(""" + json.dumps(self.BADGES) + """) }
+          await api.size(820, 716); await api.sleep(1500)
+          o.after = await svg(); o.b1 = await api.frame(""" + json.dumps(self.BADGES) + """)
+          return o""")
+        self.assertNotEqual(o["before"]["id"], o["after"]["id"], o)  # drawn again: another svg
+        for ms in (o["b0"], o["b1"]):
+            self.assertEqual([m["shown"] for m in ms], [True, True], o)
+        s, ms = o["after"], o["b1"]
+        self.assertTrue(all(s["r"] - 2 <= m["l"] <= s["r"] + 60 and s["t"] - 30 <= m["t"] <= s["t"] + 20 for m in ms), o)  # at its top right
