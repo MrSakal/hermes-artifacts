@@ -156,3 +156,14 @@ class RoundV6wPages(unittest.TestCase):
         self.assertTrue(all(a["under"] == "sh-grid" and a["ring"] == [] for a in o["at"]), o)
         self.assertEqual(o["picked"], 0, o)
         self.assertEqual(len(o["cell"]), 1, o)
+
+    def test_a_design_systems_file_list_ends_after_a_whole_row(self):
+        # V6w 9: narrow, the Files list (240 px high) showed a 2 px sliver of its 9th row at its foot. It ends after the last
+        # row that fits whole, at any width; it still scrolls to the rest.
+        aid = self.store.publish(path=str(EX / "design-system"), title="Test design system", type="design-system")["id"]
+        for w, hh in ((420, 900), (1250, 716), (1250, 560)):
+            o = self.drive_page(aid, """
+              await api.clickIn('[...document.querySelectorAll("button, a")].find(b => b.textContent.trim().startsWith("Files"))'); await api.sleep(800)
+              return await api.frame('(() => { const l = document.querySelector(".ds-fl"), r = l.getBoundingClientRect(); return { h: r.height, scroll: l.scrollHeight > l.clientHeight + 1, cut: [...l.children].map(c => c.getBoundingClientRect()).filter(c => c.top < r.bottom - 0.5 && c.bottom > r.bottom + 0.5).length } })()')""", w=w, hh=hh, settle=1500)
+            self.assertTrue(o["scroll"], (w, hh, o))  # more rows than it shows
+            self.assertEqual(o["cut"], 0, (w, hh, o))

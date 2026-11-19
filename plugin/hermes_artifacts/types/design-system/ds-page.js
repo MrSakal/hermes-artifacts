@@ -1616,6 +1616,24 @@
     return [heading(T.files, [h("span", { "class": "ds-muted", text: paths.length + " · " + fmtSize(paths.reduce(function (s, p) { return s + sizeOf(p); }, 0)) }), expBtn]),
       h("div", { "class": "ds-fb" }, [list, cur ? filePane(cur) : h("div")])];
   }
+  /** The Files list ends after a whole row: its height (ds.css's cap, 240 px stacked, the window's less 80 px beside
+   *  the file) is cut back to the last row that fits in it whole (V6w: a 2 px sliver of a 9th row at its foot). */
+  function fitFileList() {
+    var list = main.querySelector(".ds-fl");
+    if (!list) return;
+    list.style.maxHeight = "";
+    var cap = parseFloat(getComputedStyle(list).maxHeight);
+    if (!(cap > 0) || list.scrollHeight <= cap + 1) return;
+    var top = list.getBoundingClientRect().top - list.scrollTop, end = 0;
+    for (var i = 0; i < list.children.length; i++) {
+      var b = list.children[i].getBoundingClientRect().bottom - top;
+      if (b > cap) break;
+      end = b;
+    }
+    if (end > 0) list.style.maxHeight = Math.ceil(end) + "px";
+  }
+  window.addEventListener("resize", fitFileList);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitFileList);
   function filePane(p) {
     var gen = isGenerated(p), desc = gen ? X.generated : X.desc[p] || (/^components\/[^/]+\/README\.md$/.test(p) ? X.guideline : /^components\/[^/]+\/preview\.html$/.test(p) ? X.preview : "");
     var del = S.editable && !gen && DELETABLE.test(p) ? btn(T.del, "danger", null) : null;
@@ -1665,6 +1683,7 @@
     main.querySelectorAll(".ds-head > :not(h1), .ds-banner, .ds-gen, .ds-empty, .ds-problems").forEach(function (e) { e.setAttribute("data-comment-off", ""); });
     main.querySelectorAll(".ds-gen [data-comment-whole], [data-comment-off].ds-page [data-comment-whole]").forEach(function (e) { e.removeAttribute("data-comment-whole"); });
     Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); });
+    fitFileList();
     sendView();
   }
 
