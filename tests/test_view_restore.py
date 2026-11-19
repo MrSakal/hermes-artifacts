@@ -104,6 +104,23 @@ class TypesPutTheirViewBack(unittest.TestCase):
         self.assertEqual(o["keep"], {"y": 400}, o)
         self.assertAlmostEqual(back, 400, delta=1)
 
+    def test_a_dashboard_its_scroll(self):
+        # V6x 1 (survey): a dashboard scrolled 300 px down, its chat collapsed: back at its top (its filters were kept)
+        from test_type_pages_browser import DASH2, DASH2_CSV
+        aid = store.publish(title="Test dash2", type="dashboard", files={"dashboard.json": DASH2, "data/monthly.csv": DASH2_CSV})["id"]
+        o, back = self.drive_size(lambda: self.scrolled(aid, "window.scrollTo(0, 300)", "window.scrollY"), 500)
+        self.assertEqual(o["keep"], {"y": 300}, o)
+        self.assertAlmostEqual(back, 300, delta=1)
+
+    def drive_size(self, fn, hh):
+        """fn() with the pages hh px tall (one that scrolls)."""
+        old = self.drive_page
+        self.drive_page = lambda aid, body, w=1250, hh0=716, settle=3000: old(aid, body, w, hh, settle)
+        try:
+            return fn()
+        finally:
+            del self.drive_page
+
 
 if __name__ == "__main__":
     unittest.main()

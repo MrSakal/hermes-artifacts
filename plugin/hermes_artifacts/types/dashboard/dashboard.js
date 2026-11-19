@@ -1447,9 +1447,12 @@
     });
     return { mode: srcOpen ? "data" : "page", place: placeName,
       selected: picked ? [picked.id] : [], field: picked && picked.field || null, filters: filters,
-      failed: failures.length, failures: failures.slice(0, 5).map(function (id) { return { id: id, label: datasets[id] && datasets[id].title || id }; }) };
+      failed: failures.length, failures: failures.slice(0, 5).map(function (id) { return { id: id, label: datasets[id] && datasets[id].title || id }; }),
+      keep: { y: Math.round(window.scrollY) } }; // the host's only: where it was scrolled to (its filters are kept by hermes.storage)
   }
   function sendView() { kit.view(viewContext); }
+  // Its scroll as it was before Hermes loaded it again (its chat collapsed or shown), unless scrolled since.
+  kit.restored(function (kp) { if (!(window.scrollY > 0)) kit.scrollBack(null, kp.y); });
   window.addEventListener("scroll", sendView, { passive: true });
 
   // ------------------------------------------------------------------ check + runs (feedback to the agent)
