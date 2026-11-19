@@ -401,6 +401,20 @@ class SweepTests(unittest.TestCase):
         self.assertFalse(half.exists())
         store._rmtree(young)
 
+    def test_a_dashboards_old_filters_and_draft_view_go(self):
+        """0.20.0: a dashboard opens on its default filters and draft view; what older versions kept of them in
+        its storage goes (ha_read no longer shows stale filters), and nothing else there."""
+        dash = store.publish(type="dashboard", title="d", files={"dashboard.json": {"params": {"region": ""}}, "index.html": "<p>d</p>"})["id"]
+        page = store.publish(html="<p>p</p>", title="p")["id"]
+        for aid in (dash, page):
+            store.kv_set(aid, "dash.params", {"region": "South"})
+            store.kv_set(aid, "dash.draftView.d1", "dashboard")
+            store.kv_set(aid, "notes", [1])
+        self.sweep()
+        self.assertEqual(store.kv_all(dash), {"notes": [1]})
+        self.assertEqual(len(store.kv_all(page)), 3)  # only a dashboard's own keys
+        self.assertEqual(json.loads(load_plugin()._read({"id": dash}))["storage"], {"notes": [1]})
+
     def test_bounded_per_call_and_goes_on_next_time(self):
         for i in range(3):
             store.publish(html=f"<p>{i}</p>", title=f"b{i}")

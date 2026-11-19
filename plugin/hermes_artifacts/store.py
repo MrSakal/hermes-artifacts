@@ -1945,6 +1945,8 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
                                d, n, entry, young / 86400)
                 out["dead"] = out.get("dead", 0) + 1
         latest = sorted(ns)[-PREVIEWS_KEPT:]
+    if meta.get("type") == "dashboard":
+        _drop_kept_view(d.name, out)
     _sweep_files(d, now, out)
     pv = d / "previews"
     if pv.is_dir():
@@ -1981,6 +1983,20 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
         _sweep_empty(sd, now, out)
     if pv.is_dir():
         _sweep_empty(pv, now, out)
+
+
+def _drop_kept_view(aid: str, out: dict) -> None:
+    """A dashboard's filters and draft view last for the session since 0.20.0: what older versions kept of them
+    in its storage goes (ha_read showed them). Decided on storage.json's own read, never a copy's."""
+    try:
+        data, fell_back = read_json_from(_kv_path(aid))
+    except (OSError, ValueError):
+        return
+    if fell_back or not isinstance(data, dict):
+        return
+    for k in [k for k in data if k == "dash.params" or k.startswith("dash.draftView.")]:
+        kv_set(aid, k, None)
+        out["view"] = out.get("view", 0) + 1
 
 
 def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:

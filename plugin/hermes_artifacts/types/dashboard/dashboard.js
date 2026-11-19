@@ -517,10 +517,10 @@
         if (v === null || v === undefined) delete params[k];
         else if (["string", "number", "boolean"].indexOf(typeof v) >= 0 || Array.isArray(v)) params[k] = v;
       }
-      saveParams(); gen++; redraw();
+      gen++; redraw();
       refreshLive(Object.keys(p || {}));
     },
-    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); saveParams(); gen++; redraw(); refreshLive(); },
+    resetParams: function () { params = JSON.parse(JSON.stringify(paramDefaults)); gen++; redraw(); refreshLive(); },
     setLink: function (name) { try { history.replaceState(null, "", "#" + encodeURIComponent(name || "")); } catch (e) {} },
     // The Visual short engine (short.js): plays the page's chapters with these scene functions.
     short: function (scenes, o) { return window.dashShort ? window.dashShort(dash, scenes || {}, o) : null; },
@@ -532,10 +532,6 @@
     }
   };
   window.dash = dash;
-
-  function saveParams() {
-    if (window.hermes) window.hermes.storage.set("dash.params", params).catch(function () {});
-  }
 
   // ------------------------------------------------------------------ marks
   function stampRoot() {
@@ -1613,7 +1609,6 @@
   }
   function setDraftView(v) {
     draftView = v;
-    if (window.hermes && window.hermes.storage) window.hermes.storage.set("dash.draftView." + draft.id, v).catch(function () {});
     window.hermes.history.show(null, null);
   }
   function showDraftBar() {
@@ -1653,27 +1648,14 @@
     kit.ready();
     return;
   }
-  var booted = false;
-  function boot() {
-    if (booted) return; booted = true;
-    if (showingDraft()) {
-      // A draft reads the dashboard's sources by id; a new or changed one is in its datasets.json.
-      try { Object.assign(datasets, JSON.parse(kit.fileText("drafts/" + draft.id + "/datasets.json") || "{}")); } catch (e) {}
-      try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = dp; params = Object.assign({}, dp, params); } } catch (e) {}
-    }
-    showDraftBar();
-    mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
-    redraw();
-    kit.ready();
+  // Every load starts on the default filters and the draft (owner): both last for this session only.
+  if (showingDraft()) {
+    // A draft reads the dashboard's sources by id; a new or changed one is in its datasets.json.
+    try { Object.assign(datasets, JSON.parse(kit.fileText("drafts/" + draft.id + "/datasets.json") || "{}")); } catch (e) {}
+    try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = dp; params = Object.assign({}, dp, params); } } catch (e) {}
   }
-  // Filters a viewer set last time (per artifact), then the page.
-  if (window.hermes && !C.thumb) {
-    var t = setTimeout(boot, 1200);
-    Promise.all([window.hermes.storage.get("dash.params").catch(function () {}),
-      draft ? window.hermes.storage.get("dash.draftView." + draft.id).catch(function () {}) : null]).then(function (r) {
-      var p = r[0];
-      if (p && typeof p === "object") params = Object.assign({}, params, p);
-      if (r[1] === "dashboard" || r[1] === "draft") draftView = r[1];
-    }).catch(function () {}).then(function () { clearTimeout(t); boot(); });
-  } else boot();
+  showDraftBar();
+  mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
+  redraw();
+  kit.ready();
 })();

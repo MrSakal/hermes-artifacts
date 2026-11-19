@@ -188,6 +188,35 @@ class DashboardInTheBrowser(unittest.TestCase):
             self.assertIn(o["note"], (["orders in all regions"], ["orders in minden region"]), w)
             self.assertEqual((o["on"], o["off"]), ("true", "false"), w)
 
+    def test_every_load_starts_on_the_default_filters_and_draft(self):
+        """0.20.0 (owner: every reopen loads the default view): filters and the draft's Undo were kept per artifact
+        and came back. A load ignores what older versions kept, and a change is no longer kept."""
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(title="Kept", type="dashboard", files={"dashboard.json": SPEC, "index.html": "<p id='live'>live</p>", "data/m.csv": "m,n\n1,2\n",
+                                                                   "drafts/d1/request.json": {"format": "scrollyteller"},
+                                                                   "drafts/d1/index.html": "<p id='dr'>draft</p>"})["id"]
+            store.kv_set(aid, "dash.params", {"region": "South"})
+            store.kv_set(aid, "dash.draftView.d1", "dashboard")
+            r = B.drive(f"await api.size(1000, 700); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+              const first = await api.frame('({ params: dash.params(), draft: !!document.getElementById("dr") })')
+              await api.frame('dash.setParams({ region: "East" })'); await api.sleep(150)
+              await api.frame('document.querySelector(".dash-draft-bar .kit-btn").click()'); await api.sleep(400)
+              return { first, now: await api.frame('dash.params()') }
+            """)
+            self.assertIsNone(r.get("err"), r)
+        finally:
+            host.close()
+        self.assertEqual(r["out"]["first"], {"params": {"region": ""}, "draft": True})
+        self.assertEqual(r["out"]["now"], {"region": "East"})  # a change still works, for this session
+        kept = store.kv_all(aid)
+        self.assertEqual(kept.get("dash.params"), {"region": "South"})  # not written by the change
+        self.assertEqual(kept.get("dash.draftView.d1"), "dashboard")
+
 
 if __name__ == "__main__":
     unittest.main()
