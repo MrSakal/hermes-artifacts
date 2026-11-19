@@ -2711,10 +2711,11 @@ def preview_path(aid: str, n: int, base: Optional[Path] = None) -> Path:
 
 
 def preview_get(aid: str, n: int) -> Optional[str]:
-    """The picture of version ``n`` as a data URL, or None."""
+    """The picture of version ``n`` as a data URL, or None; one held for a moment is waited out (_while_held)."""
     import base64
+    p = preview_path(aid, n)
     try:
-        raw = preview_path(aid, n).read_bytes()
+        raw = _while_held(p, p.read_bytes)
     except OSError:
         return None
     return "data:image/png;base64," + base64.b64encode(raw).decode()

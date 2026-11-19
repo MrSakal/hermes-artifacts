@@ -397,6 +397,31 @@ for i in range(40):
 print(failed)
 """
 
+# The same for version 1's preview: held with no sharing for 20 ms, then rewritten (preview_set), 40 times.
+PREVIEW_HOLDER = r"""
+import sys, time, _winapi
+sys.path.insert(0, sys.argv[1])
+from hermes_artifacts import store
+aid, url = sys.argv[2:4]
+p = store.preview_path(aid, 1)
+print("ready", flush=True)
+failed = 0
+for i in range(40):
+    while True:
+        try:
+            h = _winapi.CreateFile(str(p), _winapi.GENERIC_READ, 0, 0, _winapi.OPEN_EXISTING, 0, 0)
+            break
+        except PermissionError:
+            pass
+    time.sleep(0.02)
+    _winapi.CloseHandle(h)
+    try:
+        store.preview_set(aid, url)
+    except OSError:
+        failed += 1
+print(failed)
+"""
+
 
 class TwoProcessTests(unittest.TestCase):
     def test_two_processes_changing_one_meta_keep_every_change(self):
@@ -443,6 +468,35 @@ class TwoProcessTests(unittest.TestCase):
             out, _ = holder.communicate(timeout=60)
             self.assertEqual(holder.returncode, 0)
             self.assertEqual(store.get_meta(aid)["title"], "H39")
+        self.assertEqual(int(out), 0)
+        self.assertGreater(reads, 40)
+
+    @unittest.skipUnless(os.name == "nt", "sharing violations are Windows'")
+    def test_a_preview_another_process_holds_and_rewrites_never_reads_as_none(self):
+        # A card's picture read while the page's report rewrote it showed no preview for one poll.
+        import base64
+        import shutil
+        import subprocess
+        import zlib
+        base = Path(tempfile.mkdtemp(prefix="ha-2proc-"))
+        self.addCleanup(shutil.rmtree, base, True)
+        chunk = lambda kind, data: (len(data).to_bytes(4, "big") + kind + data
+                                    + zlib.crc32(kind + data).to_bytes(4, "big"))
+        png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", bytes([0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0, 0, 0]))
+               + chunk(b"IDAT", zlib.compress(b"\x00\x00")) + chunk(b"IEND", b""))
+        url = "data:image/png;base64," + base64.b64encode(png).decode()
+        with mock.patch.dict(os.environ, {"HERMES_ARTIFACTS_DIR": str(base / "data")}):
+            aid = store.publish(html="<p>v1</p>", title="P")["id"]
+            store.preview_set(aid, url)
+            holder = subprocess.Popen([sys.executable, "-c", PREVIEW_HOLDER, str(PLUGIN), aid, url],
+                                      env=dict(os.environ), stdout=subprocess.PIPE, text=True)
+            self.assertEqual(holder.stdout.readline().strip(), "ready")
+            reads = 0
+            while holder.poll() is None:
+                self.assertEqual(store.preview_get(aid, 1), url)
+                reads += 1
+            out, _ = holder.communicate(timeout=60)
+            self.assertEqual(holder.returncode, 0)
         self.assertEqual(int(out), 0)
         self.assertGreater(reads, 40)
 
