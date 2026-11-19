@@ -1417,7 +1417,14 @@
     var s = slides.filter(function (x) { return "#" + x.sec.id === sel; })[0];
     if (!s) return null;
     var rect = function (n) { if (!n || !n.isConnected || !n.getClientRects().length) return null; var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: n }; };
-    return [{ el: rail, box: function () { return rect(rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)]); } },
+    // A thumbnail's mark lies past its top right, in the gap before the next one: none while that place is out of the
+    // strip's sight (a thumbnail cut by the strip's edge: its mark would lie on its picture).
+    return [{ el: rail, box: function () {
+      var t = rect(rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)]);
+      if (!t) return null;
+      var q = rail.getBoundingClientRect();
+      return t.x + t.w + 26 <= Math.min(q.right, innerWidth) && t.x + t.w > q.left ? t : null;
+    } },
       { el: clip, box: function () { return s.sec.isConnected && clip.contains(s.sec) ? rect(s.sec.parentElement) : null; } }];
   });
   // A thumbnail picked: a comment on its whole slide (the slide's own target and title, as its blank's), its pin by
