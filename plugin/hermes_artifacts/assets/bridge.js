@@ -1190,6 +1190,7 @@
       p.at = seen ? [Math.min(w[0] + w[2], seen.r) + window.scrollX + EDGE + HALO + 1, Math.max(w[1] - 9, seen.t) + window.scrollY] : null;
     }
     if (!moved) return;
+    chromeWordsAt = null; // measured again for this placing
     // Each inside the window (V6u: the second of two marks kept at a sheet's frame edge went right of the first, out of
     // the frame), in the order of their numbers: one that meets another goes right of it, and under it where the window
     // ends there (V6w: left of it read 4 before 1), so the numbers go up left to right and top to bottom. Not on another
@@ -1213,16 +1214,80 @@
         else { l = l0; t = q.b + MARK_GAP; }
         j = -1;
       }
+      // Still on a control or on the words of the type's chrome (V6x: a deck's strip at 391 px, mark 2 on its Hide
+      // thumbnails, mark 3, kept at the frame's edge and moved under mark 2, on thumbnail 3's number): the nearest place
+      // that is on neither nor on another mark, by its part.
+      if (blockedAt(p.el, l - sx, t - sy, bw, placed)) {
+        var f = nearFree(p.el, l - sx, t - sy, bw, placed, x0 - sx, x1 - sx);
+        if (f) { l = f[0] + sx; t = f[1] + sy; }
+      }
       placed.push({ l: l, t: t, r: l + bw, b: t + MARK_H });
       p.b.style.left = l + "px"; p.b.style.top = t + "px";
     });
+  }
+  // The places tried round a mark that lies on a control (dx, dy in px, nearest first): 2 px steps, 48 left to 24
+  // right and 24 up to 32 down of where it was put, its part's top right.
+  var NEAR = (function () {
+    var a = [];
+    for (var dx = -48; dx <= 24; dx += 2) for (var dy = -24; dy <= 32; dy += 2) if (dx || dy) a.push([dx, dy]);
+    return a.sort(function (p, q) { return p[0] * p[0] + p[1] * p[1] - q[0] * q[0] - q[1] * q[1]; });
+  })();
+  /** Whether a mark at x, y (w wide, in the window) lies on a control or the words of the type's chrome (controlUnder:
+   *  what is seen at its corners and middle; and any word or control of the chrome's under it, a 6 px number between
+   *  those points too) or on a mark placed before it (in the page: their l, t, r, b). */
+  function blockedAt(el, x, y, w, placed) {
+    var sx = window.scrollX, sy = window.scrollY;
+    for (var i = 0; i < placed.length; i++) {
+      var q = placed[i];
+      if (x + sx < q.r + MARK_GAP && q.l < x + sx + w + MARK_GAP && y + sy < q.b + MARK_GAP && q.t < y + sy + MARK_H + MARK_GAP) return true;
+    }
+    if (controlUnder(el, x, y, w)) return true;
+    var ws = chromeWords();
+    for (var k = 0; k < ws.length; k++) {
+      var r = ws[k];
+      // its part's own words too (a thumbnail's number), not those of what holds it
+      if (!r.el.contains(el) && x < r.right && r.left < x + w && y < r.bottom && r.top < y + MARK_H) return true;
+    }
+    return false;
+  }
+  /** The nearest place to x, y (in the window) a mark may lie (blockedAt), inside the window's width (lo, hi: its left's
+   *  bounds) and under its top; null when none is near. */
+  function nearFree(el, x, y, w, placed, lo, hi) {
+    for (var i = 0; i < NEAR.length; i++) {
+      var nx = x + NEAR[i][0], ny = y + NEAR[i][1];
+      if (nx < lo || nx > hi || ny < MARK_GAP || ny + MARK_H > innerHeight) continue;
+      if (!blockedAt(el, nx, ny, w, placed)) return [nx, ny];
+    }
+    return null;
+  }
+  /** The boxes of the words and controls of the type's own chrome drawn now ([data-comment-keep]: a deck's slide numbers,
+   *  its strip's buttons and thumbnails, whole: V6x, the deck's thumbnails over the strip's buttons by a pixel hid them
+   *  from controlUnder's points), measured once per placing (chromeWordsAt). */
+  var chromeWordsAt = null;
+  function chromeWords() {
+    if (chromeWordsAt) return chromeWordsAt;
+    chromeWordsAt = [];
+    var keeps = document.querySelectorAll("[data-comment-keep]");
+    for (var i = 0; i < keeps.length && chromeWordsAt.length < 400; i++) {
+      var all = keeps[i].querySelectorAll("*");
+      for (var j = 0; j < all.length && chromeWordsAt.length < 400; j++) {
+        var e = all[j];
+        if (e.closest("[data-hermes-ui]") || e.closest(MARK_FREE)) continue;
+        if (!e.matches(FOCUSABLE) && !Array.prototype.some.call(e.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue); })) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width && r.height && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight)
+          chromeWordsAt.push({ el: e, left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+    }
+    return chromeWordsAt;
   }
   /** The box of a control of the page's seen under a mark at x, y (w wide, in the window), or of the words of the type's
    *  own chrome ([data-comment-keep]: a deck's slide number, V6w: slide 1's mark on thumbnail 2's "2"), its controls too
    *  (a deck's thumbnails); not el's own nor one holding it; null when none is. */
   function controlUnder(el, x, y, w) {
     if (!document.elementsFromPoint) return null;
-    var pts = [[x + 1, y + 1], [x + w - 1, y + 1], [x + 1, y + MARK_H - 1], [x + w - 1, y + MARK_H - 1], [x + w / 2, y + MARK_H / 2]];
+    // its corners half a pixel in (V6x: a mark 1 px over the Hide thumbnails above it, the points 1 px in missed it)
+    var pts = [[x + 0.5, y + 0.5], [x + w - 0.5, y + 0.5], [x + 0.5, y + MARK_H - 0.5], [x + w - 0.5, y + MARK_H - 0.5], [x + w / 2, y + MARK_H / 2]];
     for (var i = 0; i < pts.length; i++) {
       var hits = document.elementsFromPoint(pts[i][0], pts[i][1]);
       for (var k = 0; k < hits.length; k++) {
