@@ -158,6 +158,18 @@ class TypesPutTheirViewBack(unittest.TestCase):
             self.assertAlmostEqual(back["cy"], 400, delta=1, msg=(w, back))
             self.assertAlmostEqual(back["z"], 0.5, delta=0.001, msg=(w, back))
 
+    def test_a_design_systems_section_and_scroll(self):
+        # V6x 1 (survey): a design system on Typography, scrolled, its chat collapsed: back on Overview at its top
+        aid = store.publish(path=str(EX / "design-system"), title="Test design system", type="design-system")["id"]
+        o = self.drive_page(aid, """
+          await api.frame('[...document.querySelectorAll(".ds-nav-i")].find(e => /Typography/.test(e.textContent)).click()'); await api.sleep(500)
+          await api.frame('window.scrollTo(0, 200)'); await api.sleep(1200)
+          return await api.top(""" + json.dumps(LAST_VIEW) + ")", w=1250, hh=500, settle=2500)
+        self.assertEqual((o["context"]["section"], o["keep"]), ("type", {"y": 200, "theme": None}), o)
+        back = self.drive_page(aid, restore(o["context"], o["keep"]) + """
+          return await api.frame('({ on: document.querySelector(".ds-nav-i.on").textContent.trim(), y: window.scrollY })')""", w=1250, hh=500, settle=2500)
+        self.assertEqual(back, {"on": "Typography", "y": 200}, back)
+
     def drive_size(self, fn, hh):
         """fn() with the pages hh px tall (one that scrolls)."""
         old = self.drive_page
