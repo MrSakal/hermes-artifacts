@@ -126,6 +126,23 @@ class TypesPutTheirViewBack(unittest.TestCase):
                                ' st: document.getElementById("sh-grid").scrollTop, z: getComputedStyle(document.documentElement).getPropertyValue("--sh-z").trim() })\')', settle=2500)
         self.assertEqual((back["name"], back["st"], back["z"]), ("B31", 600, "1.25"), back)
 
+    def test_a_board_its_middle_and_zoom(self):
+        # V6x 1 (survey): a board panned and zoomed, its chat collapsed: fitted again (its camera lived in localStorage,
+        # which throws in the sandboxed frame). The point at its view's middle and the zoom come back, at any width.
+        board = {"title": "B", "items": [{"id": "a", "type": "box", "text": "Review"}, {"id": "b", "type": "box", "text": "Ship", "x": 900, "y": 600}]}
+        aid = store.publish(title="B", type="board", files={"board.json": board})["id"]
+        mid = ('(() => { const v = document.querySelector(".bd-view").getBoundingClientRect(), m = /translate\\(([-\\d.]+)px, ?([-\\d.]+)px\\) scale\\(([\\d.]+)\\)/'
+               '.exec(document.querySelector(".bd-world").style.transform).slice(1).map(Number); return { cx: (v.width / 2 - m[0]) / m[2], cy: (v.height / 2 - m[1]) / m[2], z: m[2] } })()')
+        o = self.drive_page(aid, f"await api.sleep(1200)\nreturn {{ said: await api.top({json.dumps(LAST_VIEW)}), mid: await api.frame({json.dumps(mid)}) }}", settle=2500)
+        k = o["said"]["keep"]
+        self.assertAlmostEqual(k["cx"], o["mid"]["cx"], delta=1, msg=o)
+        self.assertAlmostEqual(k["z"], o["mid"]["z"], delta=0.001, msg=o)
+        for w in (1250, 700):
+            back = self.drive_page(aid, restore(o["said"]["context"], {"cx": 820, "cy": 610, "z": 1.5}) + f"return await api.frame({json.dumps(mid)})", w=w, settle=2500)
+            self.assertAlmostEqual(back["cx"], 820, delta=1, msg=(w, back))
+            self.assertAlmostEqual(back["cy"], 610, delta=1, msg=(w, back))
+            self.assertAlmostEqual(back["z"], 1.5, delta=0.001, msg=(w, back))
+
     def drive_size(self, fn, hh):
         """fn() with the pages hh px tall (one that scrolls)."""
         old = self.drive_page
