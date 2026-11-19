@@ -598,6 +598,20 @@
       try { fn(d.keep && typeof d.keep === "object" ? d.keep : {}, d.context && typeof d.context === "object" ? d.context : {}, d.v); } catch (e) {}
     });
   }
+  /** A scroll put back (a view restored): el (the page's own scroll when none) to top, once the page is that tall:
+   *  tried as it grows, for 3 s at most; the person's own wheel, key or press first ends it. */
+  function scrollBack(el, top) {
+    if (!(top > 0)) return;
+    var sc = el || document.scrollingElement || document.documentElement, until = Date.now() + 3000, kinds = ["wheel", "keydown", "pointerdown", "touchstart"];
+    function off() { sc = null; kinds.forEach(function (k) { window.removeEventListener(k, off, true); }); }
+    kinds.forEach(function (k) { window.addEventListener(k, off, true); });
+    (function step() {
+      if (!sc) return;
+      sc.scrollTop = top;
+      if (Math.abs(sc.scrollTop - top) < 1 || Date.now() > until) return off();
+      setTimeout(step, 50);
+    })();
+  }
   function inView(selector) {
     var best = null;
     document.querySelectorAll(selector).forEach(function (el) {
@@ -755,6 +769,6 @@
   }
   function noFill(input, value) { input.classList.toggle("kit-nofill", isClear(value)); return input; }
 
-  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, restored: restored, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, swallowPress: swallowPress, toast: toast,
+  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, restored: restored, scrollBack: scrollBack, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, swallowPress: swallowPress, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();

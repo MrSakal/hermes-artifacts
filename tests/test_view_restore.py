@@ -90,6 +90,20 @@ class TypesPutTheirViewBack(unittest.TestCase):
         self.assertEqual((o["on"], o["strip"]), (2, True), o)
         self.assertEqual(o["said"]["keep"], {"strip": False, "props": False}, o)
 
+    def scrolled(self, aid, scroll, at, settle=2500):
+        """What the page reports scrolled (`scroll`: frame JS), then, loaded anew, `at` (frame JS) after the view-restore."""
+        o = self.drive_page(aid, f"await api.frame({json.dumps(scroll)}); await api.sleep(1200)\nreturn await api.top({json.dumps(LAST_VIEW)})", settle=settle)
+        self.assertTrue(o and o.get("keep"), o)
+        back = self.drive_page(aid, restore(o["context"], o["keep"]) + f"return await api.frame({json.dumps(at)})", settle=settle)
+        return o, back
+
+    def test_a_doc_its_scroll(self):
+        # V6x 1 (survey): a doc scrolled 300 px down, its chat collapsed: back at its top
+        aid = store.publish(title="Long", type="doc", files={"doc.md": "# Long\n\n" + "\n\n".join(f"Paragraph {i} of the long doc, a line of words." for i in range(80))})["id"]
+        o, back = self.scrolled(aid, "window.scrollTo(0, 400)", "window.scrollY")
+        self.assertEqual(o["keep"], {"y": 400}, o)
+        self.assertAlmostEqual(back, 400, delta=1)
+
 
 if __name__ == "__main__":
     unittest.main()
