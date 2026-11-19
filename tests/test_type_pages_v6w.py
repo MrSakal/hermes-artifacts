@@ -119,3 +119,17 @@ class RoundV6wPages(unittest.TestCase):
         self.assertEqual(sorted(m["c"] for m in o), ["mo-pin", "mo-pin", "mo-spin"], o)
         for m in o:
             self.assertEqual((m["w"], m["h"], m["rad"]), (18, 18, "9px"), o)
+
+    def test_marks_kept_at_the_frames_edge_read_in_order(self):
+        # V6w 7: two marks on a heading as wide as the frame, kept inside it at its right edge: the second went left of the
+        # first (4 read before 1). Their numbers go up left to right and top to bottom.
+        aid = self.store.publish(title="Edge", type="page", html='<h1 id="h" style="margin:60px 0 0">Orders 2026</h1><p id="p">A line</p>')["id"]
+        for w in (1250, 420):
+            o = self.drive_page(aid, """
+              await api.top('window.__post("pins", [{selector: "#h", n: 4}, {selector: "#h", n: 1}, {selector: "#h", n: 7}])'); await api.sleep(500)
+              return { w: await api.frame('innerWidth'), b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", w=w, settle=1500)
+            ms = sorted((m for m in o["b"] if m["shown"]), key=lambda m: int(m["n"]))
+            self.assertEqual([m["n"] for m in ms], ["1", "4", "7"], (w, o))
+            for a, b in zip(ms, ms[1:]):
+                self.assertTrue(b["t"] >= a["b"] or (abs(b["t"] - a["t"]) < 1 and b["l"] >= a["r"]), (w, a, b))
+                self.assertTrue(0 <= b["l"] and b["r"] <= o["w"], (w, b))

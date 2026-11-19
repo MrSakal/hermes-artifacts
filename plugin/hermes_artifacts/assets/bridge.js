@@ -1189,15 +1189,16 @@
     }
     if (!moved) return;
     // Each inside the window (V6u: the second of two marks kept at a sheet's frame edge went right of the first, out of
-    // the frame): one that meets another goes right of it, left of it where the window ends there, and under it where
-    // neither has room. Not on another of the page's controls (V6u: a free-form page's "+1" had its mark on the corner
-    // of the Reset beside it): up off it, by its own height at most, still at the part's top right.
+    // the frame), in the order of their numbers: one that meets another goes right of it, and under it where the window
+    // ends there (V6w: left of it read 4 before 1), so the numbers go up left to right and top to bottom. Not on another
+    // of the page's controls (V6u: a free-form page's "+1" had its mark on the corner of the Reset beside it): up off
+    // it, by its own height at most, still at the part's top right.
     var placed = [], sx = window.scrollX, sy = window.scrollY, x0 = sx + MARK_GAP;
-    pins.forEach(function (p) {
+    pins.slice().sort(function (a, b) { return a.it.n - b.it.n; }).forEach(function (p) {
       p.b.style.display = p.at ? "" : "none";
       if (!p.at) return;
       var bw = p.b.offsetWidth || MARK_H, x1 = sx + innerWidth - bw - MARK_GAP;
-      var l0 = Math.max(x0, Math.min(p.at[0], x1)), l = l0, t = Math.max(sy + MARK_GAP, p.at[1]), left = false, o;
+      var l0 = Math.max(x0, Math.min(p.at[0], x1)), l = l0, t = Math.max(sy + MARK_GAP, p.at[1]), o;
       while ((o = controlUnder(p.el, l - sx, t - sy, bw))) {
         var up = o.top + sy - MARK_GAP - MARK_H;
         if (up < p.at[1] - MARK_H || up < sy + MARK_GAP) break;
@@ -1206,9 +1207,8 @@
       for (var j = 0; j < placed.length; j++) {
         var q = placed[j];
         if (!(l < q.r + MARK_GAP && q.l < l + bw + MARK_GAP && t < q.b && q.t < t + MARK_H)) continue;
-        if (!left && q.r + MARK_GAP <= x1) l = q.r + MARK_GAP;
-        else if (q.l - MARK_GAP - bw >= x0) { l = q.l - MARK_GAP - bw; left = true; }
-        else { l = l0; t = q.b + MARK_GAP; left = false; }
+        if (q.r + MARK_GAP <= x1) l = q.r + MARK_GAP;
+        else { l = l0; t = q.b + MARK_GAP; }
         j = -1;
       }
       placed.push({ l: l, t: t, r: l + bw, b: t + MARK_H });
