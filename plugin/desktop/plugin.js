@@ -4247,8 +4247,9 @@ function PickHint() {
         onClick: () => $picking.set(false),
         ...hp,
         className: TEXT_BTN,
-        // A labelled button of Hermes' pane header (Button size "xs", as Chat and Show chat): 24 px, 11 px words
-        style: { ...font, display: 'inline-flex', alignItems: 'center', boxSizing: 'border-box', flexShrink: 0, height: 24, border: 0, padding: '0 8px', fontSize: 11, cursor: 'pointer', color: h ? C.fg : C.accent, background: h ? C.hover : 'transparent' },
+        // Hermes' labelled button (button.tsx: variant ghost, size sm: 24 px, 12 px words, 10 px sides), coloured as the
+        // header's buttons beside it (IconButton): muted, the hover's fill and words
+        style: { ...font, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', flexShrink: 0, height: 24, border: 0, padding: '0 10px', fontSize: 12, lineHeight: '16px', whiteSpace: 'nowrap', cursor: 'pointer', color: h ? C.fg : C.text2, background: h ? C.hover : 'transparent' },
         children: t('cancel')
       })
     ]

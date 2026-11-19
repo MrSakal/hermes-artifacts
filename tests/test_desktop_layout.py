@@ -68,7 +68,7 @@ class LayoutTests(unittest.TestCase):
             root.style.width = w + 'px'
             R.mount(() => jsx(M.Header, { ctx: {}, art: { id: 'a1', title: 'Doc', type: 'doc', version: 1, versions: [1], session: 's1' }, v: 1, portRef: { current: null }, docked: true }), root)
             %s
-            for (const b of root.firstElementChild.querySelectorAll('button')) { const r = b.getBoundingClientRect(); out.push({ w, text: b.textContent.trim(), label: b.getAttribute('aria-label'), h: r.height, wd: r.width, cls: b.className, font: getComputedStyle(b).fontSize }) }
+            for (const b of root.firstElementChild.querySelectorAll('button')) { const r = b.getBoundingClientRect(); out.push({ w, text: b.textContent.trim(), label: b.getAttribute('aria-label'), h: r.height, wd: r.width, cls: b.className, font: getComputedStyle(b).fontSize, pad: getComputedStyle(b).padding, color: getComputedStyle(b).color, pressed: b.getAttribute('aria-pressed') }) }
             R.unmount()
           }
           M.$picking.set(false)
@@ -81,8 +81,12 @@ class LayoutTests(unittest.TestCase):
             self.assertIn("rounded-[2.5px]" if b["text"] else "rounded-[4px]", b["cls"].split(), b)  # Hermes' Tailwind classes
             if not b["text"]:
                 self.assertAlmostEqual(b["wd"], 24, delta=0.5, msg=b)
+        # V6y 3: Cancel was a bare blue 11 px link; it is Hermes' labelled button (ghost, sm): 12 px words, 10 px sides, the
+        # muted colour of the header's buttons beside it, not the accent
         for b in cancel:
-            self.assertEqual(b["font"], "11px", b)
+            self.assertEqual(b["font"], "12px", b)
+            self.assertEqual(b["pad"], "0px 10px", b)
+            self.assertEqual(b["color"], [x for x in out if x["w"] == b["w"] and x["label"] and not x["text"] and x["pressed"] != "true"][0]["color"], b)
 
     def test_the_header_at_every_width(self):
         variants = [
