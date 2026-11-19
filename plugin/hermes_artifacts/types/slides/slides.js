@@ -95,7 +95,7 @@
   var bar = document.getElementById("sl-bar"), rail = document.getElementById("sl-rail");
   var stageWrap = document.getElementById("sl-stage-wrap"), stage = document.getElementById("sl-stage");
   var notesEl = document.getElementById("sl-notes");
-  bar.hidden = true; // Claude's deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
+  bar.hidden = true; // the deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
   var mainEl = document.getElementById("sl-main"), strip = document.getElementById("sl-strip"), stripHead = document.getElementById("sl-striphead"),
     propsEl = document.getElementById("sl-props");
   if (!deck) { document.body.appendChild(h("div", { "class": "kit-empty", text: T.bad })); kit.ready(); return; }
@@ -508,7 +508,7 @@
       rows: [1, 2, 3].map(function () { return ["", "", ""]; }) }; } },
     { label: T.lClosing, def: function () { return { layout: "closing", title: T.phClosing }; } }
   ];
-  /** New slide: a dialog of the layouts, each drawn as it will look in this deck's theme (Claude's). */
+  /** New slide: a dialog of the layouts, each drawn as it will look in this deck's theme. */
   var layoutDlg = null;
   function closeLayouts() { if (layoutDlg) { layoutDlg.remove(); layoutDlg = null; } }
   function layoutMenu(anchor, after) {
@@ -594,7 +594,7 @@
   function itemsOf(sec) {
     return Array.prototype.filter.call(sec ? sec.children : [], function (el) { return el.tagName !== "ASIDE" && !el.hasAttribute("data-deco"); });
   }
-  /** What a click selects (as in Claude's deck): the innermost thing with a look of its own under the pointer: a text block,
+  /** What a click selects: the innermost thing with a look of its own under the pointer: a text block,
    *  a picture, a shape, a painted box (a card). A bare container is passed through; at the slide's top level anything counts. */
   function painted(el) {
     var cs = getComputedStyle(el);
@@ -861,7 +861,7 @@
         tb("underline", T.underline, function () { document.execCommand("underline"); }), sep());
     }
     if (texty) {
-      // Claude's order: the face and size, the colour, then the marks and the alignment.
+      // In order: the face and size, the colour, then the marks and the alignment.
       var cs0 = getComputedStyle(sel[0]), al = (sel[0].style.textAlign || cs0.textAlign);
       var face = (cs0.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
       var tsB = tbtn("text", T.textStyle, function () { styleMenu(tsB); });
@@ -883,7 +883,7 @@
     }
     kids.push(tb("sparkle", T.ask, askAbout));
     if (window.hermes && window.hermes.comment && sel.length === 1) {
-      // A comment on this element (Claude's): the host opens its comment form there; the thread names the slide.
+      // A comment on this element: the host opens its comment form there; the thread names the slide.
       kids.push(tb("comment", T.comment, function () {
         var el = sel[0], s = slides[cur];
         window.hermes.comment({ selector: selectorOf(el), text: el.textContent.trim().slice(0, 200),
@@ -1759,7 +1759,7 @@
   }), T.exp);
   expBtn.hidden = true;
   kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
-  // The deck's chrome, as Claude's: no bar. Insert tools and view tools float over the stage as two pills,
+  // The deck's chrome: no bar. Insert tools and view tools float over the stage as two pills,
   // the thumbnails run in a strip below (or a small pill of arrows when the strip is put away), and the
   // properties of what is selected (the slide itself when nothing is) open at the right.
   function cbtn(html, title, fn, cls) {
@@ -1873,7 +1873,7 @@
     fitPills();
   }
 
-  // ------------------------------------------------------------------ properties (Claude's panel at the right)
+  // ------------------------------------------------------------------ properties (the panel at the right)
   function cssHex(v) { var c = v ? rgba(v) : null; return c ? "#" + c.hex.toLowerCase() : ""; }
   function themeColors() {
     var th = deckTheme() || {};
@@ -2027,7 +2027,7 @@
     propsEl.replaceChildren.apply(propsEl, out);
   }
 
-  // Right-click on an element: Claude's menu (cut, copy, paste, duplicate, order, delete).
+  // Right-click on an element: a menu (cut, copy, paste, duplicate, order, delete).
   if (editable) clip.addEventListener("contextmenu", function (e) {
     if (editing) return;
     var it = itemOf(e.target);

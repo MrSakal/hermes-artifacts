@@ -81,7 +81,7 @@ def _shell(kind: str) -> Optional[str]:
 
 
 def chat_status(session: Optional[str]) -> dict:
-    """The artifact's chat, as Claude's Chat button decides: open it while it exists and is not
+    """The artifact's chat, as the Chat button decides: open it while it exists and is not
     archived, else start a new chat that refers to the artifact. ``known`` is false when Hermes'
     session store can't be read here (the desktop then asks the gateway)."""
     if not session:
@@ -497,7 +497,7 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             store.settings_set("design_system_for", per or None)
             return {"design_system_for": per}
         if parts == ["folders"] and method == "POST":
-            # A gallery folder (Claude's New › Folder, Move to › create; its chip's Rename and Delete folder).
+            # A gallery folder (New › Folder, Move to › create; its chip's Rename and Delete folder).
             name = " ".join(str(body.get("name") or "").split())[:60]
             if not name:
                 raise ApiError(400, "a folder needs a name")

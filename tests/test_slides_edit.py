@@ -74,7 +74,7 @@ class SaveTests(unittest.TestCase):
 
 
 class UnreadEditTests(unittest.TestCase):
-    """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused (Claude's rule)."""
+    """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused."""
 
     def test_publish_needs_a_read_after_the_persons_save(self):
         sys.path.insert(0, str(ROOT / "tests"))

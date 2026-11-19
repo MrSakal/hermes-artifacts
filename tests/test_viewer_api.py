@@ -63,7 +63,7 @@ class ViewerApiTests(unittest.TestCase):
 
 
 class ChatTests(unittest.TestCase):
-    """Claude's Chat: the artifact's chat while it exists and isn't archived, else a new one it moves to."""
+    """The Chat button: the artifact's chat while it exists and isn't archived, else a new one it moves to."""
 
     def setUp(self):
         self.aid = store.publish(html="<p>x</p>", title="P", session="s-old")["id"]

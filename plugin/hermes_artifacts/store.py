@@ -717,8 +717,8 @@ _DS_TEXT = {".md", ".json", ".js", ".css", ".html", ".htm", ".svg", ".ts", ".tsx
 
 
 def _ds_build(vdir: Path) -> list[str]:
-    """A design system's generated files (tokens.css, manifest.json, api/ cards, README's tail), as
-    Claude's Design System type writes them on every save. A system brought over from Claude, kept
+    """A design system's generated files (tokens.css, manifest.json, api/ cards, README's tail),
+    written on every save. A system brought over from Claude, kept
     under project/, comes up to the root first (the type's own files it carried stay behind)."""
     from . import dsbuild
     proj = vdir / "project"
@@ -766,7 +766,7 @@ def _ds_folder(name: str, taken: set) -> str:
 
 
 def _ds_install(vdir: Path, kind: str, prev: Optional[Path] = None) -> list[str]:
-    """Copy the design systems an artifact names into it (Claude's install: the copy travels with the deck,
+    """Copy the design systems an artifact names into it (an install: the copy travels with the deck,
     canvas or film, so a later edit or the deletion of the system changes nothing here).
 
     The author writes only ids: ``"designSystems": ["<id>"]`` in the index. Each becomes a record
@@ -2397,8 +2397,8 @@ def settings() -> dict:
 
 
 def default_design_system(kind: Optional[str] = None) -> Optional[str]:
-    """The design system new artifacts of ``kind`` build on: the user's choice for that type (Claude keeps a
-    default per type; "none" = this type takes none), else the default for everything."""
+    """The design system new artifacts of ``kind`` build on: the user's choice for that type (a default
+    per type; "none" = this type takes none), else the default for everything."""
     s = settings()
     per = s.get("design_system_for")
     own = per.get(kind) if kind and isinstance(per, dict) else None
@@ -2585,7 +2585,7 @@ REACTIONS = ("👍", "❤️", "🎉", "✅", "👀", "😄")
 
 
 def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
-    """Toggle one reaction (Claude's emoji on a comment) by the person or Hermes."""
+    """Toggle one reaction (an emoji on a comment) by the person or Hermes."""
     if emoji not in REACTIONS or who not in ("user", "hermes"):
         raise ValueError("unknown reaction")
     with _LOCK:

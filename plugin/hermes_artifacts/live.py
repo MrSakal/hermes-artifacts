@@ -1243,7 +1243,7 @@ def rows_of(answer: Any) -> Optional[dict]:
 
 # ----------------------------------------------------------------------------- the last answer, kept 24 h
 #
-# The model Claude's dashboards use: every open, refresh and filter change runs the query live. The last
+# The model dashboards use: every open, refresh and filter change runs the query live. The last
 # answer is kept (24 h, on disk, so a restart keeps it) only to paint something at once while the live
 # call runs, and to draw gallery thumbnails without running every dashboard's queries.
 
@@ -1342,7 +1342,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, version: Optional[int] = N
         payload = {"status": "ok", **info, "args": args, "ms": int((time.time() - started) * 1000)}
         if table is not None:
             payload.update(table)
-        # The answer as the tool gave it too: a page's loader reads that (Claude's fn({answer, ...})).
+        # The answer as the tool gave it too: a page's loader reads that (fn({answer, ...})).
         if table is None or len(json.dumps(answer, ensure_ascii=False, default=str)) <= MAX_ANSWER_BYTES // 2:
             payload["answer"] = answer
         at = cache_put(aid, key, payload)
@@ -1376,7 +1376,7 @@ def _stored_tool(tool: str, d: dict) -> str:
 
 
 def loader_call(aid: str, dsid: str, tool: str, args: Any, version: Optional[int] = None) -> dict:
-    """``call(tool, args)`` inside a dataset's loader (Claude's): the dataset's own stored tool or its
+    """``call(tool, args)`` inside a dataset's loader: the dataset's own stored tool or its
     poll tool, for a query left running or a further page. Only for an approved dataset, only with the
     approved args (the stored args with their filters filled in, each passing its rule, or the stored
     poll args with their ``{{answer.…}}`` values), only read-only queries; the answer goes back as data."""
@@ -1587,7 +1587,7 @@ def test_args(aid: str, dsid: str, args: Any, params: Optional[dict] = None) -> 
 #
 # Warehouses answer a long query with "still running" (BigQuery: jobComplete false; Databricks: a
 # PENDING/RUNNING statement). The dashboard then asks again, 2 s doubling to 20 s, for up to 3 minutes,
-# the way Claude's dashboards poll: through the source's "poll" call when it names one (its args can
+# through the source's "poll" call when it names one (its args can
 # take values from the answer, "{{answer.jobReference.jobId}}"), else by repeating the same call.
 
 POLL_FIRST_S, POLL_MAX_S, POLL_DEADLINE_S = 2.0, 20.0, 180.0

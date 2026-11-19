@@ -1047,7 +1047,7 @@ def _publish(args: dict, **kw) -> str:
             view["shown_in_desktop"] = _broadcast("open", shown)
             if view["shown_in_desktop"]:
                 _SHOWN_AT[meta["id"]] = time.time()  # a viewer will report on it: ha_check waits for that
-                # Hermes Desktop draws this line as a card that opens the artifact (Claude's card in the chat).
+                # Hermes Desktop draws this line as a card that opens the artifact.
                 view["card"] = f'In Hermes Desktop end your reply with this line, alone: ::artifact{{id="{meta["id"]}"}}'
         step = "finishing the result"
         if guided is not None and not old and meta.get("type") == "page" and "page" not in guided:
@@ -1182,7 +1182,7 @@ LANG_RULE = ("Language: the artifact's own words (title, text, labels, made-up d
              "asked in; the Artifacts UI and the notes its pages send are English regardless.")
 
 
-# The types that wear a design system (Claude hands its decks and designs the default one up front).
+# The types that wear a design system (decks and designs are handed the default one up front).
 DS_TYPES = ("slides", "design", "motion", "dashboard")
 DS_RULE = ("The user's default design system: build on it without asking (one the user names wins; declined: none). "
            "Colours, type, spacing, corners and voice from it, never made-up ones; your own only where it is silent. "
@@ -1192,7 +1192,7 @@ DS_NONE_RULE = ("No default design system. If `systems` lists some, ask the user
                 "your own choices). A system the user names: use it and record it.")
 
 
-# What of a system each type is handed up front (Claude reads no more than this per type): a dashboard and a
+# What of a system each type is handed up front (no more than this per type): a dashboard and a
 # film take values only, a deck cannot run components. The rest is one ha_read away.
 _DS_PARTS = {"dashboard": ("tokens",), "motion": ("tokens", "assets"), "slides": ("readme", "tokens", "assets"),
              "design": ("readme", "tokens", "components", "assets")}
@@ -1867,8 +1867,8 @@ def _register_route(ctx) -> bool:
 
 def _view_context(**kw):
     """pre_llm_call: when the user has an artifact open (reported by Hermes Desktop in the last 10
-    minutes), add where they are in it to their message, as Claude does with its view context. (No
-    design system line here: like Claude, the system comes with the guide of the types that wear it,
+    minutes), add where they are in it to their message as a view context. (No design system line
+    here: the system comes with the guide of the types that wear it,
     and in code it is files in the project, ha_design_system_export.)"""
     parts = []
     running.touch()  # this process is in use: keep its loaded-version record fresh (at most every 5 min)
@@ -1897,7 +1897,7 @@ def _view_context(**kw):
             _LAST_VIEW.pop(session, None)
     except Exception:
         logger.debug("view context failed", exc_info=True)
-    # A chat opened for an artifact starts empty (as in Claude). On its first turn the agent gets one line
+    # A chat opened for an artifact starts empty. On its first turn the agent gets one line
     # naming the artifact; Hermes replays that turn as sent, so later turns need nothing more. Any other
     # new chat gets ROUTE_HINT once, the same way, only where the system-prompt section does not route.
     try:

@@ -673,7 +673,7 @@
   function fmtShort(t) { var s = Math.floor(t); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
   // numbers in the app's language, one shape everywhere (the chips, the Length field, the speeds): the kit's
   function secLabel(d) { return kit.num(d, 1) + " " + T.s; }
-  // Claude's Motion layout: the stage, one transport row under it, the scene strip under that, and the
+  // The Motion layout: the stage, one transport row under it, the scene strip under that, and the
   // Tweaks / Style panel beside them (under them on a narrow page). No top bar: the rough-cut badge,
   // Continue, Finalize and the save state float over the picture's top-left corner when they have something to say.
   var statusEl = h("span", { "class": "mo-status", "aria-live": "polite" });
@@ -743,7 +743,7 @@
     if (window.hermes && window.hermes.send) window.hermes.send(text, null, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(text); }, function () {});
   }
 
-  /** A small picture of each scene for its card in the strip, as Claude's: the scene past its entrance. It is
+  /** A small picture of each scene for its card in the strip: the scene past its entrance. It is
       drawn and copied in one go and the film on show is put back before the page paints, so it never moves;
       the copies become pictures one at a time afterwards. */
   var thumbs = {}, thumbRun = 0, THUMB_H = 96;
@@ -1296,7 +1296,7 @@
     sec(box, T.look);
     if (selected && selected.isConnected) box.appendChild(lookControls(selected));
     else box.appendChild(h("div", { "class": "mo-note", text: T.pickHint }));
-    // What was changed by hand in this scene, each with its own Reset (Claude's per-line Reset).
+    // What was changed by hand in this scene, each with its own Reset (a Reset per line).
     var here = function (id) { return sc ? id === sc.id : true; };
     var lines = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && here(x.scene || "film"); });
     if (lines.length) {
@@ -1683,7 +1683,7 @@
     finally { exporting = false; renderAt(keep); ui(); }
   }
 
-  // The Export dialog (Claude's): a format, and for MP4 the resolution, frame rate and quality the
+  // The Export dialog: a format, and for MP4 the resolution, frame rate and quality the
   // encoder is really given. GIF and PNG have fixed settings, so they show a line saying what they make.
   var canMp4 = !!(window.VideoEncoder && window.VideoFrame);
   var expOpts = null, dialog = null, dialogOpener = null;

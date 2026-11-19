@@ -194,7 +194,7 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 .doc-blk.is-empty:has(> h2)::before { font: 600 27px/1.3 var(--font-display); }
 .doc-blk.is-empty:has(> h3)::before { font: 600 21px/1.3 var(--font-display); }
 
-/* tables the way Claude's doc (and Notion) draws them: full width, quiet lines, handles on hover */
+/* tables, Notion-style: full width, quiet lines, handles on hover */
 .doc-prose table { width: 100%; min-width: 0; border: 1px solid var(--color-border-line); border-radius: var(--doc-r-lg); border-collapse: separate; border-spacing: 0;
   overflow: hidden; font-size: 15px; margin: 4px 0 18px; }
 .doc-prose th, .doc-prose td { padding: 9px 12px; min-width: 90px; border-bottom: 1px solid var(--color-border-line); border-right: 1px solid var(--color-border-line); vertical-align: top; }
@@ -212,7 +212,7 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 @media (max-width: 560px) { html.doc-live #doc-view { padding-left: 40px; padding-right: 16px; } }
 
-/* Claude's menus: icons, groups, submenus, a swatch row */
+/* menus: icons, groups, submenus, a swatch row */
 .doc-rmenu { position: fixed; z-index: 180; min-width: 220px; max-height: calc(100vh - 16px); overflow: auto; overscroll-behavior: contain; padding: 5px; border-radius: var(--doc-r-lg);
   background: var(--color-elevated, var(--color-panel)); border: 1px solid var(--color-border-line); box-shadow: var(--doc-shadow); font-size: 13.5px; }
 .doc-rmenu[hidden] { display: none; }
@@ -241,7 +241,7 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-sb-tt { font: 500 14px/1 var(--font-sans); } .doc-sb-tt small { font-size: 9px; }
 .doc-sb .doc-sb-caret { width: 10px; height: 10px; margin-left: 1px; opacity: .6; }
 
-/* tables as Claude's doc draws them: as wide as their content (a blank new one spans the page) */
+/* tables as wide as their content (a blank new one spans the page) */
 .doc-prose table { width: auto; min-width: 0; font-size: 15px; }
 .doc-prose table.t-blank { width: 100%; }
 .doc-prose table.t-blank td, .doc-prose table.t-blank th { width: 33%; }

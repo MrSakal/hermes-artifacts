@@ -187,7 +187,7 @@ html[data-thumb] #mo-main, html[data-thumb] #mo-view { flex: 1 1 auto; }
 html[data-thumb] #mo-view { background: transparent; }
 html[data-thumb] #mo-frame { box-shadow: none; }
 
-/* The strip as cards (as Claude's): each scene's picture, its name and its length beside it; only the scene on show
+/* The strip as cards: each scene's picture, its name and its length beside it; only the scene on show
    is outlined. With the panel under the film on a narrow page the strip is plain pills (no .thumbs). */
 .mo-seg-row { display: flex; align-items: center; min-width: 0; flex: 1; }
 .mo-thumb { display: none; }

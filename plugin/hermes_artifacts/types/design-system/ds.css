@@ -154,7 +154,7 @@ html[data-ds-thumb] body { overflow: hidden; }
   .ds-token-editor { margin-left: 0; }
 }
 
-/* Claude's tables: Name | a column per theme (or Value | Preview), the usage note and the row menu at the end */
+/* Tables: Name | a column per theme (or Value | Preview), the usage note and the row menu at the end */
 .ds-group { margin: 0 0 8px; }
 .ds-count { font-size: 12px; color: var(--color-fg-muted); }
 .ds-table-wrap { overflow-x: auto; margin: 0 0 6px; }

@@ -1,4 +1,4 @@
-"""A design system's generated files, as Claude's Design System type writes them on every save."""
+"""A design system's generated files, as the Design System type writes them on every save."""
 
 import json
 import os

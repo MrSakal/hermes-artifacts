@@ -88,7 +88,7 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(r["rows"], [{"region": "South", "n": 3}])
         self.assertEqual(self.reg.calls[0][:2], ("db", "query"))  # through ctx.call_mcp: server, its own tool name
         self.assertIn("LIMIT 5", self.reg.calls[0][2]["sql"])  # default from dashboard.json params
-        # live (open, refresh, filter change) always runs the call, like Claude's dashboards
+        # live (open, refresh, filter change) always runs the call
         self.assertFalse(live.run_dataset(self.aid, "sales", {"region": "South"})["cached"])
         self.assertEqual(len(self.reg.calls), 2)
         # cached (thumbnails, the instant first paint) answers from the last run

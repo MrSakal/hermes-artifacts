@@ -413,8 +413,8 @@ def _read(aid: str, st: dict, tab, since_rev, search, blocks) -> dict:
     def view(bs):
         return [{"id": b["id"], "kind": _kind(b["md"]), "md": b["md"]} for b in bs]
     if since_rev is not None:
-        # The log keeps the last entries only: older than that, the whole tab comes back (Claude's
-        # since: "unavailable"), never a delta that silently misses changes.
+        # The log keeps the last entries only: older than that, the whole tab comes back
+        # (since: "unavailable"), never a delta that silently misses changes.
         revs = sorted(e["rev"] for e in st["log"] if e["tab"] == t["id"])
         if int(since_rev) < t["rev"] and (not revs or revs[0] > int(since_rev) + 1):
             out["since"] = "unavailable"

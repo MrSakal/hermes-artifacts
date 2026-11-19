@@ -152,7 +152,7 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-link-t:hover { text-decoration: underline; }
 .dc-link-u { display: block; margin-top: 4px; font-size: 12px; color: var(--color-fg-muted); overflow-wrap: anywhere; }
 
-/* The canvas's chrome, as Claude's and in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
+/* The canvas's chrome, in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
    the panel has four tabs. Its colours, radii and shadows are the app's and follow it; the artboards keep their own look. */
 #dc-bar { display: none; }
 :root, :root[data-theme="dark"], :root[data-theme="light"] { --dc-canvas: color-mix(in srgb, var(--color-bg) 92%, var(--color-fg)); --dc-dots: color-mix(in srgb, var(--color-fg) 12%, transparent);

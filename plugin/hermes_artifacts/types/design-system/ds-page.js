@@ -516,7 +516,7 @@
   }
 
   // ------------------------------------------------------------------ views
-  // Claude's Design System page: each foundation a table (Name | a column per theme), values edited in place,
+  // The Design System page: each foundation a table (Name | a column per theme), values edited in place,
   // usage notes and a row menu on every token, contrast on what is read, empty states that ask Hermes.
   var README_MARK = "<!-- @generated below by the Design System type: Consuming this system, Index -->";
   var X = pickLang({

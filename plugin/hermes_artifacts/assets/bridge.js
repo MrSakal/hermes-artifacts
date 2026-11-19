@@ -1397,8 +1397,8 @@
       remove: function (key) { return call("storage.set", { key: key, value: null }).then(function () {}); },
       list: function () { return call("storage.list").then(function (r) { return r.keys; }); }
     }),
-    /** Into the artifact's chat. By default it is put in the chat's message box for the user to send (Claude's
-     *  stage_in_chat); {deliver: "send"} asks the user to confirm, then sends it. */
+    /** Into the artifact's chat. By default it is put in the chat's message box for the user to send
+     *  (stage_in_chat); {deliver: "send"} asks the user to confirm, then sends it. */
     send: function (text, data, opts) {
       return call("send", { text: String(text), data: data === undefined ? null : data, deliver: opts && opts.deliver === "send" ? "send" : "stage" });
     },
@@ -1470,7 +1470,7 @@
       restore: function (rev) { return call("board.restore", { rev: rev }); },
       ask: function (a) { return call("board.ask", a || {}); }
     }),
-    /** History (Claude's): the versions, one version's changes, Restore (needs a click), and showing a
+    /** History: the versions, one version's changes, Restore (needs a click), and showing a
      *  version in place (null = the latest). */
     history: Object.freeze({
       list: function () { return call("history.list", {}).then(function (r) { return r.versions; }); },

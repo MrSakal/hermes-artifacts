@@ -306,7 +306,7 @@
     return raw;
   }
 
-  // ------------------------------------------------------------------ loaders (Claude's dash.loader)
+  // ------------------------------------------------------------------ loaders (dash.loader)
   // fn({answer, call, args, read}) may be async: `call(tool, args)` runs another tool of the dataset's
   // connector, `read` has the ready-made readers. It returns rows, {columns, rows, cut} or
   // {data, columns, meta}; throwing fails the source with its words. One identical call follows
@@ -707,7 +707,7 @@
     if (fedStyle.textContent !== css) fedStyle.textContent = css; // an unchanged rule: no restyle of the page
   }
 
-  // Sources panel, the way Claude's reads: a flat list (name + kind icon); a source opens in place
+  // Sources panel: a flat list (name + kind icon); a source opens in place
   // with a back arrow, how fresh it is, its description, and one open section at a time (Query /
   // Transform / Formula / Result).
   var openSec = {}; // source id -> open section
@@ -852,7 +852,7 @@
     return kids;
   }
   var argDraft = {}, argTest = {};
-  /** Claude's "Replace with a file…": a CSV, TSV or JSON in place of an attached file, saved as a new version. */
+  /** "Replace with a file…": a CSV, TSV or JSON in place of an attached file, saved as a new version. */
   var picks = {};
   function replaceFile(id, d) {
     var inp = h("input", { type: "file", accept: ".csv,.tsv,.json,text/csv,application/json", hidden: true });
@@ -1022,7 +1022,7 @@
     drawer.replaceChildren.apply(drawer, (picked ? renderDetail(picked.id) : renderList()).filter(Boolean));
     showFed(picked ? picked.id : null);
   }
-  // ------------------------------------------------------------------ History (Claude's, inside the dashboard)
+  // ------------------------------------------------------------------ History (inside the dashboard)
   var panelMode = "sources", histPicked = null, histList = null, histDiff = {}, histOpen = {}, latestVersion = C.version;
   var shownVersion = C.version;
   function whenText(at) {
@@ -1245,7 +1245,7 @@
     srcBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "sources"));
     histBtn.setAttribute("aria-pressed", String(srcOpen && panelMode === "history"));
     sendView();
-    // As Claude's: the panel runs the frame's full height beside the page; the bar stops at its edge.
+    // The panel runs the frame's full height beside the page; the bar stops at its edge.
     document.documentElement.toggleAttribute("data-dash-panel", srcOpen);
     placePanel();
     if (srcOpen) renderSources();
@@ -1593,7 +1593,7 @@
     kit.ready();
     return;
   }
-  mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
+  mount(); // a live source loads when the page first reads it (dash.data)
   redraw();
   kit.ready();
 })();

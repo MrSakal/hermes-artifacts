@@ -237,7 +237,7 @@
   function broadcast(m, path) { frames.forEach(function (f) { if (!path || f.path === path) f.send(Object.assign({}, m)); }); }
 
   // ------------------------------------------------------------------ design system
-  // Up to four systems (Claude's): the first is the canvas's own (its themes); the others add their colors,
+  // Up to four systems: the first is the canvas's own (its themes); the others add their colors,
   // type styles and CSS. Each is the copy the canvas carries (ds/<namespace>/), so a later edit of a system
   // changes nothing here.
   var dsRecs = (Array.isArray(canvas.designSystems) ? canvas.designSystems : []).filter(function (r) { return r && r.artifact; }).slice(0, 4);
@@ -1920,7 +1920,7 @@
   var exportList = [{ id: "png", label: T.png, run: exportPng }, { id: "pdf", label: T.pdf, run: function () { exportPdf(false); } },
     { id: "pdf-all", label: T.pdfAll, run: function () { exportPdf(true); } }, { id: "html", label: T.html, run: exportHtml }];
   kit.exports(exportList); // the host's title menu lists them too
-  // The canvas's chrome, as Claude's: no bar. Pages at the top left, the view's tools at the top right (play, properties,
+  // The canvas's chrome: no bar. Pages at the top left, the view's tools at the top right (play, properties,
   // zoom), and the drawing tools in a row at the bottom (select, hand, text, artboard, sticky, pen, shapes).
   function cbtn(html, title, fn, cls) {
     var b = h("button", { type: "button", "class": "kit-btn" + (cls ? " " + cls : ""), title: title, "aria-label": title, html: html });

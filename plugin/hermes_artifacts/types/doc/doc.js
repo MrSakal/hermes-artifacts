@@ -149,7 +149,7 @@
   var R = { chip: chipHtml, widget: widgetHtml, live: live, date: fmtDate };
   function renderMd(x) { return md.html(md.parse(x), imgSrc, R); }
   function fixDom(el) {
-    el.querySelectorAll("table").forEach(function (t) { // a new, still blank table spans the page, as in Claude's doc
+    el.querySelectorAll("table").forEach(function (t) { // a new, still blank table spans the page
       t.classList.toggle("t-blank", !Array.prototype.some.call(t.querySelectorAll("td,th"), function (c) { return c.textContent.trim() || c.querySelector("[data-md],img"); }));
     });
     el.querySelectorAll("td, th").forEach(function (c) {
@@ -1174,7 +1174,7 @@
       if (right) ref.after(c); else ref.before(c);
     });
   }
-  // ------------------------------------------------------------------ menus like Claude's doc: icons, groups, submenus, a swatch row
+  // ------------------------------------------------------------------ menus: icons, groups, submenus, a swatch row
   // the doc's icons in its menus: doc-<name>, the kit's where it has no own
   function micon(name) { return kit.icon("doc-" + name); }
   var menuStack = [];
@@ -1303,7 +1303,7 @@
     document.execCommand("insertHTML", false, tmp.innerHTML + "&nbsp;");
     saveEl(el);
   }
-  // Claude's cell menu: right-click a cell, or Shift+F10 in it.
+  // The cell menu: right-click a cell, or Shift+F10 in it.
   function tableMenu(cell, x, y, from) {
     var table = cell.closest("table"), el = table.closest(".doc-blk"), id = el.getAttribute("data-block");
     var row = cell.parentNode, rows = rowsOf(table), k = cellsOf(row).indexOf(cell), i = rows.indexOf(row), cols = cellsOf(rows[0]).length;
@@ -1402,7 +1402,7 @@
     var r = t.getBoundingClientRect(); place(tui.addCol, r.right + 2, r.top, null, r.height); // the bar moves with the table's new edge
   });
 
-  // ⋮⋮ beside a table: drag it to another place, or click for its menu (as in Claude's doc).
+  // ⋮⋮ beside a table: drag it to another place, or click for its menu.
   var drag = null, dropLine = h("div", { "class": "doc-dropline", hidden: true });
   document.body.appendChild(dropLine);
   // ⋮⋮ and + beside every block, as in Notion: + adds a block below and opens the / menu; ⋮⋮ drags it or opens its menu.
@@ -1983,7 +1983,7 @@
     ];
   }
   function itemByKey(k) { return blockItems().find(function (it) { return it.k === k; }); }
-  // "@": ask Hermes, a person, a date (Claude's @ menu)
+  // "@": ask Hermes, a person, a date (the @ menu)
   function atItems() {
     var people = [];
     tabs.forEach(function (t) { t.blocks.forEach(function (b) { var re = /\{\{@([^{}\n]+)\}\}/g, m; while ((m = re.exec(b.md))) if (people.indexOf(m[1].trim()) < 0) people.push(m[1].trim()); }); });
@@ -2410,7 +2410,7 @@
   window.addEventListener("scroll", sendView, { passive: true });
   document.addEventListener("selectionchange", sendView);
 
-  // ------------------------------------------------------------------ chrome (Claude's doc bar)
+  // ------------------------------------------------------------------ chrome (the doc bar)
   function barBtn(label, html, fn, cls) {
     var b = h("button", { type: "button", "class": "kit-btn doc-tool" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: html });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); }); // the caret stays where it is
@@ -2839,7 +2839,7 @@
     kit.menu(expBtn, items);
   }), T.exp);
   kit.exports(exportList); // the host's title menu lists them too; the bar keeps its own button
-  // History (Claude's): the tab's earlier states; picking one and confirming brings it back as a new edit.
+  // History: the tab's earlier states; picking one and confirming brings it back as a new edit.
   var histBtn = kit.labelled(kit.button(T.hist, "history", function () {
     commit();
     var t = tab();

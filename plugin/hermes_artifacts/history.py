@@ -164,7 +164,7 @@ def diff(aid: str, n: int) -> dict:
 
 
 def restore(aid: str, n: int) -> dict:
-    """A new version holding version ``n``'s files (Claude's Restore; Undo is restoring the one before)."""
+    """A new version holding version ``n``'s files (Restore; Undo is restoring the one before)."""
     vdir = store.version_dir(aid, n)
     nm = store.publish(aid=aid, path=str(vdir), by="user", restored=n)
     return {"ok": True, "version": nm["versions"][-1]["n"], "restored": n}

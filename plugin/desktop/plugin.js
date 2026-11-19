@@ -593,7 +593,7 @@ const $nonce = atom(0) // bumped to load the frame again (opening, a new version
 const reloadAsked = new Set()
 const $error = atom(null)
 const $query = atom('')
-const $sort = atom('opened') // opened | edited (Claude's Last opened / Last edited)
+const $sort = atom('opened') // opened | edited (Last opened / Last edited)
 const $types = atom([]) // Type filter: [] = any
 const $date = atom('any') // any | today | yesterday | 7d | 30d (Date opened)
 const $pinnedOnly = atom(false)
@@ -641,7 +641,7 @@ function reopenKept(d) {
 }
 const $panelCover = atom(0) // px of the stage's right the comments list covers while it floats over it (0: beside it, or closed)
 const $toast = atom(null)
-const $confirm = atom(null) // {kind: send|query, text, at, resolve}: a page asked to send something or to run a live query; the user confirms it here, outside the frame (Claude's vouched send)
+const $confirm = atom(null) // {kind: send|query, text, at, resolve}: a page asked to send something or to run a live query; the user confirms it here, outside the frame
 const $chatPing = atom(0) // something was sent into the open artifact's chat: the floating chat reloads
 const $reopen = atom(null) // {panel, version}: the page asked to come back with that panel open (History)
 const $chat = atom('off') // off | float (Pop out chat) | split (Chat: the chat with the artifact beside it)
@@ -732,7 +732,7 @@ function later(ctx, fn, ms) {
 }
 
 // ---------------------------------------------------------------- pinned artifacts
-// Claude lists pinned artifacts in its sidebar and leaves the gallery's order alone. Hermes' own Pinned
+// Pinned artifacts are listed in the sidebar; the gallery's order stays as it is. Hermes' own Pinned
 // section holds chats only, so a pinned artifact's chat is pinned there (syncPinnedChats) and the
 // artifact keeps a route of its own (a link to it opens it).
 const pinnedRegs = new Map() // id -> {key, dispose}
@@ -796,10 +796,10 @@ function markClosed(sid, closed) {
   CTX?.storage?.set('closedIn', [...closedIn].slice(-200))
 }
 
-// ---------------------------------------------------------------- an artifact being made (Claude opens its pane early)
+// ---------------------------------------------------------------- an artifact being made (its pane opens early)
 // Types published whole get a placeholder in the tile beside the chat from the first step (the guide)
 // until the publish swaps the same tile to the artifact. A doc gets none: its outline is published within
-// seconds and then fills in live, which is what Claude shows.
+// seconds and then fills in live, so the tile shows that instead.
 const PLACEHOLDER = new Set(['page', 'dashboard', 'slides', 'design', 'model', 'motion', 'design-system', 'sheet', 'board'])
 
 /** The chat on screen: the focused chat while its own route shows (pages and the full page are not). */
@@ -1048,7 +1048,7 @@ function TitlebarArtifactButton({ label, active, count, onSelect }) {
   })
 }
 
-/** The artifact's card in the chat (Claude's): Hermes ends its reply with `::artifact{id="…"}` (the publish
+/** The artifact's card in the chat: Hermes ends its reply with `::artifact{id="…"}` (the publish
  *  result hands it that line) and the transcript draws this in its place: the type's badge, the title, the
  *  type and version; a click opens the artifact beside the chat. The id is model output: only a well-formed
  *  one is looked up, and an unknown one says so. */
@@ -1139,7 +1139,7 @@ function watchChatArtifactTool(ctx) {
     const d = ctx.register({ id: 'chat-artifact-slot', area: 'titleBar.right', order: 9999, render: () => jsx(ChatArtifactTitlebar, { ctx }) })
     dispose = () => typeof d === 'function' && d()
   }
-  // Entering a chat that made an artifact opens it beside the chat, as Claude does, unless the person
+  // Entering a chat that made an artifact opens it beside the chat, unless the person
   // closed it in that chat (closedIn). Coming back from a page (the Artifacts page, an expand) counts as
   // entering again. The chat in front, but only while its own route shows.
   // Not on "/" (a new session's draft): Hermes takes that route before it clears the focused chat (V6s: the chat's
@@ -1722,7 +1722,7 @@ async function chatNote(msg, session) {
 /** Into the chat without leaving this page: gateway prompt.submit (the chat shows it as the user's
  *  message), only on a user gesture; otherwise the composer draft. */
 async function toChat(msg, gesture, art) {
-  // The artifact's own chat first (Claude sends a comment into the conversation the artifact is from).
+  // The artifact's own chat first (a comment goes into the conversation the artifact is from).
   if (gesture && art && CTX) {
     try {
       const c = await ensureChat(art)
@@ -2568,7 +2568,7 @@ function CardMenu({ ctx, art, onClose, onRename, align = 'right', start = 'main'
   })
 }
 
-/** The title on a card or row; Rename opens Claude's dialog over the gallery. */
+/** The title on a card or row; Rename opens a dialog over the gallery. */
 function TitleText({ ctx, art, renaming, setRenaming, style, back }) {
   return jsxs(Fragment, { children: [
     jsx('div', { style, children: art.title }),
@@ -4539,7 +4539,7 @@ function sendPins(portRef) {
     replies: all.filter(r => r.parent === c.id).length, at: c.ts || null })))
 }
 
-// ---------------------------------------------------------------- chat beside the artifact (Claude's Chat / Pop out chat)
+// ---------------------------------------------------------------- chat beside the artifact (Chat / Pop out chat)
 
 // Where the artifact shows, and the moves between (one place each):
 //   none           $chat 'off', no tile
@@ -4663,7 +4663,7 @@ async function chatRuntime(art) {
   return r?.session_id || null
 }
 
-/** The artifact's chat, as Claude's Chat button decides: 'open' while it exists and is not archived,
+/** The artifact's chat, as the Chat button decides: 'open' while it exists and is not archived,
  *  'gone' when it was archived or deleted, 'none' when the artifact was not made in a chat. */
 async function chatState(art) {
   if (!art?.session) return 'none'
@@ -4676,11 +4676,11 @@ async function chatState(art) {
   }
 }
 
-/** A new chat that refers to the artifact (Claude's "Start one now"); the artifact moves to it, so
+/** A new chat that refers to the artifact ("Start one now"); the artifact moves to it, so
  *  Chat, comments and Pop out chat use it from now on. */
 async function newChatFor(art) {
   const r = await host.request('session.create', {
-    // Empty, as Claude opens it: the agent learns which artifact this chat is for from the plugin's
+    // Empty: the agent learns which artifact this chat is for from the plugin's
     // pre_llm_call context (hidden from the chat), not from a message the person sees.
     title: art.title,
     source: 'desktop'
@@ -4703,7 +4703,7 @@ async function ensureChat(art) {
   return newChatFor(art)
 }
 
-/** A page's message, as Claude stages it (stage_in_chat): the artifact's chat opens beside it with the
+/** A page's message, staged (stage_in_chat): the artifact's chat opens beside it with the
  *  text in its message box, not sent. */
 async function stageInChat(ctx, art, msg) {
   const c = await ensureChat(art)
@@ -5284,7 +5284,7 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
   })
 }
 
-// ---------------------------------------------------------------- header (Claude's: title menu, Chat, Comment, close)
+// ---------------------------------------------------------------- header (title menu, Chat, Comment, close)
 
 /** The part of the window `el` can be seen in: the window, cut by every ancestor that clips it (overflow other
  *  than visible: a scrolled gallery, a pane). An absolutely placed box is clipped only from its containing block
@@ -5532,7 +5532,7 @@ function TitleMenu({ ctx, art, v, portRef, onClose, onRename }) {
         ...[...art.versions].reverse().map(n => ({ key: `v${n}`, label: `v${n}${n === art.version ? ` · ${t('latest')}` : ''}`, checked: n === v, onClick: close(() => $shown.set(n === art.version ? null : n)) }))
       ]
     })
-  // Claude's outputs of a chat: the other artifacts this chat made, one click away.
+  // A chat's outputs: the other artifacts this chat made, one click away.
   const siblings = art.session ? $list.get().filter(a => a.session === art.session && a.id !== art.id) : []
   return jsx(PopMenu, {
     onClose,
@@ -5726,7 +5726,7 @@ function Header({ ctx, art, v, portRef, docked }) {
         ]
       }),
       // The full page: Chat (its chat with the artifact beside it) | Pop out chat, as one switch. Expanded over its
-      // chat (Claude's): "Show chat" where ⤢ was, switched with Pop out chat (the chat floating over the tile).
+      // chat: "Show chat" where ⤢ was, switched with Pop out chat (the chat floating over the tile).
       // Beside the chat: ⤢ (the tile alone over the chat), then Pop out chat (that layout).
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 6 },
@@ -6314,7 +6314,7 @@ function MakingSkeleton({ type }) {
 }
 
 const REACTIONS = ['👍', '❤️', '🎉', '✅', '👀', '😄']
-/** Claude's emoji reactions under a comment: the ones given, and a button to add one. */
+/** Emoji reactions under a comment: the ones given, and a button to add one. */
 function Reactions({ c, ctx, art }) {
   const t = usePluginI18n(ID)
   const [picking, setPicking] = useState(false)
@@ -6508,7 +6508,7 @@ function CommentsPanel({ ctx, art, portRef }) {
   const picking = useValue($picking)
   const draft = useValue($draft)
   const [text, setText] = useState('')
-  const [filter, setFilter] = useState('open') // Claude's Open / Resolved / All
+  const [filter, setFilter] = useState('open') // Open / Resolved / All
   const roots = comments.filter(c => !c.parent)
   const open = roots.filter(c => !c.resolved)
   const done = roots.filter(c => c.resolved)

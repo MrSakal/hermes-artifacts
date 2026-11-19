@@ -1,6 +1,6 @@
 """What a person sees and what the Hermes agent reads is Hermes' own: no Claude/Anthropic name and no
 Claude accent or warm-paper ground in descriptions, guides, tool texts, UI strings, default palettes or
-export styles. Code comments are not checked (no one sees them)."""
+export styles. Comments and docstrings in the plugin and its tests name no Claude either."""
 
 import ast
 import json
@@ -25,6 +25,11 @@ HUES = re.compile(r"(?<![0-9a-f])(d97757|c96442|cc785c|da7756|e08363|f6f1e9|f4f1
 # Kept on purpose: interoperability with files made in Claude (a design system exported from it publishes as is).
 ALLOWED = {("hermes_artifacts/types/design-system/GUIDE.md", "A system exported from Claude"),
            ("hermes_artifacts/dsbuild.py", "one brought over from Claude")}
+# The same feature where only source reads it (paths from the repo root); this file itself is not scanned.
+SOURCE_ALLOWED = {("plugin/" + f, k) for f, k in ALLOWED} | {
+    ("plugin/hermes_artifacts/store.py", "A system brought over from Claude"),
+    ("tests/test_dsbuild.py", "def test_a_system_from_claude_comes_up_from_project")}
+CLAUDE = re.compile(r"claude", re.I)
 
 
 def _files(exts):
@@ -76,6 +81,20 @@ class BrandingTests(unittest.TestCase):
             for i, line in enumerate(p.read_text("utf-8").splitlines(), 1):
                 m = HUES.search(line)
                 self.assertIsNone(m, f"{_rel(p)}:{i}: {m and m.group(0)}")
+
+    def test_no_claude_in_comments_either(self):
+        # All of the plugin's and the tests' source, comments and docstrings included.
+        exts = {".py", ".js", ".css", ".html", ".md", ".json", ".yaml"}
+        me = Path(__file__).resolve()
+        for top in (PLUGIN, ROOT / "tests"):
+            for p in sorted(top.rglob("*")):
+                if p.suffix not in exts or not p.is_file() or "vendor" in p.parts or p.resolve() == me \
+                        or "__pycache__" in p.parts:
+                    continue
+                rel = p.relative_to(ROOT).as_posix()
+                for i, line in enumerate(p.read_text("utf-8").splitlines(), 1):
+                    if CLAUDE.search(line) and not any(rel == f and k in line for f, k in SOURCE_ALLOWED):
+                        self.fail(f"{rel}:{i}: {line.strip()[:160]}")
 
 
 if __name__ == "__main__":
