@@ -137,6 +137,12 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P.run('hermes.ready(); hermes.ready()'); await P.tick(3000); out.deferredOnce = ready(P)
   out.aliveWithV2 = P.events('alive').length
 
+  // a page given no frames while the host keeps it out of sight (V6w: Desktop's loading frame): ready all the same,
+  // NO_PAINT_MS after it asked, not 1 s
+  P = page(); P.sb.requestAnimationFrame = () => 0; P.run('window.__hermesDefer = true'); P.connect(4); P.dcl(); P.load(); await P.tick(100)
+  P.run('hermes.ready()'); await P.tick(100); out.noFramesSoon = ready(P)
+  await P.tick(60); out.noFrames = ready(P)
+
   // kit.ready() forwards it (fonts, pictures or 1.5 s, then the bridge's frames)
   P = page({ elements: {} }); P.run('window.__hermesDefer = true'); P.connect(3); P.dcl()
   vm.runInContext(KIT, P.sb); P.load(); await P.tick(2000)
@@ -421,6 +427,11 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual(o["deferredOnce"], [False])
         self.assertEqual(o["kitBeforeReady"], [])
         self.assertEqual(o["kitReady"], [False])
+
+    def test_a_page_given_no_frames_out_of_sight_is_ready_soon_after_it_asks(self):
+        # V6w 1: Desktop gave a film's frame no frames while it loaded under "Loading…"; the ready waited 1 s for two
+        # frames that never came, after its page had drawn. It comes 150 ms after the page asked.
+        self.assertEqual((self.out["noFramesSoon"], self.out["noFrames"]), ([], [False]))
 
     def test_threw(self):
         o = self.out

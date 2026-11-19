@@ -448,10 +448,14 @@
       return true;
     } catch (_) { return false; }
   }
-  function afterPaint(fn) { // two frames, or 1 s where no frame is drawn (a hidden page)
+  // Two frames, or NO_PAINT_MS where none comes: a page the host keeps out of sight while it loads (under its
+  // "Loading", Desktop's frame of its own process) is often given no frames until it is shown, so waiting longer
+  // only kept it hidden (V6w: a film's ready 1 s after its page had drawn, "Loading" 1.5 s after each remount).
+  var NO_PAINT_MS = 150;
+  function afterPaint(fn) {
     var done = false, go = function () { if (!done) { done = true; fn(); } };
     try { requestAnimationFrame(function () { requestAnimationFrame(go); }); } catch (_) {}
-    setTimeout(go, 1000);
+    setTimeout(go, NO_PAINT_MS);
   }
   function whenParsed(fn) {
     if (document.readyState !== "loading") fn();
