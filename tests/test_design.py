@@ -181,6 +181,24 @@ class PageTests(unittest.TestCase):
         self.assertEqual(out["sheet"][2], 0)  # the element toolbar steps aside under the sheet
         self.assertEqual(out["after"], [True, True])
 
+    def test_an_artboard_moved_just_before_the_frame_goes_is_saved_once(self):
+        # Round 7h: Hermes takes the frame away under 1.2 s after the move: the frame gets pagehide, never
+        # beforeunload, so the move waiting for its pause was lost.
+        aid = store.publish(path=str(ROOT / "examples" / "design"), title="Moved", type="design")["id"]
+        r = B.drive(f"await api.size(1000, 760); await api.go({json.dumps(self.host.url(aid))}, 800); {READY}\n"
+                    "await api.sleep(1500)\n"
+                    "const at = await api.frame('(() => { const b = document.querySelector(\".dc-board[data-path=\\\\\"Main.dc.html\\\\\"] .dc-name\").getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()')\n"
+                    "await api.drag(at[0], at[1], at[0] + 60, at[1]); await api.sleep(400)\n"
+                    "const x = await api.frame('__design.canvas().boards[\"Main.dc.html\"].x')\n"
+                    "await api.top('document.getElementById(\"f\").remove()'); await api.sleep(2500)\n"
+                    "return { x, saves: await api.top('window.__ops.filter(o => o.op === \"save\").map(o => JSON.parse(o.args.files[\"canvas.json\"]).boards[\"Main.dc.html\"].x)') }")
+        self.assertIsNone(r.get("err"), r)
+        self.assertNotEqual(r["out"]["x"], 0)
+        self.assertEqual(r["out"]["saves"], [r["out"]["x"]])
+        self.assertEqual(len(store.get_meta(aid)["versions"]), 2)
+        saved = json.loads(render.content_json(store.version_dir(aid))["canvas.json"])
+        self.assertEqual(saved["boards"]["Main.dc.html"]["x"], r["out"]["x"])
+
 
 if __name__ == "__main__":
     unittest.main()

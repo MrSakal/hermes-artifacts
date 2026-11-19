@@ -2122,7 +2122,9 @@
   window.addEventListener("resize", resized);
   NARROW.addEventListener("change", resized); // across 760 px within a pixel: innerWidth, and maybe no resize, unchanged
   new ResizeObserver(function () { refit(); placeTools(); fitFocus(); }).observe(viewEl);
-  window.addEventListener("beforeunload", function () { if (pending) save(); });
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: what waits for its pause is saved now, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (pending) save(); });
   window.__design = { select: select, selectBoard: selectBoard, boards: boards, files: files, cur: cur, canvas: function () { return canvas; },
     state: function () { return { z: z, tx: tx, ty: ty, sel: sel, selBoard: selBoard, focus: focus && focus.path, page: page, pending: pending }; },
     openFocus: openFocus, closeFocus: closeFocus, setPlay: function (p, on) { setPlay(boards[p], on); }, undo: undo, redo: redo, setStyle: setStyle,
