@@ -2114,7 +2114,9 @@
     }).catch(function () {});
   }
   new ResizeObserver(fit).observe(stageWrap);
-  window.addEventListener("beforeunload", function () { if (pending) save(); });
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: what waits for its pause is saved now, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (pending) save(); });
   kit.ready();
 
   // The gallery's card: a picture of the cover slide, drawn once per version (hermes.preview: no version,

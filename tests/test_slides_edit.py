@@ -214,6 +214,22 @@ class PageTests(unittest.TestCase):
             self.assertIn(out["closed"][1], ("Properties", "Tulajdonságok"))  # the focus back on its button
             self.assertTrue(out["first"])  # the toolbar first in the tab order
 
+    def test_words_typed_just_before_the_frame_goes_are_saved_once(self):
+        # Round 7f: Hermes takes the frame away (the gallery opened) under a second after the last key: the frame
+        # gets pagehide, never beforeunload, so the edit waiting for its pause was lost.
+        aid = store.publish(path=str(ROOT / "examples" / "slides"), title="Deck", type="slides")["id"]
+        r = B.drive(f"await api.size(1000, 760); await api.go({json.dumps(self.host.url(aid))}, 800); {READY}\n"
+                    "await api.sleep(800)\n"
+                    "const at = await api.frame('(() => { const p = [...document.querySelectorAll(\".sl-clip p\")].find(p => /Where orders/.test(p.textContent)); const b = p.getBoundingClientRect(); return [b.left + 40, b.top + b.height / 2] })()')\n"
+                    "await api.mouse(at[0], at[1], 2); await api.sleep(300)\n"
+                    "await api.key('End', 'End', 35); await api.type(' typed late'); await api.sleep(400)\n"
+                    "await api.top('document.getElementById(\"f\").remove()'); await api.sleep(2500)\n"
+                    "return await api.top('window.__ops.filter(o => o.op === \"save\").map(o => JSON.stringify(o.args.files).includes(\"typed late\"))')")
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["out"], [True])
+        self.assertEqual(len(store.get_meta(aid)["versions"]), 2)
+        self.assertIn("typed late", (store.version_dir(aid) / "slides" / "cover.html").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
