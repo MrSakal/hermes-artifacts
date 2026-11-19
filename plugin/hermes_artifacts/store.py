@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -15,6 +16,11 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Iterator, Optional
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 logger = logging.getLogger(__name__)
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
@@ -271,6 +277,59 @@ _FILE_LOCKS = tuple(threading.Lock() for _ in range(64))
 
 def _file_lock(p) -> threading.Lock:
     return _FILE_LOCKS[hash(os.path.normcase(os.path.abspath(p))) % len(_FILE_LOCKS)]
+
+
+# A meta.json is read, changed and written back by more than one process (the gateway's tools publish,
+# `hermes dashboard`'s page API renames, pins and stamps it opened, both sweep): each does so under _LOCK and
+# the data folder's meta.lock, so one's write never drops what the other wrote meanwhile. The OS lets go of
+# the file lock when its process ends (a crashed holder blocks nobody); a holder that stays past
+# META_LOCK_WAIT gets the change refused with a TimeoutError, never a wait without end. meta.lock is empty
+# and stays at the folder's root (one per data folder: an artifact's folder must move to the trash freely).
+META_LOCK_WAIT = 30.0
+_meta_depth = 0  # how deep this process is in _meta_lock (changed only under _LOCK: one thread at a time)
+
+
+def _lock_file(fd: int) -> None:
+    if os.name == "nt":
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # its first byte (the position stays 0)
+    else:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@contextlib.contextmanager
+def _meta_lock() -> Iterator[None]:
+    global _meta_depth
+    with _LOCK:
+        fd = None
+        if not _meta_depth:
+            p = root() / "meta.lock"
+            fd = os.open(p, os.O_RDWR | os.O_CREAT)
+            try:
+                end = time.monotonic() + META_LOCK_WAIT
+                while True:
+                    try:
+                        _lock_file(fd)
+                        break
+                    except OSError:
+                        if time.monotonic() >= end:
+                            raise TimeoutError(f"another Hermes process has been changing an artifact for over "
+                                               f"{META_LOCK_WAIT:.0f} s ({p} is held): nothing was changed, "
+                                               "try again") from None
+                        time.sleep(0.005)
+            except BaseException:
+                os.close(fd)
+                raise
+        _meta_depth += 1
+        try:
+            yield
+        finally:
+            _meta_depth -= 1
+            if fd is not None:
+                try:
+                    if os.name == "nt":
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                finally:
+                    os.close(fd)  # lets go of flock's lock too
 
 
 def _fsync_dir(d: Path) -> None:
@@ -975,7 +1034,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
     """
     if sum(x is not None for x in (html, path, files)) != 1:
         raise Refusal("pass exactly one of html, path or files", next="ha_publish with only one of them")
-    with _LOCK:
+    with _meta_lock():
         meta = get_meta(aid) if aid else None
         if aid and meta is None:
             _dir(aid)  # validates id
@@ -1156,7 +1215,7 @@ def derived(meta: dict, n: Optional[int] = None) -> set:
 def update_meta(aid: str, **fields) -> dict:
     """Change list-level fields (title, description, pinned, session, folder, opened) without a new version.
     `folder`: the gallery folder it sits in ("" takes it out); `opened`: true stamps now (Last opened)."""
-    with _LOCK:
+    with _meta_lock():
         meta = get_meta(aid)
         if meta is None:
             raise no_artifact(aid)
@@ -1202,7 +1261,7 @@ def edited(aid: str, now: Optional[float] = None) -> bool:
         m = peek_meta(aid)
         if not m or now - float(m.get("updated") or 0) < EDITED_EVERY:
             return False
-        with _LOCK:
+        with _meta_lock():
             meta = get_meta(aid)
             if meta is None or now - float(meta.get("updated") or 0) < EDITED_EVERY:
                 return False
@@ -1227,7 +1286,7 @@ def delete(aid: str) -> Path:
     list at once and ``restore`` brings it back until it is purged (TRASH_DAYS after its deletion). A
     design system that was the default stops being it (a restore does not make it the default again).
     Returns the trash folder; trash older than TRASH_DAYS goes on the way."""
-    with _LOCK:
+    with _meta_lock():
         d = _dir(aid)
         meta = get_meta(aid)
         if meta is None:
@@ -1310,7 +1369,7 @@ def restore(which: str, entry: bool = False) -> dict:
     """Bring a trashed artifact back as it was (``which``: its id, the newest deletion of it, or its trash
     folder name; with ``entry`` only the folder name, so the gallery restores the very copy it shows when
     two share an id). Refused while another artifact has that id. Returns its meta."""
-    with _LOCK:
+    with _meta_lock():
         listed = trash_list()
         items = [t for t in listed if t["name"] == which]
         if not items and not entry:
@@ -1794,7 +1853,7 @@ def _sweep_unlisted(d: Path, now: float, out: dict) -> None:
             return
     if _age(d, now) <= ORPHAN_AGE or any(_age(Path(e.path), now) <= ORPHAN_AGE for e in entries):
         return  # a publish in another process may be under way
-    with _LOCK:
+    with _meta_lock():
         if os.path.lexists(d / "meta.json"):
             return
         bak = d / "meta.json.bak"
@@ -1826,7 +1885,7 @@ def _sweep_artifact(d: Path, now: float, out: dict) -> None:
     if not p.is_file():
         _sweep_unlisted(d, now, out)
         return
-    with _LOCK:
+    with _meta_lock():
         # Read as it is now, from meta.json itself: a copy may be older and name fewer versions than there
         # are, and a write from the sweep's stale read would drop a version another process just published.
         st0 = _stamp(p)

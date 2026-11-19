@@ -352,6 +352,66 @@ class MetaTests(unittest.TestCase):
             self.assertIn(aid, [x["id"] for x in store.list_all()])
 
 
+CHANGER = r"""
+import os, sys, time
+sys.path.insert(0, sys.argv[1])
+from hermes_artifacts import store
+aid, role, done = sys.argv[2:5]
+if role == "publish":
+    try:
+        for i in range(20):
+            store.publish(aid=aid, html=f"<p>{i}</p>")
+    finally:
+        open(done, "w").close()
+else:
+    i, end = 0, time.monotonic() + 60
+    while not os.path.exists(done) and time.monotonic() < end:
+        i += 1
+        store.update_meta(aid, title=f"A{i}", opened=True)
+    print(i)
+"""
+
+
+class TwoProcessTests(unittest.TestCase):
+    def test_two_processes_changing_one_meta_keep_every_change(self):
+        # The gateway publishes while `hermes dashboard` renames the artifact (or stamps it opened): each read
+        # meta.json, changed it and wrote it back, and the later write dropped the other's change (a version
+        # entry, a title). Their changes of a meta take turns across processes: every one is kept.
+        import shutil
+        import subprocess
+        base = Path(tempfile.mkdtemp(prefix="ha-2proc-"))
+        self.addCleanup(shutil.rmtree, base, True)
+        done = base / "published"
+        with mock.patch.dict(os.environ, {"HERMES_ARTIFACTS_DIR": str(base / "data")}):
+            aid = store.publish(html="<p>v1</p>", title="T")["id"]
+            run = [sys.executable, "-c", CHANGER, str(PLUGIN), aid]
+            env = dict(os.environ)
+            renamer = subprocess.Popen(run + ["rename", str(done)], env=env, stdout=subprocess.PIPE, text=True)
+            publisher = subprocess.Popen(run + ["publish", str(done)], env=env)
+            out, _ = renamer.communicate(timeout=120)  # the publisher marks done however it ends
+            self.assertEqual(publisher.wait(timeout=120), 0)
+            self.assertEqual(renamer.returncode, 0)
+            m = store.get_meta(aid)
+        self.assertEqual([v["n"] for v in m["versions"]], list(range(1, 22)))
+        self.assertEqual(m["title"], f"A{int(out)}")
+
+    def test_the_meta_lock_never_waits_without_end_and_is_let_go_of(self):
+        aid = store.publish(html="<p>a</p>", title="L")["id"]
+        with store._meta_lock():  # nested in this process: no wait on itself
+            store.update_meta(aid, title="Nested")
+        with self.assertRaises(ValueError):
+            store.update_meta(aid, color="red")  # refused inside the lock: it is let go of all the same
+        fd = os.open(store.root() / "meta.lock", os.O_RDWR)  # another holder (as another process would)
+        try:
+            store._lock_file(fd)
+            with mock.patch.object(store, "META_LOCK_WAIT", 0.05), self.assertRaises(TimeoutError):
+                store.update_meta(aid, title="Waited")
+        finally:
+            os.close(fd)  # the holder ends: its lock goes with it
+        store.update_meta(aid, title="After")
+        self.assertEqual(store.get_meta(aid)["title"], "After")
+
+
 class CommentTests(unittest.TestCase):
     def test_cut_comments_read_the_last_good_copy(self):
         aid = store.publish(html="<p>a</p>", title="C")["id"]
