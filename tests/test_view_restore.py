@@ -143,6 +143,21 @@ class TypesPutTheirViewBack(unittest.TestCase):
             self.assertAlmostEqual(back["cy"], 610, delta=1, msg=(w, back))
             self.assertAlmostEqual(back["z"], 1.5, delta=0.001, msg=(w, back))
 
+    def test_a_designs_canvas_its_middle_and_zoom(self):
+        # V6x 1 (survey): a design's canvas panned and zoomed, its chat collapsed: fitted again. Its middle and zoom come back.
+        aid = store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        mid = ('(() => { const v = document.getElementById("dc-view").getBoundingClientRect(), s = __design.state();'
+               ' return { cx: (v.width / 2 - s.tx) / s.z, cy: (v.height / 2 - s.ty) / s.z, z: s.z } })()')
+        o = self.drive_page(aid, f"await api.sleep(1200)\nreturn {{ said: await api.top({json.dumps(LAST_VIEW)}), mid: await api.frame({json.dumps(mid)}) }}", settle=3000)
+        k = o["said"]["keep"]
+        self.assertAlmostEqual(k["cx"], o["mid"]["cx"], delta=1, msg=o)
+        self.assertAlmostEqual(k["z"], o["mid"]["z"], delta=0.001, msg=o)
+        for w in (1250, 700):
+            back = self.drive_page(aid, restore(o["said"]["context"], {"page": None, "cx": 700, "cy": 400, "z": 0.5}) + f"return await api.frame({json.dumps(mid)})", w=w, settle=3000)
+            self.assertAlmostEqual(back["cx"], 700, delta=1, msg=(w, back))
+            self.assertAlmostEqual(back["cy"], 400, delta=1, msg=(w, back))
+            self.assertAlmostEqual(back["z"], 0.5, delta=0.001, msg=(w, back))
+
     def drive_size(self, fn, hh):
         """fn() with the pages hh px tall (one that scrolls)."""
         old = self.drive_page
