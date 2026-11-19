@@ -15,7 +15,7 @@ import _browser as B  # noqa: E402
 import _dom as D
 
 EXPORTS = ("\nexport { STRINGS, Header, Gallery, $list, $layout, $folders, $folder, $chat, $dockPos, $query, $trash, $trashOpen,"
-           " listCols, HEADER_ICONS, TILE_MIN }\n")
+           " listCols, HEADER_ICONS, TILE_MIN, $picking }\n")
 LONG = ("A very long artifact title that must truncate with an ellipsis in the viewer header at every width" + "!" * 100)[:100]
 NEXT = "await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); R.flush();"
 
@@ -56,6 +56,33 @@ class LayoutTests(unittest.TestCase):
         for win, tile in r["out"]:
             self.assertLessEqual(tile, win, (win, tile))  # expanded at 400 px: the window's width, not 416
             self.assertGreaterEqual(tile, min(416, win), (win, tile))  # beside a chat: still at least 26rem
+
+    def test_the_picking_headers_buttons_are_hermes_24_px(self):
+        # V6x 3: while a comment's part is picked the header's Cancel was 51 x 20 (its line height), the other buttons 24 px
+        # as Hermes' pane header's (a labelled one its 2.5 px corners, an icon one 24 x 24 at 4 px)
+        out = self.run_js("""
+          const { M, R, jsx } = window.H
+          const root = document.getElementById('root'), out = []
+          M.$picking.set(true); M.$chat.set('split'); M.$dockPos.set('right')
+          for (const w of [420, 700, 1200]) {
+            root.style.width = w + 'px'
+            R.mount(() => jsx(M.Header, { ctx: {}, art: { id: 'a1', title: 'Doc', type: 'doc', version: 1, versions: [1], session: 's1' }, v: 1, portRef: { current: null }, docked: true }), root)
+            %s
+            for (const b of root.firstElementChild.querySelectorAll('button')) { const r = b.getBoundingClientRect(); out.push({ w, text: b.textContent.trim(), label: b.getAttribute('aria-label'), h: r.height, wd: r.width, cls: b.className, font: getComputedStyle(b).fontSize }) }
+            R.unmount()
+          }
+          M.$picking.set(false)
+          return out
+        """ % NEXT)
+        cancel = [b for b in out if b["text"] == "Cancel"]
+        self.assertEqual(len(cancel), 3, out)
+        for b in out:
+            self.assertAlmostEqual(b["h"], 24, delta=0.5, msg=b)
+            self.assertIn("rounded-[2.5px]" if b["text"] else "rounded-[4px]", b["cls"].split(), b)  # Hermes' Tailwind classes
+            if not b["text"]:
+                self.assertAlmostEqual(b["wd"], 24, delta=0.5, msg=b)
+        for b in cancel:
+            self.assertEqual(b["font"], "11px", b)
 
     def test_the_header_at_every_width(self):
         variants = [
