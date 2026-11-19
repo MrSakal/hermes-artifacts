@@ -898,6 +898,7 @@
     return out;
   }
   var NOT_KEPT = "[data-comment-keep],[data-hermes-ui],[data-comment-under],[data-comment-hide]"; // controls kept off another way, or not at all
+  var MARK_FREE = "[data-hermes-ui],[data-comment-under],[data-comment-hide]"; // what a numbered mark may lie on
   var FOCUSABLE = CONTROL + ", [role=checkbox], [role=switch], [role=menuitem], [role=option], [role=slider], [role=combobox], summary, [tabindex]:not([tabindex='-1'])";
   // What the host titles a comment with: the part's name where the page gave one (data-comment-label on it or
   // around it: "Note", "Slide 3", "Region filter"), with the clicked words after it; else the words; else ""
@@ -1214,17 +1215,20 @@
       p.b.style.left = l + "px"; p.b.style.top = t + "px";
     });
   }
-  /** The box of a control of the page's (as the pin keeps off: keeps) seen under a mark at x, y (w wide, in the window),
-   *  not el's own nor one holding it; null when none is. */
+  /** The box of a control of the page's seen under a mark at x, y (w wide, in the window), or of the words of the type's
+   *  own chrome ([data-comment-keep]: a deck's slide number, V6w: slide 1's mark on thumbnail 2's "2"), its controls too
+   *  (a deck's thumbnails); not el's own nor one holding it; null when none is. */
   function controlUnder(el, x, y, w) {
     if (!document.elementsFromPoint) return null;
     var pts = [[x + 1, y + 1], [x + w - 1, y + 1], [x + 1, y + MARK_H - 1], [x + w - 1, y + MARK_H - 1], [x + w / 2, y + MARK_H / 2]];
     for (var i = 0; i < pts.length; i++) {
       var hits = document.elementsFromPoint(pts[i][0], pts[i][1]);
       for (var k = 0; k < hits.length; k++) {
-        if (hits[k].closest("[data-hermes-ui]")) continue;
-        var c = hits[k].closest(FOCUSABLE);
-        if (c && !c.closest(NOT_KEPT) && !c.hasAttribute("contenteditable") && !c.contains(el) && !el.contains(c)) {
+        var h = hits[k];
+        if (h.closest("[data-hermes-ui]")) continue;
+        var c = h.closest(FOCUSABLE);
+        if (!c && h.closest("[data-comment-keep]") && Array.prototype.some.call(h.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue); })) c = h;
+        if (c && !c.closest(MARK_FREE) && !c.hasAttribute("contenteditable") && !c.contains(el) && !el.contains(c)) {
           var q = c.getBoundingClientRect();
           if (q.width * q.height <= innerWidth * innerHeight / 4) return q;
         }

@@ -89,3 +89,21 @@ class RoundV6wPages(unittest.TestCase):
             self.assertEqual([m["shown"] for m in ms], [True, True], o)
         s, ms = o["after"], o["b1"]
         self.assertTrue(all(s["r"] - 2 <= m["l"] <= s["r"] + 60 and s["t"] - 30 <= m["t"] <= s["t"] + 20 for m in ms), o)  # at its top right
+
+    def test_a_slides_mark_by_its_thumbnail_keeps_off_the_next_ones_number(self):
+        # V6w 5: slide 1's mark, at its thumbnail's top right, lay in the strip's gap over thumbnail 2's number "2": the
+        # marks kept off the page's controls but not the type's own (a deck's thumbnails and their numbers, its chrome).
+        aid = self.store.publish(path=str(EX / "slides"), title="Test slides", type="slides")["id"]
+        for w in (1250, 900):
+            o = self.drive_page(aid, """
+              await api.top('window.__post("pins", [{selector: "#cover", n: 1}])'); await api.sleep(600)
+              const nums = await api.frame('[...document.querySelectorAll(".sl-num")].map(e => { const r = e.getBoundingClientRect(); return { n: e.textContent, l: r.left, t: r.top, r: r.right, b: r.bottom } })')
+              const thumbs = await api.frame('[...document.querySelectorAll(".sl-thumb")].map(e => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom } })')
+              return { nums, thumbs, b: await api.frame(""" + json.dumps(self.BADGES) + """) }""", w=w)
+            marks = [m for m in o["b"] if m["shown"]]
+            self.assertEqual(len(marks), 2, (w, o))  # by its thumbnail and by the slide
+            hit = lambda a, b: a["l"] < b["r"] and b["l"] < a["r"] and a["t"] < b["b"] and b["t"] < a["b"]
+            for m in marks:
+                self.assertFalse([x for x in o["nums"] + o["thumbs"][1:] if hit(m, x)], (w, m, o))
+            t0 = o["thumbs"][0]
+            self.assertTrue(any(t0["r"] <= m["l"] <= t0["r"] + 30 and t0["t"] - 40 <= m["t"] <= t0["t"] for m in marks), (w, o))  # still by it
