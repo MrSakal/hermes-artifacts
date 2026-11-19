@@ -170,6 +170,20 @@ class TypesPutTheirViewBack(unittest.TestCase):
           return await api.frame('({ on: document.querySelector(".ds-nav-i.on").textContent.trim(), y: window.scrollY })')""", w=1250, hh=500, settle=2500)
         self.assertEqual(back, {"on": "Typography", "y": 200}, back)
 
+    def test_a_models_camera(self):
+        # V6x 1 (survey): a model turned to its top view, its chat collapsed: back at its first view. Its camera comes back.
+        from test_models import PANEL
+        aid = store.publish(title="Panel", type="model", files={"model.json": PANEL})["id"]
+        cam = '(() => { const t = __model.three(); return { pos: t.camera.position.toArray(), target: t.controls.target.toArray(), ortho: !!t.camera.isOrthographicCamera } })()'
+        o = self.drive_page(aid, f"await api.frame('__model.setView(\"top\")'); await api.sleep(1600)\nreturn {{ said: await api.top({json.dumps(LAST_VIEW)}), cam: await api.frame({json.dumps(cam)}) }}", settle=3000)
+        k = o["said"]["keep"]
+        for a, b in zip(k["pos"] + k["target"], o["cam"]["pos"] + o["cam"]["target"]):
+            self.assertAlmostEqual(a, b, delta=0.02, msg=o)
+        back = self.drive_page(aid, restore(o["said"]["context"], k) + f"return await api.frame({json.dumps(cam)})", settle=3000)
+        for a, b in zip(back["pos"] + back["target"], k["pos"] + k["target"]):
+            self.assertAlmostEqual(a, b, delta=0.05, msg=(back, k))
+        self.assertEqual(back["ortho"], k["ortho"], back)
+
     def drive_size(self, fn, hh):
         """fn() with the pages hh px tall (one that scrolls)."""
         old = self.drive_page
