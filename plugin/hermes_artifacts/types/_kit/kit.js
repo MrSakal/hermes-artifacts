@@ -585,7 +585,7 @@
     viewTimer = setTimeout(sendViewNow, 600);
   }
   // A frame taken away within the wait (the chat collapsed right after a seek) still says where it was.
-  window.addEventListener("pagehide", function () { if (viewTimer) sendViewNow(); });
+  if (window.addEventListener) window.addEventListener("pagehide", function () { if (viewTimer) sendViewNow(); });
   /** The view this artifact had before the host loaded its page again (Hermes mounts the tile anew when its chat is
    *  collapsed or shown): fn(keep, context, version) once, with what the page last reported (view). Never in a
    *  thumbnail; nothing when the host has none. */
