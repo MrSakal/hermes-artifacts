@@ -433,5 +433,39 @@ class AgentTests(unittest.TestCase):
         self.assertIn("model.json: parts[0].size: missing", bad["error"])
 
 
+import _browser as B  # noqa: E402
+
+READY = "await api.sleep(300); for (let i = 0; i < 60; i++) { if (await api.top('window.__events.some(e => e.event === \"ready\")')) break; await api.sleep(150) }"
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class LeaveTests(unittest.TestCase):
+    def test_a_change_not_saved_is_saved_when_the_frame_goes(self):
+        # Round 7h: a change left without Save was lost: it was saved on beforeunload, which a frame Hermes takes
+        # away never gets (it gets pagehide).
+        host = B.Host()
+        try:
+            aid = pub()
+            r = B.drive(f"await api.size(1000, 760); await api.go({json.dumps(host.url(aid))}, 800); {READY}\n"
+                        "await api.sleep(3500)\n"
+                        "if (!await api.frame('__model.state().glOK')) return null\n"
+                        "const at = await api.frame('(() => { const c = document.querySelector(\".md-canvas\"), r = c.getBoundingClientRect(); for (let y = r.top + 20; y < r.bottom; y += 6) for (let x = r.left + 20; x < r.right; x += 6) { const p = document.elementFromPoint(x, y) === c && __model.pick(x, y); if (p && p.id === \"rail\") return [x, y] } return null })()')\n"
+                        "await api.mouse(at[0], at[1]); await api.sleep(300)\n"
+                        "await api.key('Delete', 'Delete', 46); await api.sleep(400)\n"
+                        "const dirty = await api.frame('__model.state().dirty')\n"
+                        "await api.top('document.getElementById(\"f\").remove()'); await api.sleep(2500)\n"
+                        "return { dirty, saves: await api.top('window.__ops.filter(o => o.op === \"save\").map(o => [o.args.base_version, JSON.parse(o.args.files[\"model.json\"]).parts.map(p => p.id)])') }")
+        finally:
+            host.close()
+        self.assertIsNone(r.get("err"), r)
+        if r["out"] is None:
+            self.skipTest("no WebGL in this Chrome: the model is not editable")
+        self.assertTrue(r["out"]["dirty"])
+        left = [p["id"] for p in PANEL["parts"] if p["id"] != "rail"]
+        self.assertEqual(r["out"]["saves"], [[1, left]])
+        self.assertEqual(len(store.get_meta(aid)["versions"]), 2)
+        self.assertEqual([p["id"] for p in json.loads(store.read_file(aid, "model.json"))["parts"]], left)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1974,7 +1974,9 @@
     renderPanel(); drawChrome();
   }
   if (narrowMq) { if (narrowMq.addEventListener) narrowMq.addEventListener("change", layout); else if (narrowMq.addListener) narrowMq.addListener(layout); }
-  window.addEventListener("beforeunload", function () { if (dirty && editable()) save(); });
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: a change not saved yet is saved now, as Save does, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (dirty && editable()) save(); });
 
   // ------------------------------------------------------------------ start
   refreshParams();
