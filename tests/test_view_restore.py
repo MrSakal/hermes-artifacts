@@ -112,6 +112,20 @@ class TypesPutTheirViewBack(unittest.TestCase):
         self.assertEqual(o["keep"], {"y": 300}, o)
         self.assertAlmostEqual(back, 300, delta=1)
 
+    def test_a_sheet_its_selection_scroll_and_zoom(self):
+        # V6x 1 (survey): a sheet scrolled down with B31 selected, zoomed to 125 %, its chat collapsed: back at A1, at
+        # its top, at 100 % (its zoom lived in localStorage, which throws in the sandboxed frame)
+        rows = [["Item", "Cost"]] + [[f"Row {i}", i] for i in range(1, 200)]
+        aid = store.publish(title="Costs", type="sheet", files={"sheet.json": {"title": "Costs", "sheets": [{"name": "Costs", "rows": rows}]}})["id"]
+        o, back = self.scrolled(aid, 'document.getElementById("sh-grid").scrollTop = 600',
+                                '({ name: document.querySelector(".sh-name").value, st: document.getElementById("sh-grid").scrollTop,'
+                                ' z: getComputedStyle(document.documentElement).getPropertyValue("--sh-z").trim() })')
+        self.assertEqual((o["keep"]["st"], o["keep"]["sr"], o["keep"]["prefs"]["zoom"]), (600, 0, 100), o)
+        o["keep"].update(sr=30, sc=1, er=30, ec=1, prefs=dict(o["keep"]["prefs"], zoom=125))
+        back = self.drive_page(aid, restore(o["context"], o["keep"]) + 'return await api.frame(\'({ name: document.querySelector(".sh-name").value,'
+                               ' st: document.getElementById("sh-grid").scrollTop, z: getComputedStyle(document.documentElement).getPropertyValue("--sh-z").trim() })\')', settle=2500)
+        self.assertEqual((back["name"], back["st"], back["z"]), ("B31", 600, "1.25"), back)
+
     def drive_size(self, fn, hh):
         """fn() with the pages hh px tall (one that scrolls)."""
         old = self.drive_page
