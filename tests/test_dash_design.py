@@ -217,6 +217,32 @@ class DashboardInTheBrowser(unittest.TestCase):
         self.assertEqual(kept.get("dash.params"), {"region": "South"})  # not written by the change
         self.assertEqual(kept.get("dash.draftView.d1"), "dashboard")
 
+    def test_a_shown_draft_starts_on_its_own_filter_defaults(self):
+        """0.20.0: a draft's params.json default lost to the dashboard's for a key both have. A shown draft starts
+        on its own defaults, the dashboard's for the keys it lacks, and Reset goes back to them."""
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            spec = dict(SPEC, params={"region": "", "year": "2026"})
+            aid = store.publish(title="Own", type="dashboard", files={"dashboard.json": spec, "index.html": "<p>live</p>", "data/m.csv": "m,n\n1,2\n",
+                                                                  "drafts/d1/request.json": {"format": "scrollyteller"},
+                                                                  "drafts/d1/index.html": "<p id='dr'>draft</p>",
+                                                                  "drafts/d1/params.json": {"region": "West"}})["id"]
+            r = B.drive(f"await api.size(1000, 700); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+              const first = await api.frame('({ params: dash.params(), draft: !!document.getElementById("dr") })')
+              await api.frame('dash.setParams({ region: "East", year: "2025" }); dash.resetParams()')
+              return { first, reset: await api.frame('dash.params()') }
+            """)
+            self.assertIsNone(r.get("err"), r)
+        finally:
+            host.close()
+        want = {"region": "West", "year": "2026"}
+        self.assertEqual(r["out"]["first"], {"params": want, "draft": True})
+        self.assertEqual(r["out"]["reset"], want)
+
 
 if __name__ == "__main__":
     unittest.main()

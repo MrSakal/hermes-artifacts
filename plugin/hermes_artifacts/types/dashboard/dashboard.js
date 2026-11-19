@@ -1652,7 +1652,8 @@
   if (showingDraft()) {
     // A draft reads the dashboard's sources by id; a new or changed one is in its datasets.json.
     try { Object.assign(datasets, JSON.parse(kit.fileText("drafts/" + draft.id + "/datasets.json") || "{}")); } catch (e) {}
-    try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = dp; params = Object.assign({}, dp, params); } } catch (e) {}
+    // Its own filter defaults, the dashboard's for the keys it lacks.
+    try { var dp = JSON.parse(kit.fileText("drafts/" + draft.id + "/params.json") || "null"); if (dp && typeof dp === "object") { paramDefaults = Object.assign({}, paramDefaults, dp); params = JSON.parse(JSON.stringify(paramDefaults)); } } catch (e) {}
   }
   showDraftBar();
   mount(); // a live source loads when the page first reads it (dash.data), as Claude's do
