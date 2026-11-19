@@ -537,8 +537,8 @@
     document.documentElement.appendChild(b);
     return b;
   }
-  function place2(b, el) {
-    var r = el.getBoundingClientRect();
+  function place2(b, el) { // round el; one of no size round what is drawn in it (V6w: a connector's 0 x 0 box rang 3 x 3 at the canvas's corner)
+    var r = drawnBox(el);
     b.style.left = r.left - 2 + "px"; b.style.top = r.top - 2 + "px";
     b.style.width = r.width + "px"; b.style.height = r.height + "px";
   }
@@ -766,6 +766,11 @@
     strokes(el).forEach(function (q) { l = Math.min(l, q.l); t = Math.min(t, q.t); rt = Math.max(rt, q.r); b = Math.max(b, q.b); });
     if (!(rt > l)) return r; // no size and no strokes drawn
     return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+  }
+  /** el's box, or for one of no size (a board's connector) what is drawn in it (inkRect): the hover and flash rings. */
+  function drawnBox(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 || r.height > 0 ? r : inkRect(el);
   }
   /** The strokes of the shapes drawn in el (el too), each {l, t, r, b} in the window with half its width round it. */
   function strokes(el) {
@@ -1283,7 +1288,7 @@
     var keep = document.querySelectorAll("[data-flash-keep] > *");
     if (!keep.length) return;
     // where place2 put it (its own rect may be mid-transition): el's box and the 2 px border round it
-    var e = el.getBoundingClientRect(), r = { left: e.left - EDGE, right: e.right + EDGE, top: e.top - EDGE, bottom: e.bottom + EDGE };
+    var e = drawnBox(el), r = { left: e.left - EDGE, right: e.right + EDGE, top: e.top - EDGE, bottom: e.bottom + EDGE };
     var l = r.left, rt = r.right, pad = KEEP_GAP + HALO;
     for (var i = 0; i < keep.length; i++) {
       var q = keep[i].getBoundingClientRect();

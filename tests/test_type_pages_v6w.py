@@ -53,3 +53,21 @@ class RoundV6wPages(unittest.TestCase):
         self.assertTrue(o.get("spot"), o)
         self.assertEqual((o["hover"], o["click"], o["picked"]), ([], [], 0), o)
         self.assertEqual(o["width"], o["spot"][3], o)
+
+    def test_a_connectors_label_hovered_rings_the_connector(self):
+        # V6w 3: hovering an arrow's label ("yes") while picking drew a 3 x 3 ring at the canvas's left edge: the ring went
+        # round the connector's own box, 0 x 0 at the canvas's origin. It goes round the connector as drawn, through its label.
+        board = {"title": "B", "items": [{"id": "a", "type": "box", "text": "Review"}, {"id": "b", "type": "box", "text": "Ship"},
+                                          {"id": "ab", "type": "arrow", "from": "a", "to": "b", "label": "yes"}]}
+        aid = self.store.publish(title="B", type="board", files={"board.json": board})["id"]
+        o = self.drive_page(aid, ARM + """
+          const lbl = await api.frame('(() => { const r = document.querySelector("[data-id=ab] .bd-albl").getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom } })()')
+          const ink = await api.frame(`(() => { const b = [...document.querySelectorAll('[data-id="ab"] path')].filter(p => !/^(none|transparent|rgba\\(0, 0, 0, 0\\))$/.test(getComputedStyle(p).stroke)).map(p => p.getBoundingClientRect())
+            return { l: Math.min(...b.map(q => q.left)), t: Math.min(...b.map(q => q.top)), r: Math.max(...b.map(q => q.right)), b: Math.max(...b.map(q => q.bottom)) } })()`)
+          await api.pointer('mouseMoved', (lbl.l + lbl.r) / 2, (lbl.t + lbl.b) / 2, false); await api.sleep(300)
+          return { lbl, ink, ring: await api.frame(""" + json.dumps(RING) + """) }""", settle=1500)
+        ring, lbl, ink = o["ring"], o["lbl"], o["ink"]
+        self.assertEqual(len(ring), 1, o)
+        r = ring[0]
+        self.assertTrue(r["l"] < lbl["r"] and lbl["l"] < r["r"] and r["t"] < lbl["b"] and lbl["t"] < r["b"], o)  # through its label
+        self.assertTrue(ink["l"] - 8 <= r["l"] and r["r"] <= ink["r"] + 8 and ink["t"] - 8 <= r["t"] and r["b"] <= ink["b"] + 8, o)  # round the line
