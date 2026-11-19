@@ -75,13 +75,13 @@ html, body { overflow: hidden; }
 .mo-range { position: absolute; top: 12px; bottom: 0; background: color-mix(in srgb, var(--color-accent) 22%, transparent); border-left: 2px solid var(--color-accent);
   border-right: 2px solid var(--color-accent); pointer-events: none; }
 .mo-range[hidden] { display: none; }
-.mo-pin { position: absolute; top: 0; min-width: 16px; height: 16px; margin-left: -8px; padding: 0 4px; border-radius: 8px; background: var(--color-accent);
-  color: var(--color-accent-fg, var(--color-bg)); font: 600 10px/16px var(--font-sans); text-align: center; cursor: pointer; z-index: 2; }
-.mo-pin.range { border-radius: var(--kit-r-sm); }
-/* A comment's pin on the point of the picture it was made on, while that moment is shown. */
-.mo-spin { position: absolute; z-index: 25; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box; transform: translate(-50%, -50%);
-  border-radius: 11px; border: 2px solid var(--color-bg); background: var(--color-accent); color: var(--color-accent-fg, var(--color-bg));
-  font: 600 11px/18px var(--font-sans); text-align: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+/* A comment's numbered mark on the timeline, and on the point of the picture it was made on while that moment is
+   shown: the 18 x 18 circle of every type's (bridge.js badge), V6w: they were 16 and 22 px. */
+.mo-pin, .mo-spin { position: absolute; box-sizing: border-box; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--color-accent); color: #fff; font: 600 11px/18px system-ui, sans-serif; text-align: center; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.mo-pin { top: 0; margin-left: -9px; z-index: 2; }
+.mo-spin { z-index: 25; transform: translate(-50%, -50%); }
 
 /* On the picture: retyping a line, the selected thing, comment pick mode. */
 .mo-edit { position: absolute; z-index: 30; margin: 0; padding: 0; border: 2px solid var(--color-accent); border-radius: var(--kit-r-sm); outline: none;

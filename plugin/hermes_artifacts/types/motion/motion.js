@@ -1028,7 +1028,8 @@
     pins.forEach(function (p) {
       var a = parseAnchor(p.selector);
       if (!a) return;
-      var ta = fmap(a[0]), b = h("div", { "class": "mo-pin" + (a[1] != null ? " range" : ""), text: String(p.n), title: fmtShort(ta) });
+      // the mark of every type's; a range's says it in its tooltip
+      var ta = fmap(a[0]), b = h("div", { "class": "mo-pin", text: String(p.n), title: fmtShort(ta) + (a[1] != null ? "–" + fmtShort(fmap(a[1])) : "") });
       b.style.left = Math.min(100, ta / total * 100) + "%";
       b.addEventListener("pointerdown", function (e) { e.stopPropagation(); pause(); seek(ta); if (a[1] != null) { range = [ta, fmap(a[1])]; ui(); } });
       tl.appendChild(b);

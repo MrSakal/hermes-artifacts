@@ -107,3 +107,15 @@ class RoundV6wPages(unittest.TestCase):
                 self.assertFalse([x for x in o["nums"] + o["thumbs"][1:] if hit(m, x)], (w, m, o))
             t0 = o["thumbs"][0]
             self.assertTrue(any(t0["r"] <= m["l"] <= t0["r"] + 30 and t0["t"] - 40 <= m["t"] <= t0["t"] for m in marks), (w, o))  # still by it
+
+    def test_a_films_marks_are_the_circle_of_every_type(self):
+        # V6w 6: a film's marks were 22 x 22 on the picture and 16 x 16 on the timeline, every other type's an 18 x 18
+        # circle. Both are that circle.
+        aid = self.store.publish(path=str(EX / "motion"), title="Harbor film", type="motion")["id"]
+        o = self.drive_page(aid, """
+          await api.frame('__motion.renderAt(0)')
+          await api.top('window.__post("pins", [{selector: "@t=0 @xy=50.00%,50.00%", n: 1}, {selector: "@t=2-4", n: 2}])'); await api.sleep(600)
+          return await api.frame('[...document.querySelectorAll(".mo-spin, .mo-pin")].map(e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return { c: e.className, w: r.width, h: r.height, rad: s.borderRadius } })')""")
+        self.assertEqual(sorted(m["c"] for m in o), ["mo-pin", "mo-pin", "mo-spin"], o)
+        for m in o:
+            self.assertEqual((m["w"], m["h"], m["rad"]), (18, 18, "9px"), o)
