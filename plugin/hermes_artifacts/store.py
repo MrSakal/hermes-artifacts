@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
 if os.name == "nt":
     import msvcrt
@@ -266,7 +266,8 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
 # and the doc history take it; caches and logs do not. A target another program holds open (Windows) is tried
 # again for a moment; then the write fails with the old file as it was and no temporary file left.
 
-REPLACE_TRIES = 6  # os.replace onto a file held open: tried again after 10, 20, 40, 80, 160 ms
+REPLACE_TRIES = 100  # a read or os.replace of a file held open: tried again every RETRY_MS, ~0.5 s in all
+RETRY_MS = 5  # short: another process's hold lasts ms and comes back soon, a try must land in its gap
 
 # One process's reads and replaces of the same file take turns (by its path; a lock is held for one open-and-
 # read or one os.replace, never across a sleep): on Windows a replace fails while anyone has the target open,
@@ -347,33 +348,33 @@ def _fsync_dir(d: Path) -> None:
         os.close(fd)
 
 
-def _replace(tmp: Path, p: Path) -> None:
+def _while_held(p: Path, act: Callable[[], Any]) -> Any:
+    """``act()`` (one read or os.replace of ``p``) under ``p``'s file lock. On Windows a file another thread or
+    process holds without sharing, or is replacing this very moment, answers PermissionError for a few ms:
+    tried again every RETRY_MS, REPLACE_TRIES times in all, before the error goes to the caller. A folder is
+    not tried again (Windows answers PermissionError for one too)."""
     for i in range(REPLACE_TRIES):
         try:
             with _file_lock(p):
-                os.replace(tmp, p)
-            return
-        except PermissionError as e:  # Windows: another program has the target open
-            if i == REPLACE_TRIES - 1:
-                raise PermissionError(e.errno, f"could not write {p.name}: another program holds it open "
-                                               "(the file is unchanged)", str(p)) from e
-            time.sleep(0.01 * (2 ** i))
-
-
-def read_text(p: Path) -> str:
-    """``p``'s text. On Windows a file another thread or process is replacing this very moment (os.replace
-    onto it) or holds without sharing answers PermissionError for a few ms: tried again as a write is (10 to
-    160 ms apart, ~0.3 s in all) before the error goes to the caller. A folder is not tried again (Windows
-    answers PermissionError for one too)."""
-    for i in range(REPLACE_TRIES):
-        try:
-            with _file_lock(p):
-                return Path(p).read_text(encoding="utf-8")
+                return act()
         except PermissionError:
             if i == REPLACE_TRIES - 1 or Path(p).is_dir():
                 raise
-            time.sleep(0.01 * (2 ** i))
+            time.sleep(RETRY_MS / 1000)
     raise AssertionError("unreachable")
+
+
+def _replace(tmp: Path, p: Path) -> None:
+    try:
+        _while_held(p, lambda: os.replace(tmp, p))
+    except PermissionError as e:  # Windows: another program has the target open
+        raise PermissionError(e.errno, f"could not write {p.name}: another program holds it open "
+                                       "(the file is unchanged)", str(p)) from e
+
+
+def read_text(p: Path) -> str:
+    """``p``'s text; a file held for a moment is waited out (_while_held)."""
+    return _while_held(p, lambda: Path(p).read_text(encoding="utf-8"))
 
 
 def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:

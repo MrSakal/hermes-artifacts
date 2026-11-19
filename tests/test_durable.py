@@ -371,6 +371,32 @@ else:
     print(i)
 """
 
+# Another process that, 40 times, holds meta.json with no sharing for 20 ms (as a reader or a replace in
+# progress does on Windows) and then rewrites it; prints how many rewrites failed.
+HOLDER = r"""
+import sys, time, _winapi
+sys.path.insert(0, sys.argv[1])
+from hermes_artifacts import store
+aid = sys.argv[2]
+p = store._dir(aid) / "meta.json"
+print("ready", flush=True)
+failed = 0
+for i in range(40):
+    while True:
+        try:  # the other side may have it open this very moment
+            h = _winapi.CreateFile(str(p), _winapi.GENERIC_READ, 0, 0, _winapi.OPEN_EXISTING, 0, 0)
+            break
+        except PermissionError:
+            pass
+    time.sleep(0.02)
+    _winapi.CloseHandle(h)
+    try:
+        store.update_meta(aid, title=f"H{i}")
+    except OSError:
+        failed += 1
+print(failed)
+"""
+
 
 class TwoProcessTests(unittest.TestCase):
     def test_two_processes_changing_one_meta_keep_every_change(self):
@@ -394,6 +420,31 @@ class TwoProcessTests(unittest.TestCase):
             m = store.get_meta(aid)
         self.assertEqual([v["n"] for v in m["versions"]], list(range(1, 22)))
         self.assertEqual(m["title"], f"A{int(out)}")
+
+    @unittest.skipUnless(os.name == "nt", "sharing violations are Windows'")
+    def test_reads_while_another_process_holds_and_rewrites_the_meta_never_fail(self):
+        # The staging gateway's 500s: `hermes dashboard`'s page API read meta.json while the gateway (another
+        # process) rewrote it. A read that meets the other process's hold waits it out: it never fails and
+        # never falls back to the copy; the other process's rewrites never fail either.
+        import shutil
+        import subprocess
+        base = Path(tempfile.mkdtemp(prefix="ha-2proc-"))
+        self.addCleanup(shutil.rmtree, base, True)
+        with mock.patch.dict(os.environ, {"HERMES_ARTIFACTS_DIR": str(base / "data")}):
+            aid = store.publish(html="<p>v1</p>", title="T")["id"]
+            holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(PLUGIN), aid], env=dict(os.environ),
+                                      stdout=subprocess.PIPE, text=True)
+            self.assertEqual(holder.stdout.readline().strip(), "ready")
+            reads = 0
+            with self.assertNoLogs(store.logger, "WARNING"):
+                while holder.poll() is None:
+                    self.assertIsNotNone(store.get_meta(aid))
+                    reads += 1
+            out, _ = holder.communicate(timeout=60)
+            self.assertEqual(holder.returncode, 0)
+            self.assertEqual(store.get_meta(aid)["title"], "H39")
+        self.assertEqual(int(out), 0)
+        self.assertGreater(reads, 40)
 
     def test_the_meta_lock_never_waits_without_end_and_is_let_go_of(self):
         aid = store.publish(html="<p>a</p>", title="L")["id"]
