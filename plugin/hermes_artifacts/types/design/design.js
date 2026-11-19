@@ -1566,6 +1566,7 @@
       ctx.selection = ctx.selection.slice(-5);
       // the host's only: the canvas's page, the point at its view's middle and its zoom (the same middle at another width)
       ctx.keep = { page: page || null, cx: R((v.width / 2 - tx) / z), cy: R((v.height / 2 - ty) / z), z: +z.toFixed(4) };
+      if (autoFit) ctx.keep.fit = true; // not moved by the person: it fits again, at whatever size the frame has then
       return ctx;
     });
   }
@@ -2114,6 +2115,7 @@
   kit.restored(function (kp) {
     if (!autoFit || focus || !isFinite(kp.cx + kp.cy + kp.z) || kp.z < 0.02 || kp.z > 8) return;
     if (kp.page && kp.page !== page && pages.some(function (x) { return x.id === kp.page; })) setPage(kp.page);
+    if (kp.fit) { fitAll(); autoFit = { z: z, tx: tx, ty: ty }; return; }
     var r = vrect();
     z = kp.z; tx = r.width / 2 - kp.cx * z; ty = r.height / 2 - kp.cy * z;
     autoFit = null; apply();

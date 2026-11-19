@@ -158,6 +158,18 @@ class TypesPutTheirViewBack(unittest.TestCase):
             self.assertAlmostEqual(back["cy"], 400, delta=1, msg=(w, back))
             self.assertAlmostEqual(back["z"], 0.5, delta=0.001, msg=(w, back))
 
+    def test_a_design_never_moved_fits_again(self):
+        # rel28: a design's canvas nobody moved, reported while its tile was laid out, then the page loaded anew (the same
+        # artifact opened again): it took that middle and zoom and stopped fitting, its artboards elsewhere than a fresh
+        # open's (a comment's pick made while it loaded missed its part). Fitted, it fits again at the size it has then.
+        aid = store.publish(path=str(EX / "design"), title="Test design", type="design")["id"]
+        o = self.drive_page(aid, f"await api.sleep(1200)\nreturn await api.top({json.dumps(LAST_VIEW)})", w=1250, settle=3000)
+        self.assertIs(o["keep"].get("fit"), True, o)
+        st = '(() => { const s = __design.state(); return [s.z, s.tx, s.ty].map(n => Math.round(n * 1000) / 1000) })()'
+        fresh = self.drive_page(aid, f"return await api.frame({json.dumps(st)})", w=700, settle=3000)
+        back = self.drive_page(aid, restore(o["context"], o["keep"]) + f"return await api.frame({json.dumps(st)})", w=700, settle=3000)
+        self.assertEqual(back, fresh, (back, fresh, o["keep"]))
+
     def test_a_design_systems_section_and_scroll(self):
         # V6x 1 (survey): a design system on Typography, scrolled, its chat collapsed: back on Overview at its top
         aid = store.publish(path=str(EX / "design-system"), title="Test design system", type="design-system")["id"]
