@@ -5168,10 +5168,11 @@ function FloatingChat({ ctx, art = null, sid = null, onClose, onDock }) {
         children: [
           // Its own glyph (the chat panel beside the artifact), not the header's Expand. Without a chat yet
           // there is nothing to put beside it: off, and its tooltip says how a chat starts.
+          // a pane header's buttons, Hermes' 24 px (V6w: 30 px here)
           ready && !rid
-            ? jsx(IconButton, { icon: 'beside', title: t('popInNoChat'), disabled: true })
-            : jsx(IconButton, { icon: 'beside', title: t('popIn'), disabled: !ready, onClick: onDock }),
-          jsx(IconButton, { icon: 'close', title: t('close'), onClick: close })
+            ? jsx(IconButton, { icon: 'beside', title: t('popInNoChat'), disabled: true, small: true })
+            : jsx(IconButton, { icon: 'beside', title: t('popIn'), disabled: !ready, onClick: onDock, small: true }),
+          jsx(IconButton, { icon: 'close', title: t('close'), onClick: close, small: true })
         ]
       }),
       jsxs('div', {
@@ -6531,11 +6532,12 @@ function CommentsPanel({ ctx, art, portRef }) {
       jsxs('div', {
         style: { display: 'flex', alignItems: 'center', gap: 8, height: 44, padding: '0 8px 0 14px', borderBottom: `1px solid ${C.line}` },
         children: [
-          // The whole stage: Back to the artifact (it closes here only; docked again it opens by itself).
-          mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), shelveDraft()) }) : null,
+          // The whole stage: Back to the artifact (it closes here only; docked again it opens by itself). A pane header's
+          // buttons, Hermes' 24 px (V6w: 30 px here).
+          mode.full ? jsx(IconButton, { icon: 'back', title: t('backToArtifact'), onClick: () => ($panelHere.set(false), $picking.set(false), shelveDraft()), small: true }) : null,
           jsx('span', { style: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, children: t('comments') }),
-          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, armed: picking, title: t('addComment'), onClick: () => (shelveDraft(), $picking.set(!picking)) }),
-          mode.full ? null : jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $panelHere.set(false), $picking.set(false)) })
+          jsx(IconButton, { icon: 'comment', label: t('addComment'), active: picking, armed: picking, title: t('addComment'), onClick: () => (shelveDraft(), $picking.set(!picking)), small: true }),
+          mode.full ? null : jsx(IconButton, { icon: 'close', title: t('close'), onClick: () => ($panel.set(false), $panelHere.set(false), $picking.set(false)), small: true })
         ]
       }),
       jsxs('div', {

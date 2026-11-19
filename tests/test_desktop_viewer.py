@@ -350,6 +350,26 @@ class ViewerComments(unittest.TestCase):
             self.assertEqual(blank, [], (docked, seen))  # never the frame's own blank while its page boots
 
 
+    def test_the_comment_list_and_the_popped_out_chat_have_pane_header_buttons(self):
+        # V6w 10: the comment list's Back, Comment and Close and the popped-out chat's buttons were 30 x 30; a pane
+        # header's buttons in Hermes are 24 px (Button size icon-xs / xs), as the artifact's own header.
+        out = {}
+        for w in (1300, 600):
+            out[w] = self.drive("""
+              const o = {}
+              const heads = sel => api.top(`[...document.querySelectorAll(${JSON.stringify(sel)})].filter(b => b.getClientRects().length).map(b => { const r = b.getBoundingClientRect(); return [b.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)] })`)
+              await btn('More comment options'); await btn('All comments')
+              o.list = await heads('aside > div:first-child button')
+              await btn('Pop out chat'); await api.sleep(400)
+              o.chat = await heads('[role=dialog] > div:first-child button')
+              return o""", w=w)
+        for w, o in out.items():
+            self.assertTrue(o["list"] and o["chat"], (w, o))
+            for label, bw, bh in o["list"] + o["chat"]:
+                self.assertEqual(bh, 24, (w, label, o))
+                if label != "Comment":
+                    self.assertEqual(bw, 24, (w, label, o))
+
     def test_the_docs_selection_bar_closes_when_the_host_takes_the_focus(self):
         # V6a: a word double-clicked (its bar up), then the header's Comment: the bar stayed, cut at the list's edge
         out = self.drive("""
