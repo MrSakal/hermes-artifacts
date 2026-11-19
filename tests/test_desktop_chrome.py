@@ -1052,7 +1052,7 @@ class LookTests(unittest.TestCase):
         self.assertNotIn("title: t('cancel')", panel)
         chat = section("function FloatingChat(", "// ---------------------------------------------------------------- header")
         self.assertNotIn("icon: 'expand'", chat)  # the header's Expand is another thing
-        self.assertIn("jsx(IconButton, { icon: 'beside', title: t('popInNoChat'), disabled: true })", chat)
+        self.assertIn("jsx(IconButton, { icon: 'beside', title: t('popInNoChat'), disabled: true, small: true })", chat)  # 24 px (V6w 10)
         menu = section("function FilterMenu(", "function NewMenu(")
         self.assertIn("{ sort: 'sortBy', type: 'typeF', date: 'dateOpened' }[view]", menu)
 
