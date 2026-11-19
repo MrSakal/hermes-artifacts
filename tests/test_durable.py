@@ -235,6 +235,44 @@ class ReadRaceTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertGreater(reads, 50)
 
+    @unittest.skipUnless(os.name == "nt", "the replace race is Windows'")
+    def test_writes_among_overlapping_readers_never_fail(self):
+        # Two gateway requests writing meta.json while others read it: readers that overlap keep the file open
+        # with no gap, and a writer ran out of tries (here every time, ~5 failed writes in 1.5 s): an update
+        # lost. One process's readers and writers of a file take turns: every write gets through.
+        import threading
+        import time
+        p = self.d / "meta.json"
+        store.write_atomic(p, '{"n": 0}', backup=True)
+        stop, errors, writes = threading.Event(), [], []
+
+        def writer(k):
+            i = 0
+            while not stop.is_set():
+                i += 1
+                try:
+                    store.write_atomic(p, json.dumps({"w": k, "n": i}), backup=True)
+                    writes.append(1)
+                except OSError as e:
+                    errors.append(e)
+
+        def reader():
+            while not stop.is_set():
+                try:
+                    store.read_json(p)
+                except Exception as e:  # noqa: BLE001 - any failed read counts
+                    errors.append(e)
+        ts = [threading.Thread(target=writer, args=(k,)) for k in range(2)] + [threading.Thread(target=reader) for _ in range(3)]
+        for t in ts:
+            t.start()
+        time.sleep(1.5)
+        stop.set()
+        for t in ts:
+            t.join()
+        self.assertEqual(errors, [])
+        self.assertGreater(len(writes), 20)
+        self.assertIn("n", store.read_json(p))
+
     def test_settings_held_open_are_never_written_over_with_nothing(self):
         p = store.root() / "settings.json"
         store.settings_set("folders", ["Keep"])

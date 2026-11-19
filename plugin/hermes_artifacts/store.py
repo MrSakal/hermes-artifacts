@@ -262,6 +262,16 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
 
 REPLACE_TRIES = 6  # os.replace onto a file held open: tried again after 10, 20, 40, 80, 160 ms
 
+# One process's reads and replaces of the same file take turns (by its path; a lock is held for one open-and-
+# read or one os.replace, never across a sleep): on Windows a replace fails while anyone has the target open,
+# and readers that overlap keep it open with no gap, so a writer among them used up its tries and its update
+# was lost. Another process's reader is still waited out by the tries.
+_FILE_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
+def _file_lock(p) -> threading.Lock:
+    return _FILE_LOCKS[hash(os.path.normcase(os.path.abspath(p))) % len(_FILE_LOCKS)]
+
 
 def _fsync_dir(d: Path) -> None:
     if os.name == "nt":  # NTFS journals the rename itself; a folder cannot be opened for fsync there
@@ -281,7 +291,8 @@ def _fsync_dir(d: Path) -> None:
 def _replace(tmp: Path, p: Path) -> None:
     for i in range(REPLACE_TRIES):
         try:
-            os.replace(tmp, p)
+            with _file_lock(p):
+                os.replace(tmp, p)
             return
         except PermissionError as e:  # Windows: another program has the target open
             if i == REPLACE_TRIES - 1:
@@ -297,7 +308,8 @@ def read_text(p: Path) -> str:
     answers PermissionError for one too)."""
     for i in range(REPLACE_TRIES):
         try:
-            return Path(p).read_text(encoding="utf-8")
+            with _file_lock(p):
+                return Path(p).read_text(encoding="utf-8")
         except PermissionError:
             if i == REPLACE_TRIES - 1 or Path(p).is_dir():
                 raise
