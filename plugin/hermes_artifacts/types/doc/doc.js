@@ -2865,6 +2865,14 @@
   kit.status(status); // "Saved" whole, or a dot with it as its tooltip when the bar is tight: never a clipped letter
   setMode(mode);
 
+  // The doc as it was before Hermes loaded it again (its chat collapsed or shown): its tab, and its scroll, unless the
+  // person has moved on since.
+  kit.restored(function (kp, ctx) {
+    if (window.scrollY > 0 || focused) return;
+    var i = ctx.tab && ctx.tab.id ? tabs.findIndex(function (t) { return t.id === ctx.tab.id; }) : -1;
+    if (i >= 0 && i !== cur) { cur = i; render(); if (live) pull(true); }
+    kit.scrollBack(null, kp.y);
+  });
   // The first render, then ready for the host, once: also when the render throws (the bridge then says threw;
   // an error before this point gets the bridge's own fallback, 1 s after it). An empty doc renders like any other.
   try {
@@ -2874,12 +2882,4 @@
   } finally {
     kit.ready();
   }
-  // The doc as it was before Hermes loaded it again (its chat collapsed or shown): its tab, and its scroll, unless the
-  // person has moved on since.
-  kit.restored(function (kp, ctx) {
-    if (window.scrollY > 0 || focused) return;
-    var i = ctx.tab && ctx.tab.id ? tabs.findIndex(function (t) { return t.id === ctx.tab.id; }) : -1;
-    if (i >= 0 && i !== cur) { cur = i; render(); if (live) pull(true); }
-    kit.scrollBack(null, kp.y);
-  });
 })();
