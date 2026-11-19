@@ -3465,6 +3465,33 @@ const PASS_OPS = new Set(['storage.get', 'storage.list', 'vendor', 'ds.get', 'ch
   'history.list', 'history.diff', 'doc.read', 'doc.history', 'doc.file', 'sheet.read', 'sheet.history', 'sheet.at',
   'board.read', 'board.history', 'board.at', 'dataset.run', 'dataset.call', 'dataset.history'])
 
+// A connection that dropped before its answer (a reset, a socket closed): Hermes' transport never resends a POST
+// whose body went out, so whether the gateway applied the op is unknown. An HTTP answer starts "<status>:".
+const DROPPED = /\b(?:ECONNRESET|EPIPE|ETIMEDOUT)\b|socket hang up/i
+
+/** A write the gateway applies at most once when it comes again: a save on its base version (one that landed
+ *  answers with that version, api.py), a doc edit under its client ids (docs.py). Sheet and board edits are not. */
+function resendable(op, a) {
+  if (op === 'save') return Boolean(a?.base_version)
+  if (op !== 'doc.edit' || !Array.isArray(a?.ops)) return false
+  const cid = x => typeof x?.cid === 'string' && x.cid.trim() !== ''
+  const batch = a.ops.length === 1 && a.ops[0]?.op === 'batch' ? a.ops[0].entries : null
+  return batch ? Array.isArray(batch) && batch.length > 0 && batch.every(cid) : a.ops.some(cid)
+}
+
+/** A page's op through the plugin API; a resendable one whose connection dropped goes once more (the page may
+ *  be gone already: nobody else would send its last edits again). */
+async function postOp(ctx, aid, op, args) {
+  const send = () => ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op, args } })
+  try {
+    return await send()
+  } catch (err) {
+    const msg = String(err?.message ?? err)
+    if (/^\d{3}:/.test(msg) || !DROPPED.test(msg) || !resendable(op, args)) throw err
+    return send()
+  }
+}
+
 /** A frame's notify args checked: {message, kind, ms} or null (the kit's bridge sends a string of at most
  *  300 characters, info | success | error, and null or a duration of at most 15 s). */
 function notifyArgs(a) {
@@ -4036,7 +4063,7 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
             const allowed = await approveQueries(ctx, aid, ids.map(id => ({ id })), m.args?.version ?? null)
             return reply({ ok: true, value: { ok: true, allowed } })
           }
-          const op = () => ctx.rest(`/artifacts/${enc(aid)}/op`, { method: 'POST', body: { op: m.op, args: m.args || {} } })
+          const op = () => postOp(ctx, aid, m.op, m.args || {})
           let value = await op()
           // Sources' Test of args not allowed yet: the same host dialog, then the test runs.
           if (m.op === 'dataset.test' && value?.status === 'approval' &&

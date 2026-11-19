@@ -411,3 +411,57 @@ class VersionNoticeTests(unittest.TestCase):
                          "0.15.0; 0.16.1 is installed. On the server run hermes plugins disable hermes-artifacts, then hermes plugins "
                          "enable hermes-artifacts (next time, update from Desktop › Plugins). Still shown? Restart that process: "
                          "hermes gateway restart alone doesn’t.")
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class OpResendTests(unittest.TestCase):
+    """A page's write whose connection dropped before its answer (Hermes never resends a POST whose body went
+    out) goes once more when the gateway applies it at most once; an HTTP answer is never resent."""
+
+    EXPORTS = "\nexport { postOp }\n"
+    RESET = "Error invoking remote method 'hermes:api': Error: read ECONNRESET"
+
+    def run_op(self, op, args, fails):
+        body = f"""
+        const calls = [], fails = {json.dumps(fails)}
+        const ctx = {{ rest: async (url, opts) => {{
+          calls.push({{ url, opts }})
+          const f = fails[calls.length - 1]
+          if (f) throw new Error(f)
+          return {{ ok: true, version: 3 }}
+        }} }}
+        let value = null, error = null
+        try {{ value = await m.postOp(ctx, 'd-1', {json.dumps(op)}, {json.dumps(args)}) }} catch (e) {{ error = String(e.message) }}
+        console.log(JSON.stringify({{ calls, value, error }}))
+        """
+        return run_node(stub_module(self.EXPORTS), body)
+
+    def test_a_reset_save_goes_once_more_and_the_page_gets_its_answer(self):
+        args = {"files": {"deck.json": "{}"}, "base_version": 2}
+        out = self.run_op("save", args, [self.RESET])
+        self.assertEqual(out["value"], {"ok": True, "version": 3})
+        self.assertEqual([c["opts"]["body"] for c in out["calls"]], [{"op": "save", "args": args}] * 2)
+        self.assertEqual(out["calls"][0]["url"], "/artifacts/d-1/op")
+
+    def test_a_socket_hang_up_doc_batch_under_its_client_ids_goes_once_more(self):
+        args = {"ops": [{"op": "batch", "entries": [{"cid": "p.1", "ops": [{"op": "replace", "block": "b", "md": "x"}]}]}]}
+        out = self.run_op("doc.edit", args, ["socket hang up"])
+        self.assertEqual((len(out["calls"]), out["value"]), (2, {"ok": True, "version": 3}))
+
+    def test_it_is_resent_once_only(self):
+        out = self.run_op("save", {"files": {"deck.json": "{}"}, "base_version": 2}, [self.RESET, self.RESET])
+        self.assertEqual((len(out["calls"]), out["error"]), (2, self.RESET))
+
+    def test_an_http_answer_or_a_write_not_safe_twice_is_not_resent(self):
+        for op, args, fail in (("save", {"files": {"deck.json": "{}"}, "base_version": 2}, '500: {"detail":"read ECONNRESET"}'),
+                               ("save", {"files": {"deck.json": "{}"}}, self.RESET),
+                               ("sheet.edit", {"ops": [{"op": "set"}], "base_rev": 4}, self.RESET),
+                               ("board.edit", {"ops": [{"op": "add"}], "base_rev": 4}, self.RESET),
+                               ("doc.edit", {"ops": [{"op": "replace", "block": "b", "md": "x"}]}, self.RESET)):
+            out = self.run_op(op, args, [fail])
+            self.assertEqual((len(out["calls"]), out["error"]), (1, fail), op)
+
+    def test_the_bridge_sends_page_ops_through_it(self):
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        bridge = src[src.index("function useBridge("):]
+        self.assertIn("const op = () => postOp(ctx, aid, m.op, m.args || {})", bridge)

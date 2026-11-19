@@ -185,6 +185,31 @@ def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
             "css": files.get("components/bundle.css", ""), "fonts": fonts, "readme": files.get("README.md", "")}
 
 
+def _holds(aid: str, n: int, files: dict) -> bool:
+    """Version n has each of a save's files as it sent them (None: no such file). A JSON file the publish
+    wrote again (a deck's design system records) counts by its value."""
+    import base64
+    for rel, val in files.items():
+        try:
+            have = store.read_file(aid, rel, n)
+        except FileNotFoundError:
+            have = None
+        if val is None or have is None:
+            if val is not have:
+                return False
+            continue
+        want = base64.b64decode(val["base64"]) if isinstance(val, dict) else val.encode("utf-8")
+        if have == want:
+            continue
+        try:
+            if rel.endswith(".json") and json.loads(have) == json.loads(want):
+                continue
+        except ValueError:
+            pass
+        return False
+    return True
+
+
 def _op(aid: str, op: str, a: dict) -> dict:
     """Operations an artifact page asks for through the bridge. The page is untrusted: only these."""
     if op == "storage.get":
@@ -227,8 +252,13 @@ def _op(aid: str, op: str, a: dict) -> dict:
                 val = {"base64": fm.group(1)}
             out[str(rel)] = val
         files = out
-        if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:
-            return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
+        vs = m["versions"]
+        if a.get("base_version") and a["base_version"] != vs[-1]["n"]:
+            # The same save sent again (the host resends one whose connection dropped before its answer): if it
+            # landed, the latest version is it on its base, and that version is the answer, not a conflict.
+            if len(vs) > 1 and a["base_version"] == vs[-2]["n"] and _holds(aid, vs[-1]["n"], files):
+                return {"ok": True, "version": vs[-1]["n"]}
+            return {"ok": False, "conflict": True, "version": vs[-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files, by="user")
         return {"ok": True, "version": nm["versions"][-1]["n"]}
     if op == "preview.set":

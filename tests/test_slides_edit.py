@@ -53,6 +53,25 @@ class SaveTests(unittest.TestCase):
         r = op(self.aid, "save", base_version=1, files={"slides/a.html": '<section id="a"><p>x</p></section>'})
         self.assertTrue(r["conflict"])
 
+    def test_the_same_save_sent_again_is_one_version(self):
+        # The host resends a save whose connection dropped before the answer: it may have landed already.
+        files = {"slides/a.html": '<section id="a"><p>x</p></section>', "img/ab12.png": "data:image/png;base64," + PNG,
+                 "slides/b.html": None,
+                 "deck.json": json.dumps({"title": "D", "order": ["a"], "slides": [{"id": "a", "layout": "title"}]})}
+        first = op(self.aid, "save", base_version=1, files=files)
+        again = op(self.aid, "save", base_version=1, files=files)
+        self.assertEqual(first, {"ok": True, "version": 2})
+        self.assertEqual(again, {"ok": True, "version": 2})
+        self.assertEqual([v["n"] for v in store.get_meta(self.aid)["versions"]], [1, 2])
+
+    def test_a_save_two_behind_or_with_other_words_is_still_a_conflict(self):
+        same = {"slides/a.html": '<section id="a"><p>x</p></section>'}
+        op(self.aid, "save", base_version=1, files=same)
+        self.assertTrue(op(self.aid, "save", base_version=1, files={"slides/a.html": '<section id="a"><p>y</p></section>'})["conflict"])
+        op(self.aid, "save", base_version=2, files={"slides/b.html": '<section id="b"></section>'})
+        self.assertTrue(op(self.aid, "save", base_version=1, files=same)["conflict"])
+        self.assertEqual(len(store.get_meta(self.aid)["versions"]), 3)
+
 
 class UnreadEditTests(unittest.TestCase):
     """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused (Claude's rule)."""
