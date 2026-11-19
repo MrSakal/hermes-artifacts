@@ -214,6 +214,42 @@ class PageTests(unittest.TestCase):
             self.assertIn(out["closed"][1], ("Properties", "Tulajdonságok"))  # the focus back on its button
             self.assertTrue(out["first"])  # the toolbar first in the tab order
 
+    def test_a_double_click_on_a_text_boxs_handle_edits_its_words(self):
+        # Round 7h: at 19 % a text box is about as tall as its handles: a double click on its middle hit the centre
+        # handle and started no editing. A double click on a handle edits as one on the box; a drag still sizes it.
+        P = '[...document.querySelectorAll(".sl-clip p")].find(p => /Where orders/.test(p.textContent))'
+        out = self.run_page(f"""
+          const P = {json.dumps(P)}
+          const hd = n => api.frame('(() => {{ const b = document.querySelector(".sl-handle[data-h=' + n + ']").getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] }})()')
+          const state = () => api.frame('(() => {{ const a = document.activeElement, s = getSelection(); return [document.querySelectorAll(".sl-handle").length, a.isContentEditable && a === ' + P + ', !!s.rangeCount && s.isCollapsed && a.contains(s.anchorNode)] }})()')
+          const at = await api.frame('(() => {{ const b = ' + P + '.getBoundingClientRect(); return [b.left + 40, b.top + b.height / 2] }})()')
+          await api.mouse(at[0], at[1]); await api.sleep(300)
+          const n = await hd("n")
+          await api.mouse(n[0], n[1]); await api.sleep(300)
+          const once = await state()
+          await api.mouse(n[0], n[1], 2); await api.sleep(300)
+          const selected = await state()
+          await api.type("Z"); await api.sleep(200)
+          const typed = await api.frame(P + '.textContent.split("Z").length - 1')
+          const box = await api.frame('(() => {{ const b = document.querySelector(".sl-clip section:not([hidden])").getBoundingClientRect(); return [b.left + 3, b.bottom - 3] }})()')
+          await api.mouse(box[0], box[1]); await api.sleep(300)
+          const none = await state()
+          await api.mouse(n[0], n[1] + 3, 2); await api.sleep(300) // in the box and in its handle once drawn
+          const unselected = await state()
+          await api.key("Escape", "Escape", 27); await api.sleep(300)
+          await api.mouse(at[0], at[1]); await api.sleep(300)
+          const w0 = await api.frame(P + '.getBoundingClientRect().width')
+          const e2 = await hd("e"); await api.drag(e2[0], e2[1], e2[0] - 40, e2[1]); await api.sleep(300)
+          return {{ once, selected, typed, none, unselected, w: [w0, await api.frame(P + '.getBoundingClientRect().width')], drag: await state() }}
+        """)
+        self.assertEqual(out["once"], [8, False, False])  # a click on a handle: still selected, no editing
+        self.assertEqual(out["selected"], [0, True, True])  # the selected box's handle: its words, a caret in them
+        self.assertEqual(out["typed"], 1)
+        self.assertEqual(out["none"][0], 0)
+        self.assertEqual(out["unselected"], [0, True, True])  # the first click selects, the second lands on a handle
+        self.assertLess(out["w"][1], out["w"][0] - 20)  # a drag sizes it
+        self.assertEqual(out["drag"][:2], [8, False])
+
     def test_words_typed_just_before_the_frame_goes_are_saved_once(self):
         # Round 7f: Hermes takes the frame away (the gallery opened) under a second after the last key: the frame
         # gets pagehide, never beforeunload, so the edit waiting for its pause was lost.

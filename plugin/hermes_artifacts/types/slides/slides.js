@@ -800,6 +800,15 @@
       if (sel.indexOf(it) < 0) select([it]);
       startEdit(textIn(it, e.target), e);
     });
+    // A handle lies over a small box's words (at 19 % a line is about as tall as a handle): a double click on it
+    // edits as one on the box, the caret where the words under it are (the handles out of the way meanwhile).
+    ov.addEventListener("dblclick", function (e) {
+      if (!e.target.getAttribute("data-h") || sel.length !== 1) return;
+      ov.hidden = true;
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      startEdit(textIn(sel[0], sel[0].contains(under) ? under : null), e);
+      ov.hidden = false;
+    });
     clip.addEventListener("beforeinput", function () { if (!editSnap) { checkpoint(); editSnap = true; } });
     clip.addEventListener("input", function () { drawSel(); changed(); });
     clip.addEventListener("keydown", function (e) { if (e.key === "Escape" && editing) { var it = itemOf(editing); stopEdit(); select(it ? [it] : []); e.stopPropagation(); } }, true);
@@ -829,7 +838,11 @@
     el.focus();
     var s = window.getSelection();
     if (selectAll) { var r = document.createRange(); r.selectNodeContents(el); s.removeAllRanges(); s.addRange(r); }
-    else if (e && document.caretRangeFromPoint) { var c = document.caretRangeFromPoint(e.clientX, e.clientY); if (c) { s.removeAllRanges(); s.addRange(c); } }
+    else if (e) { // the caret where the click was; off the words (a handle by the box), at their end
+      var c = document.caretRangeFromPoint && document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (!c || !el.contains(c.startContainer)) { c = document.createRange(); c.selectNodeContents(el); c.collapse(false); }
+      s.removeAllRanges(); s.addRange(c);
+    }
     drawSel(); drawTools(); sendView();
   }
   function stopEdit() {
