@@ -444,7 +444,8 @@
     b.strip.append(b.tw, b.playBtn, b.full);
     b.err = h("div", { "class": "dc-err", hidden: true });
     b.guides = h("div", { "class": "dc-guides" });
-    b.resize = h("div", { "class": "dc-resize", title: T.size });
+    // the size handle: the design's chrome, never a part to comment on (V6w: it rang and took a draft while picking)
+    b.resize = h("div", { "class": "dc-resize", title: T.size, "data-comment-keep": "" });
     b.el.append(b.strip, b.wrap, b.guides, b.err, b.resize);
     world.insertBefore(b.el, notesLayer);
     b.strip.addEventListener("pointerdown", function (e) { if (e.button === 0 && !e.target.closest("button") && !commentPicking) dragBoard(e, b); });
@@ -1638,12 +1639,13 @@
     });
   }
   // A click on an artboard's own box while picking (around its frame): the comment is on that artboard; its name
-  // strip is the design's chrome, a click there picks nothing (bridge.js: data-comment-keep). One the host held and
-  // gives back on an artboard's frame: picked in it, where it was.
+  // strip and size handle are the design's chrome, a click there picks nothing (bridge.js: data-comment-keep; V6w:
+  // the handle's click took the artboard). One the host held and gives back on an artboard's frame: picked in it,
+  // where it was.
   window.addEventListener("click", function (e) {
     if (!commentPicking) return;
     var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
-    if (!b || !b.frame || e.target.closest(".dc-strip")) return;
+    if (!b || !b.frame || e.target.closest("[data-comment-keep]")) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.target === b.frame.iframe) {
       var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
