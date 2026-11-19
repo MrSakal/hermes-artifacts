@@ -1,4 +1,4 @@
-"""The dashboard's History, its saves and looks (Claude's Dashboard type, the Hermes way)."""
+"""The dashboard's History, its saves and looks (an existing Dashboard type, done the Hermes way)."""
 
 import json
 import os

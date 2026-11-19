@@ -39,7 +39,7 @@ def _spec(files: dict[str, bytes]) -> dict:
 
 
 def _docs(files: dict[str, bytes], kind: str) -> dict[str, dict]:
-    """The documents a version is made of, the way Claude's History names them: the page, each
+    """The documents a version is made of, the way the History panel names them: the page, each
     source, the filters, the title, the look; for other types each file."""
     out: dict[str, dict] = {}
     if kind == "dashboard":
