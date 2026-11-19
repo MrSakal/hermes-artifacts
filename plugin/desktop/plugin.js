@@ -678,6 +678,18 @@ const $makings = atom({})
 const $dockMaking = atom(null)
 const $presenting = atom(false) // a deck is presenting: its frame fills the screen
 const viewSessions = new Map() // artifact id -> chat session its view context went to
+// artifact id -> {v, context, keep}: the view its page last reported (bridge view). Hermes mounts the artifact's tile
+// anew when its chat is collapsed or shown (an SDK limit): the page loaded again gets it back ('view-restore'), so a
+// film keeps its time, a deck its slide, a doc its scroll. This Desktop's memory only, a few artifacts.
+const keptViews = new Map()
+const KEPT_VIEWS = 20, KEPT_VIEW_BYTES = 8 * 1024
+function keepView(aid, v, args) {
+  const kept = { v, context: args?.context || {}, keep: args?.keep ?? null }
+  try { if (JSON.stringify(kept).length > KEPT_VIEW_BYTES) return } catch { return }
+  keptViews.delete(aid)
+  keptViews.set(aid, kept)
+  while (keptViews.size > KEPT_VIEWS) keptViews.delete(keptViews.keys().next().value)
+}
 const docListeners = new Set() // per mounted frame: Hermes changed this doc
 const sheetListeners = new Set() // same for a sheet; gets the event's {sheet, rev} too
 const boardListeners = new Set() // same for a board; gets the event's {rev}
@@ -3961,11 +3973,12 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
             return reply({ ok: true, value: { ok: true } })
           }
           if (m.op === 'view') {
+            keepView(aid, rec.v, m.args)
             const session = host.state.focusedStoredSessionId?.get?.() || art.session
             if (!session) return reply({ ok: true, value: { ok: false } })
             const value = await ctx.rest(`/artifacts/${enc(aid)}/op`, {
               method: 'POST',
-              body: { op: 'view', args: { session, context: m.args?.context || {} } }
+              body: { op: 'view', args: { session, context: m.args?.context || {} } } // keep is for this Desktop only
             })
             viewSessions.set(aid, session)
             return reply({ ok: true, value })
@@ -4090,6 +4103,7 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
         const m = ev.data || {}
         if (m.event) return pageEvent(m.event, m.detail)
         if (F.closing(rec)) { // its page's last edits as it went: they are the person's own
+          if (m.op === 'view') keepView(aid, rec.v, m.args) // where it was as it went (its pagehide): for the next load
           if (GRACE_REFUSED.has(m.op)) return ch.port1.postMessage({ id: m.id, ok: false, error: 'the page is closing' })
           return handle(m)
         }
@@ -4109,6 +4123,8 @@ function useBridge(ref, art, ctx, portRef, rec, F) {
       const now = live()
       postToPage(portRef, 'versions', { latest: now.version, shown: $shown.get() ?? now.version })
       sendPins(portRef)
+      const kept = keptViews.get(aid)
+      if (kept) postToPage(portRef, 'view-restore', kept)
       if (!F.hidden(rec) && $picking.get()) { $pickOn.set(false); postToPage(portRef, 'comment-mode', { on: true }) }
     }
     const offMessage = listen(ctx, window, 'message', onMessage)

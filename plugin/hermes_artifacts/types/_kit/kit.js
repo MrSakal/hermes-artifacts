@@ -564,19 +564,39 @@
   }
 
   /** Tell the host where the user is in the page (it goes along with their next chat message).
-   *  Debounced, and only when it changed. Thumbnails never report. */
-  var viewTimer = null, viewLast = "";
+   *  Debounced, and only when it changed. Thumbnails never report. A context's "keep" (a scroll, a camera: what
+   *  the page needs to be drawn as it is) goes to the host only; it hands context and keep back (restored). */
+  var viewTimer = null, viewLast = "", viewGet = null;
+  function sendViewNow() {
+    clearTimeout(viewTimer); viewTimer = null;
+    var ctx;
+    try { ctx = viewGet(); } catch (e) { return; }
+    var s = JSON.stringify(ctx);
+    if (s === viewLast) return;
+    viewLast = s;
+    var keep = null;
+    if (ctx && typeof ctx === "object" && "keep" in ctx) { ctx = Object.assign({}, ctx); keep = ctx.keep; delete ctx.keep; }
+    window.hermes.view(ctx, keep).catch(function () {});
+  }
   function view(get) {
     if (content.thumb || !window.hermes || !window.hermes.view) return;
     clearTimeout(viewTimer);
-    viewTimer = setTimeout(function () {
-      var ctx;
-      try { ctx = get(); } catch (e) { return; }
-      var s = JSON.stringify(ctx);
-      if (s === viewLast) return;
-      viewLast = s;
-      window.hermes.view(ctx).catch(function () {});
-    }, 600);
+    viewGet = get;
+    viewTimer = setTimeout(sendViewNow, 600);
+  }
+  // A frame taken away within the wait (the chat collapsed right after a seek) still says where it was.
+  window.addEventListener("pagehide", function () { if (viewTimer) sendViewNow(); });
+  /** The view this artifact had before the host loaded its page again (Hermes mounts the tile anew when its chat is
+   *  collapsed or shown): fn(keep, context, version) once, with what the page last reported (view). Never in a
+   *  thumbnail; nothing when the host has none. */
+  function restored(fn) {
+    if (content.thumb || !window.hermes || typeof window.hermes.on !== "function") return;
+    var done = false;
+    window.hermes.on("view-restore", function (d) {
+      if (done || !d || typeof d !== "object") return;
+      done = true;
+      try { fn(d.keep && typeof d.keep === "object" ? d.keep : {}, d.context && typeof d.context === "object" ? d.context : {}, d.v); } catch (e) {}
+    });
   }
   function inView(selector) {
     var best = null;
@@ -735,6 +755,6 @@
   }
   function noFill(input, value) { input.classList.toggle("kit-nofill", isClear(value)); return input; }
 
-  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, swallowPress: swallowPress, toast: toast,
+  window.kit = { locale: locale, isClear: isClear, noFill: noFill, onResize: onResize, date: date, num: num, parseNum: parseNum, status: status, textLines: textLines, pdfText: pdfText, view: view, restored: restored, inView: inView, hostTheme: hostTheme, hermesWork: hermesWork, exports: exports, content: content, h: h, icon: icon, button: button, labelled: labelled, menu: menu, swallowPress: swallowPress, toast: toast,
     download: download, fileText: fileText, fileUrl: fileUrl, json: json, esc: esc, slug: slug, ready: ready, degraded: degraded };
 })();
