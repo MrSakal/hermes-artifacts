@@ -2,6 +2,11 @@ __pycache__/
 *.py[co]
 .venv/
 .pytest_cache/
-.claude/
+# Claude Code local/ephemeral state (shared settings.json and hooks/ stay tracked for worktrees & cloud sessions)
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
+CLAUDE.local.md
 # local working notes (not part of the plugin)
 docs/
