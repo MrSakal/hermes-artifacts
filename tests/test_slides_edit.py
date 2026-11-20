@@ -53,9 +53,28 @@ class SaveTests(unittest.TestCase):
         r = op(self.aid, "save", base_version=1, files={"slides/a.html": '<section id="a"><p>x</p></section>'})
         self.assertTrue(r["conflict"])
 
+    def test_the_same_save_sent_again_is_one_version(self):
+        # The host resends a save whose connection dropped before the answer: it may have landed already.
+        files = {"slides/a.html": '<section id="a"><p>x</p></section>', "img/ab12.png": "data:image/png;base64," + PNG,
+                 "slides/b.html": None,
+                 "deck.json": json.dumps({"title": "D", "order": ["a"], "slides": [{"id": "a", "layout": "title"}]})}
+        first = op(self.aid, "save", base_version=1, files=files)
+        again = op(self.aid, "save", base_version=1, files=files)
+        self.assertEqual(first, {"ok": True, "version": 2})
+        self.assertEqual(again, {"ok": True, "version": 2})
+        self.assertEqual([v["n"] for v in store.get_meta(self.aid)["versions"]], [1, 2])
+
+    def test_a_save_two_behind_or_with_other_words_is_still_a_conflict(self):
+        same = {"slides/a.html": '<section id="a"><p>x</p></section>'}
+        op(self.aid, "save", base_version=1, files=same)
+        self.assertTrue(op(self.aid, "save", base_version=1, files={"slides/a.html": '<section id="a"><p>y</p></section>'})["conflict"])
+        op(self.aid, "save", base_version=2, files={"slides/b.html": '<section id="b"></section>'})
+        self.assertTrue(op(self.aid, "save", base_version=1, files=same)["conflict"])
+        self.assertEqual(len(store.get_meta(self.aid)["versions"]), 3)
+
 
 class UnreadEditTests(unittest.TestCase):
-    """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused (Claude's rule)."""
+    """Hermes' publish over a version the person saved, which Hermes hasn't read, is refused."""
 
     def test_publish_needs_a_read_after_the_persons_save(self):
         sys.path.insert(0, str(ROOT / "tests"))
@@ -108,6 +127,144 @@ class RuntimeTests(unittest.TestCase):
         for marker in ("function magicMove", "function setPresenter", "kit.pdfText(PDFLib", "function itemOf(t)", "function reorder(el, ev)", "function detach()", "function drawProps()",
                        "window.slideTheme", "L.blank", "data-deco"):
             self.assertIn(marker, html)
+
+
+try:
+    import _browser as B
+except ImportError:  # run from elsewhere
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import _browser as B
+
+READY = "await api.sleep(300); for (let i = 0; i < 60; i++) { if (await api.top('window.__events.some(e => e.event === \"ready\")')) break; await api.sleep(150) }"
+# a button of the page by its words (English or Hungarian), shown
+BTN = ("window.BTN = labs => [...document.querySelectorAll('button')].find(b => labs.includes(b.getAttribute('aria-label') || b.title)"
+       " && b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden')")
+PROPS, ALL, ONE, CLOSE = '["Properties", "Tulajdonságok"]', '["All slides", "Összes dia"]', '["One slide", "Egy dia"]', '["Close", "Bezárás"]'
+# every shown control of the chrome inside the window, and no two pills on one another
+FITS = r"""(() => { const bad = [], vw = innerWidth
+  const shown = el => { const r = el.getBoundingClientRect(); if (r.width < 1) return null; for (let e = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return null } return r }
+  document.querySelectorAll('button, select, input').forEach(el => { if (el.closest('#sl-strip, #sl-stage')) return; const r = shown(el); if (r && (r.left < -0.5 || r.right > vw + 0.5)) bad.push('off: ' + (el.getAttribute('aria-label') || el.textContent).trim()) })
+  const pills = [...document.querySelectorAll('.sl-pill')].map(shown).filter(Boolean)
+  for (let i = 0; i < pills.length; i++) for (let j = i + 1; j < pills.length; j++) { const a = pills[i], b = pills[j]; if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) bad.push('pills meet') }
+  return bad })()"""
+
+
+@unittest.skipUnless(B.AVAILABLE, "Chrome or node is not installed")
+class PageTests(unittest.TestCase):
+    """Round 4: the properties column went blank after All slides -> One slide; a thumbnail kept its "picked" outline;
+    at 400 px the pills ran off the window and over the properties column."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.host = B.Host()
+        cls.aid = store.publish(path=str(ROOT / "examples" / "slides"), title="Deck", type="slides")["id"]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def run_page(self, body, w=1000):
+        r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(self.host.url(self.aid))}, 800); {READY}\n"
+                    f"await api.sleep(800); await api.frame({json.dumps(BTN)})\n"
+                    "const click = async labs => { await api.frame('BTN(' + labs + ').click()'); await api.sleep(400) }\n" + body)
+        self.assertIsNone(r.get("err"), r)
+        return r["out"]
+
+    def test_properties_come_back_after_all_slides(self):
+        out = self.run_page(f"""
+          await click({json.dumps(PROPS)})
+          const before = await api.frame('document.getElementById("sl-props").querySelectorAll("select, input").length')
+          await click({json.dumps(ALL)})
+          const grid = await api.frame('[document.getElementById("sl-props").hidden, BTN({PROPS}).disabled]')
+          await click({json.dumps(ONE)})
+          const after = await api.frame('[document.getElementById("sl-props").hidden, document.getElementById("sl-props").querySelectorAll("select, input").length, BTN({PROPS}).getAttribute("aria-pressed")]')
+          return {{ before, grid, after }}
+        """)
+        self.assertGreater(out["before"], 0)
+        self.assertEqual(out["grid"], [True, True])  # all slides: no column, the button off
+        self.assertEqual(out["after"], [False, out["before"], "true"])
+
+    def test_one_current_slide_and_no_stale_pick(self):
+        out = self.run_page("""
+          const thumb = i => 'document.querySelectorAll("#sl-rail .sl-thumb")[' + i + ']'
+          await api.clickIn(thumb(0))
+          await api.frame(thumb(1) + '.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true}))'); await api.sleep(300)
+          await api.key('Escape', 'Escape', 27); await api.sleep(200)
+          await api.clickIn(thumb(2)); await api.sleep(300)
+          return await api.frame('[...document.querySelectorAll("#sl-rail .sl-thumb")].map(b => (b.classList.contains("on") ? "on" : "") + (b.classList.contains("picked") && !b.classList.contains("on") ? "picked" : ""))')
+        """)
+        self.assertEqual(out, ["", "", "on", ""])
+
+    def test_a_narrow_window(self):
+        for w in (360, 400, 560):
+            out = self.run_page(f"""
+              const open = await api.frame({json.dumps(FITS)})
+              await click({json.dumps(PROPS)})
+              const sheet = await api.frame('(() => {{ const p = document.getElementById("sl-props"), r = p.getBoundingClientRect(); return [p.hidden, getComputedStyle(p).position, Math.round(r.right), !!BTN({CLOSE}), [...document.querySelectorAll(".sl-pill")].filter(x => x.getClientRects().length).length] }})()')
+              const inSheet = await api.frame({json.dumps(FITS)})
+              await click({json.dumps(CLOSE)})
+              const closed = await api.frame('[document.getElementById("sl-props").hidden, document.activeElement && document.activeElement.getAttribute("aria-label")]')
+              const first = await api.frame('document.querySelector("#sl-main button").closest(".sl-pill") !== null')
+              return {{ open, sheet, inSheet, closed, first }}
+            """, w=w)
+            self.assertEqual(out["open"], [], w)
+            self.assertEqual(out["sheet"], [False, "absolute", w, True, 0], w)  # a sheet over the stage, its Close; the pills under it step aside
+            self.assertEqual(out["inSheet"], [], w)
+            self.assertTrue(out["closed"][0], w)
+            self.assertIn(out["closed"][1], ("Properties", "Tulajdonságok"))  # the focus back on its button
+            self.assertTrue(out["first"])  # the toolbar first in the tab order
+
+    def test_a_double_click_on_a_text_boxs_handle_edits_its_words(self):
+        # Round 7h: at 19 % a text box is about as tall as its handles: a double click on its middle hit the centre
+        # handle and started no editing. A double click on a handle edits as one on the box; a drag still sizes it.
+        P = '[...document.querySelectorAll(".sl-clip p")].find(p => /Where orders/.test(p.textContent))'
+        out = self.run_page(f"""
+          const P = {json.dumps(P)}
+          const hd = n => api.frame('(() => {{ const b = document.querySelector(".sl-handle[data-h=' + n + ']").getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] }})()')
+          const state = () => api.frame('(() => {{ const a = document.activeElement, s = getSelection(); return [document.querySelectorAll(".sl-handle").length, a.isContentEditable && a === ' + P + ', !!s.rangeCount && s.isCollapsed && a.contains(s.anchorNode)] }})()')
+          const at = await api.frame('(() => {{ const b = ' + P + '.getBoundingClientRect(); return [b.left + 40, b.top + b.height / 2] }})()')
+          await api.mouse(at[0], at[1]); await api.sleep(300)
+          const n = await hd("n")
+          await api.mouse(n[0], n[1]); await api.sleep(300)
+          const once = await state()
+          await api.mouse(n[0], n[1], 2); await api.sleep(300)
+          const selected = await state()
+          await api.type("Z"); await api.sleep(200)
+          const typed = await api.frame(P + '.textContent.split("Z").length - 1')
+          const box = await api.frame('(() => {{ const b = document.querySelector(".sl-clip section:not([hidden])").getBoundingClientRect(); return [b.left + 3, b.bottom - 3] }})()')
+          await api.mouse(box[0], box[1]); await api.sleep(300)
+          const none = await state()
+          await api.mouse(n[0], n[1] + 3, 2); await api.sleep(300) // in the box and in its handle once drawn
+          const unselected = await state()
+          await api.key("Escape", "Escape", 27); await api.sleep(300)
+          await api.mouse(at[0], at[1]); await api.sleep(300)
+          const w0 = await api.frame(P + '.getBoundingClientRect().width')
+          const e2 = await hd("e"); await api.drag(e2[0], e2[1], e2[0] - 40, e2[1]); await api.sleep(300)
+          return {{ once, selected, typed, none, unselected, w: [w0, await api.frame(P + '.getBoundingClientRect().width')], drag: await state() }}
+        """)
+        self.assertEqual(out["once"], [8, False, False])  # a click on a handle: still selected, no editing
+        self.assertEqual(out["selected"], [0, True, True])  # the selected box's handle: its words, a caret in them
+        self.assertEqual(out["typed"], 1)
+        self.assertEqual(out["none"][0], 0)
+        self.assertEqual(out["unselected"], [0, True, True])  # the first click selects, the second lands on a handle
+        self.assertLess(out["w"][1], out["w"][0] - 20)  # a drag sizes it
+        self.assertEqual(out["drag"][:2], [8, False])
+
+    def test_words_typed_just_before_the_frame_goes_are_saved_once(self):
+        # Round 7f: Hermes takes the frame away (the gallery opened) under a second after the last key: the frame
+        # gets pagehide, never beforeunload, so the edit waiting for its pause was lost.
+        aid = store.publish(path=str(ROOT / "examples" / "slides"), title="Deck", type="slides")["id"]
+        r = B.drive(f"await api.size(1000, 760); await api.go({json.dumps(self.host.url(aid))}, 800); {READY}\n"
+                    "await api.sleep(800)\n"
+                    "const at = await api.frame('(() => { const p = [...document.querySelectorAll(\".sl-clip p\")].find(p => /Where orders/.test(p.textContent)); const b = p.getBoundingClientRect(); return [b.left + 40, b.top + b.height / 2] })()')\n"
+                    "await api.mouse(at[0], at[1], 2); await api.sleep(300)\n"
+                    "await api.key('End', 'End', 35); await api.type(' typed late'); await api.sleep(400)\n"
+                    "await api.top('document.getElementById(\"f\").remove()'); await api.sleep(2500)\n"
+                    "return await api.top('window.__ops.filter(o => o.op === \"save\").map(o => JSON.stringify(o.args.files).includes(\"typed late\"))')")
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r["out"], [True])
+        self.assertEqual(len(store.get_meta(aid)["versions"]), 2)
+        self.assertIn("typed late", (store.version_dir(aid) / "slides" / "cover.html").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

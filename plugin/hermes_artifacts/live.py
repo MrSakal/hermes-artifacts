@@ -25,7 +25,6 @@ import functools
 import hashlib
 import itertools
 import math
-import os
 import json
 import re
 import sys
@@ -666,16 +665,6 @@ def _is_sql(s: str) -> bool:
     return _sqlish(s) is not None
 
 
-def sql_kind(s: str) -> Optional[str]:
-    """"read" for one read-only SELECT/WITH statement, "other" for any other SQL, None for text."""
-    try:
-        if not _is_sql(s):
-            return None
-        return "other" if _sql_violation(s) else "read"
-    except LiveError:
-        return "other"
-
-
 def _guard_text(v: str, tpl: Any) -> None:
     """One string argument of a call about to run; ``tpl`` the stored template at its place (or None).
     A stored SQL template: the filled text must be one read-only statement. A whole-value hole or text with
@@ -1254,7 +1243,7 @@ def rows_of(answer: Any) -> Optional[dict]:
 
 # ----------------------------------------------------------------------------- the last answer, kept 24 h
 #
-# The model Claude's dashboards use: every open, refresh and filter change runs the query live. The last
+# The model dashboards use: every open, refresh and filter change runs the query live. The last
 # answer is kept (24 h, on disk, so a restart keeps it) only to paint something at once while the live
 # call runs, and to draw gallery thumbnails without running every dashboard's queries.
 
@@ -1272,7 +1261,7 @@ def cache_get(aid: str, key: str) -> Optional[dict]:
     if hit is None:
         p = _cache_dir(aid) / f"{key}.json"
         try:
-            hit = json.loads(p.read_text(encoding="utf-8"))
+            hit = json.loads(store.read_text(p))
         except (OSError, ValueError):
             return None
     if time.time() - hit.get("at", 0) > KEEP_S:
@@ -1280,6 +1269,14 @@ def cache_get(aid: str, key: str) -> Optional[dict]:
     with _cache_lock:
         _cache[key] = hit
     return hit
+
+
+def _forget(aid: str, d) -> None:
+    with _cache_lock:  # keyed by a digest of (id, call, args): the whole in-memory cache goes, it fills again
+        _cache.clear()
+
+
+store.on_forget(_forget)
 
 
 def cache_put(aid: str, key: str, payload: dict) -> float:
@@ -1295,9 +1292,7 @@ def cache_put(aid: str, key: str, payload: dict) -> float:
         d.mkdir(exist_ok=True)
         blob = json.dumps(entry, ensure_ascii=False, default=str)
         if len(blob) <= MAX_ANSWER_BYTES:
-            tmp = d / f"{key}.tmp"
-            tmp.write_text(blob, encoding="utf-8")
-            os.replace(tmp, d / f"{key}.json")
+            store.write_atomic(d / f"{key}.json", blob, durable=False)
         for old in d.glob("*.json"):  # drop answers past their 24 h
             try:
                 if at - old.stat().st_mtime > KEEP_S:
@@ -1347,7 +1342,7 @@ def run_dataset(aid: str, dsid: str, params: dict, *, version: Optional[int] = N
         payload = {"status": "ok", **info, "args": args, "ms": int((time.time() - started) * 1000)}
         if table is not None:
             payload.update(table)
-        # The answer as the tool gave it too: a page's loader reads that (Claude's fn({answer, ...})).
+        # The answer as the tool gave it too: a page's loader reads that (fn({answer, ...})).
         if table is None or len(json.dumps(answer, ensure_ascii=False, default=str)) <= MAX_ANSWER_BYTES // 2:
             payload["answer"] = answer
         at = cache_put(aid, key, payload)
@@ -1381,7 +1376,7 @@ def _stored_tool(tool: str, d: dict) -> str:
 
 
 def loader_call(aid: str, dsid: str, tool: str, args: Any, version: Optional[int] = None) -> dict:
-    """``call(tool, args)`` inside a dataset's loader (Claude's): the dataset's own stored tool or its
+    """``call(tool, args)`` inside a dataset's loader: the dataset's own stored tool or its
     poll tool, for a query left running or a further page. Only for an approved dataset, only with the
     approved args (the stored args with their filters filled in, each passing its rule, or the stored
     poll args with their ``{{answer.…}}`` values), only read-only queries; the answer goes back as data."""
@@ -1592,7 +1587,7 @@ def test_args(aid: str, dsid: str, args: Any, params: Optional[dict] = None) -> 
 #
 # Warehouses answer a long query with "still running" (BigQuery: jobComplete false; Databricks: a
 # PENDING/RUNNING statement). The dashboard then asks again, 2 s doubling to 20 s, for up to 3 minutes,
-# the way Claude's dashboards poll: through the source's "poll" call when it names one (its args can
+# through the source's "poll" call when it names one (its args can
 # take values from the answer, "{{answer.jobReference.jobId}}"), else by repeating the same call.
 
 POLL_FIRST_S, POLL_MAX_S, POLL_DEADLINE_S = 2.0, 20.0, 180.0

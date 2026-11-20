@@ -16,6 +16,7 @@ version (sheet.json) starts the workbook again from it.
 from __future__ import annotations
 
 import json
+import os
 import math
 import re
 import secrets
@@ -35,6 +36,8 @@ MAX_TEXT = 4000
 MAX_LOG = 400
 MAX_LOG_CELLS = 200
 MAX_CHARTS = 20
+CHART_W, CHART_H = 388, 248   # a chart card's px as the page draws it (380 x 240 and its 4 px inset), at 100 %
+CHART_ROW, COL_W = 20, 96     # the shortest row (compact rows: the most rows a card covers); a column's default width
 MAX_OPS = 500
 FMT_PAD = 200          # range formats reach this far below the used range
 MAX_OPTIONS, MAX_OPTION = 50, 60   # a dropdown: this many options, each this long
@@ -601,6 +604,38 @@ def _clean_chart(ch, where: str, sh_charts: list) -> dict:
     return out
 
 
+def chart_box(sh: dict, at: str) -> tuple:
+    """The cells a chart anchored at ``at`` covers: (r1, c1, r2, c2), from its card's size and the columns' widths."""
+    r, c = parse_key(at) or (0, 0)
+    w, c2 = 0, c
+    while c2 < MAX_COLS and w < CHART_W:
+        w += min(800, max(24, sh["cols"].get(col_name(c2)) or COL_W))
+        c2 += 1
+    return r, c, r - (-CHART_H // CHART_ROW) - 1, c2 - 1
+
+
+def _place_chart(sh: dict, at: str) -> str:
+    """``at``, or the nearest anchor from it where the chart covers no other chart: below one before beside it."""
+    boxes = [chart_box(sh, ch["at"]) for ch in sh["charts"]]
+    r0, c0 = parse_key(at)
+    todo, seen = [(r0, c0)], set()
+    while todo:
+        todo.sort(key=lambda p: (p[0] - r0) + 4 * (p[1] - c0), reverse=True)  # a column is about four rows wide
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        b = chart_box(sh, key(*p))
+        hits = [x for x in boxes if b[0] <= x[2] and x[0] <= b[2] and b[1] <= x[3] and x[1] <= b[3]]
+        if not hits:
+            return key(*p)
+        for x in hits:
+            for q in ((x[2] + 1, p[1]), (p[0], x[3] + 1)):
+                if q[0] + b[2] - b[0] < MAX_ROWS and q[1] < MAX_COLS:
+                    todo.append(q)
+    return at
+
+
 def _chart_id(charts: list) -> str:
     n = 1
     have = {c.get("id") for c in charts}
@@ -669,7 +704,9 @@ def sheet_from_spec(spec, where: str, taken: list) -> dict:
     if not isinstance(charts, list) or len(charts) > MAX_CHARTS:
         raise SheetError("invalid", f"{where}.charts: a list of at most {MAX_CHARTS} charts")
     for i, ch in enumerate(charts):
-        sh["charts"].append(_clean_chart(ch, f"{where}.charts[{i}]", sh["charts"]))
+        ch = _clean_chart(ch, f"{where}.charts[{i}]", sh["charts"])
+        ch["at"] = _place_chart(sh, ch["at"])  # never over another chart, as an added one (V6l: two at F2, one hidden)
+        sh["charts"].append(ch)
     return sh
 
 
@@ -718,7 +755,8 @@ def check_file(path: Path) -> None:
 
 # ----------------------------------------------------------------------------- state
 
-_CACHE: dict = {}  # aid -> ((mtime_ns, size), state): a big workbook is parsed once, not on every read
+_CACHE: dict = {}  # aid -> ((mtime_ns, size, inode), state): a big workbook is parsed once, not on every read;
+# at most store.STATES_KEPT, the least recently used dropped first
 
 
 def _state_path(aid: str) -> Path:
@@ -745,12 +783,16 @@ def load(aid: str) -> dict:
     with _LOCK:
         p = _state_path(aid)
         st = None
-        if p.is_file():
+        try:
             s = p.stat()
-            stamp = (s.st_mtime_ns, s.st_size)
+        except FileNotFoundError:
+            s = None
+        if s is not None:
+            stamp = (s.st_mtime_ns, s.st_size, s.st_ino)
             hit = _CACHE.get(aid)
-            st = hit[1] if hit and hit[0] == stamp else json.loads(p.read_text(encoding="utf-8"))
-            _CACHE[aid] = (stamp, st)
+            st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
+            if st is not None:
+                store._cache_put(_CACHE, store.STATES_KEPT, aid, stamp, st)  # (a hit too: it goes last)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -761,11 +803,8 @@ def _save(aid: str, st: dict) -> None:
     p = _state_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    tmp.replace(p)
-    s = p.stat()
-    _CACHE[aid] = ((s.st_mtime_ns, s.st_size), st)
+    s = store.write_atomic(p, json.dumps(st, ensure_ascii=False, separators=(",", ":")), backup=True)
+    store._cache_put(_CACHE, store.STATES_KEPT, aid, (s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def _sheet(st: dict, sheet: Optional[str]) -> dict:
@@ -839,7 +878,7 @@ def _inside(m: dict, r1: int, c1: int, r2: int, c2: int) -> dict:
 
 
 def _view(st: dict, sh: dict, rng: Optional[str], agent: bool, full: bool, extent: Optional[tuple] = None) -> dict:
-    if agent and _stale(st, sh):  # a caller without the artifact's id (dump): computed, saved with the next save
+    if agent and _stale(st, sh):  # a caller without the artifact's id (snapshot): computed, saved with the next save
         with _LOCK:
             calc.refresh(st, value=_value, parse_key=parse_key, is_formula=_is_formula, limit=MAX_ROWS * MAX_COLS)
     nr, nc = extent or used(sh)
@@ -934,8 +973,8 @@ def read(aid: str, sheet: Optional[str] = None, range: Optional[str] = None, *, 
     return out
 
 
-def dump(aid: str) -> str:
-    """The live workbook as compact JSON (ha_read without a path): each sheet as capped rows."""
+def snapshot(aid: str) -> dict:
+    """The live workbook (ha_read without a path): each sheet as capped rows."""
     st = load(aid)
     meta = store.get_meta(aid) or {}
     sheets = []
@@ -948,7 +987,7 @@ def dump(aid: str) -> str:
             one["more"] = v["more"]
         one.update(_extras(sh, None, True))
         sheets.append(one)
-    return json.dumps({"title": meta.get("title", aid), "sheets": sheets}, ensure_ascii=False, separators=(",", ":"))
+    return {"title": meta.get("title", aid), "sheets": sheets}
 
 
 def with_lists(aid: str, out: dict) -> dict:
@@ -1141,6 +1180,11 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
     if by == "hermes" and base_rev is None and nonempty:
         raise SheetError("missing_guard", "writing over cells that hold values needs base_rev: the rev you read "
                                           "(ha_live_read)", rev=sh["rev"])
+    if by == "hermes" and touched:  # a cell the user is typing in (its editor open), not saved yet
+        busy = store.typing_hits(aid, [f"{sh['id']}!{k}" for k in touched])
+        if busy:
+            raise store.typing_conflict(SheetError, "cells", [b.split("!", 1)[1] for b in busy], sh["rev"],
+                                        f"ha_live_read id={aid} tab=<tab> range=<ids>", tab=sh["id"])
     if base_rev is not None:
         base = int(base_rev)
         cell_ops = any(o.get("op") in _CELL_OPS for o in ops)
@@ -1167,7 +1211,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
                 raise SheetError("conflict", "cells you change were changed meanwhile: read them again",
                                  rev=sh["rev"], cells=hit[:50])
     before = _snap(sh, "start")
-    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": []}
+    ctx = {"vals": set(), "fmt": set(), "struct": False, "outline": False, "new": None, "deleted": False, "skipped": [], "charts": [], "by": by}
     for o in ops:
         _one(st, sh, o, ctx)
     sh["rev"] += 1
@@ -1185,6 +1229,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
     st["log"].append(entry)
     st["log"] = st["log"][-MAX_LOG:]
     _save(aid, st)
+    store.edited(aid)  # the gallery's Last edited
     if not ctx["deleted"]:
         _record(aid, st, sh, by, before)
     out = {"ok": True, "sheet": sh["id"], "rev": sh["rev"], "changed": changed[:MAX_LOG_CELLS]}
@@ -1194,6 +1239,8 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
         out["skipped"] = f"{', '.join(ctx['skipped'][:10])} not written: inside a merged cell (write its top-left cell)"
     if ctx["new"]:
         out["new_sheet"] = ctx["new"]
+    if ctx["charts"]:  # where each new chart is; "asked": its spot held another chart, so it went to the next free one
+        out["charts"] = ctx["charts"]
     if ctx["struct"] or ctx["outline"]:
         out["sheets"] = overview(st)
     return out
@@ -1201,7 +1248,7 @@ def _apply(aid: str, st: dict, sh: dict, ops: list, by: str, base_rev: Optional[
 
 def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
     kind = o.get("op")
-    cells, fmt, vals = sh["cells"], sh["fmt"], sh["vals"]
+    cells, vals = sh["cells"], sh["vals"]
     if kind == "set":
         r0, c0 = parse_range(o.get("range"))[:2]
         if "values" not in o:
@@ -1278,7 +1325,12 @@ def _one(st: dict, sh: dict, o: dict, ctx: dict) -> None:
     elif kind == "add_chart":
         if len(sh["charts"]) >= MAX_CHARTS:
             raise SheetError("too_large", f"at most {MAX_CHARTS} charts in a sheet")
-        sh["charts"].append(_clean_chart({k: v for k, v in o.items() if k != "op"}, "add_chart", sh["charts"]))
+        ch = _clean_chart({k: v for k, v in o.items() if k != "op"}, "add_chart", sh["charts"])
+        # never over another chart; one the person puts (a drag, its undo) stays where it is put, over another or not
+        # (V6m: dropped near another, it went 620 px away)
+        asked, ch["at"] = ch["at"], ch["at"] if ctx["by"] == "user" else _place_chart(sh, ch["at"])
+        sh["charts"].append(ch)
+        ctx["charts"].append({"id": ch["id"], "at": ch["at"], **({"asked": asked} if asked != ch["at"] else {})})
     elif kind == "delete_chart":
         cid = o.get("id")
         if not any(c["id"] == cid for c in sh["charts"]):
@@ -1516,6 +1568,15 @@ MAX_SNAP_CELLS = 200_000  # all snapshots together keep at most this many cells
 SNAP_GAP = 120            # seconds: edits by the same author closer than this share one snapshot
 
 
+def _forget(aid: str, d: Path) -> None:
+    _CACHE.pop(aid, None)
+    for k in [k for k in _HIST_CACHE if str(k).startswith(str(d) + os.sep)]:
+        _HIST_CACHE.pop(k, None)
+
+
+store.on_forget(_forget)
+
+
 def _hist_path(aid: str) -> Path:
     return store._dir(aid) / "sheet" / "history.json"
 
@@ -1538,11 +1599,9 @@ def _hist_save(aid: str, version: int, snaps: list) -> None:
         snaps.pop(0)
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
     h = {"version": version, "snaps": snaps}
-    tmp.write_text(json.dumps(h, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    st = tmp.stat()
-    tmp.replace(p)
+    # Not fsynced (it holds every snapshot: megabytes); written whole and moved, an unreadable one reads as no history.
+    st = store.write_atomic(p, json.dumps(h, ensure_ascii=False, separators=(",", ":")), durable=False)
     store.json_remember(p, _HIST_CACHE, h, st, 8)
 
 
@@ -1628,5 +1687,6 @@ def restore(aid: str, sheet: Optional[str], rev: int) -> dict:
         except BaseException:
             _CACHE.pop(aid, None)
             raise
+        store.edited(aid)
         _record(aid, st, sh, "restore", before)
         return {"ok": True, "sheet": sh["id"], "rev": sh["rev"], "restored": x["rev"]}

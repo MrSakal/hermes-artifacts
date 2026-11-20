@@ -60,7 +60,8 @@ _LOADS = ("ready", "threw", "timeout")  # an outcome that ends a load (stalled c
 
 _MLOCK = threading.Lock()
 _PENDING: dict = {}  # aid -> {"created": meta created, "ops": [op, ...]}
-_LAST: dict = {}  # aid -> when this process last wrote its file
+_LAST: dict = {}  # aid -> when this process last wrote its file (past LAST_KEPT, the ones that no longer matter go)
+LAST_KEPT = 64
 _TIMERS: dict = {}  # aid -> the threading.Timer that writes it next
 _ENABLED: tuple = (0.0, True)  # (read at, value): the setting, read again after 5 s
 
@@ -267,18 +268,34 @@ def _prune(data: dict, now: float) -> dict:
     return out
 
 
-def _load(aid: str) -> dict:
+def _load(aid: str, strict: bool = False) -> dict:
+    """What is on disk for ``aid`` ({} when nothing, or unreadable). ``strict`` (before a write): a file held
+    by another program past store.read_text's retries raises, so the write never puts {} over it."""
     try:
-        data = json.loads(_path(aid).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(store.read_text(_path(aid)))
+    except (FileNotFoundError, NotADirectoryError, ValueError):
+        return {}
+    except OSError:
+        if strict:
+            raise
         return {}
     return data if isinstance(data, dict) else {}
 
 
 def _write_file(p: Path, data: dict) -> None:
-    tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    os.replace(tmp, p)
+    store.write_atomic(p, json.dumps(data, ensure_ascii=False, separators=(",", ":")), durable=False)
+
+
+def _forget(aid: str, d: Path) -> None:
+    with _MLOCK:
+        t = _TIMERS.pop(aid, None)
+        _PENDING.pop(aid, None)
+        _LAST.pop(aid, None)
+    if t is not None:
+        t.cancel()
+
+
+store.on_forget(_forget)
 
 
 def flush(aid: str, now: Optional[float] = None) -> bool:
@@ -287,7 +304,10 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
     with _MLOCK:
         t = _TIMERS.pop(aid, None)
         pend = _PENDING.pop(aid, None)
-        _LAST[aid] = time.time() if now is None else now
+        at = _LAST[aid] = time.time() if now is None else now
+        if len(_LAST) > LAST_KEPT:  # one written WRITE_EVERY_S ago or more counts as never written: it goes
+            for k in [k for k, w in _LAST.items() if at - w >= WRITE_EVERY_S]:
+                del _LAST[k]
     if t is not None:
         t.cancel()
     if not pend or not pend["ops"]:
@@ -297,7 +317,7 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
             meta = store.get_meta(aid)
             if not meta or meta.get("created") != pend["created"]:
                 return False
-            data = _load(aid)
+            data = _load(aid, strict=True)
             for op, at in pend["ops"]:
                 _apply(data, op, at)
             _write_file(_path(aid), _prune(data, time.time() if now is None else now))
@@ -305,11 +325,6 @@ def flush(aid: str, now: Optional[float] = None) -> bool:
     except Exception:
         logger.debug("writing %s's page diagnostics failed", aid, exc_info=True)
         return False
-
-
-def flush_all() -> None:
-    for aid in list(_PENDING):
-        flush(aid)
 
 
 def record(aid: str, op: dict, meta: Optional[dict] = None, now: Optional[float] = None) -> bool:
@@ -358,6 +373,14 @@ def read(aid: str, now: Optional[float] = None) -> dict:
 
 def version_record(aid: str, n: int, now: Optional[float] = None) -> Optional[dict]:
     return read(aid, now).get(f"v{int(n)}")
+
+
+def written_at(aid: str) -> float:
+    """When the artifact's record was last written to disk (by any process), 0 when never."""
+    try:
+        return os.stat(_path(aid)).st_mtime
+    except (OSError, ValueError):
+        return 0.0
 
 
 # ----------------------------------------------------------------------------- for the agent

@@ -1,4 +1,4 @@
-"""The dashboard's History, its saves, drafts and looks (Claude's Dashboard type, the Hermes way)."""
+"""The dashboard's History, its saves and looks (an existing Dashboard type, done the Hermes way)."""
 
 import json
 import os
@@ -54,9 +54,12 @@ class HistoryTests(unittest.TestCase):
         self.assertIn("one", store.read_file(self.aid, "index.html").decode())
         self.assertEqual(history.versions(self.aid)[0]["summary"], {"what": "restored", "restored": 1})
 
-    def test_drafts_are_named(self):
+    def test_an_old_drafts_files_are_files_never_the_page(self):
+        # Versions before 0.20.0 wrote drafts beside the page; History names them as the files they are.
         store.publish(aid=self.aid, base=True, files={"drafts/d1/request.json": {"format": "scrollyteller"}}, by="user")
-        self.assertEqual(history.versions(self.aid)[0]["summary"]["things"], [{"t": "draft", "kind": "added"}])
+        self.assertEqual(history.versions(self.aid)[0]["summary"]["things"], [{"t": "files", "n": 1, "name": "drafts/d1/request.json"}])
+        store.publish(aid=self.aid, base=True, files={"drafts/d1/index.html": "<p>d</p>"}, by="hermes")
+        self.assertEqual(history.versions(self.aid)[0]["summary"]["things"], [{"t": "files", "n": 1, "name": "drafts/d1/index.html"}])
 
 
 class SaveTests(unittest.TestCase):
@@ -64,10 +67,9 @@ class SaveTests(unittest.TestCase):
         self.aid = store.publish(title="S", type="dashboard", files={"dashboard.json": SPEC, "index.html": "<p>x</p>", "data/m.csv": "m\n1\n"})["id"]
 
     def test_what_a_dashboard_page_may_save(self):
-        for files in ({"dashboard.json": json.dumps(SPEC)}, {"index.html": "<p>y</p>"}, {"data/m.csv": "m\n2\n", "data/m2.json": "[]"},
-                      {"drafts/d1/index.html": "<p>d</p>", "drafts/d1/request.json": "{}"}):
+        for files in ({"dashboard.json": json.dumps(SPEC)}, {"index.html": "<p>y</p>"}, {"data/m.csv": "m\n2\n", "data/m2.json": "[]"}):
             self.assertTrue(op(self.aid, "save", files=files)["ok"], files)
-        for files in ({"data/../x.csv": "a"}, {"drafts/d1/x/y.html": "a"}, {"run.py": "a"}, {"data/x.exe": "a"}):
+        for files in ({"data/../x.csv": "a"}, {"drafts/d1/index.html": "a"}, {"drafts/d1/request.json": "{}"}, {"run.py": "a"}, {"data/x.exe": "a"}):
             with self.assertRaises(api.ApiError, msg=files):
                 op(self.aid, "save", files=files)
 
@@ -82,39 +84,23 @@ global.getComputedStyle = (e) => ({ color: hex(e.style.color) });
 global.window = { kit: { hostTheme() {} } };
 eval(fs.readFileSync(process.argv[1], 'utf8'));
 const K = window.dashDesignKit;
-const files = {
-  'index.html': '<p>old</p>', 'extra.js': 'x', 'dashboard.json': '{}',
-  'drafts/a1/request.json': JSON.stringify({ format: 'scrollyteller', at: '2026-11-06T10:00:00Z' }),
-  'drafts/a1/index.html': '<p>draft</p>', 'drafts/a1/story.css': 'p{}',
-  'drafts/a1/datasets.json': JSON.stringify({ extra: { title: 'Extra', source: { kind: 'rows', rows: [] } } }),
-  'drafts/b2/request.json': JSON.stringify({ format: 'nonsense' })
-};
-const d = K.draftOf(files);
-const saved = K.saveDraftFiles(files, { title: 'T', layout: [1], datasets: { m: {} } }, d);
 const KEYS = ['ground', 'card', 'text', 'muted', 'border', 'good', 'warning', 'bad'];
 const asIs = (set, out) => !!out && KEYS.every((k) => out[k] === set[k]) && JSON.stringify(out.charts) === JSON.stringify(set.charts);
 const looks = {};
 Object.keys(K.LOOKS).forEach((n) => { const c = K.check(K.LOOKS[n]); looks[n] = { light: asIs(K.LOOKS[n].light, c && c.light), dark: asIs(K.LOOKS[n].dark, c && c.dark) }; });
 const bad = K.check({ light: { ground: '#333333', text: '#000000' } });
 const fixed = K.check({ light: { ground: '#dddddd', card: '#111111', text: '#dddddd', charts: ['#dddddd', '#0d9488'] } });
-console.log(JSON.stringify({ d, saved, looks, mist: K.LOOKS.Mist, bad, fixed: fixed && fixed.light }));
+console.log(JSON.stringify({ looks, mist: K.LOOKS.Mist, bad, fixed: fixed && fixed.light }));
 """
 
 
 @unittest.skipIf(NODE is None, "node not installed")
 class DesignKitTests(unittest.TestCase):
-    def test_drafts_and_looks(self):
+    def test_looks(self):
         r = subprocess.run([NODE, "-e", DESIGN, str(PLUGIN / "hermes_artifacts" / "types" / "dashboard" / "design.js")],
                            capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         out = json.loads(r.stdout.strip().splitlines()[-1])
-        self.assertEqual(out["d"], {"id": "a1", "format": "scrollyteller", "at": "2026-11-06T10:00:00Z", "page": "drafts/a1/index.html"})
-        s = out["saved"]
-        self.assertEqual((s["index.html"], s["story.css"], s["extra.js"]), ("<p>draft</p>", "p{}", None))
-        self.assertTrue(all(s[k] is None for k in ("drafts/a1/request.json", "drafts/a1/index.html", "drafts/a1/datasets.json")))
-        spec = json.loads(s["dashboard.json"])
-        self.assertEqual(sorted(spec["datasets"]), ["extra", "m"])
-        self.assertNotIn("layout", spec)
         # Every ready-made look is worn exactly as written, in light and dark (no value fixed or dropped).
         self.assertEqual(out["looks"], {n: {"light": True, "dark": True} for n in ("Mist", "Ocean", "Meadow")})
         # Mist is the kit's own palette (types/_kit/kit.css), the plugin's one fallback family.
@@ -142,6 +128,103 @@ class BannerTests(unittest.TestCase):
         self.assertIn(".dash-conn-text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }", css)
         self.assertIn(".dash-conn-row > .kit-btn { flex-shrink: 0; }", css)
         self.assertIn(".dash-notice-text { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }", css)
+
+
+KPI4 = {"title": "Orders", "params": {"region": ""},
+        "datasets": {"r": {"title": "Regions", "source": {"kind": "rows", "rows": [{"region": "North", "orders": 41}, {"region": "South", "orders": 17}]}}},
+        "layout": [{"type": "filters", "items": [{"param": "region", "label": "Region", "input": "select", "options": {"source": "r", "field": "region"}}]},
+                   {"type": "kpis", "items": [{"label": "A", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "B", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "C", "source": "r", "field": "orders", "agg": "sum", "format": "int"},
+                                              {"label": "Region selected", "source": "r", "field": "orders", "agg": "sum", "format": "int",
+                                               "note": "orders in {param:region}"}]}]}
+
+
+class DashboardInTheBrowser(unittest.TestCase):
+    """Round 3: Full screen did not end on Esc, a KPI note read "orders in" with the region on All, and four KPIs
+    went 3 + 1 at 1000 px. Esc ends full screen, the note names the "all" choice in words ("all regions", not "All"),
+    four KPIs go 4 or 2 + 2."""
+
+    def test_esc_note_and_balance(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(title="Orders", type="dashboard", files={"dashboard.json": KPI4})["id"]
+            out = {}
+            for w in (560, 760, 1000, 1500):
+                r = B.drive(f"await api.size({w}, 760); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+                  const rows = await api.frame('(() => { const t = [...document.querySelectorAll(".c-kpi")].map(e => Math.round(e.getBoundingClientRect().top)); const m = {}; t.forEach(x => m[x] = (m[x] || 0) + 1); return Object.values(m) })()')
+                  const note = await api.frame('[...document.querySelectorAll(".c-kpi-note")].map(e => e.textContent.trim()).filter(Boolean)')
+                  const fb = '[...document.querySelectorAll(".dash-bar .kit-btn")].find(b => b.innerHTML.includes(Object.assign(document.createElement("i"), {innerHTML: kit.icon("expand")}).innerHTML))'
+                  await api.clickIn(fb); await api.sleep(150)
+                  const on = await api.frame(fb + '.getAttribute("aria-pressed")')
+                  await api.key('Escape', 'Escape', 27); await api.sleep(150)
+                  return { rows, note, on, off: await api.frame(fb + '.getAttribute("aria-pressed")') }
+                """)
+                self.assertIsNone(r.get("err"), r)
+                out[w] = r["out"]
+        finally:
+            host.close()
+        for w, o in out.items():
+            self.assertNotIn(1, o["rows"][-1:] if len(o["rows"]) > 1 else [], (w, o["rows"]))   # no KPI alone on the last row
+            # the "all" choice in words, from the filter's own label (round V2: "orders in All")
+            self.assertIn(o["note"], (["orders in all regions"], ["orders in minden region"]), w)
+            self.assertEqual((o["on"], o["off"]), ("true", "false"), w)
+
+    def test_every_load_starts_on_the_default_filters(self):
+        """0.20.0 (owner: every reopen loads the default view): filters were kept per artifact and came back.
+        A load ignores what older versions kept, and a change is no longer kept."""
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            aid = store.publish(title="Kept", type="dashboard", files={"dashboard.json": SPEC, "index.html": "<p id='live'>live</p>", "data/m.csv": "m,n\n1,2\n"})["id"]
+            store.kv_set(aid, "dash.params", {"region": "South"})
+            r = B.drive(f"await api.size(1000, 700); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+              const first = await api.frame('dash.params()')
+              await api.frame('dash.setParams({ region: "East" })'); await api.sleep(150)
+              return { first, now: await api.frame('dash.params()') }
+            """)
+            self.assertIsNone(r.get("err"), r)
+        finally:
+            host.close()
+        self.assertEqual(r["out"]["first"], {"region": ""})
+        self.assertEqual(r["out"]["now"], {"region": "East"})  # a change still works, for this session
+        self.assertEqual(store.kv_all(aid).get("dash.params"), {"region": "South"})  # not written by the change
+
+    def test_an_old_draft_left_beside_it_opens_as_the_plain_dashboard(self):
+        """0.20.0 (owner): drafts are retired. A dashboard an older version left a draft in (drafts/<id>/ with its
+        request, page, filters and sources) opens as the dashboard itself: its page, its filter defaults (Reset goes
+        back to them), no draft bar, nothing of the draft drawn."""
+        sys.path.insert(0, str(ROOT / "tests"))
+        import _browser as B
+        if not B.AVAILABLE:
+            self.skipTest("Chrome or node is not installed")
+        host = B.Host()
+        try:
+            spec = dict(SPEC, params={"region": "", "year": "2026"})
+            aid = store.publish(title="Old", type="dashboard", files={"dashboard.json": spec, "index.html": "<p id='live'>live</p>", "data/m.csv": "m,n\n1,2\n",
+                                                                  "drafts/d1/request.json": {"format": "scrollyteller", "at": "2026-11-06T10:00:00Z"},
+                                                                  "drafts/d1/index.html": "<p id='dr'>draft</p>",
+                                                                  "drafts/d1/params.json": {"region": "West"},
+                                                                  "drafts/d1/datasets.json": {"extra": {"title": "Extra", "source": {"kind": "rows", "rows": []}}}})["id"]
+            r = B.drive(f"await api.size(1000, 700); await api.go({json.dumps(host.url(aid))}, 800); await api.sleep(2000)\n" + """
+              const first = await api.frame('({ params: dash.params(), live: !!document.getElementById("live"), draft: !!document.getElementById("dr"),'
+                + ' bars: [...document.querySelectorAll(".dash-notice")].map(e => e.textContent.trim()) })')
+              await api.frame('dash.setParams({ region: "East", year: "2025" }); dash.resetParams()')
+              return { first, reset: await api.frame('dash.params()') }
+            """)
+            self.assertIsNone(r.get("err"), r)
+        finally:
+            host.close()
+        want = {"region": "", "year": "2026"}
+        self.assertEqual(r["out"]["first"], {"params": want, "live": True, "draft": False, "bars": []})
+        self.assertEqual(r["out"]["reset"], want)
 
 
 if __name__ == "__main__":

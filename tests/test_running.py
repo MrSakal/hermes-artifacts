@@ -430,6 +430,22 @@ class PluginSideTests(unittest.TestCase):
         second.unload[0]()  # a second unload: nothing to stop, no error
         self.assertEqual(Srv.stopped, 1)
 
+    def test_register_asks_no_pid_and_imports_no_ctypes(self):
+        """Every Hermes start runs register(): it records, it does not check other processes' pids (on
+        Windows that imports ctypes, most of register()'s time); the gallery's status() prunes."""
+        code = (
+            "import sys, os, importlib.util as u, tempfile\n"
+            "os.environ['HERMES_ARTIFACTS_DIR'] = tempfile.mkdtemp()\n"
+            f"sys.path.insert(0, {str(PLUGIN)!r})\n"
+            f"s = u.spec_from_file_location('hap', {str(PLUGIN / '__init__.py')!r}, submodule_search_locations=[{str(PLUGIN)!r}])\n"
+            "m = u.module_from_spec(s); sys.modules['hap'] = m; s.loader.exec_module(m)\n"
+            "class C:\n"
+            "    def __getattr__(self, n): return lambda *a, **k: None\n"
+            "m.register(C())\n"
+            "print('ctypes' in sys.modules, os.path.isfile(os.path.join(os.environ['HERMES_ARTIFACTS_DIR'], '.run', f'loaded-{os.getpid()}.json')))\n")
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.stdout.split(), ["False", "True"], out.stderr[-2000:])
+
     def test_an_older_hermes_without_on_unload_still_registers(self):
         class Ctx:
             def register_hook(self, *a, **kw):

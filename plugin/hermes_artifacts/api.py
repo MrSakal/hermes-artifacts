@@ -7,7 +7,9 @@ fixed and this module reloadable makes a plugin update take effect without resta
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 from typing import Any, Optional
 
@@ -21,18 +23,65 @@ class ApiError(Exception):
         self.status, self.detail = status, detail
 
 
-def _view(m: dict, base=None) -> dict:
+def _view(m: dict, base=None, extras: Optional[tuple] = None) -> dict:
+    """A gallery card. ``extras``: (open comment threads, has a preview) when the caller has them (store.cards)."""
+    comments, preview = extras if extras is not None else (
+        store.open_threads(m["id"], base), store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file())
     return {"id": m["id"], "title": m["title"], "type": m.get("type", "page"),
             "version": m["versions"][-1]["n"], "versions": [x["n"] for x in m["versions"]],
             "created": m.get("created"), "updated": m.get("updated"),
             "description": m.get("description", ""), "pinned": bool(m.get("pinned")),
             "session": m.get("session"), "folder": m.get("folder") or None, "opened": m.get("opened"),
-            "comments": store.open_user_comments(m["id"], base),
-            **({"preview": True} if store.preview_path(m["id"], m["versions"][-1]["n"], base).is_file() else {})}
+            "comments": comments, **({"preview": True} if preview else {})}
+
+
+def copy_title(title: str, word: str, titles) -> str:
+    """Duplicate's title: "X (copy)", then "X (copy 2)", "X (copy 3)"… whichever of those ``titles`` (the
+    artifacts there are) lacks first. A copy of a copy counts on from its original: "X (copy)" and
+    "X (copy 2)" give the next free "X (copy n)". ``word`` is the gallery's own word for it ("copy",
+    "másolat")."""
+    m = re.fullmatch(r"(.*) \(" + re.escape(word) + r"(?: [0-9]+)?\)", title, re.S)
+    base, have = (m.group(1) if m and m.group(1).strip() else title), set(titles)
+    n = 1
+    while True:
+        name = (base[:200 - len(word) - 12] + (f" ({word})" if n == 1 else f" ({word} {n})"))
+        if name not in have:
+            return name
+        n += 1
+
+
+# A typed artifact's document is its type's runtime (250-560 KB, the same for every artifact of the type) with
+# one content tag before </head>. The host may cache the runtime part ("shell", the bridge already in it) by its
+# hash and fetch only the content: GET artifacts/<id>/html?split=1 -> {id, version, type, shell: <hash>,
+# content: <tag>} (a page, or a runtime without </head>: {html} as without split); GET shells/<hash> ->
+# {hash, head, tail} (404 once this process no longer knows it: ask again without split). The document is
+# head + content + tail, byte for byte what GET artifacts/<id>/html answers.
+_SHELLS: dict = {}  # hash -> (head, tail)
+_SHELL_OF: dict = {}  # kind -> (runtime html, bridge tag, hash): made again when either changes
+
+
+def _shell(kind: str) -> Optional[str]:
+    from .server import _bridge_tag
+    html, tag = render.runtime(kind), _bridge_tag()
+    hit = _SHELL_OF.get(kind)
+    if hit and hit[0] is html and hit[1] is tag:
+        return hit[2]
+    i = html.lower().find("</head>")
+    if i == -1:
+        return None
+    head = inject_bridge(html[:i].encode("utf-8")).decode("utf-8")
+    tail = html[i:]
+    h = hashlib.sha256((head + "\0" + tail).encode("utf-8")).hexdigest()[:32]
+    old = hit[2] if hit else None
+    if old and old != h:
+        _SHELLS.pop(old, None)
+    _SHELLS[h] = (head, tail)
+    _SHELL_OF[kind] = (html, tag, h)
+    return h
 
 
 def chat_status(session: Optional[str]) -> dict:
-    """The artifact's chat, as Claude's Chat button decides: open it while it exists and is not
+    """The artifact's chat, as the Chat button decides: open it while it exists and is not
     archived, else start a new chat that refers to the artifact. ``known`` is false when Hermes'
     session store can't be read here (the desktop then asks the gateway)."""
     if not session:
@@ -81,9 +130,8 @@ _VENDOR = render.TYPES_DIR / "vendor"
 # What a typed artifact's own viewer may write back (its editor saving a change), per type.
 _SAVE_PATHS = {"slides": r"^(deck\.json|slides/[A-Za-z0-9_-]{1,64}\.html|img/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
                "doc": r"^doc\.md$",
-               # Dashboard: the editor (page text, cards), Design (dashboard.json look), a replaced data file, drafts.
-               "dashboard": r"^(dashboard\.json|[A-Za-z0-9_-]{1,64}\.(html|css|js)|data/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\.(csv|tsv|json)"
-                            r"|drafts/[A-Za-z0-9_-]{1,40}/[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(html|css|js|json))$",
+               # Dashboard: the editor (page text, cards), Design (dashboard.json look), a replaced data file.
+               "dashboard": r"^(dashboard\.json|[A-Za-z0-9_-]{1,64}\.(html|css|js)|data/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\.(csv|tsv|json))$",
                # Design: the index, artboard sources (the canvas edits text, styles, positions, tweaks) and uploads.
                "design": r"^(canvas\.json|[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}){0,3}\.dc\.html"
                          r"|uploads/[A-Za-z0-9_-]{1,64}\.(png|jpe?g|gif|webp))$",
@@ -103,6 +151,7 @@ _IMG_URI = re.compile(r"^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)
 _FONT_PATH = re.compile(r"\.(woff2?|ttf|otf)$", re.I)
 _FONT_URI = re.compile(r"^data:(?:font/[a-z0-9.+-]+|application/(?:font-woff2?|x-font-[a-z]+|vnd\.ms-opentype|octet-stream));base64,([A-Za-z0-9+/=]+)$")
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+FOLDER_MAX = 40  # a new gallery folder's name at most (plugin.js FOLDER_MAX); older, longer ones keep working
 # A mesh the model page brings in: any data: URL (browsers name these types inconsistently).
 _MESH_PATH = re.compile(r"^meshes/.+\.(glb|gltf|stl|obj|ply|3mf)$", re.I)
 _ANY_URI = re.compile(r"^data:[^,]*;base64,([A-Za-z0-9+/=]+)$")
@@ -133,6 +182,31 @@ def design_system(dsid: Optional[str], version: Optional[int] = None) -> dict:
     fonts = {k: v for k, v in files.items() if k.startswith("fonts/")}
     return {"id": dsid, "title": m.get("title", dsid), "version": n, "latest": kept[-1], "tokens": tokens,
             "css": files.get("components/bundle.css", ""), "fonts": fonts, "readme": files.get("README.md", "")}
+
+
+def _holds(aid: str, n: int, files: dict) -> bool:
+    """Version n has each of a save's files as it sent them (None: no such file). A JSON file the publish
+    wrote again (a deck's design system records) counts by its value."""
+    import base64
+    for rel, val in files.items():
+        try:
+            have = store.read_file(aid, rel, n)
+        except FileNotFoundError:
+            have = None
+        if val is None or have is None:
+            if val is not have:
+                return False
+            continue
+        want = base64.b64decode(val["base64"]) if isinstance(val, dict) else val.encode("utf-8")
+        if have == want:
+            continue
+        try:
+            if rel.endswith(".json") and json.loads(have) == json.loads(want):
+                continue
+        except ValueError:
+            pass
+        return False
+    return True
 
 
 def _op(aid: str, op: str, a: dict) -> dict:
@@ -177,8 +251,13 @@ def _op(aid: str, op: str, a: dict) -> dict:
                 val = {"base64": fm.group(1)}
             out[str(rel)] = val
         files = out
-        if a.get("base_version") and a["base_version"] != m["versions"][-1]["n"]:
-            return {"ok": False, "conflict": True, "version": m["versions"][-1]["n"]}
+        vs = m["versions"]
+        if a.get("base_version") and a["base_version"] != vs[-1]["n"]:
+            # The same save sent again (the host resends one whose connection dropped before its answer): if it
+            # landed, the latest version is it on its base, and that version is the answer, not a conflict.
+            if len(vs) > 1 and a["base_version"] == vs[-2]["n"] and _holds(aid, vs[-1]["n"], files):
+                return {"ok": True, "version": vs[-1]["n"]}
+            return {"ok": False, "conflict": True, "version": vs[-1]["n"]}
         nm = store.publish(aid=aid, base=True, files=files, by="user")
         return {"ok": True, "version": nm["versions"][-1]["n"]}
     if op == "preview.set":
@@ -229,11 +308,16 @@ def _op(aid: str, op: str, a: dict) -> dict:
         store.view_set(str(a.get("session", "")), aid if not a.get("closed") else None,
                        a.get("context") if isinstance(a.get("context"), dict) else {})
         return {"ok": True}
+    if op == "typing":
+        # The parts the user is typing in now (store.typing_set): Hermes' edit of them waits for their save.
+        store.typing_set(aid, a.get("keys"))
+        return {"ok": True}
     if op == "report":
         kind = str(a.get("kind", ""))
         store.report_set(aid, kind, a.get("data") if isinstance(a.get("data"), dict) else {})
         return {"ok": True}
     if op == "doc.read":
+        store.typing_expire()  # (a page's poll: the typing marks' file goes once its last mark expired)
         return docs.read(aid, a.get("tab") or None, since_rev=_int(a.get("since_rev")))
     if op == "doc.history":
         return docs.history(aid, a.get("tab") or None)
@@ -298,6 +382,7 @@ def _sheet_op(aid: str, op: str, a: dict) -> dict:
     sheet = a.get("sheet") or None
     try:
         if op == "sheet.read":
+            store.typing_expire()
             return sheets.with_lists(aid, sheets.read(aid, sheet, a.get("range") or None, since_rev=_int(a.get("since_rev"))))
         if op == "sheet.edit":
             try:
@@ -332,6 +417,7 @@ def _board_op(aid: str, op: str, a: dict) -> dict:
     """The board page's own ops (the user editing). Hermes edits through ha_live_edit."""
     try:
         if op == "board.read":
+            store.typing_expire()
             return boards.read(aid, since_rev=_int(a.get("since_rev")))
         if op == "board.edit":
             try:
@@ -367,18 +453,31 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
         if parts == ["artifacts"] and method == "GET":
             # The gallery polls this while it is open: it also purges the trash, at most once a day.
             store.purge_trash_due()
+            store.typing_expire()
             base = store.root()
-            arts = [_view(m, base) for m in store.list_all()]
+            arts = [_view(m, base, (n, pv)) for m, n, pv in store.cards()]
             settings = store.settings()
             folders = list(settings.get("folders") or [])
             folders += sorted({a["folder"] for a in arts if a.get("folder")} - set(folders))
-            return {"artifacts": arts, "folders": folders,
-                    "default_design_system": settings.get("default_design_system"),
-                    "design_system_for": settings.get("design_system_for") or {},
-                    "making": store.making_all(),
-                    # Host only (a page reaches nothing but /op): the code the server's processes run
-                    # against the installed files; the gallery says when a restart or an update is due.
-                    "server": running.status(base)}
+            out = {"artifacts": arts, "folders": folders,
+                   "default_design_system": settings.get("default_design_system"),
+                   "design_system_for": settings.get("design_system_for") or {},
+                   "making": store.making_all(),
+                   # Host only (a page reaches nothing but /op): the code the server's processes run
+                   # against the installed files; the gallery says when a restart or an update is due.
+                   "server": running.status(base)}
+            # etag: a digest of this whole answer. The gallery sends the one it holds (?etag=...): the same
+            # answer comes back as {"unchanged": true, "etag"} alone (no 266 KB of cards at 1000 artifacts).
+            etag = hashlib.sha1(json.dumps(out, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()[:20]
+            if str(query.get("etag") or "") == etag:
+                return {"unchanged": True, "etag": etag}
+            out["etag"] = etag
+            return out
+        if parts == ["chat-note"] and method == "POST":
+            # What a message Hermes Desktop puts into the chat is about (ids), for the model only (store.chat_note_add).
+            # session: the chat it goes into (stored session id), when Desktop knows it.
+            store.chat_note_add(str(body.get("text", "")), str(body.get("ref", "")), str(body.get("session") or ""))
+            return {"ok": True}
         if parts == ["making"] and method == "GET":
             # What a chat is making now (Hermes read a guide, has not published): after a reload or a chat switch.
             session = str(query.get("session") or "")
@@ -398,12 +497,29 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
             store.settings_set("design_system_for", per or None)
             return {"design_system_for": per}
         if parts == ["folders"] and method == "POST":
-            # A gallery folder (Claude's New › Folder, Move to › create).
+            # A gallery folder (New › Folder, Move to › create; its chip's Rename and Delete folder).
             name = " ".join(str(body.get("name") or "").split())[:60]
             if not name:
                 raise ApiError(400, "a folder needs a name")
             have = list(store.settings().get("folders") or [])
-            if body.get("delete"):
+            if len(name) > FOLDER_MAX and name not in have and "rename" not in body and not body.get("delete"):
+                raise ApiError(400, f"a folder name is at most {FOLDER_MAX} characters")
+            if "rename" in body:
+                # In its place in the list; what is in it moves along (into a folder of that name, if one is there).
+                new = " ".join(str(body.get("rename") or "").split())[:60]
+                if not new:
+                    raise ApiError(400, "a folder needs a name")
+                if len(new) > FOLDER_MAX and new != name:
+                    raise ApiError(400, f"a folder name is at most {FOLDER_MAX} characters")
+                out: list = []
+                for f in (new if f == name else f for f in have):
+                    if f not in out:
+                        out.append(f)
+                store.settings_set("folders", out)
+                for m in store.list_all():
+                    if m.get("folder") == name:
+                        store.update_meta(m["id"], folder=new)
+            elif body.get("delete"):
                 store.settings_set("folders", [f for f in have if f != name])
                 for m in store.list_all():
                     if m.get("folder") == name:
@@ -442,6 +558,11 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                 raise ApiError(404, str(e))
             except (FileExistsError, ValueError) as e:
                 raise ApiError(409, str(e))
+        if len(parts) == 2 and parts[0] == "shells" and method == "GET":
+            got = _SHELLS.get(parts[1])
+            if got is None:
+                raise ApiError(404, "unknown shell: GET the html without split")
+            return {"hash": parts[1], "head": got[0], "tail": got[1]}
         if len(parts) == 2 and parts[0] == "vendor" and method == "GET":
             p = (_VENDOR / parts[1]).resolve()
             if p.parent != _VENDOR.resolve() or not p.is_file() or p.suffix != ".js":
@@ -461,13 +582,39 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     return {"ok": True}
             elif rest == ["html"] and method == "GET":
                 m = _meta(aid)
+                kind = m.get("type", "page")
                 try:
-                    html = render.render(m, store.version_dir(aid, _int(query.get("v"))), page=query.get("page") or None,
+                    vdir = store.version_dir(aid, _int(query.get("v")))
+                except FileNotFoundError:
+                    raise ApiError(404, "unknown version or page")
+                shown = int(vdir.name[1:])  # the version answered (the latest when v is left out)
+                if str(query.get("export", "")).lower() in ("1", "true", "yes"):
+                    # A page's Export: its own document, bundled, standalone: no host bridge, no line map. A
+                    # typed artifact exports from its own page (its Export menu), not from here.
+                    if kind != "page":
+                        raise ApiError(400, "a typed artifact exports from its own page")
+                    try:
+                        html = render.render(m, vdir, page=query.get("page") or None, lines=False)
+                    except FileNotFoundError:
+                        raise ApiError(404, "unknown version or page")
+                    return {"id": aid, "version": shown, "type": kind, "html": html}
+                if str(query.get("split", "")).lower() in ("1", "true", "yes") and kind != "page":
+                    shell = _shell(kind)
+                    if shell:
+                        try:
+                            tag = render.content_tag(m, vdir,
+                                                     thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
+                                                     lang=str(query.get("lang") or "")[:8])
+                        except FileNotFoundError:
+                            raise ApiError(404, "unknown version or page")
+                        return {"id": aid, "version": shown, "type": kind, "shell": shell, "content": tag}
+                try:
+                    html = render.render(m, vdir, page=query.get("page") or None,
                                          thumb=str(query.get("thumb", "")).lower() in ("1", "true", "yes"),
                                          lang=str(query.get("lang") or "")[:8])
                 except FileNotFoundError:
                     raise ApiError(404, "unknown version or page")
-                return {"id": aid, "version": _int(query.get("v")), "type": m.get("type", "page"),
+                return {"id": aid, "version": shown, "type": m.get("type", "page"),
                         "html": inject_bridge(html.encode("utf-8")).decode("utf-8")}
             elif rest == ["preview"] and method == "GET":
                 # The gallery card's picture (a model's view): one small request per card shown.
@@ -485,8 +632,10 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
                     raise ApiError(404, "unknown version")
             elif rest == ["duplicate"] and method == "POST":
                 m = _meta(aid)
-                suffix = str(body.get("suffix") or " (copy)")[:40]
-                new = store.publish(path=str(store.version_dir(aid)), title=(m["title"] + suffix)[:200],
+                word = str(body.get("word") or "").strip()
+                word = word if 0 < len(word) <= 30 and not re.search(r"[()\s]", word) else "copy"
+                title = copy_title(m["title"], word, [x["title"] for x in store.list_all()])
+                new = store.publish(path=str(store.version_dir(aid)), title=title,
                                     description=m.get("description", ""), type=m.get("type", "page"),
                                     session=m.get("session"))
                 return _view(store.get_meta(new["id"]))
@@ -566,6 +715,12 @@ def handle(method: str, path: str, query: dict, body: Any) -> Any:
         raise ApiError(404 if e.status == "missing" else 400, e.message)
     except FileNotFoundError as e:
         raise ApiError(404, f"not found: {e}")
+    except PermissionError as e:
+        # A plugin file another program (a virus scanner, a backup, another writer here) held open past
+        # store.read_text's and write_atomic's retries: nothing was changed; the same request a moment
+        # later works. A sentence, not a 500.
+        name = os.path.basename(str(e.filename)) if getattr(e, "filename", None) else "a plugin file"
+        raise ApiError(503, f"{name} is in use by another program for a moment; nothing was changed. Try again.")
     except (ValueError, TypeError) as e:
         raise ApiError(400, str(e))
     raise ApiError(404, "Not Found")

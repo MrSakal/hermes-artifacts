@@ -215,7 +215,7 @@ const EN = 'pickLang({\n    en: {', HU = '\n    hu: {';
 const e0 = src.indexOf(EN), h0 = src.indexOf(HU, e0), z0 = src.indexOf('\n  }, L);', h0);
 const en = e0 >= 0 ? keysIn(src.slice(e0 + EN.length, h0)) : [], hu = h0 >= 0 ? keysIn(src.slice(h0 + HU.length, z0)) : [];
 out.strings = { found: e0 >= 0 && h0 > e0 && z0 > h0, en: en.length, onlyEn: en.filter((k) => hu.indexOf(k) < 0), onlyHu: hu.filter((k) => en.indexOf(k) < 0),
-  has: ['conflict', 'keptGone', 'keptNew', 'retrying'].filter((k) => en.indexOf(k) >= 0 && hu.indexOf(k) >= 0) };
+  has: ['conflict', 'keptGone', 'retrying'].filter((k) => en.indexOf(k) >= 0 && hu.indexOf(k) >= 0) };
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -357,7 +357,7 @@ class DocPageTests(unittest.TestCase):
         self.assertIn("var p = edit([{ op: \"delete\", block: id }]);", fn(self.src, "function removeBlock(id) {", "\n\n"))
         self.assertIn('edit([{ op: "move", block: id, after: after }]);', fn(self.src, "function moveBlock(id, after) {", "\n  // Turn a block"))
         merge = fn(self.src, "function merge(full, flash) {", "\n  if (live) {")
-        self.assertIn("mergeBlocks(replayOps(full.blocks, outbox, realIds), was, keepMd)", merge)
+        self.assertIn("mergeBlocks(replayOps(full.blocks, outbox.concat(held), realIds), was, keepMd)", merge)  # and a block "+" made, unsent
         mend = fn(self.src, "function mend(e, r) {", "\n  // Hermes changed a block meanwhile")
         self.assertIn("repairOps(e, (e.t.srv || []).slice(), realIds)", mend)
         self.assertNotIn("hm.doc.edit(", self.src.replace("hm.doc.edit(t.id, ops, e.sentBase)", "").replace('hm.doc.edit(tab().id, [{ op: "batch", entries: all.slice(0, n) }], null)', ""))  # every edit goes through the outbox
@@ -414,7 +414,129 @@ class DocPageTests(unittest.TestCase):
         self.assertTrue(s["found"])
         self.assertGreater(s["en"], 100)
         self.assertEqual((s["onlyEn"], s["onlyHu"]), ([], []))
-        self.assertEqual(s["has"], ["conflict", "keptGone", "keptNew", "retrying"])
+        self.assertEqual(s["has"], ["conflict", "keptGone", "retrying"])
+
+
+def _browser():
+    import _browser as B  # noqa: PLC0415 - only these tests start Chrome
+    return B
+
+
+@unittest.skipUnless(_browser().AVAILABLE, "Chrome or node is not installed")
+class DocEditingInChrome(unittest.TestCase):
+    """Rounds 3 and 4 in a real browser: Code toggles as Bold does and never nests; a click under the last block
+    saves nothing until something is typed there; an empty heading has a line's height, a hint and the caret, and
+    Enter in it works; Full width shows its state and the stored one agrees; the bar's menus open under their
+    button, as tall as their items within the window, ending on a whole row."""
+
+    READY = "await api.sleep(300); for (let i = 0; i < 60; i++) { if (await api.top('window.__events.some(e => e.event === \"ready\")')) break; await api.sleep(150) }"
+    EDITS = "api.top('window.__ops.filter(o => o.op === \"doc.edit\").map(o => o.args.ops.map(x => x.op + \":\" + JSON.stringify(x.md || x.set || \"\")).join(\",\"))')"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.B = _browser()
+        from hermes_artifacts import store
+        cls.store = store
+        cls.host = cls.B.Host()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.host.close()
+
+    def run_page(self, body, w=1000, h=760):
+        aid = self.store.publish(path=str(ROOT / "examples" / "doc"), title="Quote process", type="doc")["id"]
+        r = self.B.drive(f"await api.size({w}, {h}); await api.go({json.dumps(self.host.url(aid))}, 800); {self.READY}\n await api.sleep(1000)\n"
+                         f"const edits = () => {self.EDITS}\n" + body)
+        self.assertIsNone(r.get("err"), r)
+        self.assertEqual(r.get("logs"), [], r.get("logs"))
+        return aid, r["out"]
+
+    def test_code_toggles_and_never_nests(self):
+        _, o = self.run_page("""
+          await api.frame('(() => { const p = document.querySelectorAll(".doc-blk p")[0]; p.closest(".doc-blk").focus(); const r = document.createRange(); r.setStart(p.firstChild, 0); r.setEnd(p.firstChild, 4); getSelection().removeAllRanges(); getSelection().addRange(r) })()')
+          await api.sleep(600)
+          const btn = '[...document.querySelectorAll(".doc-selbar .doc-sb")].find(b => ["Code", "Kód"].includes(b.getAttribute("aria-label")))'
+          const seen = []
+          for (let i = 0; i < 3; i++) {
+            await api.frame(btn + '.click()'); await api.sleep(500)
+            seen.push([await api.frame('document.querySelectorAll(".doc-blk p")[0].querySelectorAll("code").length'),
+                       await api.frame('document.querySelectorAll(".doc-blk p")[0].querySelectorAll("code code").length'),
+                       await api.frame(btn + '.getAttribute("aria-pressed")')])
+          }
+          const md = await api.frame('(() => { const d = document.createElement("div"); d.innerHTML = "<p><code><code><code>Hello</code></code></code> x</p>"; return docEdit.toMd(d) })()')
+          return { seen, md }
+        """)
+        self.assertEqual(o["seen"], [[1, 0, "true"], [0, 0, None], [1, 0, "true"]])
+        self.assertEqual(o["md"].strip(), "`Hello` x")  # code nested by an older page is saved as one
+
+    def test_a_click_below_the_last_block_saves_nothing_until_typed(self):
+        _, o = self.run_page("""
+          await api.frame('scrollTo(0, document.body.scrollHeight)'); await api.sleep(300)
+          const at = await api.frame('(() => { const p = document.getElementById("doc-page").getBoundingClientRect(); return [p.left + 40, Math.min(innerHeight - 10, p.bottom + 40)] })()')
+          await api.mouse(at[0], at[1]); await api.sleep(400)
+          const line = await api.frame('(() => { const g = document.querySelector(".doc-ghost"); return !!g && g === document.activeElement && g.getBoundingClientRect().height > 20 })()')
+          await api.clickIn('document.querySelector(".doc-blk h1")'); await api.sleep(1500)
+          const untouched = { line: await api.frame('!!document.querySelector(".doc-ghost")'), edits: await edits(), blocks: await api.frame('document.querySelectorAll(".doc-blk[data-block]").length') }
+          await api.frame('scrollTo(0, document.body.scrollHeight)'); await api.sleep(300)
+          await api.mouse(at[0], at[1]); await api.sleep(300)
+          await api.type('Hi'); await api.sleep(1500)
+          return { line, untouched, typed: await edits(), blocks: await api.frame('document.querySelectorAll(".doc-blk[data-block]").length') }
+        """)
+        self.assertTrue(o["line"])
+        self.assertEqual(o["untouched"]["edits"], [])  # no edit, so no revision and no history entry
+        self.assertFalse(o["untouched"]["line"])  # gone with the focus
+        self.assertEqual(o["typed"], ['insert:"Hi"'])
+        self.assertEqual(o["blocks"], o["untouched"]["blocks"] + 1)
+
+    def test_an_empty_heading_has_a_line_and_takes_enter(self):
+        _, o = self.run_page("""
+          await api.clickIn('document.querySelectorAll(".doc-blk p")[1]'); await api.sleep(300)
+          await api.frame('document.querySelector(".doc-plus").click()'); await api.sleep(400)
+          await api.frame('[...document.querySelectorAll(".doc-rmenu .doc-rm-item")][1].click()'); await api.sleep(700)
+          const h2 = await api.frame('(() => { const b = document.activeElement.closest(".doc-blk"), h = b.querySelector("h2"), r = getSelection().getRangeAt(0); return [Math.round(h.getBoundingClientRect().height), getComputedStyle(b, "::before").content !== "none", h.contains(r.startContainer) || r.startContainer === h] })()')
+          await api.key('Enter', 'Enter', 13); await api.sleep(600)
+          await api.type('after'); await api.sleep(1500)
+          await api.frame('(() => { const h = [...document.querySelectorAll(".doc-blk h2")].find(x => !x.textContent); h.closest(".doc-blk").focus(); getSelection().removeAllRanges() })()')
+          await api.key('Enter', 'Enter', 13); await api.sleep(400)   // Enter with no caret in the block: no TypeError
+          return { h2, edits: await edits() }
+        """)
+        self.assertGreaterEqual(o["h2"][0], 30)  # a line of a 27 px heading, not 0
+        self.assertTrue(o["h2"][1])  # its hint
+        self.assertTrue(o["h2"][2])  # and the caret
+        self.assertIn('replace:"after"', o["edits"])
+
+    def test_full_width_shows_its_state_and_the_store_agrees(self):
+        aid, o = self.run_page("""
+          const wb = '[...document.querySelectorAll(".doc-tool")][2]'
+          await api.frame(wb + '.click()'); await api.frame(wb + '.click()'); await api.sleep(3500)
+          const two = [await api.frame('document.documentElement.classList.contains("doc-wide")'), await api.frame(wb + '.getAttribute("aria-pressed")')]
+          await api.frame(wb + '.click()'); await api.sleep(3500)
+          return { two, three: [await api.frame('document.documentElement.classList.contains("doc-wide")'), await api.frame(wb + '.getAttribute("aria-pressed")')] }
+        """)
+        self.assertEqual(o["two"], [False, "false"])
+        self.assertEqual(o["three"], [True, "true"])
+        r = self.host.api.handle("POST", f"/artifacts/{aid}/op", {}, {"op": "doc.read", "args": {}})
+        self.assertEqual(r.get("settings", {}).get("wide"), True)
+
+    def test_menus_open_under_their_button_and_end_on_a_whole_row(self):
+        probe = ("(() => { const m = [...document.querySelectorAll('.kit-menu, .doc-rmenu')].pop(); if (!m) return null; const r = m.getBoundingClientRect();"
+                 " const rows = [...m.querySelectorAll('button, .doc-rm-swatches')].map(c => c.getBoundingClientRect()).filter(b => b.bottom > r.top + 1.5 && b.top < r.bottom - 1.5);"
+                 " return { left: r.left, width: r.width, vw: innerWidth, top: r.top, bottom: r.bottom, vh: innerHeight, cut: rows.filter(b => b.bottom > r.bottom + 0.5).length, scrolls: m.scrollHeight > m.clientHeight + 1,"
+                 " lastGap: r.bottom - Math.max(...rows.map(b => b.bottom)) } })()")
+        open_ = {"fonts": 'document.querySelectorAll(".doc-tool")[1]', "insert": 'document.querySelector(".doc-plus")'}
+        for w, h in ((1000, 760), (400, 760), (1000, 420)):
+            body = "const out = {}\n"
+            for k, sel in open_.items():
+                body += (f"out.{k} = {{ btn: await api.frame({json.dumps(sel + '.getBoundingClientRect().left')}) }}; await api.frame({json.dumps(sel + '.click()')}); await api.sleep(400);"
+                         f" Object.assign(out.{k}, await api.frame({json.dumps(probe)})); await api.key('Escape', 'Escape', 27); await api.sleep(300)\n")
+            _, o = self.run_page(body + "return out", w=w, h=h)
+            for k, m in o.items():
+                self.assertIsNotNone(m.get("top"), (w, h, k))
+                self.assertLessEqual(m["bottom"], m["vh"] - 7, (w, h, k, m))
+                self.assertEqual(m["cut"], 0, (w, h, k, m))  # never through a row
+                if m["scrolls"]:
+                    self.assertLess(m["lastGap"], 12, (w, h, k, m))  # cut to scroll: on a whole row, not a divider or a hint
+                self.assertAlmostEqual(m["left"], max(8, min(m["btn"], m["vw"] - m["width"] - 8)), delta=2, msg=(w, h, k, m))  # under its button, within the window
 
 
 if __name__ == "__main__":

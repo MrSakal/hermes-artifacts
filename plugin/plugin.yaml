@@ -1,5 +1,5 @@
 name: hermes-artifacts
-version: 0.19.0
+version: 0.20.0
 description: >
   Artifacts for Hermes: pages, dashboards, slides, docs, sheets, boards, designs, films and design
   systems, versioned, in a gallery and sandboxed viewer that replace the built-in Artifacts page of Hermes
@@ -52,6 +52,11 @@ config_schema:
     default: true
     label: Record page errors for Hermes
     description: On, an artifact open in Hermes Desktop or the browser viewer records its errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host, for ha_check. The last 3 versions are kept and deleted with the artifact. Off, nothing is recorded.
+  max_versions:
+    type: int
+    default: 30
+    label: Versions kept per artifact
+    description: The newest this many versions of each artifact are kept (the latest and any an open comment was made on always); older ones are deleted at the next publish. 0 keeps all.
   bridge_tools:
     type: str
     default: ""

@@ -59,7 +59,7 @@ function page(o) {
     body: Object.assign(el('body'), { innerText: o.text === undefined ? 'Hello' : o.text, getElementsByTagName: () => o.bodyEls || [] }),
     documentElement: Object.assign(el('html'), { style: { setProperty() {} } }),
     getElementById(id) { return this.elements[id] || null },
-    querySelector(s) { return s === '.kit-toast' ? this.toasts[this.toasts.length - 1] && !this.toasts[this.toasts.length - 1].removed ? this.toasts[this.toasts.length - 1] : null : null },
+    querySelector(s) { return s === 'meta[name="hermes-thumb"]' ? (o.thumb ? el('meta') : null) : s === '.kit-toast' ? this.toasts[this.toasts.length - 1] && !this.toasts[this.toasts.length - 1].removed ? this.toasts[this.toasts.length - 1] : null : null },
     querySelectorAll() { return [] },
     createElement(t) { const e = el(t); if (t === 'div') doc.toasts.push(e); return e }
   })
@@ -137,6 +137,12 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P.run('hermes.ready(); hermes.ready()'); await P.tick(3000); out.deferredOnce = ready(P)
   out.aliveWithV2 = P.events('alive').length
 
+  // a page given no frames while the host keeps it out of sight (V6w: Desktop's loading frame): ready all the same,
+  // NO_PAINT_MS after it asked, not 1 s
+  P = page(); P.sb.requestAnimationFrame = () => 0; P.run('window.__hermesDefer = true'); P.connect(4); P.dcl(); P.load(); await P.tick(100)
+  P.run('hermes.ready()'); await P.tick(100); out.noFramesSoon = ready(P)
+  await P.tick(60); out.noFrames = ready(P)
+
   // kit.ready() forwards it (fonts, pictures or 1.5 s, then the bridge's frames)
   P = page({ elements: {} }); P.run('window.__hermesDefer = true'); P.connect(3); P.dcl()
   vm.runInContext(KIT, P.sb); P.load(); await P.tick(2000)
@@ -213,7 +219,7 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   await P.tick(1100); out.firstCall = res.first
   P.run('hermes.storage.get("b")').then(null, e => { res.second = P.now })
   const t0 = P.now; await P.tick(0); out.secondFast = res.second === t0
-  out.notice = P.doc.toasts.map(t => t.textContent)
+  out.notice = P.doc.toasts.map(t => t.textContent || t.children.map(c => c.textContent).join('')) // the words sit beside the toast's mark
   // a page that does not catch it: the bridge's own "unavailable" is not the page's error
   let offErr; P.run('hermes.ask("x")').catch(e => { offErr = e }); await P.tick(10)
   P.sb._fire('unhandledrejection', { reason: offErr }); P.sb.console.error(offErr)
@@ -222,6 +228,21 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   P = page({ alone: true }); const r2 = {}
   P.run('hermes.storage.get("a")').then(null, () => { r2.at = P.now }); await P.tick(0)
   out.alone = { hello: P.hello.length, rejectedAt: r2.at }
+
+  // --- the page's own toast: its mark says its kind (the kit's info, success or error icon) -------------
+  P = page({ alone: true }); P.dcl(); P.load(); vm.runInContext(KIT, P.sb)
+  out.marks = []
+  for (const k of ['info', 'success', 'error', 'warn']) {
+    P.run('kit.toast("note", 0, ' + JSON.stringify(k) + ')'); await P.tick(0)
+    const t = P.doc.toasts[P.doc.toasts.length - 1]
+    const mark = ['info', 'success', 'error'].filter(n => t.innerHTML === P.run('kit.icon(' + JSON.stringify(n) + ')'))
+    out.marks.push([t.getAttribute('class'), t.getAttribute('role'), mark.join()])
+  }
+  // --- Hermes at work: a read without hermes_ago is "just now", never NaN ---------------------------
+  P = page(); P.connect(3); P.dcl(); P.load(); vm.runInContext(KIT, P.sb); await P.tick(10)
+  P.port.onmessage({ data: { event: 'run', detail: { on: false } } })
+  out.workLeft = P.run('kit.hermesWork.seen(true, 10); kit.hermesWork.left()')
+  out.workOnAfterRun = P.run('kit.hermesWork.on()')
 
   // --- "at": where it is true, and nowhere else ---------------------------------------------------------
   // Hermes Desktop: one document; the server's map says which lines are index.html's own.
@@ -307,6 +328,55 @@ const ready = P => P.events('ready').map(m => m.detail.threw)
   await P.tick(40000)
   out.damperTail = P.events('diag').reduce((a, x) => a + x.detail.entries.reduce((b, e) => b + e.n, 0), 0)
 
+  // --- a gallery card (hermes-thumb meta): its offline rejections stay out of the console; a page's timers
+  // stop 3 s after its load (a type runtime's card, data-thumb, is left alone); the viewer is unchanged ---
+  const rejection = reason => { const ev = { reason, prevented: false, preventDefault() { this.prevented = true } }; return ev }
+  for (const [name, o] of [['card', { thumb: true }], ['kitCard', { thumb: true }], ['viewer', {}]]) {
+    P = page(o)
+    if (name === 'kitCard') P.doc.documentElement.setAttribute('data-thumb', '')
+    P.dcl()
+    let ticks = 0, calls = 0, settled = 0
+    P.sb.__tick = () => { ticks++; calls++; P.sb.hermes.storage.get('k').then(() => settled++, () => settled++) }
+    P.run('setInterval(function () { __tick() }, 100)')
+    P.load(); await P.tick(2900)
+    const before = ticks
+    await P.tick(10000) // the bridge's 10 s without a host: calls fail from here on
+    let offErr; P.run('hermes.ask("x")').catch(e => { offErr = e }); await P.tick(10)
+    const off = rejection(offErr), own = rejection(new Error('a fault of the page'))
+    P.sb._fire('unhandledrejection', off); P.sb._fire('unhandledrejection', own)
+    let late = 0; P.run('setTimeout(function () { __late() }, 10)'); P.sb.__late = () => late++
+    await P.tick(1000)
+    out['thumb_' + name] = { tickingBefore3s: before >= 28, ticksAfter: ticks - before, offPrevented: off.prevented,
+      ownPrevented: own.prevented, lateTimeout: late, hello: P.hello.length }
+  }
+
+  // --- the host's pick armed before the page's own script listens (V6d: a deck opened, its header Comment at once,
+  // the slide's blank clicked: no draft; the bridge's own listener had taken "comment-mode", the deck never heard it)
+  P = page(); P.connect(3); P.dcl()
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: true } } })
+  const heard = []
+  P.sb.__heard = d => heard.push(d && d.on)
+  P.run('hermes.on("comment-mode", function (d) { __heard(d) })'); await P.tick(10)
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: false } } }); await P.tick(10)
+  out.lateModeListener = heard
+
+  // --- V6g: a click that reaches the page itself while picking is on, before its ready (no host cover over it: 7 of
+  // 12 such clicks in a sheet just opened picked nothing): held, and picked once the page says its click picks
+  P = page(); P.connect(3); P.dcl()
+  const dispatched = []
+  P.doc.elementFromPoint = (x, y) => ({ dispatchEvent(e) { dispatched.push([x, y, e.type]) } })
+  P.sb.MouseEvent = function (type, init) { this.type = type; Object.assign(this, init) }
+  P.port.onmessage({ data: { event: 'comment-mode', detail: { on: true } } })
+  const click = (x, y) => ({ type: 'click', isTrusted: true, clientX: x, clientY: y, target: { closest: () => null }, prevented: false, stopped: false,
+    preventDefault() { this.prevented = true }, stopImmediatePropagation() { this.stopped = true } })
+  const first = click(40, 70), second = click(90, 20)
+  P.sb._fire('click', first); P.sb._fire('click', second)
+  const early = P.events('pick-ready').length
+  P.load(); await P.tick(3000)
+  const after = click(5, 5); P.sb._fire('click', after) // the page picks now: the click is its own
+  out.heldClick = { early, held: [first.prevented && first.stopped, second.prevented && second.stopped], ready: P.events('pick-ready').length,
+    dispatched, afterLeft: !after.prevented && !after.stopped }
+
   console.log(JSON.stringify(out))
 })().catch(e => { console.error(e && e.stack || e); process.exit(1) })
 """
@@ -327,8 +397,20 @@ class BridgePageTests(unittest.TestCase):
             raise AssertionError("node failed:\n" + r.stderr[-4000:])
         cls.out = json.loads(r.stdout.strip().splitlines()[-1])
 
-    def test_hello_names_protocol_3(self):
-        self.assertEqual(self.out["helloV"], 3)
+    def test_hello_names_protocol_4(self):
+        self.assertEqual(self.out["helloV"], 4)  # 4: says when picking is on ("pick-ready")
+
+    def test_a_page_listening_late_still_hears_that_picking_is_on(self):
+        # every type's own pick (a deck's blank, a design's artboards, a film's point, a model's view) arms from it
+        self.assertEqual(self.out["lateModeListener"], [True, False])
+
+    def test_a_click_in_the_page_before_its_ready_is_held_and_picked_at_ready(self):
+        o = self.out["heldClick"]
+        self.assertEqual(o["early"], 0, o)  # not ready yet: its click does not pick
+        self.assertEqual(o["held"], [True, True], o)  # neither reaches the page's own handlers
+        self.assertEqual(o["ready"], 1, o)
+        self.assertEqual(o["dispatched"], [[40, 70, "click"]], o)  # the first one, picked at ready
+        self.assertTrue(o["afterLeft"], o)
 
     def test_ready_by_default_at_load_plus_two_frames_once(self):
         o = self.out
@@ -345,6 +427,11 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual(o["deferredOnce"], [False])
         self.assertEqual(o["kitBeforeReady"], [])
         self.assertEqual(o["kitReady"], [False])
+
+    def test_a_page_given_no_frames_out_of_sight_is_ready_soon_after_it_asks(self):
+        # V6w 1: Desktop gave a film's frame no frames while it loaded under "Loading…"; the ready waited 1 s for two
+        # frames that never came, after its page had drawn. It comes 150 ms after the page asked.
+        self.assertEqual((self.out["noFramesSoon"], self.out["noFrames"]), ([], [False]))
 
     def test_threw(self):
         o = self.out
@@ -405,6 +492,44 @@ class BridgePageTests(unittest.TestCase):
         self.assertEqual(o["notice"], ["No host"])
         self.assertEqual(o["offlineNotCounted"], [])
         self.assertEqual(o["alone"], {"hello": 0, "rejectedAt": 0})
+
+    def test_a_gallery_card_keeps_the_console_quiet_and_its_timers_stop(self):
+        card, kit, viewer = (self.out[k] for k in ("thumb_card", "thumb_kitCard", "thumb_viewer"))
+        # A page's card: drew for 3 s after its load, then its 100 ms loop and any new timer stop; the bridge's
+        # own offline rejection no longer reaches the console (the page's own errors still do).
+        self.assertTrue(card["tickingBefore3s"])
+        self.assertLessEqual(card["ticksAfter"], 1)
+        self.assertEqual((card["offPrevented"], card["ownPrevented"], card["lateTimeout"]), (True, False, 0))
+        # A type runtime's card is the kit's to finish: timers run; its offline rejections stay quiet too.
+        self.assertGreater(kit["ticksAfter"], 90)
+        self.assertEqual((kit["offPrevented"], kit["ownPrevented"], kit["lateTimeout"]), (True, False, 1))
+        # The real viewer: as before (nothing prevented, nothing stopped).
+        self.assertGreater(viewer["ticksAfter"], 90)
+        self.assertEqual((viewer["offPrevented"], viewer["ownPrevented"], viewer["lateTimeout"]), (False, False, 1))
+
+    def test_the_own_toast_marks_its_kind(self):
+        self.assertEqual(self.out["marks"], [["kit-toast is-info", "status", "info"], ["kit-toast is-success", "status", "success"],
+                                             ["kit-toast is-error", "alert", "error"], ["kit-toast is-info", "status", "info"]])
+        kit = (TYPES / "_kit" / "kit.js").read_text("utf-8")
+        self.assertIn('toast(offline.text, 8000, "error");', kit)  # no host: an error, not a success
+
+    def test_a_read_without_hermes_ago_is_just_now(self):
+        self.assertIsInstance(self.out["workLeft"], (int, float))  # NaN would come back as null
+        self.assertGreater(self.out["workLeft"], 9)  # its own 10 s (the 15 s "fresh" window counts from now)
+        self.assertLessEqual(self.out["workLeft"], 10)
+        self.assertFalse(self.out["workOnAfterRun"])  # no run in flight here: the host's word wins
+
+    def test_failures_and_successes_say_so(self):
+        # Every caught error a runtime shows is an error toast, every "done" a success (the kit's mark and role).
+        for p in TYPES.rglob("*.js"):
+            if "vendor" in p.parts or p.parent.name == "_kit":
+                continue
+            src = p.read_text("utf-8")
+            for bad in ("kit.toast(String(e && e.message || e));", "kit.toast(String(err && err.message || err));", "kit.toast(errText(e));",
+                        "kit.toast(T.expFail);", "kit.toast(T.conflict);", "kit.toast(T.sent);", "kit.toast(T.restored);"):
+                self.assertNotIn(bad, src, p.name)
+        self.assertIn('kit.toast(T.expFail, 0, "error")', (TYPES / "board" / "board.js").read_text("utf-8"))
+        self.assertIn('kit.toast(T.done, 0, "success")', (TYPES / "motion" / "motion.js").read_text("utf-8"))
 
     def test_at_only_where_it_is_true(self):
         self.assertEqual(self.out["mapped"], [
@@ -479,6 +604,36 @@ class RuntimeWiringTests(unittest.TestCase):
         bridge = (PKG / "assets" / "bridge.js").read_text("utf-8")
         self.assertIn("ready: hermesReady", bridge)
         self.assertTrue(all(ord(c) < 128 for c in bridge), "bridge.js: non-ASCII written as escapes")
+
+
+class PageScrollbarTests(unittest.TestCase):
+    """The theme's scrollbars for a plain page are made in the browser (the bridge puts a <style> into the DOM):
+    the document the server sends has no scrollbar rule (no line moves, its line map is the same), the export has
+    no bridge and so none either, and every selector is in :where() so any rule of the page wins. The browser
+    side: test_type_pages_browser.PageScrollbars."""
+
+    def test_not_in_the_document_nor_in_the_export(self):
+        import os
+        import sys
+        os.environ.setdefault("HERMES_ARTIFACTS_DIR", tempfile.mkdtemp(prefix="hermes-artifacts-test-"))
+        sys.path.insert(0, str(ROOT / "plugin"))
+        from hermes_artifacts import api, store
+        page = "<!doctype html>\n<html><head><title>P</title></head>\n<body><p>x</p>\n<script>nope()</script></body></html>\n"
+        aid = store.publish(html=page, title="Bars")["id"]
+        try:
+            shown = api.handle("GET", f"/artifacts/{aid}/html", {}, None)["html"]
+            export = api.handle("GET", f"/artifacts/{aid}/html", {"export": "1"}, None)["html"]
+        finally:
+            store.delete(aid)
+        self.assertNotIn("<style id=\"hermes-scrollbars\"", shown)  # only the bridge's code: the DOM gets the style
+        self.assertIn("hermes-scrollbars", shown)
+        self.assertNotIn("scrollbar", export)
+        self.assertEqual(export.replace("\r\n", "\n"), page)  # the page as it was written
+        bridge = (PKG / "assets" / "bridge.js").read_text("utf-8")
+        css = re.findall(r'"(:where\([^"]*)"', bridge)
+        self.assertEqual(len(css), 3, css)  # the scrollbars, the root's, the keyboard focus ring
+        self.assertTrue(all(re.fullmatch(r":where\([^)]*\)\{[^{}]*", c) for c in css), css)  # specificity 0 only
+        self.assertIn('head.insertBefore(mine, head.firstChild)', bridge)  # first: any later rule of the page wins
 
 
 class LineMapTests(unittest.TestCase):

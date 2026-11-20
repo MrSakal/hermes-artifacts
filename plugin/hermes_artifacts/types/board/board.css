@@ -48,7 +48,6 @@ html, body { overflow: hidden; }
 .bd-view { position: absolute; inset: 0; overflow: hidden; overflow: clip; outline: none; touch-action: none; user-select: none; -webkit-user-select: none; cursor: default;
   background-color: var(--color-bg);
   background-image: linear-gradient(var(--bd-grid) 1px, transparent 1px), linear-gradient(90deg, var(--bd-grid) 1px, transparent 1px); }
-.bd-view:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
 .bd[data-tool="hand"] .bd-view, .bd-view.bd-grab, .bd-ro .bd-view { cursor: grab; }
 .bd-view.bd-grabbing, .bd[data-tool="hand"] .bd-view.bd-grabbing { cursor: grabbing; }
 .bd[data-tool="text"] .bd-view { cursor: text; }
@@ -60,7 +59,8 @@ html[data-thumb] .bd-view { cursor: default; }
 
 /* ---- items */
 .bd-it { position: absolute; box-sizing: border-box; }
-.bd-off { display: none !important; }
+/* out of view: not drawn, its box kept (a comment's pin on it goes to the stage's edge nearest it, V6h) */
+.bd-off { visibility: hidden !important; content-visibility: hidden; pointer-events: none !important; }
 .bd-box, .bd-note, .bd-section, .bd-arrow, .bd-pen { pointer-events: none; }
 .bd-shape { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 .bd-shape path { stroke-width: 1.5; stroke-linejoin: round; pointer-events: auto; }
@@ -139,9 +139,9 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd-hside { width: 8px; height: 18px; margin: -9px 0 0 -4px; border-radius: 4px; cursor: ew-resize; }
 .bd-ah { border-radius: 50%; cursor: move; }
 .bd-amid { background: var(--color-accent); }
-.bd-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--color-accent); opacity: 0.5; pointer-events: auto; cursor: crosshair;
-  transition: transform var(--dur) var(--ease-out), opacity var(--dur); }
-.bd-dot:hover { opacity: 1; transform: scale(1.35); }
+.bd-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--color-accent); pointer-events: auto; cursor: crosshair;
+  box-shadow: 0 0 0 2px var(--color-panel); transition: transform var(--dur) var(--ease-out); } /* the handles' one accent, not a dimmed one */
+.bd-dot:hover { transform: scale(1.35); }
 .bd-tplus { position: absolute; display: grid; place-items: center; width: 22px; height: 22px; margin: -11px 0 0 -11px; padding: 0; border: 1px solid var(--color-border-strong); border-radius: 50%;
   background: var(--color-elevated, var(--color-panel)); color: var(--color-fg-secondary); pointer-events: auto; cursor: pointer; }
 .bd-tplus:hover { color: var(--color-accent); border-color: var(--color-accent); }
@@ -157,17 +157,17 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd button:focus-visible, .bd-pop button:focus-visible, .bd-askin:focus-visible, .bd-pop input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .bd-askin:focus-visible { outline: none; }
 .bd-sep { flex: none; width: 1px; height: 18px; margin: 0 3px; background: var(--color-border-line); }
-.bd-tools { position: absolute; left: 50%; bottom: 14px; z-index: 20; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 16px); padding: 5px; border-radius: 14px;
+.bd-tools { position: absolute; left: 50%; bottom: 14px; z-index: 20; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 16px); padding: 5px; border-radius: var(--kit-r-lg);
   transform: translateX(-50%); overflow-x: auto; scrollbar-width: none; }
-.bd-tb { position: relative; flex: none; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: 9px; }
-.bd-tb svg { width: 19px; height: 19px; }
+.bd-tb { position: relative; flex: none; justify-content: center; width: 36px; height: 36px; padding: 0; border-radius: var(--kit-r-icon); }
+.bd-tb svg { width: 16px; height: 16px; }
 .bd-tb[aria-pressed="true"] { background: var(--color-accent-soft); color: var(--color-accent); }
 .bd-asktb { color: var(--color-accent); }
 .bd-pendot { position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--color-elevated, var(--color-panel)); }
-.bd-zoom { position: absolute; right: 14px; bottom: 14px; z-index: 20; display: flex; align-items: center; padding: 4px; border-radius: 12px; }
+.bd-zoom { position: absolute; right: 14px; bottom: 14px; z-index: 20; display: flex; align-items: center; padding: 4px; border-radius: var(--kit-r-lg); }
 .bd-zoom .kit-btn, .bd-top .kit-btn { padding: 0 7px; }
 .bd-zl { min-width: 50px; justify-content: center; font-variant-numeric: tabular-nums; }
-.bd-top { position: absolute; right: 14px; top: 12px; z-index: 20; display: flex; align-items: center; padding: 4px; border-radius: 12px; }
+.bd-top { position: absolute; right: 14px; top: 12px; z-index: 20; display: flex; align-items: center; padding: 4px; border-radius: var(--kit-r-lg); }
 .bd-top:not(:has(.kit-btn:not([hidden]))) { display: none; }
 .bd-pill { position: absolute; left: 50%; top: 14px; z-index: 20; display: flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--color-border-line); border-radius: 999px;
   background: var(--color-elevated, var(--color-panel)); color: var(--color-fg-secondary); font-size: 12px; transform: translateX(-50%); white-space: nowrap; }
@@ -180,15 +180,15 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd-banner .bd-pri { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-bg); }
 .bd-preview .bd-top { top: 52px; }
 .bd-ask { position: absolute; left: 50%; bottom: 72px; z-index: 21; display: flex; align-items: center; gap: 6px; width: min(520px, calc(100% - 24px)); padding: 6px 8px 6px 12px;
-  border-radius: 14px; transform: translateX(-50%); }
+  border-radius: var(--kit-r-lg); transform: translateX(-50%); }
 .bd-ask:focus-within { border-color: var(--color-accent); }
 .bd-askic { display: flex; color: var(--color-accent); }
-.bd-askic svg { width: 17px; height: 17px; }
+.bd-askic svg { width: 16px; height: 16px; }
 .bd-askin { flex: 1; min-width: 0; height: 28px; border: 0; outline: none; background: transparent; color: var(--color-fg); font: inherit; font-size: 13.5px; }
 .bd-askin::placeholder { color: var(--color-fg-muted); }
 .bd-asksend { padding: 0 7px; background: var(--color-accent); color: var(--color-bg); }
 .bd-asksend:hover { background: var(--color-accent); color: var(--color-bg); opacity: 0.9; }
-.bd-ctx { position: absolute; z-index: 3; display: flex; align-items: center; gap: 1px; max-width: calc(100% - 16px); padding: 4px; border-radius: 10px; pointer-events: auto; overflow-x: auto;
+.bd-ctx { position: absolute; z-index: 3; display: flex; align-items: center; gap: 1px; max-width: calc(100% - 16px); padding: 4px; border-radius: var(--kit-r-lg); pointer-events: auto; overflow-x: auto;
   scrollbar-width: none; white-space: nowrap; }
 .bd-cb { flex: none; gap: 3px; padding: 0 7px; }
 .bd-cb svg { width: 16px; height: 16px; }
@@ -198,7 +198,7 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd-cdot.bd-ring { border-width: 3px; background: transparent; }
 .bd-szl { min-width: 16px; font-size: 12px; font-weight: 600; text-align: center; }
 .kit-toast { bottom: 84px; z-index: 170; }   /* above the tools pill, not over it */
-.bd-pop { position: fixed; z-index: 160; padding: 8px; border-radius: 10px; color: var(--color-fg); font-family: var(--font-sans); }
+.bd-pop { position: fixed; z-index: 160; padding: 8px; border-radius: var(--kit-r-lg); color: var(--color-fg); font-family: var(--font-sans); }
 .bd-popcol { display: flex; flex-direction: column; gap: 8px; }
 .bd-sw { display: flex; align-items: center; gap: 7px; }
 .bd-swatch { flex: none; width: 24px; height: 24px; padding: 0; border: 1.5px solid color-mix(in srgb, var(--color-fg) 22%, transparent); border-radius: 50%; cursor: pointer; }
@@ -208,13 +208,14 @@ html[data-thumb] .bd-view { cursor: default; }
 .bd-wide { justify-content: center; width: 100%; border: 1px solid var(--color-border-line); }
 .bd-wide[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); }
 .bd-kinds { display: grid; grid-template-columns: repeat(4, 40px); gap: 4px; }
-.bd-kind { display: grid; place-items: center; width: 40px; height: 36px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--color-fg-secondary); cursor: pointer; }
-.bd-kind svg, .bd-tb > svg[viewBox^="-2"], .bd-cb > svg[viewBox^="-2"] { width: 22px; height: 20px; }
-.bd-kind:hover { background: var(--color-hover); color: var(--color-fg); }
+.bd-kind { display: grid; place-items: center; width: 40px; height: 36px; padding: 0; border: 0; border-radius: var(--kit-r-icon); background: none; color: var(--color-fg-secondary); cursor: pointer; }
+.bd-kind svg { width: 22px; height: 20px; }
+.bd-tb > svg[viewBox^="-2"], .bd-cb > svg[viewBox^="-2"] { width: 18px; height: 16px; }
+.bd-kind:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .bd-kind.on { background: var(--color-accent-soft); color: var(--color-accent); }
 .bd-linkform { display: flex; gap: 6px; width: min(300px, calc(100vw - 40px)); }
 .bd-linkform .bd-wide { width: auto; flex: none; }
-.bd-linkin { padding: 0 8px; border: 1px solid var(--color-border-strong); border-radius: 6px; }
+.bd-linkin { padding: 0 8px; border: 1px solid var(--color-border-strong); border-radius: var(--kit-r-btn); }
 
 /* ---- view only: a thumbnail, a viewer with no bridge, a history preview */
 .bd-ro .bd-tools, .bd-ro .bd-zoom, .bd-ro .bd-ask, .bd-ro .bd-uisel, .bd-ro .bd-ctx { display: none; }
@@ -224,13 +225,15 @@ html[data-thumb] .bd-top, html[data-thumb] .bd-pill, html[data-thumb] .bd-banner
 .bd-preview .bd-pill { display: none; }
 
 /* ---- narrow */
+/* the tools pill would meet the zoom pill (board.js measures): zoom goes to the top left, the working pill below it */
+.bd-zoomup .bd-zoom { left: 8px; right: auto; top: 8px; bottom: auto; }
+.bd-zoomup .bd-pill { top: 54px; }
+.bd-zoomup.bd-preview .bd-zoom { top: 84px; }
 @media (max-width: 700px) {
-  .bd-zoom { left: 8px; right: auto; top: 8px; bottom: auto; }
   .bd-top { right: 8px; top: 8px; }
-  .bd-pill { top: 54px; }
   .bd-tools { bottom: 10px; }
   .bd-ask { bottom: 64px; }
-  .bd-preview .bd-zoom, .bd-preview .bd-top { top: 84px; }
+  .bd-preview .bd-top { top: 84px; }
   .bd-banner { flex-wrap: wrap; }
   .bd-banner span { flex-basis: 100%; }
 }

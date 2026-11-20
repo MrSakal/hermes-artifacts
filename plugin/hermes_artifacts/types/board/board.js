@@ -23,14 +23,14 @@
     en: {
       noHost: "Not connected to Hermes: changes won't be saved.",
       board: "Whiteboard", noGeo: "The board could not load its geometry module.",
-      select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes",
+      select: "Select", hand: "Hand", text: "Text", section: "Section", sticky: "Sticky note", draw: "Draw", shapes: "Shapes", shape: "Shape",
       image: "Image", ask: "Ask Hermes", askPh: "Describe a change", send: "Send", sent: "Sent to Hermes", drafted: "Put in the chat box",
       pen: "Pen", arrow: "Arrow", table: "Table", colour: "Colour",
-      zoomIn: "Zoom in", zoomOut: "Zoom out", zoom: "Zoom level", fit: "Fit the board", undo: "Undo", redo: "Redo", keys: "Single-key tool shortcuts",
+      zoomIn: "Zoom in", zoomOut: "Zoom out", zoom: "Zoom level", zoomPick: "Zoom level: choose one", fit: "Fit the board", undo: "Undo", redo: "Redo", keys: "Single-key tool shortcuts",
       hist: "Version history", histNone: "No earlier versions yet", byH: "Hermes", byYou: "you", byRestore: "restored",
       showing: "Showing the board as it was on {t}. View only.", restoreThis: "Restore this version", backNow: "Back to now", restored: "Restored",
       exp: "Export", expPng: "PNG picture", expSvg: "SVG drawing", expFail: "The picture could not be made",
-      working: "Hermes is working…", conflict: "Hermes changed that at the same time. The board was read again.", failed: "That change did not go through. The board was read again.",
+      working: "Hermes is working…", conflict: "Hermes changed that at the same time. The board was read again.", keptMine: "Hermes changed this text while you typed: yours is kept (Undo brings Hermes' back)", failed: "That change did not go through. The board was read again.",
       kind: "Shape", size: "Text size", szSmall: "Small", szBody: "Normal", szLarge: "Large", szTitle: "Title", szHuge: "Huge",
       bold: "Bold", italic: "Italic", link: "Link", linkPh: "https://…", apply: "Apply", list: "List",
       align: "Align text", alLeft: "Left", alCenter: "Centre", alRight: "Right",
@@ -56,14 +56,14 @@
     hu: {
       noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.",
       board: "Tábla", noGeo: "A tábla geometriai modulja nem töltődött be.",
-      select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok",
+      select: "Kijelölés", hand: "Kéz", text: "Szöveg", section: "Szakasz", sticky: "Cetli", draw: "Rajz", shapes: "Alakzatok", shape: "Alakzat",
       image: "Kép", ask: "Hermes megkérése", askPh: "Írd le a változtatást", send: "Küldés", sent: "Elküldve Hermesnek", drafted: "Bekerült a csevegőmezőbe",
       pen: "Toll", arrow: "Nyíl", table: "Táblázat", colour: "Szín",
-      zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoom: "Nagyítás mértéke", fit: "Teljes tábla", undo: "Visszavonás", redo: "Újra", keys: "Egybetűs eszközbillentyűk",
+      zoomIn: "Nagyítás", zoomOut: "Kicsinyítés", zoom: "Nagyítás mértéke", zoomPick: "Nagyítás mértéke: válassz", fit: "Teljes tábla", undo: "Visszavonás", redo: "Újra", keys: "Egybetűs eszközbillentyűk",
       hist: "Korábbi változatok", histNone: "Még nincs korábbi változat", byH: "Hermes", byYou: "te", byRestore: "visszaállítva",
       showing: "A tábla ekkori állapota: {t}. Csak megtekintés.", restoreThis: "Változat visszaállítása", backNow: "Vissza a mostanihoz", restored: "Visszaállítva",
       exp: "Exportálás", expPng: "PNG kép", expSvg: "SVG rajz", expFail: "A képet nem sikerült elkészíteni",
-      working: "Hermes dolgozik…", conflict: "Hermes ugyanekkor módosította. A tábla újra be lett olvasva.", failed: "A módosítás nem ment át. A tábla újra be lett olvasva.",
+      working: "Hermes dolgozik…", conflict: "Hermes ugyanekkor módosította. A tábla újra be lett olvasva.", keptMine: "A Hermes módosította ezt a szöveget, amíg gépeltél: a tiéd maradt (a Visszavonás visszahozza az övét)", failed: "A módosítás nem ment át. A tábla újra be lett olvasva.",
       kind: "Alakzat", size: "Szövegméret", szSmall: "Kicsi", szBody: "Normál", szLarge: "Nagy", szTitle: "Cím", szHuge: "Óriás",
       bold: "Félkövér", italic: "Dőlt", link: "Hivatkozás", linkPh: "https://…", apply: "Alkalmaz", list: "Lista",
       align: "Szöveg igazítása", alLeft: "Balra", alCenter: "Középre", alRight: "Jobbra",
@@ -95,24 +95,14 @@
   if (!G) { root.appendChild(h("div", { "class": "kit-empty", text: T.noGeo })); kit.ready(); return; }
 
   // ------------------------------------------------------------------ small helpers
-  var ICONS = {
-    lock: "M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3", unlock: "M6 11h12v9H6zM9 11V8a3 3 0 0 1 5.7-1.3",
-    link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
-    list: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
-    group: "M4 4h6v6H4zM14 14h6v6h-6zM10 7h7v7M7 10v7h7", fit: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
-    ring: "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z", dash: "M3 12h4M10 12h4M17 12h4", solid: "M3 12h18",
-    hNone: "M4 12h16", hArrow: "M4 12h16M14 6l6 6-6 6", hCircle: "M4 12h10M14 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-    hNoneS: "M4 12h16", hArrowS: "M20 12H4M10 6l-6 6 6 6", hCircleS: "M20 12H10M4 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
-    width: "M4 6h16M4 11h16M4 11.8h16M4 17h16M4 17.8h16M4 18.6h16", arrange: "M4 4v16M8 7h10v4H8zM8 14h6v4H8z",
-    rowAdd: "M4 5h16v6H4zM12 14v6M9 17h6", colAdd: "M5 4h6v16H5zM14 12h6M17 9v6", tag: "M4 9h12l4 3-4 3H4z"
-  };
-  function ico(name) {
-    return ICONS[name] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICONS[name] + '"/></svg>' : kit.icon(name);
-  }
-  var CARET = '<svg class="bd-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
+  // the board's icons, its menus' too (kit.menu takes a name): bd-<name>, the kit's where it has no own
+  function ico(name) { return kit.icon("bd-" + name); }
+  var CARET = kit.icon("caretDown", "bd-caret");
+  // A shape's own outline (a kind is shown as itself, as a swatch shows its colour), drawn with the 1 px line of the
+  // codicons beside it at any size.
   function kindIcon(kind) {
     var d = kind === "table" ? "M1 1h20v16H1zM1 6.5h20M1 12h20M8 1v16" : G.shapePath(kind, 20, kind === "person" ? 18 : 15);
-    return '<svg viewBox="-2 -2 24 ' + (kind === "person" ? 22 : kind === "table" ? 22 : 19) + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+    return '<svg viewBox="-2 -2 24 ' + (kind === "person" ? 22 : kind === "table" ? 22 : 19) + '" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="' + d + '"/></svg>';
   }
   function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
   /** Equal as data, whatever order the keys came in (the server stores an item's keys in its own order). */
@@ -346,10 +336,10 @@
   // ------------------------------------------------------------------ the canvas: a world layer under pan and zoom, a screen layer for handles
   var ro = !live;                              // no bridge, a thumbnail, a history preview: view only
   function canEdit() { return live && !preview; }
-  var view = h("div", { "class": "bd-view", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
+  var view = h("div", { "class": "bd-view kit-surface", "data-comment-off": "", tabindex: "0", role: "application", "aria-label": T.board + (title ? ": " + title : "") });
   var world = h("div", { "class": "bd-world" }), ui = h("div", { "class": "bd-ui" });
   var draftSvg = svgEl("svg", { "class": "bd-draft", "aria-hidden": "true" });  // in board units: a line being drawn, snapping guides
-  var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", role: "toolbar", "aria-label": T.more, hidden: true });
+  var uiSel = h("div", { "class": "bd-uisel" }), ctx = h("div", { "class": "bd-ctx", "data-comment-keep": "", role: "toolbar", "aria-label": T.more, hidden: true });
   var liveEl = h("div", { "class": "bd-sr", "aria-live": "polite" });
   world.appendChild(draftSvg); ui.append(uiSel, ctx); view.append(world, ui); root.append(view, liveEl);
   var cam = { x: 0, y: 0, z: 1 }, vw = 1, vh = 1, vrc = { left: 0, top: 0 }, camRaf = 0;
@@ -531,6 +521,13 @@
       try { el = BUILD[it.type](it, n); } catch (e) { el = h("div", {}); }
       el.classList.add("bd-it");
       el.setAttribute("data-id", it.id);
+      // what a comment pick on it is titled (its words follow: "Sticky note · Six weeks")
+      el.setAttribute("data-comment-label", { note: T.sticky, text: T.text, section: T.section, image: T.image, arrow: T.arrow, pen: T.pen,
+        table: T.table, embed: T.embed }[it.type] || T.shape);
+      // drawn as one: its words are not a part of their own (a table's cells and an embed's page are)
+      if (it.type !== "table" && it.type !== "embed") el.setAttribute("data-comment-whole", "");
+      // a section is ground the others lie on: a comment's pin may lie on it too (bridge.js blocked)
+      if (it.type === "section") el.setAttribute("data-comment-under", "");
       if (old) old.replaceWith(el); else world.insertBefore(el, draftSvg);
       n.el = el;
     }
@@ -768,7 +765,7 @@
         undoS = undoS.filter(function (s) { return !names(s, bad); }); redoS = redoS.filter(function (s) { return !names(s, bad); });
       } else { undoS = []; redoS = []; }
       pend = [];
-      kit.toast(e && e.conflict ? T.conflict : (e && e.message ? String(e.message) : T.failed));
+      kit.toast(e && e.conflict ? T.conflict : (e && e.message ? String(e.message) : T.failed), 0, "error");
       return readAll().then(function () {
         if (!keep.length || !canEdit()) return;
         var ids = [];
@@ -846,7 +843,7 @@
     normItems(r.changed).forEach(function (nw) {
       var old = byId[nw.id];
       if (old && ed && ed.id === nw.id) {            // being typed in: the typing stays, the rest follows
-        if (ed.kind === "text") { nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
+        if (ed.kind === "text") { if ((nw.text || "") !== (ed.theirs != null ? ed.theirs : ed.orig) && !(ed.mine && ed.mine[nw.text || ""])) ed.theirs = nw.text || ""; nw.text = old.text; if (old.h != null && nw.type !== "text") nw.h = Math.max(old.h, nw.h || 0); }
         else if (ed.kind === "cell") {
           // the cell being typed in stays while the table still has it (the server's copy of a table
           // just placed differs from ours only in what it worked out); the typing is put into its rows
@@ -1017,16 +1014,25 @@
     if (ctxFitAt !== vw) { if (ctxFitAt >= 0) drawCtx(); fitCtx(); }
     var w = ctx.offsetWidth, hh = ctx.offsetHeight, one = sel.length === 1 && byId[sel[0]];
     var up = 30 + (one && one.type === "section" ? 22 : one && one.type === "embed" ? 26 : 0), down = 34 + (one && one.type === "table" ? 30 : 0);
-    var x = clamp(all.x + all.w / 2 - w / 2, 8, Math.max(8, vw - w - 8)), lo = 8, hi = vh - hh - 70;   // the tools pill holds the bottom
-    // Above the selection unless that covers more of its neighbours than below does; never off the view.
-    var best = null;
-    [all.y - hh - up, all.y + all.h + down].forEach(function (y, k) {
-      if (y < lo || y > hi) return;
-      var c = covered({ x: x, y: y, w: w, h: hh }) + k * 0.5;
-      if (!best || c < best.c) best = { y: y, c: c };
+    var lo = 8, hi = vh - hh - 70, side = 48;   // the tools pill holds the bottom; a side spot clears the connector dots
+    var cx = all.x + all.w / 2 - w / 2, cy = all.y + all.h / 2 - hh / 2, ya = all.y - hh - up, yb = all.y + all.h + down;
+    // The first spot near the selection that covers none of the other items: above it, below it, beside it, then
+    // above or below flush with either edge. None free: the view's foot, over the tools pill (its top edge when the
+    // selection is there).
+    var keep = { x: all.x - side + 4, y: all.y - up + 4, w: all.w + 2 * side - 8, h: all.h + up + down - 8 }, best = null;
+    [[cx, ya], [cx, yb], [all.x + all.w + side, cy], [all.x - w - side, cy], [all.x, ya], [all.x + all.w - w, ya], [all.x, yb], [all.x + all.w - w, yb]].some(function (p) {
+      if (p[1] < lo || p[1] > hi || p[0] < 8 || p[0] > vw - w - 8) return false;
+      var r = { x: p[0], y: p[1], w: w, h: hh };
+      if (cross(r, keep) || covered(r) > 0) return false;
+      best = r; return true;
     });
-    ctx.style.left = x + "px";
-    ctx.style.top = (best ? best.y : Math.max(lo, Math.min(all.y + 8, hi))) + "px";
+    if (!best) {
+      var x = clamp(cx, 8, Math.max(8, vw - w - 8));
+      best = { x: x, y: Math.max(lo, hi) };
+      if (cross({ x: x, y: best.y, w: w, h: hh }, keep)) best.y = lo;
+    }
+    ctx.style.left = best.x + "px";
+    ctx.style.top = best.y + "px";
   }
   /** Too wide for the view (a phone): the least needed controls move into "More", none scrolls out of sight. */
   function fitCtx() {
@@ -1247,7 +1253,7 @@
       case "resize":
         // a handle only clicked counts as a click on its item (a section's title sits right at its corner handle)
         if (dist(gg.s0, e) < 4) { if (isDouble("i:" + gg.it.id, e)) openItem(gg.it, null); }
-        else finishResize(gg);
+        else { finishResize(gg); if (gg.it.type === "box" || gg.it.type === "note") baseH[gg.it.id] = { h: gg.it.h, at: gg.it.h }; } // the person's height: typing never shrinks it
         break;
       case "marquee":
         if (dist(gg.s0, e) < 5) {
@@ -1487,11 +1493,31 @@
     if (it.type === "text") return { w: 0, h: 0 };
     return { w: it.w, h: it.h };
   }
+  /** Where a w x h item put down by a click centred at (x, y) goes: there, or the nearest spot beside what it would
+   *  cover (a sticky clicked down by a title never hides it; the 0.20.0 acceptance board's did). Top-left. */
+  function freeSpot(x, y, w, h) {
+    var sol = solids(), seen = {}, todo = [{ x: x, y: y }], gap = 16;
+    var far = function (p) { return Math.hypot(p.x - x, p.y - y); };
+    for (var n = 0; n < 120 && todo.length; n++) {
+      todo.sort(function (a, b) { return far(b) - far(a); });
+      var p = todo.pop(), k = Math.round(p.x) + "," + Math.round(p.y), hit = null;
+      if (seen[k]) continue;
+      seen[k] = 1;
+      for (var i = 0; i < sol.length && !hit; i++) {
+        var b = bb(sol[i]);
+        if (p.x < b.x + b.w + 4 && b.x < p.x + w + 4 && p.y < b.y + b.h + 4 && b.y < p.y + h + 4) hit = b;
+      }
+      if (!hit) return p;
+      todo.push({ x: hit.x + hit.w + gap, y: p.y }, { x: hit.x - w - gap, y: p.y }, { x: p.x, y: hit.y + hit.h + gap }, { x: p.x, y: hit.y - h - gap });
+    }
+    return { x: x, y: y };
+  }
   function ghostAt(e) {
     var s = protoSize(proto(tool));
     if (!s.w) { ghost.hidden = true; return; }
+    var p = freeSpot((e.clientX - vrc.left - cam.x) / cam.z - s.w / 2, (e.clientY - vrc.top - cam.y) / cam.z - s.h / 2, s.w, s.h);
     ghost.hidden = false;
-    ghost.style.cssText = "left:" + (e.clientX - vrc.left - s.w * cam.z / 2) + "px;top:" + (e.clientY - vrc.top - s.h * cam.z / 2) + "px;width:" + s.w * cam.z + "px;height:" + s.h * cam.z + "px";
+    ghost.style.cssText = "left:" + (cam.x + p.x * cam.z) + "px;top:" + (cam.y + p.y * cam.z) + "px;width:" + s.w * cam.z + "px;height:" + s.h * cam.z + "px";
   }
   function addText(p) {
     if (full()) return;
@@ -1514,7 +1540,7 @@
     }
     var s = protoSize(it);
     if (dragged && it.type !== "table") { it.w = Math.max(40, rnd(r.w)); it.h = Math.max(40, rnd(r.h)); it.x = rnd(r.x); it.y = rnd(r.y); }
-    else { it.x = rnd(p.x - s.w / 2); it.y = rnd(p.y - s.h / 2); }
+    else { var f = freeSpot(p.x - s.w / 2, p.y - s.h / 2, s.w, s.h); it.x = rnd(f.x); it.y = rnd(f.y); }
     setTool("select");
     if (!addItems([it], true)) return;
     if (it.type === "table") editCell(it.id, 0, 0); else startEdit(it.id, { all: it.type === "section" });
@@ -1537,7 +1563,8 @@
   view.addEventListener("pointercancel", onUp);
   view.addEventListener("pointerleave", function () { ghost.hidden = true; });
   view.addEventListener("wheel", function (e) {
-    if (C.thumb || e.target.closest(".bd-ctx,.bd-edit")) return;
+    // a note's editor or a menu keeps its own scroll; a ctrl+wheel over a note being written still zooms (V6i N3)
+    if (C.thumb || e.target.closest(".bd-ctx") || (!(e.ctrlKey || e.metaKey) && e.target.closest(".bd-edit"))) return;
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) zoomAt(e.clientX - vrc.left, e.clientY - vrc.top, cam.z * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0022)));
     else {
@@ -1571,9 +1598,11 @@
   function closePop() {
     if (!popEl) return;
     popEl.remove(); popEl = null; popAnchor = null; popEsc = null;
-    document.removeEventListener("mousedown", popOut, true);
+    document.removeEventListener("pointerdown", popOut, true);
   }
-  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) closePop(); }
+  // A press outside only closes it, as Esc does (a tool's picker: back to Select; V6f, Shapes stayed armed and the next
+  // click on the canvas made a shape).
+  function popOut(e) { if (popEl && !popEl.contains(e.target) && !(popAnchor && popAnchor.contains && popAnchor.contains(e.target))) { kit.swallowPress(e); escPop(); } }
   /** A small panel by its button (colours, shapes, a link field). Clicking the button again closes it.
    * onEsc: what Esc does besides closing it (a tool's picker: back to Select). */
   function pop(anchor, content, label, onEsc) {
@@ -1588,7 +1617,7 @@
     p.style.left = clamp(r.left + r.width / 2 - pw / 2, 8, Math.max(8, innerWidth - pw - 8)) + "px";
     p.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); escPop(); if (anchor.focus) anchor.focus(); } });
     popEl = p; popAnchor = anchor; popEsc = onEsc || null;
-    setTimeout(function () { document.addEventListener("mousedown", popOut, true); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", popOut, true); }, 0);
     return p;
   }
   function escPop() { var f = popEsc; closePop(); if (f) f(); }
@@ -1602,7 +1631,6 @@
     m.style.left = clamp(x, 8, Math.max(8, innerWidth - m.offsetWidth - 8)) + "px";
     m.style.top = clamp(y, 8, Math.max(8, innerHeight - m.offsetHeight - 8)) + "px";
   }
-  function tick(on, label) { return (on ? "✓ " : "") + label; }
   function swatches(names, cur, isFill, onPick, extra) {
     var box = h("div", { "class": "bd-sw" });
     names.forEach(function (n) {
@@ -1621,7 +1649,7 @@
   }
 
   // ------------------------------------------------------------------ the tools (a pill at the bottom), the zoom pill, the top corner
-  var toolBtn = {}, toolsEl = h("div", { "class": "bd-tools bd-chrome", role: "toolbar", "aria-label": T.board });
+  var toolBtn = {}, toolsEl = h("div", { "class": "bd-tools bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.board });
   var TOOLS = [["select", T.select, "V", "cursor"], ["hand", T.hand, "H", "hand"], ["text", T.text, "T", "text"], ["section", T.section, "A", "frame"],
     ["sticky", T.sticky, "S", "sticky"], ["draw", T.draw, "L", ""], ["shape", T.shapes, "", ""], ["image", T.image, "", "image"]];
   var TOOLKEY = { v: "select", h: "hand", t: "text", a: "section", s: "sticky", l: "draw" };
@@ -1664,18 +1692,20 @@
     });
     pop(anchor, grid, T.shapes, onEsc);
   }
-  var zoomLbl = h("button", { type: "button", "class": "kit-btn bd-zl", title: T.zoom, "aria-label": T.zoom, onclick: function () {
-    menu(zoomLbl, [25, 50, 75, 100, 150, 200].map(function (p) { return { label: p + "%", onClick: function () { zoomAt(vw / 2, vh / 2, p / 100); } }; })
-      .concat([{ label: T.fit + "  (Ctrl+0)", onClick: function () { fitAll(); } },
-        { label: tick(prefs.keys, T.keys), onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
+  // The level opens a menu (the levels, the current one checked; fit; the key shortcuts), as the other pages' zoom does
+  var zoomLbl = h("button", { type: "button", "class": "kit-btn bd-zl", title: T.zoomPick, "aria-label": T.zoomPick, "aria-haspopup": "menu", onclick: function () {
+    var now = rnd(cam.z * 100);
+    menu(zoomLbl, [{ label: T.fit + "  (Ctrl+0)", onClick: function () { fitAll(); } }, { sep: true }]
+      .concat([25, 50, 75, 100, 150, 200].map(function (p) { return { label: p + "%", on: now === p, onClick: function () { zoomAt(vw / 2, vh / 2, p / 100); } }; }))
+      .concat([{ sep: true }, { on: !!prefs.keys, label: T.keys, onClick: function () { prefs.keys = !prefs.keys; savePrefs(); } }]));
   } });
   var undoBtn = kit.button("", "undo", function () { undo(); }, T.undo + " (Ctrl+Z)"), redoBtn = kit.button("", "redo", function () { redo(); }, T.redo + " (Ctrl+Shift+Z)");
-  var zoomEl = h("div", { "class": "bd-zoom bd-chrome", role: "toolbar", "aria-label": T.zoom }, [
+  var zoomEl = h("div", { "class": "bd-zoom bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.zoom }, [
     kit.button("", "minus", function () { zoomStep(-1); }, T.zoomOut + " (Ctrl+−)"), zoomLbl, kit.button("", "plus", function () { zoomStep(1); }, T.zoomIn + " (Ctrl++)"),
     h("span", { "class": "bd-sep" }), undoBtn, redoBtn]);
   var histBtn = kit.button("", "history", function (e) { openHistory(histBtn); }, T.hist);
   var expBtn = kit.button("", "download", function () { menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); }, T.exp);
-  var topEl = h("div", { "class": "bd-top bd-chrome", role: "toolbar", "aria-label": T.more }, [histBtn, expBtn]);
+  var topEl = h("div", { "class": "bd-top bd-chrome", "data-comment-keep": "", role: "toolbar", "aria-label": T.more }, [histBtn, expBtn]);
   var banner = h("div", { "class": "bd-banner", hidden: true });
   function zoomSync() { zoomLbl.textContent = rnd(cam.z * 100) + "%"; }
   function undoSync() {
@@ -1685,7 +1715,7 @@
   zoomEl.querySelectorAll("button").forEach(function (b) { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.title); });
 
   // "Ask Hermes": a line above the tools that goes to the chat with the selected items' ids
-  var askIn = h("input", { type: "text", "class": "bd-askin", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
+  var askIn = h("input", { type: "text", "class": "bd-askin kit-bare", placeholder: T.askPh, "aria-label": T.askPh, maxlength: "2000", autocomplete: "off" });
   var askEl = h("form", { "class": "bd-ask bd-chrome", hidden: true }, [h("span", { "class": "bd-askic", html: kit.icon("sparkle") }), askIn,
     h("button", { type: "submit", "class": "kit-btn bd-asksend", title: T.send, "aria-label": T.send, html: kit.icon("arrowUR") })]);
   function openAsk() {
@@ -1701,8 +1731,8 @@
     if (!text) return;
     flush();
     hm.board.ask({ text: text.slice(0, 2000), ids: sel.slice(0, 100) })
-      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); })
-      .catch(function (x) { kit.toast(String(x && x.message || x)); });
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); })
+      .catch(function (x) { kit.toast(String(x && x.message || x), 0, "error"); });
     closeAsk();
     view.focus({ preventScroll: true });
   });
@@ -1733,11 +1763,26 @@
       return hh > t.h ? hh : null;
     } catch (e) { return null; }
   }
+  // A block's text grows it while typed in and shrinks it back with the text, to the height it grows from: the
+  // person's (dragged, or as it was before its text grew it: kept for this page's session, by item), else, a
+  // height just what its text needs (grown in an earlier session), the default for its kind; never below the
+  // person's own.
+  var baseH = {}; // id -> { h: the height it grows from, at: the height that holds while it is this one's }
+  function growBase(it) {
+    var b = baseH[it.id];
+    if (b && b.at === it.h) return b.h;
+    var def = it.type === "note" ? 200 : (SHAPE_SIZE[it.kind || "rounded"] || [180, 100])[1];
+    if (it.h > def && it.text) {
+      var need = grown(it, { h: def }) || def;
+      if (Math.abs(need - it.h) <= px(it) * 0.7) return def; // grown by its text (by the shared measure: within half a line)
+    }
+    return it.h;
+  }
   function sizeMenu(b) {
     endEdit();
     var cur = (selItems()[0] || {}).size || "body";
     menu(b, [["small", T.szSmall], ["body", T.szBody], ["large", T.szLarge], ["title", T.szTitle], ["huge", T.szHuge]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) {
           if (!TEXTY[it.type] || it.type === "section") return null;
           var p = { size: x[0] === "body" ? null : x[0] }, hh = grown(it, { size: x[0] });
@@ -1751,7 +1796,7 @@
     endEdit();
     var it0 = selItems()[0] || {}, cur = it0.align || (it0.type === "text" ? "left" : "center");
     menu(b, [["left", T.alLeft], ["center", T.alCenter], ["right", T.alRight]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) { return it.type === "box" || it.type === "text" ? { align: x[0] === (it.type === "text" ? "left" : "center") ? null : x[0] } : null; });
       } };
     }));
@@ -1783,7 +1828,7 @@
   function headMenu(b, i) {
     var a = selItems()[0], cur = (Array.isArray(a.heads) ? a.heads : ["none", "arrow"])[i];
     menu(b, [["none", T.hNone], ["arrow", T.hArrow], ["circle", T.hCircle]].map(function (x) {
-      return { label: tick(cur === x[0], x[1]), onClick: function () {
+      return { on: cur === x[0], label: x[1], onClick: function () {
         patch(free(), function (it) {
           if (it.type !== "arrow") return null;
           var hs = (Array.isArray(it.heads) ? it.heads : ["none", "arrow"]).slice(0, 2);
@@ -1808,7 +1853,7 @@
   function widthMenu(b) {
     var cur = +(selItems()[0] || {}).width || 3;
     menu(b, [2, 3, 5, 8, 12].map(function (w) {
-      return { label: tick(cur === w, w + " px"), onClick: function () { patch(free(), function (it) { return it.type === "pen" ? { width: w === 3 ? null : w } : null; }); } };
+      return { on: cur === w, label: w + " px", onClick: function () { patch(free(), function (it) { return it.type === "pen" ? { width: w === 3 ? null : w } : null; }); } };
     }));
   }
   function linkPop(b) {
@@ -1868,19 +1913,19 @@
     return b;
   }
   /** A control that may move into "More" on a narrow view: pri (higher goes first) and its menu entry; run gets the More button as its anchor. */
-  function opt(b, pri, label, run) {
+  function opt(b, pri, label, run, icon) {
     b._pri = pri;
-    b._entry = { label: label, onClick: function () { run(ctx.querySelector(".bd-more") || b); } };
+    b._entry = { label: label, icon: icon, onClick: function () { run(ctx.querySelector(".bd-more") || b); } };
     return b;
   }
   function lockBtn(on) { return cbtn(on ? T.unlock : T.lock, ico(on ? "lock" : "unlock"), toggleLock, !!on); }
   function textBtns() {
     var bold = function () { toggleMark("**"); }, ital = function () { toggleMark("*"); };
-    return [opt(cbtn(T.bold + " (Ctrl+B)", kit.icon("bold"), bold), 5, T.bold, bold), opt(cbtn(T.italic + " (Ctrl+I)", kit.icon("italic"), ital), 7, T.italic, ital),
-      opt(cbtn(T.link, ico("link"), linkPop), 8, T.link + "…", linkPop), opt(cbtn(T.list, ico("list"), toggleList), 9, T.list, toggleList),
-      opt(cbtn(T.align, kit.icon("alignC") + CARET, alignMenu), 10, T.align + "…", alignMenu)];
+    return [opt(cbtn(T.bold + " (Ctrl+B)", kit.icon("bold"), bold), 5, T.bold, bold, "bold"), opt(cbtn(T.italic + " (Ctrl+I)", kit.icon("italic"), ital), 7, T.italic, ital, "italic"),
+      opt(cbtn(T.link, ico("link"), linkPop), 8, T.link + "…", linkPop, "bd-link"), opt(cbtn(T.list, ico("list"), toggleList), 9, T.list, toggleList, "bd-list"),
+      opt(cbtn(T.align, kit.icon("alignC") + CARET, alignMenu), 10, T.align + "…", alignMenu, "alignC")];
   }
-  function sizeBtn(it) { var b = cbtn(T.size, "<b class=\"bd-szl\"></b>" + CARET, sizeMenu); b.querySelector("b").textContent = SIZE_LBL[it.size] || "M"; return opt(b, 4, T.size + "…", sizeMenu); }
+  function sizeBtn(it) { var b = cbtn(T.size, "<b class=\"bd-szl\"></b>" + CARET, sizeMenu); b.querySelector("b").textContent = SIZE_LBL[it.size] || "M"; return opt(b, 4, T.size + "…", sizeMenu, "font"); }
   function dotBtn(label, colour, fn, ring) {
     var b = cbtn(label, '<i class="bd-cdot' + (ring ? " bd-ring" : "") + '"></i>' + CARET, fn);
     b.querySelector("i").style[ring ? "borderColor" : "background"] = colour;
@@ -1898,28 +1943,28 @@
         case "box":
           var kindRun = function (b) { endEdit(); shapePop(b, kindOf(one), false, function (k) { patch(free(), function (it) { return it.type === "box" ? { kind: k === "rounded" ? null : k } : null; }); }); };
           var lineRun = function (b) { strokePop(b, "stroke", T.outline, { box: 1 }, true); };
-          c = [opt(cbtn(T.kind, kindIcon(kindOf(one)) + CARET, kindRun), 3, T.kind + "…", kindRun),
-            sizeBtn(one), sep()].concat(textBtns(), [sep(), opt(dotBtn(T.fillC, one.hollow ? "transparent" : f.bg, fillPop), 2, T.fillC + "…", fillPop),
-            opt(dotBtn(T.outline, one.stroke ? strokeOf(one.stroke) : f.line, lineRun, true), 6, T.outline + "…", lineRun), sep(), lockBtn(false), moreBtn()]);
+          c = [opt(cbtn(T.kind, kindIcon(kindOf(one)) + CARET, kindRun), 3, T.kind + "…", kindRun, "shape"),
+            sizeBtn(one), sep()].concat(textBtns(), [sep(), opt(dotBtn(T.fillC, one.hollow ? "transparent" : f.bg, fillPop), 2, T.fillC + "…", fillPop, "palette"),
+            opt(dotBtn(T.outline, one.stroke ? strokeOf(one.stroke) : f.line, lineRun, true), 6, T.outline + "…", lineRun, "bd-ring"), sep(), lockBtn(false), moreBtn()]);
           break;
         case "text":
           var colRun = function (b) { strokePop(b, "color", T.colour, { text: 1 }, false); };
-          c = [sizeBtn(one), opt(dotBtn(T.colour, strokeOf(one.color), colRun), 2, T.colour + "…", colRun), sep()].concat(textBtns(), [sep(), lockBtn(false), moreBtn()]);
+          c = [sizeBtn(one), opt(dotBtn(T.colour, strokeOf(one.color), colRun), 2, T.colour + "…", colRun, "palette"), sep()].concat(textBtns(), [sep(), lockBtn(false), moreBtn()]);
           break;
         case "note": c = [dotBtn(T.colour, f.bg, fillPop), sizeBtn(one), sep(), lockBtn(false), moreBtn()]; break;
         case "section": c = [dotBtn(T.colour, f.bg, fillPop), sep(), lockBtn(false), moreBtn()]; break;
         case "arrow":
           var hs = Array.isArray(one.heads) ? one.heads : ["none", "arrow"], cap = function (k) { return k.charAt(0).toUpperCase() + k.slice(1); };
           var h0 = function (b) { headMenu(b, 0); }, h1 = function (b) { headMenu(b, 1); }, lbl = function () { editLabel(one.id); };
-          c = [opt(cbtn(T.startHead, ico("h" + cap(hs[0] || "none") + "S") + CARET, h0), 5, T.startHead + "…", h0),
-            opt(cbtn(T.lineStyle, ico(one.dash ? "dash" : "solid") + '<i class="bd-cdot"></i>' + CARET, linePop), 3, T.lineStyle + "…", linePop),
-            opt(cbtn(T.endHead, ico("h" + cap(hs[1] || "none")) + CARET, h1), 4, T.endHead + "…", h1),
-            opt(cbtn(T.label, ico("tag"), lbl), 6, T.label, lbl), sep(), lockBtn(false), moreBtn()];
+          c = [opt(cbtn(T.startHead, ico("h" + cap(hs[0] || "none") + "S") + CARET, h0), 5, T.startHead + "…", h0, "bd-hArrowS"),
+            opt(cbtn(T.lineStyle, ico(one.dash ? "dash" : "solid") + '<i class="bd-cdot"></i>' + CARET, linePop), 3, T.lineStyle + "…", linePop, "bd-dash"),
+            opt(cbtn(T.endHead, ico("h" + cap(hs[1] || "none")) + CARET, h1), 4, T.endHead + "…", h1, "bd-hArrow"),
+            opt(cbtn(T.label, ico("tag"), lbl), 6, T.label, lbl, "bd-tag"), sep(), lockBtn(false), moreBtn()];
           c[1].querySelector("i").style.background = strokeOf(one.color);
           break;
         case "pen":
           var penRun = function (b) { strokePop(b, "color", T.colour, { pen: 1 }, false); };
-          c = [opt(dotBtn(T.colour, strokeOf(one.color), penRun), 2, T.colour + "…", penRun), opt(cbtn(T.width, ico("width") + CARET, widthMenu), 3, T.width + "…", widthMenu), sep(), lockBtn(false), moreBtn()];
+          c = [opt(dotBtn(T.colour, strokeOf(one.color), penRun), 2, T.colour + "…", penRun, "palette"), opt(cbtn(T.width, ico("width") + CARET, widthMenu), 3, T.width + "…", widthMenu, "bd-width"), sep(), lockBtn(false), moreBtn()];
           break;
         case "table":
           c = [cbtn(T.addRow, ico("rowAdd"), function () { tableAdd(one.id, "row"); }), cbtn(T.addCol, ico("colAdd"), function () { tableAdd(one.id, "col"); }), sep(), lockBtn(false), moreBtn()];
@@ -1935,8 +1980,8 @@
         menu(b, [["left", T.aLeft], ["center", T.aCenter], ["right", T.aRight], ["top", T.aTop], ["middle", T.aMiddle], ["bottom", T.aBottom], ["hspace", T.aH], ["vspace", T.aV]]
           .map(function (x) { return { label: x[1], onClick: function () { alignSel(x[0]); } }; }));
       }, grpRun = function () { if (grp) ungroup(); else group(); };
-      c = [opt(cbtn(T.arrange, ico("arrange") + CARET, arr), 3, T.arrange + "…", arr), opt(dotBtn(T.colour, "var(--bd-f-green)", fillPop), 4, T.colour + "…", fillPop),
-        opt(cbtn(grp ? T.ungroup + " (Ctrl+Shift+G)" : T.group + " (Ctrl+G)", ico("group"), grpRun, !!grp), 5, grp ? T.ungroup : T.group, grpRun), sep(), lockBtn(false), moreBtn()];
+      c = [opt(cbtn(T.arrange, ico("arrange") + CARET, arr), 3, T.arrange + "…", arr, "bd-arrange"), opt(dotBtn(T.colour, "var(--bd-f-green)", fillPop), 4, T.colour + "…", fillPop, "palette"),
+        opt(cbtn(grp ? T.ungroup + " (Ctrl+Shift+G)" : T.group + " (Ctrl+G)", ico("group"), grpRun, !!grp), 5, grp ? T.ungroup : T.group, grpRun, grp ? "bd-ungroup" : "bd-group"), sep(), lockBtn(false), moreBtn()];
     }
     c.forEach(function (x, i) { x._ord = i; ctx.appendChild(x); });
   }
@@ -1956,8 +2001,9 @@
     ta.value = it.text || "";
     tx.textContent = ""; tx.appendChild(ta);
     n.el.classList.add("bd-editing");
-    ed = { kind: "text", id: id, ta: ta, orig: it.text || "", h0: it.h, ph: o.ph || null, one: one };
+    ed = { kind: "text", id: id, ta: ta, orig: it.text || "", h0: it.h, base: growBase(it), ph: o.ph || null, one: one };
     ta.addEventListener("input", edInput);
+    ta.addEventListener("input", typingOn);
     ta.addEventListener("keydown", function (e) {
       var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
       if (e.key === "Escape") {
@@ -1975,6 +2021,14 @@
     if (o.ch) ta.setRangeText(o.ch, ta.selectionStart, ta.selectionEnd, "end");
     edInput(); drawCtx(); drawUi();
   }
+  // An item typed in tells the server so at once and every 1.5 s while the typing lasts (store.typing_set):
+  // Hermes' edit of it is refused, and Hermes told, until the person's words are saved.
+  var typingTimer = null;
+  function typingItem() {
+    if (!ed) { clearInterval(typingTimer); typingTimer = null; return; }
+    if (live && hm.typing && !fresh[ed.id]) hm.typing([ed.id]).catch(function () {});
+  }
+  function typingOn() { if (!typingTimer) { typingItem(); typingTimer = setInterval(typingItem, 1500); } }
   /** While typing: the text is the item's at once (not yet sent), a block grows taller to hold it. */
   function edInput() {
     if (!ed || ed.kind !== "text") return;
@@ -1985,18 +2039,36 @@
     if (it.type === "text") { reshape(it); ta.style.height = "0px"; ta.style.height = ta.scrollHeight + "px"; }
     else if (it.type !== "section") {
       ta.style.height = "0px";
-      var need = ta.scrollHeight, hh = ed.h0, i;
+      var need = ta.scrollHeight, hh = ed.base, i;
       ta.style.height = need + "px";
       for (i = 0; i < 8; i++) { var ins = inset(kindOf(it), it.w, hh); if (ins.h >= need) break; hh += Math.ceil(need - ins.h); }
       if (hh !== it.h) { it.h = hh; n.b = null; reshape(it); }
     }
     redrawMany(arrowsAt(it.id));
     drawUi();
+    // Saved while the typing goes on: after a pause (700 ms), and at most 2 s after the first key not saved.
+    // Not a step of undo (the end of the typing is that); not for a block never sent (it starts existing at
+    // the end) nor over Hermes' text (the end keeps both and says so).
+    var now = Date.now();
+    if (!ed.first) ed.first = now;
+    clearTimeout(ed.saveT);
+    ed.saveT = setTimeout(textSave, Math.max(0, Math.min(700, ed.first + 2000 - now)));
+  }
+  function textSave() {
+    var e = ed, it = e && e.kind === "text" && byId[e.id];
+    if (!it) return;
+    e.first = 0;
+    if (fresh[e.id] || e.theirs != null || !canEdit()) return;
+    var text = (e.one ? e.ta.value.replace(/\n/g, " ") : e.ta.value).slice(0, 4000);
+    if (text === (e.last != null ? e.last : e.orig)) return;
+    e.last = text; (e.mine = e.mine || {})[text] = 1; // what comes back from the server is ours, not Hermes'
+    queue([{ op: "set", id: e.id, text: text }]);
   }
   /** The typing ends: kept (clicking away, Tab, Ctrl+Enter) or, with `cancel` (Esc), given up. */
   function endEdit(cancel) {
     if (!ed) return;
     var e = ed, it = byId[e.id];
+    clearTimeout(e.saveT);
     if (cancel === true) e.ta.value = e.orig;
     ed = null;
     if (e.kind === "cell") return commitCell(e, it);
@@ -2005,8 +2077,9 @@
     if (n && n.el) n.el.classList.remove("bd-editing");
     if (!it) return;
     var text = (e.one ? e.ta.value.replace(/\n/g, " ") : e.ta.value).replace(/\s+$/, "").slice(0, 4000), hNew = cancel === true ? e.h0 : it.h;
-    if (cancel === true) text = e.orig;
-    it.text = e.orig;                                   // back to what it was, then one undoable edit
+    var was = e.theirs != null ? e.theirs : e.orig;      // Hermes' text when it changed it meanwhile
+    if (cancel === true) text = was;
+    it.text = was;                                      // back to what it was, then one undoable edit
     if (e.h0 != null) it.h = e.h0;
     inval(it.id);
     if (fresh[it.id]) {                                 // a text that was never sent: it starts existing now, or never did
@@ -2025,11 +2098,13 @@
       return;
     }
     var p = { text: text };
+    if (e.theirs != null && text !== e.theirs) kit.toast(T.keptMine); // Hermes changed it while it was typed in: never silently over it
     if ((it.type === "box" || it.type === "note") && hNew !== e.h0) p.h = hNew;
+    if ((it.type === "box" || it.type === "note") && cancel !== true) baseH[it.id] = { h: e.base, at: hNew };
     if (!patch([it.id], function () { return p; })) afterChange();
   }
   /** Typing given up because the item went away. */
-  function dropEdit() { var e = ed; ed = null; if (e && e.kind === "text") { var n = N[e.id]; if (n && n.el) n.el.classList.remove("bd-editing"); } }
+  function dropEdit() { var e = ed; ed = null; if (e) clearTimeout(e.saveT); if (e && e.kind === "text") { var n = N[e.id]; if (n && n.el) n.el.classList.remove("bd-editing"); } }
   /** Esc in a placeholder block nobody typed in: the block and its arrow go, with no trace in undo. */
   function discardPlaceholder() {
     var e = ed, ids = e.ph, last = undoS[undoS.length - 1];
@@ -2056,6 +2131,7 @@
     ed = { kind: "cell", id: id, ta: ta, r: r, c: c, orig: ta.value };
     var size = function () { ta.style.height = "0px"; ta.style.height = ta.scrollHeight + "px"; };
     ta.addEventListener("input", size);
+    ta.addEventListener("input", typingOn);
     ta.addEventListener("keydown", function (e) {
       var rows = (it.rows || []).length, cols = n.el.querySelectorAll("col").length, r2 = r, c2 = c;
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); ta.value = ed.orig; endEdit(); view.focus({ preventScroll: true }); return; }
@@ -2287,7 +2363,11 @@
   function duplicate() {
     endEdit();
     if (!sel.length) return;
-    pasteItems(JSON.parse(clipText()).items, null, 24, 24);
+    // the copy at the nearest free spot beside the original (right of it first), as a click puts a new item down:
+    // never on top of it or of anything else
+    var box = union(sel.map(function (id) { var it = byId[id]; return it && it.type !== "arrow" ? bb(it) : null; }));
+    var p = box ? freeSpot(box.x + box.w + 24, box.y, box.w, box.h) : null;
+    pasteItems(JSON.parse(clipText()).items, null, p ? rnd(p.x - box.x) : 24, p ? rnd(p.y - box.y) : 24);
   }
   function pastePoint() {
     if (lastPt && vrc && lastPt.x >= vrc.left && lastPt.x <= vrc.left + vw && lastPt.y >= vrc.top && lastPt.y <= vrc.top + vh) return toWorld({ clientX: lastPt.x, clientY: lastPt.y });
@@ -2330,7 +2410,7 @@
     if (!sel.length) return;
     clipLocal = clipText();
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(clipLocal).catch(function () {}); } catch (e) {}
-    if (cut) deleteSel(); else kit.toast(T.copied);
+    if (cut) deleteSel(); else kit.toast(T.copied, 0, "success");
   }
   function menuPaste() {
     var local = function () { if (clipLocal) pasteText(clipLocal); else kit.toast(T.pasteHint); };
@@ -2357,13 +2437,13 @@
   }
   function addImageFile(file, at) {
     if (!canEdit() || full()) return;
-    if (!file || !/^image\//.test(file.type)) return kit.toast(T.imgBad);
+    if (!file || !/^image\//.test(file.type)) return kit.toast(T.imgBad, 0, "error");
     var url = URL.createObjectURL(file), img = new Image();
     img.onload = function () {
       var w = img.naturalWidth, hh = img.naturalHeight, src = null;
       try { src = w && hh ? shrink(img) : null; } catch (e) { src = null; }
       URL.revokeObjectURL(url);
-      if (!src) return kit.toast(w && hh ? T.imgBig : T.imgBad);
+      if (!src) return kit.toast(w && hh ? T.imgBig : T.imgBad, 0, "error");
       var k = Math.min(1, 420 / w, 420 / hh), p = at || { x: (vw / 2 - cam.x) / cam.z, y: (vh / 2 - cam.y) / cam.z };
       var it = { id: newId(), type: "image", src: src, w: Math.max(8, rnd(w * k)), h: Math.max(8, rnd(hh * k)) };
       it.x = rnd(p.x - it.w / 2); it.y = rnd(p.y - it.h / 2);
@@ -2372,7 +2452,7 @@
       if (hm.board.upload) hm.board.upload(src).then(function (r) { if (r && typeof r.src === "string" && r.src) it.src = r.src; }).catch(function () {}).then(put);
       else put();
     };
-    img.onerror = function () { URL.revokeObjectURL(url); kit.toast(T.imgBad); };
+    img.onerror = function () { URL.revokeObjectURL(url); kit.toast(T.imgBad, 0, "error"); };
     img.src = url;
   }
   function pickImage() {
@@ -2385,13 +2465,15 @@
   // ------------------------------------------------------------------ "More" and the right-click menu
   function moreItems() {
     var list = selItems(), locked = list.length && list.every(function (it) { return it.locked; }), out;
-    out = [{ label: locked ? T.unlock : T.lock, onClick: toggleLock },
-      { label: T.cut + "  (Ctrl+X)", onClick: function () { menuCopy(true); } }, { label: T.copy + "  (Ctrl+C)", onClick: function () { menuCopy(false); } },
-      { label: T.paste + "  (Ctrl+V)", onClick: menuPaste }, { label: T.dup + "  (Ctrl+D)", onClick: duplicate },
-      { label: T.front + "  ( ] )", onClick: function () { orderSel("front"); } }, { label: T.back + "  ( [ )", onClick: function () { orderSel("back"); } },
-      { label: T.group + "  (Ctrl+G)", onClick: group }, { label: T.ungroup + "  (Ctrl+Shift+G)", onClick: ungroup },
-      { label: T.tidy, onClick: tidy }, { label: T.del + "  (Del)", onClick: deleteSel }];
-    if (canAsk) out.push({ label: T.ask + "  (Ctrl+K)", onClick: openAsk });
+    // grouped as Hermes' menus are, each item with its icon
+    out = [{ sep: true }, { label: locked ? T.unlock : T.lock, icon: locked ? "bd-unlock" : "bd-lock", onClick: toggleLock }, { sep: true },
+      { label: T.cut + "  (Ctrl+X)", icon: "bd-cut", onClick: function () { menuCopy(true); } }, { label: T.copy + "  (Ctrl+C)", icon: "copy", onClick: function () { menuCopy(false); } },
+      { label: T.paste + "  (Ctrl+V)", icon: "bd-paste", onClick: menuPaste }, { label: T.dup + "  (Ctrl+D)", icon: "plus", onClick: duplicate }, { sep: true },
+      { label: T.front + "  ( ] )", icon: "front", onClick: function () { orderSel("front"); } }, { label: T.back + "  ( [ )", icon: "back", onClick: function () { orderSel("back"); } },
+      { label: T.group + "  (Ctrl+G)", icon: "bd-group", onClick: group }, { label: T.ungroup + "  (Ctrl+Shift+G)", icon: "bd-ungroup", onClick: ungroup },
+      { label: T.tidy, icon: "bd-tidy", onClick: tidy }, { sep: true }];
+    if (canAsk) out.push({ label: T.ask + "  (Ctrl+K)", icon: "sparkle", onClick: openAsk });
+    out.push({ label: T.del + "  (Del)", icon: "trash", onClick: deleteSel });
     return out;
   }
   view.addEventListener("contextmenu", function (e) {
@@ -2588,16 +2670,15 @@
         var cv = document.createElement("canvas");
         cv.width = Math.round(o.w * k); cv.height = Math.round(o.h * k);
         cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(function (b) { if (b) kit.download(fileName() + ".png", b, "image/png"); else kit.toast(T.expFail); }, "image/png");
-      } catch (e) { kit.toast(T.expFail); }
+        cv.toBlob(function (b) { if (b) kit.download(fileName() + ".png", b, "image/png"); else kit.toast(T.expFail, 0, "error"); }, "image/png");
+      } catch (e) { kit.toast(T.expFail, 0, "error"); }
     };
-    img.onerror = function () { kit.toast(T.expFail); };
+    img.onerror = function () { kit.toast(T.expFail, 0, "error"); };
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(o.svg);
   }
   var exportList = [{ id: "png", label: T.expPng, run: exportPng }, { id: "svg", label: T.expSvg, run: exportSvg }];
 
   // ------------------------------------------------------------------ history: list, view-only preview in place, restore
-  var dtFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : "en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function openHistory(anchor) {
     if (!live || !hm.board.history) return;
     endEdit(); nudgeEnd(); flush();
@@ -2606,9 +2687,9 @@
       if (!list.length) return menu(anchor, [{ hint: T.histNone }]);
       menu(anchor, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
-        return { label: dtFmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () { showPreview(x); } };
+        return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () { showPreview(x); } };
       }));
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function swap(list) {
     endEdit(); cancelGesture(); setInteract(null); closePop();
@@ -2624,15 +2705,15 @@
       preview = { rev: x.rev, keep: keep };
       ro = true; root.classList.add("bd-ro", "bd-preview");
       banner.textContent = "";
-      banner.append(h("span", { text: fill(T.showing, { t: dtFmt.format(new Date((r.at || x.at) * 1000)) }) }),
+      banner.append(h("span", { text: fill(T.showing, { t: kit.date(r.at || x.at, true) }) }),
         h("button", { type: "button", "class": "kit-btn bd-pri", text: T.restoreThis, onclick: function () {
-          hm.board.restore(x.rev).then(function () { closePreview(); undoS = []; redoS = []; undoSync(); kit.toast(T.restored); return readAll(); })
-            .catch(function (e) { kit.toast(String(e && e.message || e)); });
+          hm.board.restore(x.rev).then(function () { closePreview(); undoS = []; redoS = []; undoSync(); kit.toast(T.restored, 0, "success"); return readAll(); })
+            .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
         } }),
         h("button", { type: "button", "class": "kit-btn", text: T.backNow, onclick: closePreview }));
       banner.hidden = false;
       cull(); drawCtx(); drawUi(); undoSync();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function closePreview() {
     if (!preview) return;
@@ -2755,20 +2836,36 @@
     drawCtx(); undoSync();
     kit.ready();
   }
+  // The zoom pill keeps the bottom right corner while the tools pill leaves it room; else it goes up to the top
+  // left (and the "Hermes is working" pill below it): the two never meet, whatever the width.
+  function placeChrome() {
+    if (!live) return;
+    root.classList.remove("bd-zoomup");
+    var a = toolsEl.getBoundingClientRect(), z = zoomEl.getBoundingClientRect();
+    if (a.width && z.width && a.right + 8 > z.left && a.left < z.right + 8) root.classList.add("bd-zoomup");
+  }
   boot();
+  placeChrome();
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
+      placeChrome();
       if (!booted) return boot();
       measureView();
       if (ro && !preview) fitAll(true); else { cullSoon(); }
     }).observe(view);
-  } else window.addEventListener("resize", function () { measureView(); cullSoon(); });
+  } else window.addEventListener("resize", function () { placeChrome(); measureView(); cullSoon(); });
   if (!booted) setTimeout(function () { if (!booted) { vw = vw < 2 ? 800 : vw; vh = vh < 2 ? 600 : vh; booted = true; fitAll(true); kit.ready(); } }, 300);
   setHermes(!!B0.hermes_active, B0.hermes_left, B0.hermes_ago);
   if (live) {
     hm.on("board", function () { pull(); });
     setInterval(function () { if (!document.hidden && !busy()) pull(); }, 4000);
-    window.addEventListener("pagehide", function () { endEdit(); nudgeEnd(); flush(); });
+    // Going away: what waits is posted in this handler itself (a frame being removed runs no promise callback
+    // after it, so flush's chain would never send it).
+    window.addEventListener("pagehide", function () {
+      endEdit(); nudgeEnd();
+      clearTimeout(flushTimer); flushTimer = null;
+      if (pend.length) { var ops = pend; pend = []; hm.board.edit(ops, rev).catch(function () {}); }
+    });
     document.addEventListener("visibilitychange", function () { if (document.hidden) { nudgeEnd(); flush(); } });
   }
 })();

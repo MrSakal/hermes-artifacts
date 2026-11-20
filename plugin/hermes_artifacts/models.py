@@ -201,23 +201,6 @@ def parse_expr(text: str):
         raise ValueError(str(e))
 
 
-def eval_expr(text, values: Optional[dict] = None) -> float:
-    """A number or an expression's value (ValueError when it is not one or cannot be computed)."""
-    if isinstance(text, bool):
-        raise ValueError("not a number")
-    if isinstance(text, (int, float)):
-        return float(text)
-    try:
-        v = _eval(parse_expr(str(text)), values or {})
-    except KeyError as e:
-        raise ValueError(f"unknown name {e.args[0]!r}")
-    except (ArithmeticError, ValueError, TypeError) as e:
-        raise ValueError(str(e) or "cannot be computed")
-    if not isinstance(v, (int, float)) or isinstance(v, complex) or not math.isfinite(v):
-        raise ValueError("cannot be computed")
-    return float(v)
-
-
 # ----------------------------------------------------------------------------- the check
 
 class _Check:

@@ -44,7 +44,7 @@
       table: "Table", shapes: "Shapes", rounded: "Rounded rectangle", diamond: "Diamond", arrowR: "Arrow right", arrowL: "Arrow left",
       arrowU: "Arrow up", arrowD: "Arrow down", line: "Line", props: "Properties", zoom: "Zoom", zoomIn: "Zoom in", zoomOut: "Zoom out",
       fitSlide: "Fit the slide", presentNotes: "Present with speaker notes", showNotes: "Speaker notes", showThumbs: "Slide thumbnails",
-      hideThumbs: "Hide thumbnails", oneSlide: "One slide", prev: "Previous slide", nextSlide: "Next slide", more: "More",
+      hideThumbs: "Hide thumbnails", oneSlide: "One slide", prev: "Previous slide", nextSlide: "Next slide", more: "More", close: "Close",
       pSlide: "Slide", pTransition: "Transition", trNone: "None", trFade: "Fade", trPush: "Push", trMagic: "Magic move",
       pAppearance: "Appearance", pBackground: "Background", pSize: "Size", pX: "X", pY: "Y", pWidth: "Width", pHeight: "Height",
       pText: "Text", pStyle: "Text style", pCustom: "Custom", pFontSize: "Size", pWeight: "Weight", pLine: "Line height", pTrack: "Spacing",
@@ -77,7 +77,7 @@
       table: "Táblázat", shapes: "Alakzatok", rounded: "Lekerekített téglalap", diamond: "Rombusz", arrowR: "Nyíl jobbra", arrowL: "Nyíl balra",
       arrowU: "Nyíl fel", arrowD: "Nyíl le", line: "Vonal", props: "Tulajdonságok", zoom: "Nagyítás", zoomIn: "Nagyítás", zoomOut: "Kicsinyítés",
       fitSlide: "Dia illesztése", presentNotes: "Vetítés előadói jegyzetekkel", showNotes: "Előadói jegyzetek", showThumbs: "Diák bélyegképei",
-      hideThumbs: "Bélyegképek elrejtése", oneSlide: "Egy dia", prev: "Előző dia", nextSlide: "Következő dia", more: "Továbbiak",
+      hideThumbs: "Bélyegképek elrejtése", oneSlide: "Egy dia", prev: "Előző dia", nextSlide: "Következő dia", more: "Továbbiak", close: "Bezárás",
       pSlide: "Dia", pTransition: "Áttűnés", trNone: "Nincs", trFade: "Áttűnés", trPush: "Betolás", trMagic: "Varázsmozgás",
       pAppearance: "Megjelenés", pBackground: "Háttér", pSize: "Méret", pX: "X", pY: "Y", pWidth: "Szélesség", pHeight: "Magasság",
       pText: "Szöveg", pStyle: "Szövegstílus", pCustom: "Egyéni", pFontSize: "Méret", pWeight: "Vastagság", pLine: "Sorköz", pTrack: "Betűköz",
@@ -95,7 +95,7 @@
   var bar = document.getElementById("sl-bar"), rail = document.getElementById("sl-rail");
   var stageWrap = document.getElementById("sl-stage-wrap"), stage = document.getElementById("sl-stage");
   var notesEl = document.getElementById("sl-notes");
-  bar.hidden = true; // Claude's deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
+  bar.hidden = true; // the deck has no bar: its tools float over the stage, thumbnails sit below, properties at the right
   var mainEl = document.getElementById("sl-main"), strip = document.getElementById("sl-strip"), stripHead = document.getElementById("sl-striphead"),
     propsEl = document.getElementById("sl-props");
   if (!deck) { document.body.appendChild(h("div", { "class": "kit-empty", text: T.bad })); kit.ready(); return; }
@@ -188,6 +188,7 @@
   function canvasFor(s, scale, live) {
     var c = h("div", { "class": "sl-canvas" });
     c.style.transform = "scale(" + scale + ")";
+    if (live) c.setAttribute("data-comment-label", T.pSlide + " " + (slides.indexOf(s) + 1)); // what a comment pick on it is titled
     var sec = live ? s.sec : s.sec.cloneNode(true);
     if (!live) sec.querySelectorAll("[contenteditable]").forEach(function (n) { n.removeAttribute("contenteditable"); });
     c.appendChild(sec);
@@ -222,8 +223,10 @@
     cur = Math.max(0, Math.min(slides.length - 1, i));
     clip.replaceChildren(canvasFor(slides[cur], 1, true));
     fit();
+    // One current slide; a pick of several lasts only while the current one is in it (no stale "picked" outline).
+    if (picked.indexOf(slides[cur].id) < 0) picked = [];
     var thumbs = rail.querySelectorAll(".sl-thumb");
-    thumbs.forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+    thumbs.forEach(function (b, j) { b.classList.toggle("on", j === cur); b.classList.toggle("picked", picked.length > 1 && picked.indexOf(slides[j].id) >= 0); });
     var on = thumbs[cur];
     if (on) on.scrollIntoView({ block: "nearest", inline: "nearest" });
     counter.textContent = (cur + 1) + " " + T.of + " " + slides.length;
@@ -260,7 +263,7 @@
   function thumb(s, i, caption) {
     var box = h("div", { "class": "sl-box" });
     var b = h("button", { "class": "sl-thumb" + (isHidden(s) ? " is-hidden" : "") + (!caption && picked.indexOf(s.id) >= 0 ? " picked" : ""),
-      type: "button", title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function (e) {
+      type: "button", "data-comment-on": "", "data-i": String(i), title: isHidden(s) ? titleOf(s) + " · " + T.hiddenTag : titleOf(s), onclick: function (e) {
         if (!caption && editable && (e.shiftKey || e.ctrlKey || e.metaKey)) return pick(i, e.shiftKey ? "range" : "toggle");
         closeGrid(); picked = [s.id]; show(i);
       } },
@@ -270,7 +273,26 @@
       b.draggable = true;
       b.addEventListener("dragstart", function (e) { dragFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "slide " + i); });
       b.addEventListener("dragend", function () { dragFrom = null; dropLine.hidden = true; });
-      b.addEventListener("contextmenu", function (e) { e.preventDefault(); if (i !== cur) show(i); slideMenu(b, i); });
+      // the menu acts on this slide without making it the current one: marked only while the menu is open (Esc
+      // leaves the current slide and the pick as they were; an action shows what it did)
+      // A right click does not focus it, and the menu gone, the focus is back where it was (Esc focused this
+      // thumbnail: a ring on it beside the current one's border, two marked); from this one, on the current one.
+      b.addEventListener("mousedown", function (e) { if (e.button === 2) e.preventDefault(); });
+      b.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        var was = document.activeElement;
+        b.classList.add("is-ctx");
+        slideMenu(b, i, function () {
+          b.classList.remove("is-ctx");
+          setTimeout(function () { // after the menu's own Esc focus
+            if (document.activeElement !== b) return;
+            var now = rail.querySelectorAll(".sl-thumb")[cur];
+            if (was === b) { if (now && now !== b) now.focus(); }
+            else if (was && was !== document.body && was.isConnected && was.focus) was.focus();
+            else b.blur();
+          }, 0);
+        });
+      });
     }
     queueThumb(box, function (w) { return canvasFor(s, (w || 160) / W, false); });
     return b;
@@ -304,7 +326,15 @@
     slides.forEach(function (s, i) { var hd = sectionHead(s, i); if (hd) items.push(hd); items.push(thumb(s, i, false)); });
     rail.replaceChildren.apply(rail, items.concat(editable ? [dropLine] : []));
     rail.querySelectorAll(".sl-thumb").forEach(function (b, j) { b.classList.toggle("on", j === cur); });
+    railFade();
   }
+  // More slides than the strip shows: its cut edge fades (that side scrolls), never a thumbnail cut clean.
+  function railFade() {
+    rail.classList.toggle("fade-l", rail.scrollLeft > 1);
+    rail.classList.toggle("fade-r", rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 1);
+  }
+  rail.addEventListener("scroll", railFade, { passive: true });
+  new ResizeObserver(railFade).observe(rail);
   var thumbTimer = null;
   function refreshThumb() {
     clearTimeout(thumbTimer);
@@ -356,7 +386,8 @@
     mainEl.appendChild(gridEl);
     drawChrome(); drawProps(); sendView();
   }
-  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; drawChrome(); } }
+  // Back to one slide: the properties column fills again (all slides has none: it hides there).
+  function closeGrid() { if (gridEl) { gridEl.remove(); gridEl = null; drawChrome(); drawProps(); fit(); sendView(); } }
 
   // ------------------------------------------------------------------ view context (with the next chat message)
   function itemIndex(el) { var sec = el.parentElement; return sec ? Array.prototype.indexOf.call(sec.children, el) : -1; }
@@ -428,7 +459,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); return; }
     inFlight = true; status("saving");
     window.hermes.save(d.files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       C.version = r.version;
       Object.keys(d.html).forEach(function (id) { saved.html[id] = d.html[id]; fileIds[id] = true; });
       d.removed.forEach(function (id) { delete saved.html[id]; delete fileIds[id]; });
@@ -477,7 +508,7 @@
       rows: [1, 2, 3].map(function () { return ["", "", ""]; }) }; } },
     { label: T.lClosing, def: function () { return { layout: "closing", title: T.phClosing }; } }
   ];
-  /** New slide: a dialog of the layouts, each drawn as it will look in this deck's theme (Claude's). */
+  /** New slide: a dialog of the layouts, each drawn as it will look in this deck's theme. */
   var layoutDlg = null;
   function closeLayouts() { if (layoutDlg) { layoutDlg.remove(); layoutDlg = null; } }
   function layoutMenu(anchor, after) {
@@ -527,7 +558,7 @@
     slides.splice(to, 0, slides.splice(from, 1)[0]);
     buildRail(); show(to); changed();
   }
-  function slideMenu(anchor, i) {
+  function slideMenu(anchor, i, onClose) {
     kit.menu(anchor, [
       { label: T.dupSlide, onClick: function () { dupSlide(i); } },
       { label: isHidden(slides[i]) ? T.unskip : T.skip, onClick: function () { toggleHidden(i); } },
@@ -537,7 +568,7 @@
       { label: T.moveLeft, onClick: function () { moveSlide(i, i - 1); } },
       { label: T.moveRight, onClick: function () { moveSlide(i, i + 2); } },
       { label: T.delSlide, onClick: function () { delSlide(i); } }
-    ]);
+    ], onClose);
   }
   function toggleHidden(i) {
     checkpoint();
@@ -563,7 +594,7 @@
   function itemsOf(sec) {
     return Array.prototype.filter.call(sec ? sec.children : [], function (el) { return el.tagName !== "ASIDE" && !el.hasAttribute("data-deco"); });
   }
-  /** What a click selects (as in Claude's deck): the innermost thing with a look of its own under the pointer: a text block,
+  /** What a click selects: the innermost thing with a look of its own under the pointer: a text block,
    *  a picture, a shape, a painted box (a card). A bare container is passed through; at the slide's top level anything counts. */
   function painted(el) {
     var cs = getComputedStyle(el);
@@ -769,6 +800,15 @@
       if (sel.indexOf(it) < 0) select([it]);
       startEdit(textIn(it, e.target), e);
     });
+    // A handle lies over a small box's words (at 19 % a line is about as tall as a handle): a double click on it
+    // edits as one on the box, the caret where the words under it are (the handles out of the way meanwhile).
+    ov.addEventListener("dblclick", function (e) {
+      if (!e.target.getAttribute("data-h") || sel.length !== 1) return;
+      ov.hidden = true;
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      startEdit(textIn(sel[0], sel[0].contains(under) ? under : null), e);
+      ov.hidden = false;
+    });
     clip.addEventListener("beforeinput", function () { if (!editSnap) { checkpoint(); editSnap = true; } });
     clip.addEventListener("input", function () { drawSel(); changed(); });
     clip.addEventListener("keydown", function (e) { if (e.key === "Escape" && editing) { var it = itemOf(editing); stopEdit(); select(it ? [it] : []); e.stopPropagation(); } }, true);
@@ -798,7 +838,11 @@
     el.focus();
     var s = window.getSelection();
     if (selectAll) { var r = document.createRange(); r.selectNodeContents(el); s.removeAllRanges(); s.addRange(r); }
-    else if (e && document.caretRangeFromPoint) { var c = document.caretRangeFromPoint(e.clientX, e.clientY); if (c) { s.removeAllRanges(); s.addRange(c); } }
+    else if (e) { // the caret where the click was; off the words (a handle by the box), at their end
+      var c = document.caretRangeFromPoint && document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (!c || !el.contains(c.startContainer)) { c = document.createRange(); c.selectNodeContents(el); c.collapse(false); }
+      s.removeAllRanges(); s.addRange(c);
+    }
     drawSel(); drawTools(); sendView();
   }
   function stopEdit() {
@@ -810,7 +854,7 @@
   }
 
   // ------------------------------------------------------------------ element toolbar
-  var tools = h("div", { "class": "sl-tools", hidden: true, role: "toolbar" });
+  var tools = h("div", { "class": "sl-tools", "data-comment-keep": "", hidden: true, role: "toolbar" });
   document.body.appendChild(tools);
   function tbtn(icon, title, fn, on) {
     var b = h("button", { type: "button", "class": "kit-btn" + (on ? " is-on" : ""), title: title, "aria-label": title, html: kit.icon(icon) });
@@ -822,48 +866,64 @@
   function drawTools() {
     if (!editable || pres || gridEl || !sel.length) { tools.hidden = true; return; }
     var texty = sel.some(function (el) { return el.textContent.trim(); });
-    var kids = [];
+    var kids = [], items = new Map(); // a button -> its entry in ··· when it folds there (a narrow frame)
+    function tb(icon, title, fn, on) { var b = tbtn(icon, title, fn, on); items.set(b, { icon: icon, label: title, on: on == null ? null : !!on, onClick: fn }); return b; }
     if (editing) {
-      kids.push(tbtn("bold", T.bold, function () { document.execCommand("bold"); }),
-        tbtn("italic", T.italic, function () { document.execCommand("italic"); }),
-        tbtn("underline", T.underline, function () { document.execCommand("underline"); }), sep());
+      kids.push(tb("bold", T.bold, function () { document.execCommand("bold"); }),
+        tb("italic", T.italic, function () { document.execCommand("italic"); }),
+        tb("underline", T.underline, function () { document.execCommand("underline"); }), sep());
     }
     if (texty) {
-      // Claude's order: the face and size, the colour, then the marks and the alignment.
+      // In order: the face and size, the colour, then the marks and the alignment.
       var cs0 = getComputedStyle(sel[0]), al = (sel[0].style.textAlign || cs0.textAlign);
       var face = (cs0.fontFamily.split(",")[0] || "").replace(/["']/g, "").trim();
       var tsB = tbtn("text", T.textStyle, function () { styleMenu(tsB); });
       tsB.classList.add("sl-tface");
       tsB.appendChild(h("span", { text: (face ? face + " · " : "") + R(parseFloat(cs0.fontSize)) }));
       tsB.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
+      items.set(tsB, { icon: "text", label: T.textStyle, onClick: function () { styleMenu(moreB); } });
       var colB = h("button", { type: "button", "class": "kit-btn sl-tcolor", title: T.color, "aria-label": T.color }, [h("i", { style: "background:" + cs0.color })]);
       colB.addEventListener("mousedown", function (e) { e.preventDefault(); });
       colB.addEventListener("click", function () { colorMenu(colB); });
+      items.set(colB, { label: T.color, onClick: function () { colorMenu(moreB); } });
       kids.push(tsB, colB);
       if (!editing) {
-        kids.push(tbtn("bold", T.bold, function () { toggleMark("fontWeight", parseInt(cs0.fontWeight, 10) >= 600 ? "400" : "700"); }, parseInt(cs0.fontWeight, 10) >= 600),
-          tbtn("italic", T.italic, function () { toggleMark("fontStyle", cs0.fontStyle === "italic" ? "normal" : "italic"); }, cs0.fontStyle === "italic"),
-          tbtn("underline", T.underline, function () { toggleMark("textDecoration", /underline/.test(cs0.textDecorationLine) ? "none" : "underline"); }, /underline/.test(cs0.textDecorationLine)));
+        kids.push(tb("bold", T.bold, function () { toggleMark("fontWeight", parseInt(cs0.fontWeight, 10) >= 600 ? "400" : "700"); }, parseInt(cs0.fontWeight, 10) >= 600),
+          tb("italic", T.italic, function () { toggleMark("fontStyle", cs0.fontStyle === "italic" ? "normal" : "italic"); }, cs0.fontStyle === "italic"),
+          tb("underline", T.underline, function () { toggleMark("textDecoration", /underline/.test(cs0.textDecorationLine) ? "none" : "underline"); }, /underline/.test(cs0.textDecorationLine)));
       }
-      kids.push(tbtn(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
+      kids.push(tb(al === "center" ? "alignC" : al === "right" || al === "end" ? "alignR" : "alignL", T.align, cycleAlign), sep());
     }
-    kids.push(tbtn("sparkle", T.ask, askAbout));
+    kids.push(tb("sparkle", T.ask, askAbout));
     if (window.hermes && window.hermes.comment && sel.length === 1) {
-      // A comment on this element (Claude's): the host opens its comment form there; the thread names the slide.
-      kids.push(tbtn("comment", T.comment, function () {
+      // A comment on this element: the host opens its comment form there; the thread names the slide.
+      kids.push(tb("comment", T.comment, function () {
         var el = sel[0], s = slides[cur];
         window.hermes.comment({ selector: selectorOf(el), text: el.textContent.trim().slice(0, 200),
-          label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) });
+          label: (cur + 1 + ". " + titleOf(s) + " · " + labelOf(el)).slice(0, 60) }, el); // beside it, with its pin
       }));
     }
+    var folded = [];
     var moreB = tbtn("more", T.more, function () {
       var flow = sel.some(function (el) { return !isFree(el); });
-      kit.menu(moreB, (flow ? [{ label: T.detach, onClick: detach }] : [{ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } }])
+      kit.menu(moreB, folded.concat(folded.length ? [{ sep: true }] : [], flow ? [{ label: T.detach, onClick: detach }] : [{ label: T.front, onClick: function () { restack(true); } }, { label: T.back, onClick: function () { restack(false); } }])
         .concat([{ label: T.dup, onClick: duplicate }, { label: T.del, onClick: removeSel }]));
     });
     kids.push(moreB);
     tools.replaceChildren.apply(tools, kids);
     tools.hidden = false;
+    // Never wider than the frame: from the right, its buttons fold into ··· (first in its menu, in their order).
+    tools.style.left = "0px"; tools.style.width = "max-content";
+    var room = innerWidth - 16;
+    for (var k = kids.length - 2; k >= 0 && tools.offsetWidth > room; k--) {
+      var el = kids[k];
+      if (!items.has(el)) { el.remove(); continue; } // a divider
+      folded.unshift(items.get(el));
+      el.remove();
+      var prev = moreB.previousElementSibling;
+      if (prev && prev.classList.contains("sl-sep")) prev.remove(); // no divider left at the end
+    }
+    tools.style.width = "";
     placeTools();
   }
   function toggleMark(prop, value) {
@@ -970,7 +1030,7 @@
       if (e.key !== "Enter" || !inp.value.trim()) return;
       var text = T.about(cur + 1, s.id, titleOf(s), target ? labelOf(target) : "") + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
-      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+      window.hermes.send(text, { slide: s.id, element: selectorOf(target) }, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(String(err && err.message || err), 0, "error"); });
       drawTools();
     });
   }
@@ -1049,7 +1109,7 @@
       var el = place(h("img", { src: im.url, "data-src-path": path, alt: (file.name || "").replace(/\.[^.]+$/, "").slice(0, 80),
         style: "position:absolute;left:" + R(x) + "px;top:" + R(y) + "px;width:" + w + "px;height:" + hh + "px;margin:0;object-fit:cover" }));
       select([el]); changed();
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   var filePick = h("input", { type: "file", accept: "image/png,image/jpeg,image/gif,image/webp", hidden: true });
   filePick.addEventListener("change", function () { if (filePick.files[0]) insertImage(filePick.files[0]); filePick.value = ""; });
@@ -1136,7 +1196,7 @@
     stopEdit(); closeGrid(); select([]);
     var main = h("div", { "class": "sl-pmain" }), box = h("div", { "class": "sl-pbox" }), count = h("div", { "class": "sl-count" });
     main.appendChild(box);
-    pres = { el: h("div", { id: "sl-present", tabindex: "0" }, [main, count]), main: main, box: box, count: count,
+    pres = { el: h("div", { id: "sl-present", "class": "kit-surface", tabindex: "0" }, [main, count]), main: main, box: box, count: count,
       i: isHidden(slides[cur]) ? visible(cur, 1) : cur, steps: [],
       presenter: false, t0: Date.now(), pausedFor: 0, pauseAt: null, notesSize: 22 };
     document.body.appendChild(pres.el);
@@ -1186,7 +1246,7 @@
     var p2 = function (n) { return ("0" + n).slice(-2); };
     pres.timer.textContent = (s >= 3600 ? Math.floor(s / 3600) + ":" : "") + p2(Math.floor(s / 60) % 60) + ":" + p2(s % 60);
     pres.timer.classList.toggle("is-paused", !!pres.pauseAt);
-    pres.clock.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    pres.clock.textContent = new Date().toLocaleTimeString(kit.locale(), { hour: "2-digit", minute: "2-digit" });
   }
   function paint(dir) {
     var s = slides[pres.i], r = pres.main.getBoundingClientRect(), pad = pres.presenter ? 32 : 0;
@@ -1341,6 +1401,61 @@
   if (window.hermes && window.hermes.on) window.hermes.on("present-exit", function () { if (pres) endPresent(); });
   window.addEventListener("resize", function () { fit(); if (pres) paint(null); });
 
+  // The host's comment pick on the slide's blank (none of its parts under the click): a comment on the slide with
+  // its pin on the point clicked, at the same share of the slide after a resize or a zoom. The bridge's own pick
+  // would take the whole slide and pin it beside its edge, out of the slide.
+  var commentPicking = false;
+  if (window.hermes && window.hermes.on) window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });
+  window.addEventListener("click", function (e) {
+    if (commentPicking && window.hermes.comment && thumbPick(e)) return;
+    var cv = clip.firstChild, sec = curSec();
+    if (!commentPicking || !cv || !sec || (e.target !== cv && e.target !== sec) || !window.hermes.comment) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    commentPicking = false;
+    var r = cv.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    // the slide's canvas is made again when it is shown again: the point is on whichever holds the slide (none
+    // while another slide is shown: its pin is away until this one is back)
+    window.hermes.comment({ selector: selectorOf(sec), text: (sec.innerText || sec.textContent).replace(/\s+/g, " ").trim().slice(0, 200),
+      label: cv.getAttribute("data-comment-label") },
+      { el: cv, box: function () {
+        var c = sec.isConnected && sec.parentElement;
+        if (!c) return null;
+        var q = c.getBoundingClientRect();
+        return { x: q.left + q.width * fx, y: q.top + q.height * fy, w: 0, h: 0, point: true, el: c };
+      } });
+  }, true);
+
+  // A whole slide with an open thread: its numbered mark by its thumbnail, and by the slide itself while it is shown.
+  if (window.hermes && window.hermes.locate && !C.thumb) window.hermes.locate(function (sel) {
+    var s = slides.filter(function (x) { return "#" + x.sec.id === sel; })[0];
+    if (!s) return null;
+    var rect = function (n) { if (!n || !n.isConnected || !n.getClientRects().length) return null; var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: n }; };
+    // A thumbnail's mark lies past its top right, in the gap before the next one: none while that place is out of the
+    // strip's sight (a thumbnail cut by the strip's edge: its mark would lie on its picture).
+    return [{ el: rail, box: function () {
+      var t = rect(rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)]);
+      if (!t) return null;
+      var q = rail.getBoundingClientRect();
+      return t.x + t.w + 26 <= Math.min(q.right, innerWidth) && t.x + t.w > q.left ? t : null;
+    } },
+      { el: clip, box: function () { return s.sec.isConnected && clip.contains(s.sec) ? rect(s.sec.parentElement) : null; } }];
+  });
+  // A thumbnail picked: a comment on its whole slide (the slide's own target and title, as its blank's), its pin by
+  // the thumbnail.
+  function thumbPick(e) {
+    var b = e.target.closest && e.target.closest(".sl-thumb[data-i]"), s = b && slides[+b.getAttribute("data-i")];
+    if (!s) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    commentPicking = false;
+    var i = slides.indexOf(s);
+    window.hermes.comment({ selector: selectorOf(s.sec), text: (s.sec.innerText || s.sec.textContent).replace(/\s+/g, " ").trim().slice(0, 200),
+      label: T.pSlide + " " + (i + 1) }, { el: b, box: function () {
+        var t = rail.querySelectorAll(".sl-thumb")[slides.indexOf(s)];
+        if (!t) return null;
+        var q = t.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: t };
+      } });
+    return true;
+  }
   document.addEventListener("keydown", function (e) {
     if (pres) return;
     var k = e.key, mod = e.ctrlKey || e.metaKey;
@@ -1593,7 +1708,7 @@
       var blob = await pptx.write({ outputType: "blob", compression: true });
       kit.download(kit.slug(pptx.title) + ".pptx", blob, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
       if (warn.length) kit.toast(warn.length + " element(s) exported as best effort");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   async function exportPdf() {
@@ -1616,7 +1731,7 @@
       layer.finish();
       var bytes = await pdf.save();
       kit.download(kit.slug(deck.title || C.title) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   async function exportPng() {
@@ -1625,7 +1740,7 @@
       var c = await rasterize(slides[cur], 1);
       var blob = await new Promise(function (r) { c.toBlob(r, "image/png"); });
       kit.download(kit.slug(deck.title || C.title) + "-" + (cur + 1) + ".png", blob, "image/png");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   function exportHtml() {
@@ -1653,11 +1768,11 @@
   var exportList = [{ id: "pdf", label: T.pdf, run: exportPdf }, { id: "pptx", label: T.pptx, run: exportPptx },
     { id: "png", label: T.png, run: exportPng }, { id: "html", label: T.html, run: exportHtml }];
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+    kit.menu(expBtn, exportItems());
   }), T.exp);
   expBtn.hidden = true;
   kit.exports(exportList).then(function (hosted) { expBtn.hidden = hosted; });
-  // The deck's chrome, as Claude's: no bar. Insert tools and view tools float over the stage as two pills,
+  // The deck's chrome: no bar. Insert tools and view tools float over the stage as two pills,
   // the thumbnails run in a strip below (or a small pill of arrows when the strip is put away), and the
   // properties of what is selected (the slide itself when nothing is) open at the right.
   function cbtn(html, title, fn, cls) {
@@ -1668,41 +1783,80 @@
   function pref(key, fallback) { try { var v = localStorage.getItem("sl-" + key); return v == null ? fallback : v === "1"; } catch (e) { return fallback; } }
   function keep(key, on) { try { localStorage.setItem("sl-" + key, on ? "1" : "0"); } catch (e) {} }
   var stripOn = pref("strip", true), propsOn = pref("props", false);
+  // Under 760 px the properties are a sheet over the stage (with its own Close): open only when asked here,
+  // never by a choice kept from a wide window.
+  var sheetAsked = false;
+  function narrow() { return innerWidth < 760; }
+  function propsShown() { return propsOn && editable && !C.thumb && !gridEl && (!narrow() || sheetAsked); }
   function toggleNotes() { notesEl.hidden = !notesEl.hidden; drawChrome(); fit(); }
   function setStrip(on) { stripOn = on; keep("strip", on); drawChrome(); fit(); }
-  function setProps(on) { propsOn = on; keep("props", on); drawChrome(); drawProps(); fit(); }
+  function setProps(on) { propsOn = on; sheetAsked = on && narrow(); keep("props", on); drawChrome(); drawProps(); fit(); refitTools(); }
   function setZoom(z) { zoom = z; fit(); }
 
-  var shapesBtn = cbtn(kit.icon("shape") + kit.icon("caretDown"), T.shapes, function () {
-    kit.menu(shapesBtn, [["rect", T.rect], ["rounded", T.rounded], ["ellipse", T.ellipse], ["diamond", T.diamond], ["arrow-right", T.arrowR],
-      ["arrow-left", T.arrowL], ["arrow-up", T.arrowU], ["arrow-down", T.arrowD], ["line", T.line]].map(function (x) {
-      return { label: x[1], onClick: function () { insertShape(x[0]); } };
-    }));
-  }, "sl-caret");
-  var insertPill = h("div", { "class": "sl-pill sl-pill-l", role: "toolbar", "aria-label": T.insert }, [
-    cbtn(kit.icon("text"), T.text, function () { insertText(); }), cbtn(kit.icon("image"), T.image, function () { filePick.click(); }),
-    cbtn(kit.icon("table"), T.table, function () { insertTable(); }), shapesBtn]);
+  var SHAPES = [["rect", T.rect, "slRect"], ["rounded", T.rounded, "slRounded"], ["ellipse", T.ellipse, "oval"], ["diamond", T.diamond, "slDiamond"],
+    ["arrow-right", T.arrowR, "slArrowR"], ["arrow-left", T.arrowL, "slArrowL"], ["arrow-up", T.arrowU, "slArrowU"], ["arrow-down", T.arrowD, "slArrowD"], ["line", T.line, "lineD"]];
+  function shapeItems() { return SHAPES.map(function (x) { return { icon: x[2], label: x[1], onClick: function () { insertShape(x[0]); } }; }); }
+  var shapesBtn = cbtn(kit.icon("shape") + kit.icon("caretDown"), T.shapes, function () { kit.menu(shapesBtn, shapeItems()); }, "sl-caret");
+  var insertBtns = [cbtn(kit.icon("text"), T.text, function () { insertText(); }), cbtn(kit.icon("image"), T.image, function () { filePick.click(); }),
+    cbtn(kit.icon("table"), T.table, function () { insertTable(); }), shapesBtn];
+  // a narrow window: the four insert tools are one menu
+  var insertMore = cbtn(kit.icon("plus") + kit.icon("caretDown"), T.insert, function () {
+    kit.menu(insertMore, [{ icon: "text", label: T.text, onClick: function () { insertText(); } }, { icon: "image", label: T.image, onClick: function () { filePick.click(); } },
+      { icon: "table", label: T.table, onClick: function () { insertTable(); } }, { sep: true }].concat(shapeItems()));
+  }, "sl-caret sl-narrow-only");
+  var insertPill = h("div", { "class": "sl-pill sl-pill-l", "data-comment-keep": "", role: "toolbar", "aria-label": T.insert }, insertBtns.concat([insertMore]));
 
-  var dlBtn = cbtn(kit.icon("download"), T.exp, function () {
-    kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
-  });
-  var playBtn = cbtn(kit.icon("play"), T.present, function () {
-    kit.menu(playBtn, [{ label: T.present, onClick: function () { present(false); } }, { label: T.presentNotes, onClick: function () { present(true); } }]);
-  });
-  var propsBtn = cbtn(kit.icon("sliders"), T.props, function () { setProps(!propsOn); });
+  var EXP_ICON = { pdf: "file", pptx: "present", png: "image", html: "code" };
+  function exportItems() { return exportList.map(function (x) { return { icon: EXP_ICON[x.id], label: x.label, onClick: x.run }; }); }
+  function presentItems() { return [{ icon: "play", label: T.present, onClick: function () { present(false); } }, { icon: "notes", label: T.presentNotes, onClick: function () { present(true); } }]; }
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportItems()); });
+  var playBtn = cbtn(kit.icon("play"), T.present, function () { kit.menu(playBtn, presentItems()); });
+  // a narrow window: Export and Present are in More
+  var moreBtn = cbtn(kit.icon("more"), T.more, function () {
+    kit.menu(moreBtn, presentItems().concat([{ sep: true }], exportItems()));
+  }, "sl-narrow-only");
+  var propsBtn = cbtn(kit.icon("sliders"), T.props, function () { setProps(!propsShown()); });
   zoomLabel = h("span");
   var zoomBtn = cbtn("", T.zoom, function () {
     var step = function (f) { setZoom(Math.max(0.1, Math.min(3, SC * f))); };
     kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { step(1.25); } }, { label: T.zoomOut, onClick: function () { step(0.8); } },
-      { label: T.fitSlide, onClick: function () { setZoom(0); } }]
-      .concat([0.5, 0.75, 1, 1.5, 2].map(function (z) { return { label: z * 100 + "%", onClick: function () { setZoom(z); } }; }))
-      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+      { label: T.fitSlide, on: !zoom, onClick: function () { setZoom(0); } }, { sep: true }]
+      .concat([0.5, 0.75, 1, 1.5, 2].map(function (z) { return { label: z * 100 + "%", on: !!zoom && Math.abs(zoom - z) < 0.001, onClick: function () { setZoom(z); } }; }))
+      .concat(editable ? [{ sep: true }, { label: T.undo + "  (Ctrl+Z)", disabled: !undos.length, onClick: undo },
+        { label: T.redo + "  (Ctrl+Shift+Z)", disabled: !redos.length, onClick: redo }] : []));
   }, "sl-zoom");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
-  var viewPill = h("div", { "class": "sl-pill sl-pill-r", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+  insertBtns.concat([dlBtn, playBtn]).forEach(function (b) { b.classList.add("sl-wide-only"); });
+  var viewPill = h("div", { "class": "sl-pill sl-pill-r", "data-comment-keep": "", role: "toolbar" }, [statusEl, saveBtn, dlBtn, playBtn, moreBtn].concat(editable ? [propsBtn] : [], [zoomBtn]));
+  /** The two pills never meet nor leave the window: Export and Present fold into More first, then the insert tools into one menu. */
+  function fitPills() {
+    viewPill.classList.remove("is-compact"); insertPill.classList.remove("is-compact");
+    if (viewPill.hidden) return;
+    var clash = function () {
+      var v = viewPill.getBoundingClientRect(), m = mainEl.getBoundingClientRect();
+      if (v.left < m.left + 8) return true;
+      if (insertPill.hidden) return false;
+      return insertPill.getBoundingClientRect().right + 8 > v.left;
+    };
+    if (clash()) viewPill.classList.add("is-compact");
+    if (clash()) insertPill.classList.add("is-compact");
+  }
+  var wasNarrow = narrow();
+  window.addEventListener("resize", function () {
+    if (narrow() === wasNarrow) fitPills();
+    else {
+      // across 760 px open properties stay open in the other layout (a sheet below, the panel above); a resize
+      // closed them silently before
+      var wasOpen = !propsEl.hidden;
+      wasNarrow = narrow(); sheetAsked = wasOpen && wasNarrow; drawChrome(); drawProps(); fit();
+    }
+    refitTools();
+  });
+  /** The element toolbar's buttons fold (or unfold) to the frame's width: after a resize, and when the sheet that hid it closes. */
+  function refitTools() { if (!tools.hidden && !tools.querySelector(".sl-askin")) drawTools(); }
 
   var notesBtn = cbtn(kit.icon("notes"), T.showNotes, toggleNotes), notesBtn2 = cbtn(kit.icon("notes"), T.showNotes, toggleNotes);
-  var navPill = h("div", { "class": "sl-pill sl-pill-b", role: "toolbar" }, [
+  var navPill = h("div", { "class": "sl-pill sl-pill-b", "data-comment-keep": "", role: "toolbar" }, [
     cbtn(kit.icon("prev"), T.prev, function () { show(cur - 1); }), counter, cbtn(kit.icon("next"), T.nextSlide, function () { show(cur + 1); }),
     h("span", { "class": "sl-sep" }), notesBtn2, cbtn(kit.icon("strip"), T.showThumbs, function () { setStrip(true); })]);
   var oneBtn = cbtn(kit.icon("slide"), T.oneSlide, function () { closeGrid(); });
@@ -1710,8 +1864,11 @@
   stripHead.append.apply(stripHead, (editable ? [cbtn(kit.icon("plus"), T.newSlide, function () { layoutMenu(null, cur); })] : []).concat(
     [notesBtn, h("span", { "class": "sl-gap" }), oneBtn, gridBtn, cbtn(kit.icon("chevDown"), T.hideThumbs, function () { setStrip(false); })]));
   mainEl.insertBefore(navPill, notesEl);
-  mainEl.append(insertPill, viewPill);
+  // the pills float over the stage but come first in the tab order (the toolbar, then the slide, then the strip)
+  mainEl.insertBefore(viewPill, mainEl.firstChild);
+  mainEl.insertBefore(insertPill, viewPill);
 
+  function pressed(b, on) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", String(on)); }
   function drawChrome() {
     var thumbOnly = !!C.thumb;
     strip.hidden = thumbOnly || !stripOn;
@@ -1719,13 +1876,17 @@
     viewPill.hidden = thumbOnly;
     insertPill.hidden = thumbOnly || !editable || !!gridEl;
     rail.hidden = !!gridEl;
-    [notesBtn, notesBtn2].forEach(function (b) { b.classList.toggle("is-on", !notesEl.hidden); });
-    oneBtn.classList.toggle("is-on", !gridEl); gridBtn.classList.toggle("is-on", !!gridEl);
-    propsBtn.classList.toggle("is-on", propsOn);
-    propsEl.hidden = thumbOnly || !editable || !propsOn;
+    [notesBtn, notesBtn2].forEach(function (b) { pressed(b, !notesEl.hidden); });
+    pressed(oneBtn, !gridEl); pressed(gridBtn, !!gridEl);
+    var shown = propsShown();
+    pressed(propsBtn, shown);
+    propsBtn.disabled = !!gridEl; // all slides: no one slide's properties
+    propsEl.hidden = !shown;
+    document.body.classList.toggle("sl-sheet-open", shown && narrow());
+    fitPills();
   }
 
-  // ------------------------------------------------------------------ properties (Claude's panel at the right)
+  // ------------------------------------------------------------------ properties (the panel at the right)
   function cssHex(v) { var c = v ? rgba(v) : null; return c ? "#" + c.hex.toLowerCase() : ""; }
   function themeColors() {
     var th = deckTheme() || {};
@@ -1748,23 +1909,23 @@
     return i;
   }
   function ppick(value, options, set) {
-    var sl = h("select", {}, options.map(function (o) { var op = h("option", { value: o[0], text: o[1] }); if (String(o[0]) === String(value)) op.selected = true; return op; }));
+    var sl = h("select", { "class": "kit-select" }, options.map(function (o) { var op = h("option", { value: o[0], text: o[1] }); if (String(o[0]) === String(value)) op.selected = true; return op; }));
     sl.addEventListener("change", function () { panelEdit(function () { set(sl.value); }); });
     return sl;
   }
   function pcolor(value, set, allowNone) {
     var hex = cssHex(value);
-    var c = h("input", { type: "color", value: hex || "#000000" }), t = h("input", { type: "text", value: hex, placeholder: T.none, spellcheck: "false" });
+    var c = kit.noFill(h("input", { type: "color", value: hex || "#000000" }), value), t = h("input", { type: "text", value: hex, placeholder: T.none, spellcheck: "false" });
     var put = function (v) { panelEdit(function () { set(v); }); };
-    c.addEventListener("input", function () { t.value = c.value; put(c.value); });
+    c.addEventListener("input", function () { t.value = c.value; kit.noFill(c, c.value); put(c.value); });
     t.addEventListener("keydown", function (e) { e.stopPropagation(); });
     t.addEventListener("change", function () {
       var v = t.value.trim();
-      if (!v && allowNone) return put("");
-      if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) { v = v[0] === "#" ? v : "#" + v; if (v.length === 7) c.value = v; put(v); } else t.value = cssHex(value);
+      if (!v && allowNone) { kit.noFill(c, ""); return put(""); }
+      if (/^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) { v = v[0] === "#" ? v : "#" + v; if (v.length === 7) c.value = v; kit.noFill(c, v); put(v); } else t.value = cssHex(value);
     });
     var sw = h("div", { "class": "sl-pswatches" }, themeColors().map(function (k) {
-      return h("button", { type: "button", title: k.name, "aria-label": k.name, style: "background:" + k.v, onclick: function () { var x = cssHex(k.v); if (x) { c.value = x; t.value = x; } put(k.v); } });
+      return h("button", { type: "button", title: k.name, "aria-label": k.name, style: "background:" + k.v, onclick: function () { var x = cssHex(k.v); if (x) { c.value = x; t.value = x; } kit.noFill(c, k.v); put(k.v); } });
     }));
     return h("div", { "class": "sl-pcolorbox" }, [h("div", { "class": "sl-pcolor" }, [c, t]), sw]);
   }
@@ -1773,8 +1934,15 @@
     if (hasOwnText(el) || /^(UL|OL|TABLE|P|H[1-6])$/.test(el.tagName)) return [el];
     return Array.prototype.filter.call(el.querySelectorAll("*"), function (n) { return hasOwnText(n) && !n.closest("svg"); });
   }
+  // the sheet's head (a narrow window only): its name and Close
+  var sheetHead = h("div", { "class": "sl-phead" }, [h("b", { text: T.props }),
+    cbtn(kit.icon("close"), T.close, function () { setProps(false); propsBtn.focus(); })]);
   function drawProps() {
     if (!propsEl || propsEl.hidden) return;
+    drawPropsBody();
+    propsEl.insertBefore(sheetHead, propsEl.firstChild);
+  }
+  function drawPropsBody() {
     var sec = curSec();
     if (!sec || gridEl) { propsEl.replaceChildren(); return; }
     if (!sel.length) { // nothing selected: the slide itself
@@ -1872,7 +2040,7 @@
     propsEl.replaceChildren.apply(propsEl, out);
   }
 
-  // Right-click on an element: Claude's menu (cut, copy, paste, duplicate, order, delete).
+  // Right-click on an element: a menu (cut, copy, paste, duplicate, order, delete).
   if (editable) clip.addEventListener("contextmenu", function (e) {
     if (editing) return;
     var it = itemOf(e.target);
@@ -1959,6 +2127,27 @@
     }).catch(function () {});
   }
   new ResizeObserver(fit).observe(stageWrap);
-  window.addEventListener("beforeunload", function () { if (pending) save(); });
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: what waits for its pause is saved now, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (pending) save(); });
   kit.ready();
+
+  // The gallery's card: a picture of the cover slide, drawn once per version (hermes.preview: no version,
+  // not an edit), so the card shows it instead of loading the whole deck. Slides keep their own colours,
+  // so one picture serves every theme. Only where the host takes it and none is kept for this version yet.
+  if (!C.thumb && !C.preview && window.hermes && typeof window.hermes.preview === "function") {
+    setTimeout(function () {
+      var ci = deck.cover ? slides.findIndex(function (s) { return s.id === deck.cover; }) : 0;
+      var s0 = slides[ci >= 0 ? ci : 0];
+      if (!s0) return;
+      (function next(ws) {
+        if (!ws.length) return;
+        rasterize(s0, ws[0] / W).then(function (c) {
+          var url = c.toDataURL("image/png");
+          if (url.length * 0.75 > 400 * 1024) return next(ws.slice(1));
+          return window.hermes.preview(url, C.version);
+        }).catch(function () {});
+      })([640, 480, 320]);
+    }, 1500);
+  }
 })();

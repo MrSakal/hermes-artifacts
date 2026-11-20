@@ -13,7 +13,7 @@
     en: { noHost: "Not connected to Hermes: changes won't be saved.", retypedH: "Retyped words", layersH: "Changed by hand", play: "Play (space)", pause: "Pause (space)", loop: "Loop", mute: "Turn sound on (M)", unmute: "Mute (M)",
       restart: "Restart (Home)", stepHint: "← → one frame · Shift + ← → one second",
       present: "Full screen (F)", exitP: "Exit full screen (Esc)", exp: "Export", mp4: "Video (MP4)", gif: "GIF", png: "This frame (PNG)",
-      style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long",
+      style: "Style", close: "Close", more: "Scene options", speed: "Speed", slower: "Half speed: twice as long", faster: "Double speed: half as long", asMade: "Its own speed",
       prevScene: "Previous scene", nextScene: "Next scene", words: "Words on screen", pickWords: "Click words on the picture to change them.",
       placesOne: "Changes 1 place in the animation", places: "Changes {n} places in the animation", elsewhere: "Elsewhere in this scene", palette: "Palette",
       format: "Format", resolution: "Resolution", frameRate: "Frame rate", quality: "Quality", high: "High", medium: "Medium", low: "Low",
@@ -33,7 +33,7 @@
     hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", retypedH: "Átírt szövegek", layersH: "Kézzel módosítva", play: "Lejátszás (szóköz)", pause: "Szünet (szóköz)", loop: "Ismétlés", mute: "Hang bekapcsolása (M)", unmute: "Némítás (M)",
       restart: "Újrakezdés (Home)", stepHint: "← → egy képkocka · Shift + ← → egy másodperc",
       present: "Teljes képernyő (F)", exitP: "Kilépés a teljes képernyőből (Esc)", exp: "Exportálás", mp4: "Videó (MP4)", gif: "GIF", png: "Ez a képkocka (PNG)",
-      style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú",
+      style: "Stílus", close: "Bezárás", more: "Jelenet beállításai", speed: "Sebesség", slower: "Fél sebesség: kétszer olyan hosszú", faster: "Dupla sebesség: fele olyan hosszú", asMade: "Eredeti sebesség",
       prevScene: "Előző jelenet", nextScene: "Következő jelenet", words: "Szöveg a képen", pickWords: "Kattints a képen egy szövegre, hogy átírd.",
       placesOne: "Az animációban 1 helyen változik", places: "Az animációban {n} helyen változik", elsewhere: "Máshol ebben a jelenetben", palette: "Paletta",
       format: "Formátum", resolution: "Felbontás", frameRate: "Képkockasebesség", quality: "Minőség", high: "Magas", medium: "Közepes", low: "Alacsony",
@@ -671,8 +671,9 @@
 
   // ------------------------------------------------------------------ chrome
   function fmtShort(t) { var s = Math.floor(t); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
-  function secLabel(d) { return (Math.round(d * 10) / 10).toLocaleString(L) + " " + T.s; }
-  // Claude's Motion layout: the stage, one transport row under it, the scene strip under that, and the
+  // numbers in the app's language, one shape everywhere (the chips, the Length field, the speeds): the kit's
+  function secLabel(d) { return kit.num(d, 1) + " " + T.s; }
+  // The Motion layout: the stage, one transport row under it, the scene strip under that, and the
   // Tweaks / Style panel beside them (under them on a narrow page). No top bar: the rough-cut badge,
   // Continue, Finalize and the save state float over the picture's top-left corner when they have something to say.
   var statusEl = h("span", { "class": "mo-status", "aria-live": "polite" });
@@ -717,7 +718,7 @@
   });
   var trans = h("div", { "class": "mo-trans" }, [playBtn, restartBtn, loopBtn, timeEl, h("span", { "class": "mo-spacer" }),
     volWrap, commentBtn, expBtn, presentBtn, tweaksBtn]);
-  var tl = h("div", { "class": "mo-tl", role: "slider", tabindex: "0", "aria-label": "Timeline" });
+  var tl = h("div", { "class": "mo-tl kit-surface", role: "slider", tabindex: "0", "aria-label": "Timeline" });
   var segsEl = h("div", { "class": "mo-segs" }), headEl = h("div", { "class": "mo-head" }), rangeEl = h("div", { "class": "mo-range", hidden: true });
   tl.append(segsEl, rangeEl, headEl);
   function muteIcon() {
@@ -742,7 +743,7 @@
     if (window.hermes && window.hermes.send) window.hermes.send(text, null, { deliver: "send" }).then(function (r) { if (!(r && r.mode === "declined")) kit.toast(text); }, function () {});
   }
 
-  /** A small picture of each scene for its card in the strip, as Claude's: the scene past its entrance. It is
+  /** A small picture of each scene for its card in the strip: the scene past its entrance. It is
       drawn and copied in one go and the film on show is put back before the page paints, so it never moves;
       the copies become pictures one at a time afterwards. */
   var thumbs = {}, thumbRun = 0, THUMB_H = 96;
@@ -784,10 +785,22 @@
   }
   /** Cards with pictures, or plain pills when the panel shares a narrow page with the film. */
   function stripMode() {
+    var was = tl.classList.contains("thumbs");
     tl.classList.toggle("thumbs", !custom && timeline.length > 0 && !(tweaksOpen && NARROW.matches));
     tl.style.setProperty("--mo-ar", String(W / H));
+    if (was !== tl.classList.contains("thumbs")) fitSegs();
   }
   window.addEventListener("resize", stripMode);
+  // A pill too narrow for "Name · 4.5 s" (the current one also holds its … button) drops the length first, so the
+  // name stays whole ("The harbor ·…" beside whole pills at 400 px); the length is in its tooltip.
+  function fitSeg(el) {
+    var t = el.querySelector(".mo-seg-t");
+    el.classList.remove("nolen");
+    if (t && !tl.classList.contains("thumbs") && t.scrollWidth > t.clientWidth) el.classList.add("nolen"); // one pixel over already ends in "…"
+  }
+  function fitSegs() { Array.prototype.forEach.call(segsEl.children, fitSeg); }
+  kit.onResize(segsEl, fitSegs);
+  kit.onResize(view, function () { stagePins(); });
   function refreshSegs() {
     segsEl.textContent = "";
     var segs = custom ? chapters() : timeline;
@@ -817,6 +830,7 @@
       segsEl.appendChild(el);
     });
     stripMode();
+    fitSegs();
     var anyBad = timeline.some(function (s) { return s.state !== "ok"; });
     var rough = SJ && SJ.stage === "rough";
     roughBadge.hidden = !rough;
@@ -852,11 +866,13 @@
     segs.forEach(function (s, i) {
       var el = custom ? segsEl.children[i] : s.segEl;
       if (!el) return;
-      el.classList.toggle("on", cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1)));
+      var on = cur >= s.pstart && (cur < s.pstart + s.pdur || (i === segs.length - 1));
+      if (on !== el.classList.contains("on")) { el.classList.toggle("on", on); fitSeg(el); } // its … button came or went
     });
     if (range) { rangeEl.hidden = false; rangeEl.style.left = range[0] / total * 100 + "%"; rangeEl.style.width = (range[1] - range[0]) / total * 100 + "%"; }
     else rangeEl.hidden = true;
     commentBtn.title = range ? T.commentRange : T.commentAt;
+    stagePins();
     if (!playing) { if (tweaksOpen) tweaksSync(); }
     sendView();
   }
@@ -910,17 +926,26 @@
   }
   function lenClamp(sc, v) { v = Math.round(v * 100) / 100; return Math.max(sc.dur / 2, Math.min(sc.dur * 3, v)); }
   function sceneLength(sc) {
-    var inp = onEnter(h("input", { type: "number", step: "0.1", min: String(sc.dur / 2), max: String(sc.dur * 3), value: String(Math.round(sc.pdur * 100) / 100), "aria-label": T.length }));
-    inp.addEventListener("change", function () { var v = parseFloat(inp.value); if (v > 0) setRecut(sc.id, { dur: lenClamp(sc, v) }); });
+    // a text field in the app's number shape (a number field showed the system's "4,5" beside the chip's "4.5 s"),
+    // reading either shape back
+    var inp = onEnter(h("input", { type: "text", inputmode: "decimal", value: kit.num(sc.pdur, 2), "aria-label": T.length,
+      title: kit.num(sc.dur / 2, 2) + "–" + kit.num(sc.dur * 3, 2) + " " + T.s }));
+    inp.addEventListener("change", function () {
+      var v = kit.parseNum(inp.value);
+      if (v > 0) setRecut(sc.id, { dur: lenClamp(sc, v) }); else inp.value = kit.num(sc.pdur, 2);
+    });
     return [inp].concat(sc.recut.dur ? [resetLink(function () { setRecut(sc.id, { dur: null }); })] : []);
   }
   function sceneSpeed(sc) {
-    // 0.5× plays the scene twice as long, 2× half as long; a button that can't go further is off.
-    var slow = h("button", { "class": "kit-btn", type: "button", text: "0.5×", title: T.slower, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur * 2) }); } });
-    var fast = h("button", { "class": "kit-btn", type: "button", text: "2×", title: T.faster, onclick: function () { setRecut(sc.id, { dur: lenClamp(sc, sc.pdur / 2) }); } });
-    slow.disabled = sc.pdur >= sc.dur * 3 - 1e-6;
-    fast.disabled = sc.pdur <= sc.dur / 2 + 1e-6;
-    return [h("div", { "class": "mo-choice" }, [slow, fast])];
+    // The scene's speed against its own length: 0.5× twice as long, 1× as made, 2× half as long; the one it plays at
+    // is checked (none when its length was typed to something else).
+    var speed = sc.dur / sc.pdur;
+    var opts = [[0.5, kit.num(0.5) + "×", T.slower], [1, "1×", T.asMade], [2, "2×", T.faster]].map(function (o) {
+      var on = Math.abs(speed - o[0]) < 0.01;
+      return h("button", { "class": "kit-btn" + (on ? " is-on" : ""), type: "button", role: "radio", "aria-checked": String(on), text: o[1], title: o[2],
+        onclick: function () { setRecut(sc.id, { dur: o[0] === 1 ? null : lenClamp(sc, sc.dur / o[0]) }); } });
+    });
+    return [h("div", { "class": "mo-choice", role: "radiogroup", "aria-label": T.speed }, opts)];
   }
   var pop = null;
   function closePop() {
@@ -980,8 +1005,16 @@
     pause();
     var r = frame.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
     var sc = custom ? null : sceneAt(cur);
-    window.hermes.comment({ selector: "@t=" + secs(unmap(cur)) + " @xy=" + x.toFixed(2) + "%," + y.toFixed(2) + "%", label: fmtShort(cur),
-      text: "at " + secs(unmap(cur)) + " s, x " + x.toFixed(2) + "% y " + y.toFixed(2) + "%" + (sc ? " · " + sc.name : "") });
+    // The pin on the point clicked (and on it again after a resize: the same share of the picture), while the
+    // picture is that moment's: played or sought elsewhere, the pin is away until the film is back at it.
+    var t0 = cur;
+    window.hermes.comment({ selector: "@t=" + secs(unmap(cur)) + " @xy=" + x.toFixed(2) + "%," + y.toFixed(2) + "%",
+      label: ((sc ? sc.name + " · " : "") + fmtShort(cur)).slice(0, 40),
+      text: "at " + secs(unmap(cur)) + " s, x " + x.toFixed(2) + "% y " + y.toFixed(2) + "%" + (sc ? " · " + sc.name : "") },
+      { el: frame, box: function () {
+        if (Math.abs(cur - t0) > 0.05) return null;
+        var q = frame.getBoundingClientRect(); return { x: q.left + q.width * x / 100, y: q.top + q.height * y / 100, w: 0, h: 0, point: true };
+      } });
     picking = false; view.classList.remove("picking");
   }, true);
   var pins = [];
@@ -995,10 +1028,37 @@
     pins.forEach(function (p) {
       var a = parseAnchor(p.selector);
       if (!a) return;
-      var ta = fmap(a[0]), b = h("div", { "class": "mo-pin" + (a[1] != null ? " range" : ""), text: String(p.n), title: fmtShort(ta) });
+      // the mark of every type's; a range's says it in its tooltip
+      var ta = fmap(a[0]), b = h("div", { "class": "mo-pin", text: String(p.n), title: fmtShort(ta) + (a[1] != null ? "–" + fmtShort(fmap(a[1])) : "") });
       b.style.left = Math.min(100, ta / total * 100) + "%";
       b.addEventListener("pointerdown", function (e) { e.stopPropagation(); pause(); seek(ta); if (a[1] != null) { range = [ta, fmap(a[1])]; ui(); } });
       tl.appendChild(b);
+    });
+    stagePins();
+  }
+  // A comment on a point of the picture (@xy) has its pin there too while its moment is shown, paused (a frame's
+  // width either side): the picture is where it was said.
+  var stagePinsAt = "";
+  function stagePins() {
+    var shown = playing || !total || !pins ? [] : pins.filter(function (p) {
+      var a = parseAnchor(p.selector);
+      return a && a[1] == null && /@xy=/.test(p.selector) && Math.abs(fmap(a[0]) - cur) <= 1 / FPS + 1e-6;
+    });
+    if (!shown.length && !stagePinsAt) return; // none shown, none to take away: no layout read on a playing frame
+    var r = frame.getBoundingClientRect(), v = view.getBoundingClientRect();
+    var key = shown.length ? shown.map(function (p) { return p.n + p.selector; }).join("|") + "@" + [r.left - v.left, r.top - v.top, r.width, r.height].map(Math.round).join(",") : "";
+    if (key === stagePinsAt) return;
+    stagePinsAt = key;
+    view.querySelectorAll(".mo-spin").forEach(function (n) { n.remove(); });
+    shown.forEach(function (p) {
+      var m = /@xy=(-?\d+(?:\.\d+)?)%,(-?\d+(?:\.\d+)?)%/.exec(p.selector);
+      if (!m) return;
+      var b = h("div", { "class": "mo-spin", text: String(p.n) });
+      b.style.left = (r.left - v.left + r.width * parseFloat(m[1]) / 100) + "px";
+      b.style.top = (r.top - v.top + r.height * parseFloat(m[2]) / 100) + "px";
+      b.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+      b.addEventListener("click", function (e) { e.stopPropagation(); if (window.hermes && window.hermes.openPin) window.hermes.openPin(p.n); });
+      view.appendChild(b);
     });
   }
   // Host events: numbered pins for the comments, a comment clicked in the panel, comment pick mode.
@@ -1056,11 +1116,11 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); kit.toast(T.noSave); return; }
     status("saving");
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || r.ok === false) { status("failed"); return; }
       if (r.version) C.version = r.version;
       pendingSave = null; status("saved");
-    }).catch(function (e) { status("failed"); kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { status("failed"); kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function reload() {
     var was = playing;
@@ -1141,7 +1201,7 @@
     stopRetype();
     var shown = lineText(line);
     var r = line.getBoundingClientRect(), vr = view.getBoundingClientRect(), cs = getComputedStyle(line), k = frameScale();
-    var ta = h("textarea", { "class": "mo-edit", spellcheck: "true" });
+    var ta = h("textarea", { "class": "mo-edit", spellcheck: "false" });
     ta.value = shown;
     ta.style.left = (r.left - vr.left - 4) + "px"; ta.style.top = (r.top - vr.top - 4) + "px";
     ta.style.width = Math.max(120, r.width + 8) + "px"; ta.style.minHeight = (r.height + 8) + "px";
@@ -1236,7 +1296,7 @@
     sec(box, T.look);
     if (selected && selected.isConnected) box.appendChild(lookControls(selected));
     else box.appendChild(h("div", { "class": "mo-note", text: T.pickHint }));
-    // What was changed by hand in this scene, each with its own Reset (Claude's per-line Reset).
+    // What was changed by hand in this scene, each with its own Reset (a Reset per line).
     var here = function (id) { return sc ? id === sc.id : true; };
     var lines = ((REC.retyped && REC.retyped.lines) || []).filter(function (x) { return x && here(x.scene || "film"); });
     if (lines.length) {
@@ -1289,6 +1349,8 @@
       var picked = REC.recolored && typeof REC.recolored.palette === "number" ? REC.recolored.palette : null, marked = false;
       palList.forEach(function (p, i) {
         if (!Array.isArray(p) || p.length < cols.length || !p.every(function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); })) return;
+        // the offered palette the film was made with is its Original: listed once, not again as "#n"
+        if (i > 0 && p.slice(0, cols.length).join().toLowerCase() === palList[0].join().toLowerCase()) return;
         var same = cols.every(function (c, j) { return c.v.toLowerCase() === String(p[j]).toLowerCase(); });
         var on = same && !marked && (picked == null || picked === i);
         if (on) marked = true;
@@ -1310,7 +1372,7 @@
     // Font: the headline and text slots, one of the ten or the film's own.
     sec(box, T.font);
     [["display", T.headlines], ["sans", T.text]].forEach(function (pair) {
-      var sel = h("select", {}), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
+      var sel = h("select", { "class": "kit-select" }), rf = REC.refaced && REC.refaced.slots && REC.refaced.slots[pair[0]];
       sel.appendChild(h("option", { value: "", text: T.original }));
       Object.keys(TEN).forEach(function (id) { sel.appendChild(h("option", { value: id, text: id })); });
       sel.value = rf && rf.v && TEN[rf.v] ? rf.v : "";
@@ -1401,17 +1463,17 @@
       saveRecords({ retouched: layers.length ? { v: 1, layers: layers } : null });
     }
     if (svg) {
-      var fi = h("input", { type: "color", value: hex(cs.fill) });
-      fi.addEventListener("change", function () { put("svgfill", hex(cs.fill), fi.value); });
+      var fi = kit.noFill(h("input", { type: "color", value: hex(cs.fill) }), cs.fill);
+      fi.addEventListener("change", function () { kit.noFill(fi, fi.value); put("svgfill", hex(cs.fill), fi.value); });
       box.appendChild(row(T.ink, [fi]));
     } else {
-      var ink = h("input", { type: "color", value: hex(cs.color) });
-      ink.addEventListener("change", function () { put("ink", hex(cs.color), ink.value); });
+      var ink = kit.noFill(h("input", { type: "color", value: hex(cs.color) }), cs.color);
+      ink.addEventListener("change", function () { kit.noFill(ink, ink.value); put("ink", hex(cs.color), ink.value); });
       box.appendChild(row(T.ink, [ink]));
       var px = h("input", { type: "number", min: "6", max: "600", step: "1", value: String(Math.round(parseFloat(cs.fontSize))) });
       px.addEventListener("change", function () { put("px", Math.round(parseFloat(cs.fontSize)), Math.max(6, Math.min(600, +px.value))); });
       box.appendChild(row(T.size + " (px)", [px]));
-      var wt = h("select", {});
+      var wt = h("select", { "class": "kit-select" });
       [300, 400, 500, 600, 700, 800, 900].forEach(function (w) { wt.appendChild(h("option", { value: String(w), text: String(w) })); });
       wt.value = String(Math.round((parseInt(cs.fontWeight, 10) || 400) / 100) * 100);
       wt.addEventListener("change", function () { put("weight", parseInt(cs.fontWeight, 10) || 400, +wt.value); });
@@ -1537,13 +1599,13 @@
    *  film's own size and fps at high quality. */
   async function exportMp4(o) {
     if (exporting) return;
-    if (!window.VideoEncoder || !window.VideoFrame) { kit.toast(T.noCodec); return; }
+    if (!window.VideoEncoder || !window.VideoFrame) { kit.toast(T.noCodec, 0, "error"); return; }
     exporting = true; pause();
     var mo = mp4Opts(o), FPS = mo.fps; // this export's frame rate, not the film's
     var keep = cur, w = mo.w, hh = mo.h, n = Math.max(1, Math.round(total * FPS)), bx = busyBox("MP4 · " + w + "×" + hh + " · " + FPS + " fps");
     try {
       var cfg = await pickVideoConfig(w, hh, FPS, mo.bitrate);
-      if (!cfg) { kit.toast(T.noCodec); return; }
+      if (!cfg) { kit.toast(T.noCodec, 0, "error"); return; }
       await withFonts();
       var samples = [], avcC = null, err = null, TS = 90000, delta = Math.round(TS / FPS);
       var enc = new VideoEncoder({
@@ -1579,7 +1641,7 @@
       var bytes = ENC.mp4(au.track ? [vtrack, au.track] : [vtrack]);
       kit.download(nameBase() + ".mp4", new Blob([bytes], { type: "video/mp4" }), "video/mp4");
       kit.toast(au.why || T.done);
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { bx.done(); exporting = false; renderAt(keep); ui(); }
   }
 
@@ -1602,8 +1664,8 @@
       }
       if (bx.cancelled.v) { kit.toast(T.cancelled); return; }
       kit.download(nameBase() + ".gif", new Blob([gif.finish()], { type: "image/gif" }), "image/gif");
-      kit.toast(T.done);
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+      kit.toast(T.done, 0, "success");
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { bx.done(); exporting = false; renderAt(keep); ui(); }
   }
 
@@ -1617,15 +1679,22 @@
       await drawFrame(keep, canvas);
       var blob = await new Promise(function (r) { canvas.toBlob(r, "image/png"); });
       kit.download(nameBase() + "-" + fmtShort(keep).replace(":", "m") + "s.png", blob, "image/png");
-    } catch (e) { console.error(e); kit.toast(String(e && e.message || e)); }
+    } catch (e) { console.error(e); kit.toast(String(e && e.message || e), 0, "error"); }
     finally { exporting = false; renderAt(keep); ui(); }
   }
 
-  // The Export dialog (Claude's): a format, and for MP4 the resolution, frame rate and quality the
+  // The Export dialog: a format, and for MP4 the resolution, frame rate and quality the
   // encoder is really given. GIF and PNG have fixed settings, so they show a line saying what they make.
   var canMp4 = !!(window.VideoEncoder && window.VideoFrame);
-  var expOpts = null, dialog = null;
-  function closeDialog() { if (dialog) { dialog.remove(); dialog = null; document.removeEventListener("keydown", dialogKey, true); } }
+  var expOpts = null, dialog = null, dialogOpener = null;
+  // Closed (Esc, the backdrop, Cancel, done), the focus goes back to what opened it: the Export button
+  function closeDialog() {
+    if (!dialog) return;
+    dialog.remove(); dialog = null; document.removeEventListener("keydown", dialogKey, true);
+    var back = dialogOpener && dialogOpener.isConnected && dialogOpener.offsetParent ? dialogOpener : expBtn.offsetParent ? expBtn : null;
+    dialogOpener = null;
+    if (back) back.focus({ preventScroll: true });
+  }
   function dialogKey(e) {
     if (!dialog) return;
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDialog(); }
@@ -1634,6 +1703,7 @@
     if (exporting) return;
     if (dialog) { closeDialog(); return; }
     pause(); closePop();
+    dialogOpener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
     // First open: the film's own frame rate, and its own size where it is 720p or 1080p already.
     if (!expOpts) expOpts = { fmt: canMp4 ? "mp4" : "gif", res: Math.min(W, H) >= 1080 ? 1080 : 720, fps: FPS, q: "high" };
     dialog = h("div", { "class": "mo-modal" });
@@ -1652,7 +1722,7 @@
       });
       return h("div", { "class": "mo-drow" }, [h("span", { text: label }), seg]);
     }
-    function mb(bytes) { return (Math.round(bytes / 1e5) / 10).toLocaleString(L) + " MB"; }
+    function mb(bytes) { return kit.num(bytes / 1e6, 1) + " MB"; }
     function draw() {
       dlg.textContent = "";
       dlg.appendChild(h("div", { "class": "mo-dhead" }, [h("b", { text: T.exp }), kit.button("", "close", closeDialog, T.close)]));
@@ -1737,7 +1807,31 @@
     setTimeout(firstThumbs, 500);
     if (!live) { volWrap.hidden = true; }
     kit.ready();
+    firstPreview();
   }).catch(function (e) { console.error(e); kit.ready(); });
+
+  // The gallery's card: the film's first frame as a picture, drawn once per version (hermes.preview: no
+  // version, not an edit), so the card shows it instead of running the film. A film keeps its own colours, so
+  // one picture serves every theme. Only where the host takes it, none is kept yet and nothing plays.
+  function firstPreview() {
+    if (C.thumb || C.preview || !window.hermes || typeof window.hermes.preview !== "function") return;
+    setTimeout(async function () {
+      if (playing || exporting || !timeline.length && !custom) return;
+      var keep = cur;
+      try {
+        var f = await inlineFonts();
+        exportFontCss = f.css;
+        for (var w of [640, 480, 320]) {
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = Math.round(w * H / W);
+          await drawFrame(0, canvas);
+          var url = canvas.toDataURL("image/png");
+          if (url.length * 0.75 <= 400 * 1024) { window.hermes.preview(url, C.version).catch(function () {}); break; }
+        }
+      } catch (e) { /* no picture: the card keeps drawing the film */ }
+      finally { if (!playing) { renderAt(keep); ui(); } }
+    }, 2000);
+  }
 
   // For checks and tests: the player's own handle.
   window.__motion = {

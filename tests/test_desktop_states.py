@@ -73,7 +73,11 @@ RUN = r"""
 
 const PAGE = '/hermes-artifacts'
 const enc = encodeURIComponent
-const tick = () => new Promise(r => setTimeout(r, 0))
+// One turn of the event loop, never a timer: setTimeout(0) waits for the OS timer tick (15.6 ms on Windows, far
+// more when Windows throttles a background process), and settle() takes 20 of them per step: about 2300 in all,
+// 25 s on a good run and past the 120 s limit on a throttled one (the suite's flake). A check-phase turn is
+// microseconds; every invariant holds the same.
+const tick = () => new Promise(r => setImmediate(r))
 const settle = async () => { for (let i = 0; i < 20; i++) await tick() }
 
 // ---------------------------------------------------------------- fake window
@@ -92,21 +96,46 @@ globalThis.document = Object.assign(new EventTarget(), { fullscreenElement: null
 
 // ---------------------------------------------------------------- fake host
 const mk = v => { let x = v; const ls = new Set(); return { get: () => x, set: n => { if (n === x) return; x = n; [...ls].forEach(f => f(n)) }, listen: f => (ls.add(f), () => ls.delete(f)) } }
-const selected = mk(null) // $selectedStoredSessionId; no session tiles here, so focused = selected
+const selected = mk(null) // $selectedStoredSessionId: the chat in the zone's main tab
+// The chat zone's tabs: main (the route's chat), sessions stacked beside it (session tiles), and a tile docked over the
+// zone ('center'). The focused stored session is main's, or a stacked session's while its tab is in front.
+const stacked = []
+let front = 'main' // 'main' | a stacked session id | 'tile'
+const focused = mk(null)
+const syncFocus = () => focused.set(stacked.includes(front) ? front : selected.get())
+selected.listen(syncFocus)
+const toFront = f => { front = f; syncFocus() }
 const tiles = new Map() // workspace tiles: id -> {opts, close}
 const log = []
 const host = {
-  state: { focusedStoredSessionId: selected, busyBySession: mk({}), busy: mk(false), focusedSessionId: mk(null) },
+  state: { focusedStoredSessionId: focused, busyBySession: mk({}), busy: mk(false), focusedSessionId: mk(null) },
   request: async (m, p) => (m === 'session.resume' ? { session_id: `rt-${p.session_id}` } : {}),
   composer: {},
   navigate(path) { window.location.hash = `#${path}` },
-  async openSession(sid) { await tick(); routerNav(`/${enc(sid)}`) },
+  // open-session.ts: a chat on screen is fronted (main or its stacked tab); `tab` stacks one beside main, else it
+  // loads into main (its route)
+  async openSession(sid, o = {}) {
+    await tick()
+    if (sid === selected.get() && o.intent !== 'tab') return toFront('main')
+    if (stacked.includes(sid)) return toFront(sid)
+    if (o.intent === 'tab') { stacked.push(sid); return toFront(sid) }
+    routerNav(`/${enc(sid)}`); toFront('main')
+  },
   openWorkspace(id, opts) {
     const prev = tiles.get(id)
     if (prev) log.push(`re-open ${id}`)
-    const close = () => { if (tiles.get(id)?.close === close) tiles.delete(id); opts.onClose?.() }
+    const close = () => {
+      if (tiles.get(id)?.close === close) {
+        // the zone's tab beside a closed tile in front comes in front (the stacked session left of it, else main)
+        if (tiles.get(id).pos === 'center' && front === 'tile') toFront(stacked.length ? stacked[stacked.length - 1] : 'main')
+        tiles.delete(id)
+      }
+      opts.onClose?.()
+    }
     // The dock hint places a tile not yet in the layout; a re-open refreshes it where it is (revealTreePane).
-    tiles.set(id, { opts, close, pos: prev ? prev.pos : (opts.dock?.pos || 'center') })
+    const pos = prev ? prev.pos : (opts.dock?.pos || 'center')
+    tiles.set(id, { opts, close, pos })
+    if (pos === 'center') toFront('tile') // over the chat's zone, its tab in front
     return close
   }
 }
@@ -214,7 +243,7 @@ const hasEl = (el, name) => {
 const fails = []
 let step = ''
 function check(expect = {}) {
-  const sid = selected.get()
+  const sid = focused.get()
   const path = hash.slice(1).split('?')[0]
   const onChat = path === '/' || path === `/${enc(sid || '')}`
   const has = Boolean(sid && (list.some(a => a.session === sid) || I.$makings.get()[sid]))
@@ -225,7 +254,7 @@ function check(expect = {}) {
   const chat = I.$chat.get()
   if ((chat === 'split') !== (tiles.size === 1)) bad(`$chat=${chat} with ${tiles.size} tile(s)`)
   if (tiles.size && pageMounted) bad('a tile beside the Artifacts page')
-  if (chat === 'split' && (I.$dockMaking.get() || I.current()?.session) !== sid) bad(`docked ${I.$dockMaking.get() || I.$selected.get()} beside chat ${sid}`)
+  if (chat === 'split' && !stacked.includes(front) && (I.$dockMaking.get() || I.current()?.session) !== sid) bad(`docked ${I.$dockMaking.get() || I.$selected.get()} beside chat ${sid}`)
   if (I.$dockMaking.get() && chat !== 'split') bad('a placeholder with no tile')
   if ('making' in expect && I.$dockMaking.get() !== expect.making) bad(`expected placeholder for ${expect.making}, got ${I.$dockMaking.get()}`)
   if ('reopens' in expect) { const n = log.filter(x => x.startsWith('re-open')).length; if (n !== expect.reopens) bad(`expected ${expect.reopens} in-place re-open(s), got ${n}`); log.length = 0 }
@@ -290,6 +319,55 @@ await S('close with the tab strip', () => [...tiles.values()][0].close(), { spli
 await S('to chat B and back after the strip close: stays closed', async () => { routerNav('/chatB'); await settle(); routerNav('/chatA') }, { split: false })
 await S('reopen from the titlebar', () => click(titlebar().render(), () => true, 'titlebar'), { split: true })
 await S('a second artifact in chat A, late list refresh', async () => { list = [A, A2, B]; routerNav(PAGE); await settle(); routerNav('/chatA') }, { split: true })
+// Hermes empties a chat zone whose tab is closed to a new session (close-tab.ts requestFreshSession). Beside its
+// artifact (owner, V6s) the chat's tab (pane-tab-id "workspace") closed collapses the chat: the artifact over its area,
+// "Show chat" to bring it back, never an empty new session in front. The x's or the middle button's events reach none
+// of Hermes' handlers (V6s: the new session showed 250-550 ms before the chat came back).
+const CHAT_TAB = '[role="tab"][data-pane-tab-id="workspace"]'
+const press = (sel, init = {}) => {
+  const types = init.button === 1 ? ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick'] : ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
+  const target = { closest: s => (s === '[role="tab"]' || s === CHAT_TAB || s === sel ? {} : null) }
+  let through = 0
+  for (const type of types) {
+    const e = Object.assign(new Event(type, { cancelable: true }), { button: 0, ...init })
+    Object.defineProperty(e, 'target', { value: target })
+    window.dispatchEvent(e)
+    if (!e.defaultPrevented) through++
+  }
+  if (through) throw new Error(`${through} of the close's events reached Hermes`)
+}
+const draftSettles = () => new Promise(r => setTimeout(r, 350)) // the plugin waits for Hermes' new draft first
+const showChat = () => click(tileEl(), b => b.props.title === 'showChat', 'Show chat')
+const COLLAPSED = { split: true, expanded: true, selected: 'a2', route: '#/chatA', lit: 'chat:chatA', closed: false }
+await S('the chat\'s tab closed beside its artifact: Hermes never hears of it, the chat collapses under its artifact', async () => { log.length = 0; press('button[aria-label="Close"]'); await settle(); await draftSettles() },
+  { ...COLLAPSED, reopens: 0 })
+await S('Show chat: beside its own chat again', showChat, { split: true, expanded: false, route: '#/chatA', lit: 'chat:chatA' })
+await S('its x twice, 300 ms apart: collapsed, the same', async () => { press('button[aria-label="Close"]'); await new Promise(r => setTimeout(r, 300)); press('button[aria-label="Close"]'); await settle(); await draftSettles() }, COLLAPSED)
+await S('Show chat again', showChat, { split: true, expanded: false, route: '#/chatA' })
+await S('the chat\'s tab middle-clicked: collapsed, the same', async () => { press(null, { button: 1 }); await settle(); await draftSettles() }, COLLAPSED)
+await S('Show chat once more', showChat, { split: true, expanded: false, route: '#/chatA' })
+await S('collapsed, its chat\'s tab closed again: nothing more', async () => { log.length = 0; press('button[aria-label="Close"]'); await settle(); await draftSettles() }, { ...COLLAPSED, reopens: 0 })
+await S('Show chat there: beside its own chat', showChat, { split: true, expanded: false, route: '#/chatA' })
+// Another session's tab stacked beside the chat (its strip's +): the chat's own x collapses it the same, that tab kept.
+const stack = sid => { stacked.push(sid); toFront(sid) }
+const closeFront = () => { stacked.splice(stacked.indexOf(front), 1); toFront('main') }
+const turn = () => new Promise(r => setTimeout(r, 5)) // a timer turn: the gesture before is over
+const TWO = { split: true, expanded: false, route: '#/chatA', lit: 'chat:chatA' }
+const keptBeside = () => { if (!stacked.includes('chatU') || front !== 'tile') throw new Error(`stacked [${stacked}], ${front} in front`) }
+await S('another session stacked beside the chat, then the chat\'s own tab in front', async () => { stack('chatU'); await turn(); toFront('main'); await turn() }, TWO)
+await S('the chat\'s tab x with another session beside it: collapsed, the other tab kept', async () => {
+  await turn(); press('button[aria-label="Close"]'); await settle(); await draftSettles(); keptBeside()
+}, COLLAPSED)
+await S('Show chat after the x: its own chat in front', async () => { showChat(); await settle(); if (front !== 'main') throw new Error(`${front} in front`) }, TWO)
+await S('the other session\'s tab closed: only that tab goes, the artifact stays beside its chat', async () => {
+  toFront('chatU'); await turn()
+  closeFront(); await settle(); await draftSettles()
+  if (stacked.length || front !== 'main') throw new Error(`stacked [${stacked}], ${front} in front`)
+}, TWO)
+// A new session (the sidebar, Ctrl+N, Hermes' own Ctrl/Cmd+W): another chat, once Hermes has settled its route.
+await S('a new session asked for beside it: the artifact goes with its chat, never beside an empty one', async () => { routerNav('/'); await new Promise(r => setTimeout(r, 5)) },
+  { split: false, route: '#/', closed: false })
+await S('back to chat A: beside again', () => routerNav('/chatA'), { split: true, selected: 'a2' })
 await S('gallery: open B full page, then Chat', async () => {
   routerNav(PAGE); await settle(); I.openArtifact(ctx, 'b1'); await settle(); if (buttons(routeEl()).some(b => b.props.title === 'showChat')) throw new Error('Show chat on a gallery-opened page')
   click(routeEl(), b => b.props.title === 'chat', 'Chat')
@@ -493,10 +571,25 @@ await S('the ha_* tool events move the step line (the deferred bridge, MCP-style
   tool('tool.start', 'ha_check'); await settle(); seen.push(line())
   tool('tool.generating', 'mcp__web_search'); await settle(); seen.push(line())
   tool('tool.start', 'ha_publish', { type: 'board', title: 'Flow' }); await settle(); seen.push(line())
-  const want = ['stepThink', 'stepWrite:type_board', 'stepTool:check', 'stepTool:web search', 'stepPublish'].map(s => `makingBand:type_board · ${s}`)
+  const want = ['stepThink', 'stepWrite:type_board', 'stepCheck', 'stepWork', 'stepPublish'].map(s => `makingBand:type_board · ${s}`)
   if (JSON.stringify(seen) !== JSON.stringify(want)) throw new Error(JSON.stringify(seen))
   making('chatA', 'ended'); await settle()
   if (texts(tileEl()).some(x => x.startsWith('makingBand:'))) throw new Error('the line stayed after the turn')
+}, { split: true, making: null, reopens: 0 })
+await S('an edit of the artifact (no guide read): the band says Editing <title> and its step, never a tool name', async () => {
+  const line = () => texts(tileEl()).find(x => x.startsWith('editingBand:')) || ''
+  // the deferred bridge, as Hermes sends it: tool_call with one call, its arguments an object
+  emit('tool.start', { type: 'tool.start', payload: { tool_id: 't1', name: 'tool_call', context: 'ha_live_edit',
+    args: { calls: [{ name: 'ha_live_edit', arguments: { id: 'a1', base_rev: 9, ops: [] } }] } } }); await settle()
+  if (!/^editingBand:[^·]+ · stepEdit$/.test(line())) throw new Error('band ' + texts(tileEl()).join(' | '))
+  tool('tool.complete', 'tool_call'); await settle()
+  if (!/^editingBand:[^·]+ · stepThink$/.test(line())) throw new Error('after ' + line())
+  tool('tool.generating', 'mcp__describe'); await settle()
+  if (!/^editingBand:[^·]+ · stepWork$/.test(line())) throw new Error('unknown tool ' + line())
+  host.state.busy.set(true); await settle(); host.state.busy.set(false); await settle() // the turn ends
+  if (line()) throw new Error('the band stayed after the turn')
+  tool('tool.start', 'ha_live_read', { id: 'a1' }); await settle() // a read alone is no edit
+  if (line()) throw new Error('a read started the band')
 }, { split: true, making: null, reopens: 0 })
 await S('a doc made in that chat says its step there too', async () => {
   making('chatA', 'guide', { type: 'doc' }); await settle()
@@ -527,7 +620,8 @@ process.exit(0)
 class DesktopStateTests(unittest.TestCase):
     def test_beside_expand_close_sequences(self):
         d = Path(tempfile.mkdtemp(prefix="ha-states-"))
-        src = (PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)  # a failed run leaves no folder behind either
+        src =(PLUGIN.read_text("utf-8").replace("from '@hermes/plugin-sdk'", "from './sdk.mjs'")
                .replace("from 'react/jsx-runtime'", "from './jsx.mjs'").replace("from 'react'", "from './react.mjs'"))
         # The internals the invariants read, exported from the copy only.
         src += ("\nexport const __test = { $chat, $selected, current, openArtifact, openOnPage, closeArtifact, refresh, toast, $toast, Toast,"
@@ -543,7 +637,6 @@ class DesktopStateTests(unittest.TestCase):
         out = json.loads(r.stdout[r.stdout.index("{"):])
         self.assertEqual(out["fails"], [], "\n".join(out["fails"]))
         self.assertEqual(out["log"], [])
-        shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == "__main__":

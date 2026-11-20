@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import math
 import os
 import re
 import secrets
 import shutil
 import stat
+import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
+logger = logging.getLogger(__name__)
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _LOCK = threading.RLock()
 MAX_HTML_BYTES = 16 * 1024 * 1024
@@ -174,7 +183,13 @@ def confine(path, base) -> Path:
 
 
 def _is_link(p: str) -> bool:
-    return os.path.islink(p) or bool(getattr(os.path, "isjunction", lambda _: False)(p))
+    """A symlink or a junction (Python before 3.12 has no os.path.isjunction: its reparse tag)."""
+    if os.path.islink(p) or getattr(os.path, "isjunction", lambda _: False)(p):
+        return True
+    try:
+        return getattr(os.lstat(p), "st_reparse_tag", 0) == 0xA0000003  # IO_REPARSE_TAG_MOUNT_POINT
+    except OSError:
+        return False
 
 
 def _copy_folder(src: Path, dest: Path, have: int = 0, have_bytes: int = 0) -> None:
@@ -239,15 +254,287 @@ def _dir(aid: str, base: Optional[Path] = None) -> Path:
     return (base or root()) / aid
 
 
-def _write_json(p: Path, data) -> None:
-    tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, p)
+# --- durable writes -------------------------------------------------------------------------------
+# Every file the plugin keeps is written whole to a temporary file beside it and moved over it (a reader in
+# another process sees the old file or the new one, never half of one). A durable write also flushes the
+# temporary file to the disk before the move (and, on POSIX, the folder after it), so a power cut leaves the
+# old or the new file, not an empty or cut-off one; ``backup`` also writes the same bytes as <name>.bak (its
+# own file, at every write: a copy is never older than the last write, so a fallback read never hands a
+# caller content older than what it then writes back; ~3-5 ms more for a 900 KB doc state, a 20k-cell sheet
+# or a 300-item board), which a read falls back to when the file is unreadable all the same (written by older
+# code that did not flush, a disk that lied). fsync costs ~1.5 ms here: meta.json, comments, the live states
+# and the doc history take it; caches and logs do not. A target another program holds open (Windows) is tried
+# again for a moment; then the write fails with the old file as it was and no temporary file left.
+
+REPLACE_TRIES = 100  # a read or os.replace of a file held open: tried again every RETRY_MS, ~0.5 s in all
+RETRY_MS = 5  # short: another process's hold lasts ms and comes back soon, a try must land in its gap
+
+# One process's reads and replaces of the same file take turns (by its path; a lock is held for one open-and-
+# read or one os.replace, never across a sleep): on Windows a replace fails while anyone has the target open,
+# and readers that overlap keep it open with no gap, so a writer among them used up its tries and its update
+# was lost. Another process's reader is still waited out by the tries.
+_FILE_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
+def _file_lock(p) -> threading.Lock:
+    return _FILE_LOCKS[hash(os.path.normcase(os.path.abspath(p))) % len(_FILE_LOCKS)]
+
+
+# A meta.json is read, changed and written back by more than one process (the gateway's tools publish,
+# `hermes dashboard`'s page API renames, pins and stamps it opened, both sweep): each does so under _LOCK and
+# the data folder's meta.lock, so one's write never drops what the other wrote meanwhile. The OS lets go of
+# the file lock when its process ends (a crashed holder blocks nobody); a holder that stays past
+# META_LOCK_WAIT gets the change refused with a TimeoutError, never a wait without end. meta.lock is empty
+# and stays at the folder's root (one per data folder: an artifact's folder must move to the trash freely).
+META_LOCK_WAIT = 30.0
+_meta_depth = 0  # how deep this process is in _meta_lock (changed only under _LOCK: one thread at a time)
+
+
+def _lock_file(fd: int) -> None:
+    if os.name == "nt":
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # its first byte (the position stays 0)
+    else:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+@contextlib.contextmanager
+def _meta_lock() -> Iterator[None]:
+    global _meta_depth
+    with _LOCK:
+        fd = None
+        if not _meta_depth:
+            p = root() / "meta.lock"
+            fd = os.open(p, os.O_RDWR | os.O_CREAT)
+            try:
+                end = time.monotonic() + META_LOCK_WAIT
+                while True:
+                    try:
+                        _lock_file(fd)
+                        break
+                    except OSError:
+                        if time.monotonic() >= end:
+                            raise TimeoutError(f"another Hermes process has been changing an artifact for over "
+                                               f"{META_LOCK_WAIT:.0f} s ({p} is held): nothing was changed, "
+                                               "try again") from None
+                        time.sleep(0.005)
+            except BaseException:
+                os.close(fd)
+                raise
+        _meta_depth += 1
+        try:
+            yield
+        finally:
+            _meta_depth -= 1
+            if fd is not None:
+                try:
+                    if os.name == "nt":
+                        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                finally:
+                    os.close(fd)  # lets go of flock's lock too
+
+
+def _fsync_dir(d: Path) -> None:
+    if os.name == "nt":  # NTFS journals the rename itself; a folder cannot be opened for fsync there
+        return
+    try:
+        fd = os.open(str(d), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def _while_held(p: Path, act: Callable[[], Any]) -> Any:
+    """``act()`` (one read or os.replace of ``p``) under ``p``'s file lock. On Windows a file another thread or
+    process holds without sharing, or is replacing this very moment, answers PermissionError for a few ms:
+    tried again every RETRY_MS, REPLACE_TRIES times in all, before the error goes to the caller. A folder is
+    not tried again (Windows answers PermissionError for one too)."""
+    for i in range(REPLACE_TRIES):
+        try:
+            with _file_lock(p):
+                return act()
+        except PermissionError:
+            if i == REPLACE_TRIES - 1 or Path(p).is_dir():
+                raise
+            time.sleep(RETRY_MS / 1000)
+    raise AssertionError("unreachable")
+
+
+def _replace(tmp: Path, p: Path) -> None:
+    try:
+        _while_held(p, lambda: os.replace(tmp, p))
+    except PermissionError as e:  # Windows: another program has the target open
+        raise PermissionError(e.errno, f"could not write {p.name}: another program holds it open "
+                                       "(the file is unchanged)", str(p)) from e
+
+
+def read_text(p: Path) -> str:
+    """``p``'s text; a file held for a moment is waited out (_while_held)."""
+    return _while_held(p, lambda: Path(p).read_text(encoding="utf-8"))
+
+
+def write_atomic(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+    """Write ``data`` (str as UTF-8, or bytes) to ``p`` as described above. Returns the stat of the file as
+    written (a rename keeps it: json_remember can stamp the cache with it)."""
+    p = Path(p)
+    raw = data.encode("utf-8") if isinstance(data, str) else bytes(data)
+    tmp = p.with_name(f"{p.name}.{os.getpid()}-{threading.get_ident()}.tmp")  # writers never share one
+    try:
+        with open(tmp, "wb") as f:
+            f.write(raw)
+            if durable:
+                f.flush()
+                os.fsync(f.fileno())
+        st = os.stat(tmp)
+        _replace(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    if durable:
+        _fsync_dir(p.parent)
+    if backup:
+        try:
+            write_atomic(p.with_name(p.name + ".bak"), raw, durable=durable)
+        except OSError:  # the file itself is written; its copy stays one write behind until the next one
+            logger.warning("could not refresh the copy of %s", p, exc_info=True)
+    return st
+
+
+def _json_text(data) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _write_json(p: Path, data, *, durable: bool = True, backup: bool = False) -> os.stat_result:
+    return write_atomic(p, _json_text(data), durable=durable, backup=backup)
+
+
+def _write_meta(d: Path, meta: dict) -> os.stat_result:
+    """meta.json with its .bak: a fallback read never names fewer versions than there are."""
+    return _write_json(d / "meta.json", meta, backup=True)
+
+
+def read_json(p: Path, text: Optional[str] = None) -> Any:
+    """The JSON in ``p`` (``text``: its content, already read). Unreadable (empty, cut short): the last good
+    copy (<name>.bak, else a temporary file a writer left complete), with a warning in the log; when none
+    parses, the first error (ValueError). FileNotFoundError when ``p`` is missing."""
+    return read_json_from(p, text)[0]
+
+
+def read_json_from(p: Path, text: Optional[str] = None) -> tuple:
+    """read_json's (value, fell_back): ``fell_back`` is True when the value is a copy's, not ``p``'s own
+    (it may be older than the file was: nothing destructive may be decided on it). A file still locked after
+    read_text's retries falls back the same way; with no good copy, its PermissionError."""
+    first: Exception
+    try:
+        if text is None:
+            text = read_text(p)
+        return json.loads(text), False
+    except PermissionError as e:
+        if p.is_dir():
+            raise
+        first = e
+    except ValueError as e:
+        first = e
+    cands = [p.with_name(p.name + ".bak")]
+    try:
+        cands += sorted((c for c in p.parent.iterdir() if c.name.startswith(p.name + ".") and c.name.endswith(".tmp")),
+                        key=lambda c: c.stat().st_mtime, reverse=True)
+    except OSError:
+        pass
+    for c in cands:
+        try:
+            value = json.loads(read_text(c))
+        except (OSError, ValueError):
+            continue
+        logger.warning("%s is unreadable (%s): using its last good copy %s", p,
+                       "held by another program" if isinstance(first, PermissionError) else "empty or cut short", c.name)
+        return value, True
+    raise first
+
+
+def load_state(p: Path) -> Any:
+    """A live state file (a doc's, sheet's or board's): its JSON (unreadable: its last good copy, see
+    read_json), or None when it is missing, or unreadable with no good copy: then it is kept aside as
+    <name>.corrupt-<time> for whoever wants to salvage it, a warning is logged, and the caller starts the
+    state again from the published version (as for a new version) rather than failing on every open."""
+    try:
+        return read_json(p)
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        aside = p.with_name(f"{p.name}.corrupt-{int(time.time())}")
+        try:
+            os.replace(p, aside)
+        except OSError:
+            pass
+        logger.warning("%s is unreadable and has no good copy: kept as %s, started again from the published version",
+                       p, aside.name)
+        return None
+
+
+def _rebuilt_meta(d: Path) -> Optional[dict]:
+    """A meta.json made again from the version folders, when neither it nor a copy of it can be read: the
+    artifact stays listed (title: its id; versions: the folders there, as Hermes'), its type from its files."""
+    try:
+        ns = sorted(int(e.name[1:]) for e in os.scandir(d) if e.is_dir() and re.fullmatch(r"v[0-9]{1,9}", e.name))
+    except OSError:
+        return None
+    if not ns:
+        return None
+    versions = [e for e in (_version_entry(d, n) for n in ns) if e]
+    if not versions:
+        return None
+    try:
+        kind = next((k for k, entry in TYPE_ENTRY.items() if k != "page" and (d / f"v{ns[-1]}" / entry).is_file()), "page")
+    except OSError:
+        kind = "page"
+    logger.warning("%s/meta.json is unreadable and has no good copy: rebuilt from its %d version folders", d, len(versions))
+    return {"id": d.name, "title": d.name, "created": versions[0]["published"], "updated": versions[-1]["published"],
+            "versions": versions, "type": kind}
+
+
+def _version_entry(d: Path, n: int) -> Optional[dict]:
+    """A meta entry for the version folder v<n> made from the folder itself (None when it can't be read)."""
+    vdir = d / f"v{n}"
+    try:
+        size = sum(e.stat().st_size for _, e in walk_files(vdir))
+        at = vdir.stat().st_mtime
+    except OSError:
+        return None
+    return {"n": n, "published": at, "bytes": size, "by": "hermes"}
+
+
+def _read_meta(p: Path, text: Optional[str] = None) -> dict:
+    try:
+        return read_json(p, text)
+    except ValueError:
+        m = _rebuilt_meta(p.parent)
+        if m is None:
+            raise
+        return m
+
+
+def peek_meta(aid: str) -> Optional[dict]:
+    """The artifact's meta, shared and read-only (parsed again only when meta.json changed: one stat), for
+    a caller that only looks at it (a doc's poll). Never change it: get_meta gives a copy to change."""
+    try:
+        return json_cached(_dir(aid) / "meta.json", _METAS, loader=_read_meta)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
 
 
 def get_meta(aid: str) -> Optional[dict]:
-    p = _dir(aid) / "meta.json"
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+    try:
+        return _read_meta(_dir(aid) / "meta.json")
+    except (FileNotFoundError, NotADirectoryError, IsADirectoryError):
+        return None
 
 
 def walk_files(top: Path) -> Iterator[tuple[str, os.DirEntry]]:
@@ -430,8 +717,8 @@ _DS_TEXT = {".md", ".json", ".js", ".css", ".html", ".htm", ".svg", ".ts", ".tsx
 
 
 def _ds_build(vdir: Path) -> list[str]:
-    """A design system's generated files (tokens.css, manifest.json, api/ cards, README's tail), as
-    Claude's Design System type writes them on every save. A system brought over from Claude, kept
+    """A design system's generated files (tokens.css, manifest.json, api/ cards, README's tail),
+    written on every save. A system brought over from Claude, kept
     under project/, comes up to the root first (the type's own files it carried stay behind)."""
     from . import dsbuild
     proj = vdir / "project"
@@ -479,7 +766,7 @@ def _ds_folder(name: str, taken: set) -> str:
 
 
 def _ds_install(vdir: Path, kind: str, prev: Optional[Path] = None) -> list[str]:
-    """Copy the design systems an artifact names into it (Claude's install: the copy travels with the deck,
+    """Copy the design systems an artifact names into it (an install: the copy travels with the deck,
     canvas or film, so a later edit or the deletion of the system changes nothing here).
 
     The author writes only ids: ``"designSystems": ["<id>"]`` in the index. Each becomes a record
@@ -748,7 +1035,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
     """
     if sum(x is not None for x in (html, path, files)) != 1:
         raise Refusal("pass exactly one of html, path or files", next="ha_publish with only one of them")
-    with _LOCK:
+    with _meta_lock():
         meta = get_meta(aid) if aid else None
         if aid and meta is None:
             _dir(aid)  # validates id
@@ -777,7 +1064,7 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             raise Refusal(f"unknown type {kind!r} (one of {', '.join(TYPES)})", next="type= one of those")
         meta = meta or {"id": aid, "title": title or aid, "created": time.time(), "versions": [],
                         "type": kind}
-        n = len(meta["versions"]) + 1
+        n = max((v["n"] for v in meta["versions"]), default=0) + 1  # never reused, pruned versions included
         vdir = d / f"v{n}"
         if vdir.exists():
             shutil.rmtree(vdir)
@@ -869,7 +1156,9 @@ def publish(*, html: Optional[str] = None, path: Optional[str] = None, files: Op
             entry["derived"] = made
         meta["versions"].append(entry)
         meta["updated"] = time.time()
-        _write_json(d / "meta.json", meta)
+        pruned = _prune_versions(aid, meta)
+        _write_meta(d, meta)
+        _drop_versions(d, pruned)  # after meta.json no longer names them
         note = " ".join(x for x in (note, shape_note) if x)
         return {**meta, "note": note} if note else meta  # the note is the caller's, not stored
 
@@ -927,7 +1216,7 @@ def derived(meta: dict, n: Optional[int] = None) -> set:
 def update_meta(aid: str, **fields) -> dict:
     """Change list-level fields (title, description, pinned, session, folder, opened) without a new version.
     `folder`: the gallery folder it sits in ("" takes it out); `opened`: true stamps now (Last opened)."""
-    with _LOCK:
+    with _meta_lock():
         meta = get_meta(aid)
         if meta is None:
             raise no_artifact(aid)
@@ -954,8 +1243,35 @@ def update_meta(aid: str, **fields) -> dict:
                 meta[k] = str(v)
             else:
                 meta[k] = bool(v) if k == "pinned" else str(v)[:300]
-        _write_json(_dir(aid) / "meta.json", meta)
+        _write_meta(_dir(aid), meta)
         return meta
+
+
+EDITED_EVERY = 60.0  # a live type's edits move its meta's "updated" at most this often (seconds)
+
+
+def edited(aid: str, now: Optional[float] = None) -> bool:
+    """A doc's, sheet's or board's content changed (the user's edit or Hermes'): its "Last edited" (meta's
+    updated, the gallery's card, its sort and the viewer's "Updated") moves to now, at most once every
+    EDITED_EVERY. meta.json is replaced then, which changes the artifact folder's stamp: the gallery's poll sees
+    it as it sees every card change, at no cost of its own. A keystroke's save costs one stat (peek_meta), not a
+    meta write. Never fails the edit it follows (a meta.json held by another program: the next edit moves it).
+    True when it moved."""
+    now = time.time() if now is None else now
+    try:
+        m = peek_meta(aid)
+        if not m or now - float(m.get("updated") or 0) < EDITED_EVERY:
+            return False
+        with _meta_lock():
+            meta = get_meta(aid)
+            if meta is None or now - float(meta.get("updated") or 0) < EDITED_EVERY:
+                return False
+            meta["updated"] = now
+            _write_meta(_dir(aid), meta)
+            return True
+    except (OSError, ValueError, TypeError):
+        logger.debug("%s: Last edited not moved", aid, exc_info=True)
+        return False
 
 
 TRASH_MARK = ".deleted.json"
@@ -971,7 +1287,7 @@ def delete(aid: str) -> Path:
     list at once and ``restore`` brings it back until it is purged (TRASH_DAYS after its deletion). A
     design system that was the default stops being it (a restore does not make it the default again).
     Returns the trash folder; trash older than TRASH_DAYS goes on the way."""
-    with _LOCK:
+    with _meta_lock():
         d = _dir(aid)
         meta = get_meta(aid)
         if meta is None:
@@ -984,9 +1300,10 @@ def delete(aid: str) -> Path:
         while dest.exists():
             n += 1
             dest = trash / f"{aid}-{int(now)}-{n}"
-        shutil.move(str(d), str(dest))
-        if d.exists():
-            raise OSError(f"could not delete {aid}")
+        try:
+            os.rename(d, dest)  # one step: the folder is in the trash or still in place, never half of each
+        except OSError as e:
+            raise OSError(f"could not delete {aid}: a file of it is in use ({e.strerror or e}); nothing was changed, try again")
         _write_json(dest / TRASH_MARK, {"id": aid, "title": meta.get("title", aid), "deleted_at": now})
         if settings().get("default_design_system") == aid:
             settings_set("default_design_system", None)
@@ -1000,7 +1317,7 @@ def delete(aid: str) -> Path:
 def _deleted_at(item: Path) -> Optional[float]:
     """When a trashed item was deleted: its mark, else the time in its folder name, else its mtime."""
     try:
-        return float(json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))["deleted_at"])
+        return float(json.loads(read_text(item / TRASH_MARK))["deleted_at"])
     except Exception:
         pass
     m = re.search(r"-(\d{9,11})(?:-\d+)?$", item.name)
@@ -1026,15 +1343,17 @@ def trash_list() -> list[dict]:
     now = time.time()
     out = []
     for item in trash.iterdir():
-        if not item.is_dir() or item.is_symlink():
+        if not item.is_dir() or item.is_symlink() or item.name.startswith("."):
             continue
         mark, meta = {}, {}
         try:
-            mark = json.loads((item / TRASH_MARK).read_text(encoding="utf-8"))
+            mark = json.loads(read_text(item / TRASH_MARK))
         except Exception:
             pass
+        if mark.get("purging"):
+            continue  # being deleted for good (a file of it was in use): the sweep finishes it
         try:
-            meta = json.loads((item / "meta.json").read_text(encoding="utf-8"))
+            meta = json.loads(read_text(item / "meta.json"))
         except Exception:
             pass
         aid = str(mark.get("id") or meta.get("id") or re.sub(r"-\d{9,11}(?:-\d+)?$", "", item.name))
@@ -1051,7 +1370,7 @@ def restore(which: str, entry: bool = False) -> dict:
     """Bring a trashed artifact back as it was (``which``: its id, the newest deletion of it, or its trash
     folder name; with ``entry`` only the folder name, so the gallery restores the very copy it shows when
     two share an id). Refused while another artifact has that id. Returns its meta."""
-    with _LOCK:
+    with _meta_lock():
         listed = trash_list()
         items = [t for t in listed if t["name"] == which]
         if not items and not entry:
@@ -1065,8 +1384,11 @@ def restore(which: str, entry: bool = False) -> dict:
         src = _trash() / item["name"]
         if not (src / "meta.json").is_file():
             raise ValueError(f"{item['name']!r} in the trash holds no artifact")
-        (src / TRASH_MARK).unlink(missing_ok=True)
-        shutil.move(str(src), str(d))
+        try:
+            os.rename(src, d)
+        except OSError as e:
+            raise OSError(f"could not restore {item['id']}: a file of it is in use ({e.strerror or e}); try again")
+        (d / TRASH_MARK).unlink(missing_ok=True)
         return get_meta(item["id"])
 
 
@@ -1080,15 +1402,18 @@ def purge_trash(days: float = TRASH_DAYS, now: Optional[float] = None) -> list[s
     purged = []
     with _LOCK:
         for item in list(trash.iterdir()):
+            if item.name.startswith("."):
+                continue  # .purging-*: the sweep's
             at = _deleted_at(item)
             if at is None or not _expired(at, now, days):
                 continue
             if item.is_dir() and not item.is_symlink():
-                shutil.rmtree(item, ignore_errors=True)
+                if _purge_item(item):
+                    purged.append(item.name)
             else:
                 item.unlink(missing_ok=True)
-            if not item.exists():
-                purged.append(item.name)
+                if not item.exists():
+                    purged.append(item.name)
     return purged
 
 
@@ -1115,6 +1440,10 @@ def purge_trash_due(now: Optional[float] = None) -> Optional[threading.Thread]:
                 purge_trash()
             except Exception:
                 pass  # a locked file: the next purge tries again
+            try:
+                sweep()
+            except Exception:
+                logger.debug("the orphan sweep failed", exc_info=True)
 
         t = threading.Thread(target=run, name="hermes-artifacts-trash", daemon=True)
         t.start()
@@ -1140,10 +1469,591 @@ def trash_delete(name: str) -> str:
             raise ValueError(f"{name!r} in the trash is not a folder")
         if item.resolve().parent != trash.resolve():
             raise ValueError(f"{name!r} is not inside the trash")
-        shutil.rmtree(item)
-        if item.exists():
-            raise OSError(f"could not delete {name!r}")
+        _purge_item(item)  # what a program still holds open goes with the next sweep (logged)
     return name
+
+
+# --- deleting for good ----------------------------------------------------------------------------------
+# An artifact deleted for good (trash_delete, the TRASH_DAYS purge) leaves nothing: its folder goes whole,
+# and so does every reference to its id outside it (inbox items, views, making, settings, this process's
+# caches). A file another program holds open (Windows) cannot go at once: the folder is first renamed to a
+# dot name the listings skip (or, when even that fails, marked "purging" so the trash no longer shows it),
+# and the sweep finishes it.
+
+PURGING = ".purging-"
+# callables(aid, folder) by their module and name: caches keyed by the id or its folder. One registry per
+# process, shared by every copy of these modules (the web API reloads its own; the plugin has its own): a
+# delete in one copy clears them all. A reloaded module's function replaces its old one.
+_FORGET: dict = sys.__dict__.setdefault("_hermes_artifacts_forget", {})
+
+
+def on_forget(fn) -> None:
+    """Register ``fn(aid, folder)``: called when an artifact is deleted for good (its caches go)."""
+    _FORGET[f"{fn.__module__}.{fn.__qualname__}"] = fn
+
+
+def _rmtree(p: Path, tries: int = 3) -> bool:
+    """Remove ``p`` whole, retrying files a scanner or viewer holds for a moment (read-only ones made
+    writable). True when it is gone."""
+    def again(fn, path, exc):
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            fn(path)
+        except OSError:
+            pass
+    for i in range(tries):
+        if not os.path.lexists(p):
+            return True
+        try:
+            if p.is_dir() and not p.is_symlink():
+                shutil.rmtree(p, onerror=again)
+            else:
+                p.unlink()
+        except OSError:
+            pass
+        if not os.path.lexists(p):
+            return True
+        time.sleep(0.05 * (i + 1))
+    return not os.path.lexists(p)
+
+
+def _purge_item(item: Path) -> bool:
+    """Delete a trashed artifact folder for good, and its id everywhere else. True when nothing is left."""
+    aid = _trash_id(item)
+    hidden = item.with_name(f"{PURGING}{item.name}-{secrets.token_hex(3)}")
+    try:
+        os.rename(item, hidden)
+    except OSError:
+        hidden = item  # in use: removed where it is, as far as it goes
+    gone = _rmtree(hidden)
+    if not gone and hidden == item:
+        try:  # what is left says so: the trash no longer lists it, the sweep finishes it
+            _write_json(item / TRASH_MARK, {"id": aid, "purging": True}, durable=False)
+        except OSError:
+            pass
+    if not gone:
+        logger.warning("could not delete %s for good yet (a file of it is in use): the next sweep finishes it", hidden)
+    if aid:
+        forget(aid)
+    return gone
+
+
+def _trash_id(item: Path) -> Optional[str]:
+    try:
+        aid = json.loads(read_text(item / TRASH_MARK)).get("id")
+    except Exception:
+        aid = None
+    if not aid:
+        try:
+            aid = json.loads(read_text(item / "meta.json")).get("id")
+        except Exception:
+            aid = None
+    name = item.name[len(PURGING):] if item.name.startswith(PURGING) else item.name
+    aid = aid or re.sub(r"-\d{9,11}(?:-\d+)?(?:-[0-9a-f]{6})?$", "", name)
+    return aid if isinstance(aid, str) and _ID_RE.match(aid) else None
+
+
+def _id_in_use(aid: str) -> bool:
+    """Whether the id still names something: a live artifact, or another copy waiting in the trash."""
+    if (root() / aid).exists():
+        return True
+    trash = _trash()
+    try:
+        items = [i for i in trash.iterdir() if i.is_dir() and not i.name.startswith(".")]
+    except OSError:
+        return False
+    for i in items:
+        if i.name == aid or i.name.startswith(aid + "-"):
+            if _trash_id(i) == aid:
+                try:
+                    if json.loads(read_text(i / TRASH_MARK)).get("purging"):
+                        continue
+                except Exception:
+                    pass
+                return True
+    return False
+
+
+def forget(aid: str) -> None:
+    """Remove every reference to ``aid`` outside its folder: inbox items, views, making states, settings,
+    caches. Nothing when the id is in use again (an artifact made since under it, a restore, another copy in
+    the trash). Never raises."""
+    try:
+        if _id_in_use(aid):
+            return
+        with _LOCK:
+            p = _inbox_path()
+            if p.is_file():
+                items = inbox_list(include_acked=True)
+                keep = [i for i in items if i.get("artifact") != aid]
+                if len(keep) != len(items):
+                    write_atomic(p, "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in keep))
+            for path, test in ((_views_path(), lambda v: v.get("artifact") == aid),
+                               (_making_path(), lambda v: v.get("id") == aid)):
+                try:
+                    data = read_json(path)
+                except (OSError, ValueError):
+                    continue
+                if isinstance(data, dict):
+                    keep = {k: v for k, v in data.items() if not (isinstance(v, dict) and test(v))}
+                    if len(keep) != len(data):
+                        _write_json(path, keep, durable=False)
+            named = re.compile(r"(?<![\w-])" + re.escape(aid) + r"(?![\w-])")
+            for path, live, drop in ((_typing_path(), _typing_live, lambda k, v: k == aid),
+                                     (_chat_notes_path(), _notes_live, lambda k, v: bool(named.search(v["ref"])))):
+                try:
+                    _rewrite_live(path, live, drop)
+                except (OSError, ValueError):
+                    pass
+            s = settings()
+            if s.get("default_design_system") == aid:
+                settings_set("default_design_system", None)
+            per = s.get("design_system_for")
+            if isinstance(per, dict) and aid in per.values():
+                settings_set("design_system_for", {k: v for k, v in per.items() if v != aid} or None)
+        d = root() / aid
+        prefix = str(d)
+        for cache in (_METAS, _CARDS, _OPEN_COUNTS):
+            for k in [k for k in cache if str(k) == prefix or str(k).startswith(prefix + os.sep)]:
+                cache.pop(k, None)
+        for fn in list(_FORGET.values()):
+            try:
+                fn(aid, d)
+            except Exception:
+                logger.debug("forgetting %s failed in %r", aid, fn, exc_info=True)
+    except Exception:
+        logger.debug("forgetting %s failed", aid, exc_info=True)
+
+
+# --- version retention ----------------------------------------------------------------------------------
+# A version is a whole copy of the artifact's files (unchanged files hard-linked to the version before, where
+# the file system allows). The newest ``max_versions`` (plugin setting, default MAX_VERSIONS, 0 = all) are
+# kept, with the latest always and any version an open comment was made on; the rest go at the next publish:
+# folder, preview and entry together. Numbers are never reused (the next is the highest + 1).
+
+MAX_VERSIONS = 30
+_CONFIG: dict = {"getter": None}
+_CFG_READ: dict = {}  # key -> (when read, value): Hermes' config.yaml read at most every 5 s
+
+
+def set_config_getter(getter) -> None:
+    """The plugin context's get_config (the agent's process): settings read through it."""
+    _CONFIG["getter"] = getter
+
+
+def config_value(key: str, default):
+    """A plugin setting (config_schema): through the plugin context when there is one, else Hermes' config.yaml
+    as Hermes reads it (the web server runs no plugin context), else ``default``."""
+    getter = _CONFIG["getter"]
+    if getter is not None:
+        try:
+            v = getter(key)
+        except Exception:
+            v = None
+        return default if v in (None, "") else v
+    now = time.monotonic()
+    hit = _CFG_READ.get(key)
+    if hit and now - hit[0] < 5:
+        return hit[1]
+    value = default
+    try:
+        from hermes_cli.config import load_config_readonly
+        cfg = load_config_readonly() or {}
+        entry = (((cfg.get("plugins") or {}).get("entries") or {}).get(PLUGIN_ID) or {})
+        for sub in ("settings", "config"):
+            got = (entry.get(sub) or {}).get(key) if isinstance(entry.get(sub), dict) else None
+            if got not in (None, ""):
+                value = got
+                break
+    except Exception:
+        value = default
+    _CFG_READ[key] = (now, value)
+    return value
+
+
+def max_versions() -> int:
+    """The max_versions setting: how many versions an artifact keeps (0: all)."""
+    try:
+        return max(0, int(config_value("max_versions", MAX_VERSIONS)))
+    except (TypeError, ValueError):
+        return MAX_VERSIONS
+
+
+def _prune_versions(aid: str, meta: dict) -> list:
+    """Drop from ``meta`` the versions past max_versions (not the latest, nor one an open comment was made on).
+    Returns the numbers dropped; the caller writes meta, then _drop_versions removes their files."""
+    cap = max_versions()
+    vs = meta.get("versions") or []
+    if not cap or len(vs) <= cap:
+        return []
+    keep = {v["n"] for v in vs[-cap:]} | {vs[-1]["n"]}
+    try:
+        keep |= {int(c["version"]) for c in comments_list(aid, include_resolved=False) if c.get("version")}
+    except (OSError, ValueError, TypeError, KeyError):
+        return []  # unsure what the comments point at: keep everything this time
+    dropped = [v["n"] for v in vs if v["n"] not in keep]
+    meta["versions"] = [v for v in vs if v["n"] in keep]
+    return dropped
+
+
+def _drop_versions(d: Path, ns: list) -> None:
+    for n in ns:
+        vdir = d / f"v{int(n)}"
+        hidden = d / f"{PURGING}v{int(n)}-{secrets.token_hex(3)}"
+        try:
+            os.rename(vdir, hidden)
+        except OSError:
+            hidden = vdir  # in use: meta no longer names it, the sweep removes what stays
+        _rmtree(hidden)
+        try:
+            (d / "previews" / f"v{int(n)}.png").unlink()
+        except OSError:
+            pass
+
+
+# --- the sweep: files nothing will ever read again ------------------------------------------------------
+# Rides the trash purge (purge_trash_due: the gallery's requests at most once a day per process, and the
+# plugin's start): no timer, no process of its own. Each call works through the artifacts for SWEEP_S at
+# most, going on next time from where it stopped. A writer in another process may be mid-write: only what is
+# older than ORPHAN_AGE goes (a write takes milliseconds), under this process's lock.
+
+ORPHAN_AGE = 3600.0
+CORRUPT_DAYS = 7
+DEAD_VERSION_AGE = 7 * 86400.0  # an unfinished version folder (no entry file) untouched this long goes
+SWEEP_S = 2.0
+_SWEPT: dict = {"after": ""}  # the last artifact folder looked at
+_CORRUPT = re.compile(r"\.corrupt-(\d{9,11})$")
+
+
+def _age(p: Path, now: float) -> float:
+    try:
+        return now - os.lstat(p).st_mtime
+    except OSError:
+        return -1.0
+
+
+# Only what the plugin provably made goes: the data folder may be one the user also keeps other things in
+# (HERMES_ARTIFACTS_DIR). Its own names: the files below at the root and in an artifact folder, their copies
+# (<name>.bak), write_atomic's temp files (<name>.<pid>-<thread>.tmp), kept-aside corrupt files, version
+# folders v<n> and the live folders.
+_ROOT_FILES = frozenset({"settings.json", "inbox.jsonl", "views.json", "making.json", "typing.json", "chat-notes.json"})
+_ART_FILES = frozenset({"meta.json", "comments.json", "approvals.json", "history.json", "replies.json",
+                        "reports.json", "storage.json", "diagnostics.json"})
+_ART_DIRS = frozenset({"previews", "cache", "sheet", "board", "doc"})
+_TMP = re.compile(r"(.+)\.[0-9]+-[0-9]+\.tmp")
+_VDIR = re.compile(r"v[0-9]{1,9}")
+
+
+def _made_for(name: str) -> str:
+    """The file a plugin-made name belongs to: itself, or what its copy, temp or corrupt suffix is added to."""
+    m = _TMP.fullmatch(name)
+    if m:
+        return m.group(1)
+    if name.endswith(".bak"):
+        return name[:-4]
+    return _CORRUPT.sub("", name)
+
+
+def _sweep_files(d: Path, now: float, out: dict, known: Optional[frozenset] = None) -> None:
+    """In one folder (not a version's): dead writers' temp files, copies whose file is gone, kept-aside corrupt
+    files past CORRUPT_DAYS, half-deleted .purging- folders. ``known``: only what belongs to these names (the
+    data folder's root, where other things may live; no .purging- folders there)."""
+    try:
+        entries = list(os.scandir(d))
+    except OSError:
+        return
+    names = {e.name for e in entries}
+    for e in entries:
+        p = Path(e.path)
+        name = e.name
+        if name.startswith(PURGING) and known is None:
+            if _rmtree(p):
+                out["purging"] = out.get("purging", 0) + 1
+            continue
+        if not e.is_file(follow_symlinks=False) or (known is not None and _made_for(name) not in known):
+            continue
+        why = None
+        if _TMP.fullmatch(name) and _age(p, now) > ORPHAN_AGE:
+            why = "tmp"
+        elif name.endswith(".bak") and name[:-4] not in names and _age(p, now) > ORPHAN_AGE:
+            why = "bak"
+        else:
+            m = _CORRUPT.search(name)
+            if m and now - int(m.group(1)) > CORRUPT_DAYS * 86400:
+                why = "corrupt"
+        if why:
+            try:
+                p.unlink()
+                out[why] = out.get(why, 0) + 1
+            except OSError:
+                pass
+
+
+def _sweep_empty(d: Path, now: float, out: dict) -> None:
+    try:
+        with os.scandir(d) as it:
+            empty = not any(it)
+        if empty and _age(d, now) > ORPHAN_AGE:
+            d.rmdir()
+            out["empty"] = out.get("empty", 0) + 1
+    except OSError:
+        pass
+
+
+def _youngest_age(top: Path, now: float) -> Optional[float]:
+    """The age of the newest thing in ``top`` (itself, every folder and file under it, by mtime; a hard-linked
+    file keeps its source's time, the folders made for it do not). None when it can't be read whole or holds
+    a link (then nothing is decided on it)."""
+    ages = [_age(top, now)]
+    try:
+        stack = [str(top)]
+        while stack:
+            with os.scandir(stack.pop()) as it:
+                for e in it:
+                    if _is_link(e.path):
+                        return None
+                    ages.append(now - e.stat(follow_symlinks=False).st_mtime)
+                    if e.is_dir(follow_symlinks=False):
+                        stack.append(e.path)
+    except OSError:
+        return None
+    return None if min(ages) < 0 else min(ages)
+
+
+def _stamp(p: Path) -> Optional[tuple]:
+    try:
+        st = os.stat(p)
+    except OSError:
+        return None
+    return st.st_mtime_ns, st.st_size, st.st_ino
+
+
+def _sweep_unlisted(d: Path, now: float, out: dict) -> None:
+    """A folder with no meta.json. Touched only when it is provably the plugin's (an artifact id holding
+    nothing but the plugin's names) and nothing in it is younger than ORPHAN_AGE. Its meta.json comes back
+    from its copy, or is made again from its version folders; only a first publish that died before its
+    meta.json (v1 and that write's temp files) or a folder with no version and no meta left goes."""
+    if not _ID_RE.match(d.name):
+        return
+    try:
+        entries = list(os.scandir(d))
+    except OSError:
+        return
+    vs, rest = [], []
+    for e in entries:
+        if _is_link(e.path):
+            return
+        if e.is_dir(follow_symlinks=False):
+            if _VDIR.fullmatch(e.name):
+                vs.append(e.name)
+            elif e.name not in _ART_DIRS and not e.name.startswith(PURGING):
+                return  # not the plugin's
+        elif e.is_file(follow_symlinks=False) and _made_for(e.name) in _ART_FILES:
+            rest.append(e.name)
+        else:
+            return
+    if _age(d, now) <= ORPHAN_AGE or any(_age(Path(e.path), now) <= ORPHAN_AGE for e in entries):
+        return  # a publish in another process may be under way
+    with _meta_lock():
+        if os.path.lexists(d / "meta.json"):
+            return
+        bak = d / "meta.json.bak"
+        if bak.is_file():
+            try:
+                raw = bak.read_bytes()
+                ok = isinstance(json.loads(raw), dict)
+            except (OSError, ValueError):
+                ok = False
+            if ok:
+                write_atomic(d / "meta.json", raw)
+                logger.warning("%s/meta.json was missing: brought back from its copy", d)
+                out["restored"] = out.get("restored", 0) + 1
+            return  # an unreadable copy: left as it is
+        if vs == ["v1"] and all(_TMP.fullmatch(n) and _made_for(n) == "meta.json" for n in rest):
+            pass  # a first publish that died before its meta.json (nothing ever listed it): it goes
+        elif vs:
+            m = _rebuilt_meta(d)
+            if m:
+                _write_meta(d, m)
+                out["rebuilt"] = out.get("rebuilt", 0) + 1
+            return
+        if _rmtree(d):
+            out["unlisted"] = out.get("unlisted", 0) + 1
+
+
+def _sweep_artifact(d: Path, now: float, out: dict) -> None:
+    p = d / "meta.json"
+    if not p.is_file():
+        _sweep_unlisted(d, now, out)
+        return
+    with _meta_lock():
+        # Read as it is now, from meta.json itself: a copy may be older and name fewer versions than there
+        # are, and a write from the sweep's stale read would drop a version another process just published.
+        st0 = _stamp(p)
+        try:
+            meta, fell_back = read_json_from(p)
+        except (OSError, ValueError):
+            return
+        if fell_back or not isinstance(meta, dict) or not isinstance(meta.get("versions"), list):
+            return  # nothing is decided on a copy: the next write of meta.json puts it right first
+        try:
+            ns = {int(v["n"]) for v in meta["versions"]}
+        except (KeyError, TypeError, ValueError):
+            return
+        top = max(ns, default=0)
+        found = {}
+        for e in os.scandir(d):
+            if _VDIR.fullmatch(e.name) and e.is_dir(follow_symlinks=False) and not _is_link(e.path):
+                found[int(e.name[1:])] = Path(e.path)
+        missing = [n for n in ns if n not in found]
+        if len(missing) == len(ns):
+            missing = []  # every one gone: not this sweep's to empty meta
+        # A version newer than every one meta names, finished (its entry file there) and old: a publish whose
+        # meta.json write was lost. It is taken back in, never deleted.
+        entry = TYPE_ENTRY.get(meta.get("type") or "page", "index.html")
+        adopt = sorted(n for n, vp in found.items() if n > top and _age(vp, now) > ORPHAN_AGE and (vp / entry).is_file())
+        if missing or adopt:
+            if _stamp(p) != st0:
+                return  # written meanwhile (another process): this round leaves the artifact alone
+            meta["versions"] = [v for v in meta["versions"] if v["n"] not in missing]
+            added = [x for x in (_version_entry(d, n) for n in adopt) if x]
+            if added:
+                meta["versions"] = sorted(meta["versions"] + added, key=lambda v: v["n"])
+                logger.warning("%s: version folders %s were not in meta.json: taken back in", d, [x["n"] for x in added])
+                out["adopted"] = out.get("adopted", 0) + len(added)
+            _write_meta(d, meta)
+            st0 = _stamp(p)  # this round's own write: what a later check compares with
+            if missing:
+                out["entries"] = out.get("entries", 0) + len(missing)
+                ns -= set(missing)
+            ns |= {x["n"] for x in added}
+        for n, vp in found.items():
+            # A version meta no longer names, older than its newest (pruned, its folder held open then).
+            if n not in ns and n < top and _age(vp, now) > ORPHAN_AGE:
+                if _rmtree(vp):
+                    out["versions"] = out.get("versions", 0) + 1
+        # A version newer than every one meta names with no entry file, nothing in it touched for
+        # DEAD_VERSION_AGE: a publish that died mid-copy (the next publish of that number would replace it).
+        # Decided on meta.json's own read (never a copy's), and only while meta.json is still as read.
+        for n, vp in found.items():
+            if n in ns or n <= top or (vp / entry).is_file():
+                continue
+            young = _youngest_age(vp, now)
+            if young is None or young <= DEAD_VERSION_AGE or _stamp(p) != st0:
+                continue
+            if _rmtree(vp):
+                logger.warning("%s: unfinished version folder v%d (no %s, untouched %.0f days) removed",
+                               d, n, entry, young / 86400)
+                out["dead"] = out.get("dead", 0) + 1
+        latest = sorted(ns)[-PREVIEWS_KEPT:]
+    if meta.get("type") == "dashboard":
+        _drop_kept_view(d.name, out)
+    _sweep_files(d, now, out)
+    pv = d / "previews"
+    if pv.is_dir():
+        for e in os.scandir(pv):
+            m = re.fullmatch(r"v(\d{1,9})\.png", e.name)
+            if m and int(m.group(1)) not in latest:
+                try:
+                    os.unlink(e.path)
+                    out["previews"] = out.get("previews", 0) + 1
+                except OSError:
+                    pass
+        _sweep_files(pv, now, out)
+    for sub in ("cache", "sheet", "board", "doc"):
+        sd = d / sub
+        if not sd.is_dir():
+            continue
+        if sub == "cache":
+            from . import live
+            for e in os.scandir(sd):
+                if e.name.endswith(".json") and _age(Path(e.path), now) > live.KEEP_S:
+                    try:
+                        os.unlink(e.path)
+                        out["cache"] = out.get("cache", 0) + 1
+                    except OSError:
+                        pass
+        if sub == "doc":
+            from . import docs
+            docs.sweep(d.name, sd, now, out)
+        _sweep_files(sd, now, out)
+        for e in os.scandir(sd):
+            if e.is_dir(follow_symlinks=False):
+                _sweep_files(Path(e.path), now, out)
+                _sweep_empty(Path(e.path), now, out)
+        _sweep_empty(sd, now, out)
+    if pv.is_dir():
+        _sweep_empty(pv, now, out)
+
+
+def _drop_kept_view(aid: str, out: dict) -> None:
+    """A dashboard's filters last for the session since 0.20.0 and its drafts are gone: what older versions kept
+    of them (dash.params, dash.draftView.*) in its storage goes (ha_read showed them). Decided on storage.json's
+    own read, never a copy's."""
+    try:
+        data, fell_back = read_json_from(_kv_path(aid))
+    except (OSError, ValueError):
+        return
+    if fell_back or not isinstance(data, dict):
+        return
+    for k in [k for k in data if k == "dash.params" or k.startswith("dash.draftView.")]:
+        kv_set(aid, k, None)
+        out["view"] = out.get("view", 0) + 1
+
+
+def sweep(budget_s: float = SWEEP_S, now: Optional[float] = None) -> dict:
+    """Remove what nothing will read again (see above). Returns {kind: count}; logged at debug."""
+    t0 = time.monotonic()
+    now = time.time() if now is None else now
+    out: dict = {}
+    base = root()
+    _sweep_files(base, now, out, _ROOT_FILES)  # the root's dead temp files (settings, inbox, views, making, ...)
+    # Typing marks and chat notes no one took (a draft the user changed, a turn that never ran): past their
+    # time they go here too, not only at the next mark or note (the file goes with its last entry).
+    for path, live in ((_typing_path(), _typing_live), (_chat_notes_path(), _notes_live)):
+        try:
+            with _LOCK:
+                if _rewrite_live(path, live, now=now):
+                    out["expired"] = out.get("expired", 0) + 1
+        except OSError:
+            pass
+    for e in os.scandir(base):
+        if e.name.startswith(".case-") and _age(Path(e.path), now) > ORPHAN_AGE:
+            try:
+                os.unlink(e.path)
+            except OSError:
+                pass
+    trash = _trash()
+    if trash.is_dir():
+        for item in list(trash.iterdir()):
+            if item.name.startswith(PURGING):
+                if _rmtree(item):
+                    out["purging"] = out.get("purging", 0) + 1
+                continue
+            try:
+                if json.loads(read_text(item / TRASH_MARK)).get("purging"):
+                    with _LOCK:
+                        if _purge_item(item):
+                            out["purging"] = out.get("purging", 0) + 1
+            except (OSError, ValueError, AttributeError):
+                pass
+    names = sorted(e.name for e in os.scandir(base) if e.is_dir(follow_symlinks=False) and not e.name.startswith(".")
+                   and not _is_link(e.path) and _ID_RE.match(e.name))
+    after = _SWEPT["after"]
+    order = [n for n in names if n > after] + [n for n in names if n <= after]
+    done = 0
+    for name in order:  # one at least, so every call moves on
+        try:
+            _sweep_artifact(base / name, now, out)
+        except Exception:
+            logger.debug("sweeping %s failed", name, exc_info=True)
+        _SWEPT["after"] = name
+        done += 1
+        if time.monotonic() - t0 >= budget_s:
+            break
+    out["artifacts"] = done
+    logger.debug("hermes-artifacts sweep: %s in %.0f ms", out, (time.monotonic() - t0) * 1000)
+    return out
 
 
 def list_files(aid: str, n: Optional[int] = None) -> list[str]:
@@ -1185,6 +2095,114 @@ def conflict(err: type, what: str, ids: list, base: int, rev: int, current, read
     return e
 
 
+# --- typing: what the user is typing in right now (a doc's block, a sheet's cell, a board's item) -------
+# A page says so at the first key and every TYPING_PING_S while the words are not saved; Hermes' edit of such
+# a part within TYPING_TTL_S is a conflict (nothing changed, it is told), so words not saved yet are never
+# written over: the page's save follows, and Hermes reads them before it edits again. On disk (one small file
+# for every artifact, like the view context): the tools and the page's API may run in different processes.
+
+TYPING_TTL_S = 4.0
+MAX_TYPING_KEYS = 20
+
+
+def _typing_path() -> Path:
+    return root() / "typing.json"
+
+
+def _typing_live(data, now: float) -> dict:
+    """typing.json's marks still held at ``now`` ({artifact: {key: when}}; an artifact with none left goes)."""
+    if not isinstance(data, dict):
+        return {}
+    live = {a: {k: t for k, t in v.items() if isinstance(t, (int, float)) and now - t <= TYPING_TTL_S}
+            for a, v in data.items() if isinstance(v, dict)}
+    return {a: v for a, v in live.items() if v}
+
+
+def _rewrite_live(p: Path, live, drop=None, now: Optional[float] = None) -> bool:
+    """Under _LOCK: the small TTL file ``p`` (typing marks, chat notes) cut to ``live(data, now)`` and, with
+    ``drop``, to the entries it does not name; written back when that changed it, removed when nothing is
+    left (also when it can't be parsed: nothing in it outlives a few minutes). True when it changed."""
+    try:
+        data = json.loads(read_text(p))
+    except FileNotFoundError:
+        return False
+    except ValueError:
+        data = None
+    keep = live(data, time.time() if now is None else now)
+    if drop is not None:
+        keep = {k: v for k, v in keep.items() if not drop(k, v)} if isinstance(keep, dict) else [v for v in keep if not drop(None, v)]
+    if keep == data:
+        return False
+    if keep:
+        _write_json(p, keep, durable=False)
+    else:
+        p.unlink(missing_ok=True)
+    return True
+
+
+def typing_set(aid: str, keys) -> None:
+    """The user is typing in these parts of ``aid`` now (at most MAX_TYPING_KEYS short ids)."""
+    if peek_meta(aid) is None:  # (a valid id, of an artifact there is: a deleted one's marks are not made again)
+        raise FileNotFoundError(aid)
+    ks = [str(k)[:80] for k in (keys if isinstance(keys, list) else [])][:MAX_TYPING_KEYS]
+    with _LOCK:
+        p, now = _typing_path(), time.time()
+        try:
+            data = json.loads(read_text(p))
+        except (FileNotFoundError, ValueError):
+            data = {}
+        data = _typing_live(data, now)
+        if ks:
+            data.setdefault(aid, {}).update({k: now for k in ks})
+        if data:
+            _write_json(p, data, durable=False)
+        else:
+            p.unlink(missing_ok=True)
+
+
+def typing_expire(now: Optional[float] = None) -> bool:
+    """typing.json removed once its last mark has expired: every mark is at most as new as the file's last
+    write, so a file untouched for TYPING_TTL_S holds none still live. One stat when there is nothing to do.
+    Called on the paths that poll anyway (the gallery's list, a live page's read, Hermes' edit check), so the
+    file does not outlive the typing by more than a poll. True when it went."""
+    p = _typing_path()
+    now = time.time() if now is None else now
+    try:
+        if now - p.stat().st_mtime <= TYPING_TTL_S:
+            return False
+        with _LOCK:
+            if now - p.stat().st_mtime <= TYPING_TTL_S:  # written again meanwhile
+                return False
+            p.unlink()
+            return True
+    except OSError:  # none (the usual case), or held by another program: the next call tries again
+        return False
+
+
+def typing_hits(aid: str, keys) -> list:
+    """Of ``keys``, those the user is typing in now (sorted)."""
+    if typing_expire():
+        return []
+    p = _typing_path()
+    if not p.is_file():
+        return []
+    try:
+        mine = json.loads(read_text(p)).get(aid) or {}
+    except (ValueError, OSError):
+        return []
+    now = time.time()
+    return sorted(k for k in set(map(str, keys)) if now - mine.get(k, 0) <= TYPING_TTL_S)
+
+
+def typing_conflict(err: type, what: str, ids: list, rev: int, read_next: str, **extra) -> Exception:
+    """Hermes' edit of parts the user is typing in: refused, nothing changed."""
+    e = err("conflict", f"the user is typing in {len(ids)} of the {what} you edit; nothing was changed",
+            rev=rev, ids=list(ids), **extra)
+    e.next = f"in a few seconds {read_next}, then redo your ops on what is there with its rev as base_rev"
+    e.dont = CONFLICT_DONT
+    return e
+
+
 def _same_bytes(a: Path, b: Path) -> bool:
     try:
         if os.path.samefile(a, b):  # a version links the files it kept from the one before
@@ -1220,26 +2238,28 @@ def introduced(aid: str, rel: str, n: int, back: int = 500) -> Optional[int]:
     except ValueError:
         return None
     d = _dir(aid)
-    if not (d / f"v{int(n)}" / rel).is_file():
+    kept = {v.get("n") for v in (get_meta(aid) or {}).get("versions") or []}
+    if int(n) not in kept or not (d / f"v{int(n)}" / rel).is_file():
         return None
     k = int(n)
     while k > 1 and int(n) - k < back:
-        if not (d / f"v{k - 1}").is_dir() or file_differs(aid, rel, k - 1, k):
+        if k - 1 not in kept or file_differs(aid, rel, k - 1, k):
             break
         k -= 1
     return k
 
 
-def json_cached(p: Path, cache: dict, keep: int = 0, *, st: Optional[os.stat_result] = None) -> Any:
+def json_cached(p: Path, cache: dict, keep: int = 0, *, st: Optional[os.stat_result] = None, loader=None) -> Any:
     """The JSON in ``p``, parsed again only when the file changed (every write here replaces the file:
     a new inode, mtime or size). The value is shared with later calls: never change it. ``keep``: the most
-    entries ``cache`` holds (0: no limit). FileNotFoundError when ``p`` is missing, ValueError when bad."""
+    entries ``cache`` holds (0: no limit). ``loader(p)``: how to read it (default read_json: an unreadable
+    file falls back to its last good copy). FileNotFoundError when ``p`` is missing, ValueError when bad."""
     st = st or p.stat()
     stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
     hit = cache.get(p)
     if hit and hit[0] == stamp:
         return hit[1]
-    value = json.loads(p.read_text(encoding="utf-8"))
+    value = (loader or read_json)(p)
     _cache_put(cache, keep, p, stamp, value)
     return value
 
@@ -1251,35 +2271,94 @@ def json_remember(p: Path, cache: dict, value: Any, st: os.stat_result, keep: in
     _cache_put(cache, keep, p, (st.st_mtime_ns, st.st_size, st.st_ino), value)
 
 
-def _cache_put(cache: dict, keep: int, p: Path, stamp: tuple, value: Any) -> None:
+STATES_KEPT = 32  # the most live states (docs', sheets', boards' each) kept parsed in memory
+
+
+def _cache_put(cache: dict, keep: int, p: Any, stamp: tuple, value: Any) -> None:
+    """``cache[p] = (stamp, value)`` as its most recently used entry; past ``keep`` entries (0: no limit) the
+    least recently used go first."""
     cache.pop(p, None)
-    if keep and len(cache) >= keep:
+    while keep and len(cache) >= keep:
         cache.pop(next(iter(cache)), None)
     cache[p] = (stamp, value)
 
 
 _METAS: dict = {}  # meta.json path -> (stamp, meta): the gallery parses only the ones that changed
 
+# The listing reads one folder: root(). An artifact folder's own stamp (mtime, ctime, inode) changes whenever a
+# file directly in it is created, renamed or removed, and every write that matters to a card goes so: meta.json
+# and comments.json are replaced (write_atomic), and preview_set touches the folder after writing into
+# previews/. A file rewritten in place would not move it (no code here does that). On Windows the folder list
+# carries each entry's times, so an unchanged artifact costs no system call at all (on POSIX one stat, where a
+# stat is cheap); only a changed one is looked into (meta.json, comments, preview). A folder changed less than
+# RACY_S before it was looked into is looked into again (two changes within one tick of the file system's
+# clock look alike). Correct across processes: the stamp is the file system's, not this process's.
+RACY_S = 2.0
+_CARDS: dict = {}  # folder path -> (stamp, when looked into, meta, open comment threads, has a preview)
+
+
+def _card(e: os.DirEntry, base: Path, now: float) -> Optional[tuple]:
+    """(meta, open comment threads, preview of the latest version) of the artifact folder ``e``, or None."""
+    try:
+        if not e.is_dir():
+            return None
+        s = e.stat()
+    except OSError:
+        return None
+    stamp = (s.st_mtime_ns, s.st_ctime_ns, s.st_ino)
+    hit = _CARDS.get(e.path)
+    if hit and hit[0] == stamp and hit[1] - s.st_mtime_ns / 1e9 > RACY_S:
+        return hit[2:]
+    m = Path(e.path) / "meta.json"
+    try:
+        st = m.stat()
+    except OSError:
+        _CARDS.pop(e.path, None)
+        return None
+    if not stat.S_ISREG(st.st_mode):
+        return None
+    try:
+        meta = json_cached(m, _METAS, st=st, loader=_read_meta)
+    except ValueError:
+        return None
+    aid = e.name
+    try:
+        comments = open_threads(aid, base)
+        vs = meta.get("versions") or []
+        preview = bool(vs) and preview_path(aid, vs[-1]["n"], base).is_file()
+    except (ValueError, KeyError, TypeError, OSError):  # a folder whose name is no id: no card extras
+        comments, preview = 0, False
+    _CARDS[e.path] = (stamp, now, meta, comments, preview)
+    return meta, comments, preview
+
+
+def cards() -> list[tuple]:
+    """Every artifact as (meta, open comment threads, has a preview), newest first. The metas are shared: read
+    them only (list_all hands out copies)."""
+    base = root()
+    now = time.time()
+    out, seen = [], set()
+    with os.scandir(base) as it:
+        for e in it:
+            if e.name.startswith("."):  # .trash, .run: never an artifact
+                continue
+            c = _card(e, base, now)
+            if c is not None:
+                out.append(c)
+                seen.add(e.path)
+    for gone in [k for k in _CARDS if k not in seen]:  # deleted artifacts (or another root, in tests)
+        _CARDS.pop(gone, None)
+    for cache, name in ((_METAS, "meta.json"), (_OPEN_COUNTS, "comments.json")):
+        if len(cache) > len(seen) + 64:  # those of deleted artifacts (or another root, in tests)
+            keep = {Path(k) / name for k in seen}
+            for gone in [k for k in cache if Path(k) not in keep]:
+                cache.pop(gone, None)
+    return sorted(out, key=lambda c: c[0].get("updated", 0), reverse=True)
+
 
 def list_all() -> list[dict]:
     """Every artifact's meta, newest first (each a fresh dict; the nested lists are shared: read them only)."""
-    out, seen = [], set()
-    for d in root().iterdir():
-        m = d / "meta.json"
-        try:
-            st = m.stat()
-        except OSError:
-            continue
-        if not stat.S_ISREG(st.st_mode):
-            continue
-        try:
-            out.append(dict(json_cached(m, _METAS, st=st)))
-        except ValueError:
-            continue
-        seen.add(m)
-    for gone in [k for k in _METAS if k not in seen]:  # deleted artifacts (or another root, in tests)
-        _METAS.pop(gone, None)
-    return sorted(out, key=lambda m: m.get("updated", 0), reverse=True)
+    return [dict(c[0]) for c in cards()]
 
 
 def version_dir(aid: str, n: Optional[int] = None) -> Path:
@@ -1288,14 +2367,15 @@ def version_dir(aid: str, n: Optional[int] = None) -> Path:
         raise no_artifact(aid)
     n = n or meta["versions"][-1]["n"]
     p = _dir(aid) / f"v{int(n)}"
-    if not p.is_dir():
-        raise NotFound(f"{aid} has no version {n} (latest: v{meta['versions'][-1]['n']})",
+    kept = {v["n"] for v in meta["versions"]}
+    if int(n) not in kept or not p.is_dir():
+        latest = meta["versions"][-1]["n"]
+        if 0 < int(n) < latest:  # pruned (max_versions), or lost
+            raise NotFound(f"{aid} v{n} is no longer kept (kept: v{min(kept)} to v{latest}, {len(kept)} versions)",
+                           next=f"ha_read id={aid} without version reads the latest")
+        raise NotFound(f"{aid} has no version {n} (latest: v{latest})",
                        next=f"ha_read id={aid} without version reads the latest")
     return p
-
-
-def read_html(aid: str, n: Optional[int] = None) -> str:
-    return (version_dir(aid, n) / "index.html").read_text(encoding="utf-8", errors="replace")
 
 
 # --- per-artifact KV (window.hermes.storage) --------------------------------
@@ -1305,17 +2385,20 @@ def _kv_path(aid: str) -> Path:
 
 
 def settings() -> dict:
-    """Plugin-wide choices the user made in a page (the default design system)."""
+    """Plugin-wide choices the user made in a page (the default design system, folders). Unreadable with no
+    good copy: none. Held by another program past read_text's retries: its last good copy, else that
+    PermissionError, never {} (settings_set would write the empty settings over the user's)."""
     p = root() / "settings.json"
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        s = read_json(p)
+    except (FileNotFoundError, NotADirectoryError, ValueError):
         return {}
+    return s if isinstance(s, dict) else {}
 
 
 def default_design_system(kind: Optional[str] = None) -> Optional[str]:
-    """The design system new artifacts of ``kind`` build on: the user's choice for that type (Claude keeps a
-    default per type; "none" = this type takes none), else the default for everything."""
+    """The design system new artifacts of ``kind`` build on: the user's choice for that type (a default
+    per type; "none" = this type takes none), else the default for everything."""
     s = settings()
     per = s.get("design_system_for")
     own = per.get(kind) if kind and isinstance(per, dict) else None
@@ -1332,12 +2415,14 @@ def settings_set(key: str, value: Any) -> None:
         else:
             s[key] = value
         root().mkdir(parents=True, exist_ok=True)
-        _write_json(root() / "settings.json", s)
+        _write_json(root() / "settings.json", s, backup=True)
 
 
 def kv_all(aid: str) -> dict:
-    p = _kv_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    try:
+        return read_json(_kv_path(aid))
+    except FileNotFoundError:
+        return {}
 
 
 def kv_set(aid: str, key: str, value) -> None:
@@ -1353,7 +2438,7 @@ def kv_set(aid: str, key: str, value) -> None:
             data[key] = value
         if len(json.dumps(data).encode()) > MAX_KV_BYTES:
             raise ValueError("storage exceeds 256 KB")
-        _write_json(_kv_path(aid), data)
+        _write_json(_kv_path(aid), data, backup=True)
 
 
 # --- inbox (window.hermes.send -> agent) ------------------------------------
@@ -1376,7 +2461,7 @@ def inbox_list(aid: Optional[str] = None, include_acked: bool = False) -> list[d
     p = _inbox_path()
     if not p.is_file():
         return []
-    items = [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    items = [json.loads(line) for line in read_text(p).splitlines() if line.strip()]
     return [i for i in items if (aid is None or i["artifact"] == aid) and (include_acked or not i["acked"])]
 
 
@@ -1387,9 +2472,7 @@ def inbox_ack(ids: list[str]) -> int:
         for i in items:
             if i["id"] in ids and not i["acked"]:
                 i["acked"], n = True, n + 1
-        tmp = _inbox_path().with_suffix(".tmp")
-        tmp.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items), encoding="utf-8")
-        os.replace(tmp, _inbox_path())
+        write_atomic(_inbox_path(), "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items))
         return n
 
 
@@ -1411,7 +2494,7 @@ def reply_set(aid: str, request: str, text: str = "", data=None) -> dict:
                             "lists the ones not yet seen (one you answered or saw is still answerable by its id)")
     with _LOCK:
         p = _replies_path(aid)
-        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr = json.loads(read_text(p)) if p.is_file() else {}
         allr[request] = {"text": str(text)[:20000], "data": data, "ts": time.time()}
         if len(json.dumps(allr).encode()) > MAX_KV_BYTES * 4:  # keep the newest when it grows
             for k in sorted(allr, key=lambda k: allr[k]["ts"])[: len(allr) // 2]:
@@ -1422,7 +2505,7 @@ def reply_set(aid: str, request: str, text: str = "", data=None) -> dict:
 
 def reply_get(aid: str, request: str) -> Optional[dict]:
     p = _replies_path(aid)
-    return (json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}).get(request)
+    return (json.loads(read_text(p)) if p.is_file() else {}).get(request)
 
 
 # --- comments (anchored notes on a page, sent to the agent on request) -------
@@ -1432,17 +2515,20 @@ def _comments_path(aid: str) -> Path:
 
 
 def comments_list(aid: str, include_resolved: bool = True) -> list[dict]:
-    p = _comments_path(aid)
-    items = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else []
+    try:
+        items = read_json(_comments_path(aid))
+    except FileNotFoundError:
+        items = []
     return [c for c in items if include_resolved or not c.get("resolved")]
 
 
 _OPEN_COUNTS: dict = {}  # comments.json path -> ((mtime_ns, size, inode), count)
 
 
-def open_user_comments(aid: str, base: Optional[Path] = None) -> int:
-    """How many of the person's comments are open (the gallery's badge on a card), counted again only
-    when comments.json changed. ``base``: root(), when the caller lists many."""
+def open_threads(aid: str, base: Optional[Path] = None) -> int:
+    """How many comment threads are open (the gallery's badge on a card): unresolved comments that start a
+    thread, whoever wrote them; replies are not counted (the comments header and panel count the same).
+    Counted again only when comments.json changed. ``base``: root(), when the caller lists many."""
     p = _dir(aid, base) / "comments.json"
     try:
         st = p.stat()
@@ -1452,7 +2538,7 @@ def open_user_comments(aid: str, base: Optional[Path] = None) -> int:
     hit = _OPEN_COUNTS.get(p)
     if hit and hit[0] == stamp:
         return hit[1]
-    n = sum(1 for c in comments_list(aid, include_resolved=False) if c["author"] == "user")
+    n = sum(1 for c in comments_list(aid, include_resolved=False) if not c.get("parent"))
     _OPEN_COUNTS[p] = (stamp, n)
     return n
 
@@ -1480,7 +2566,7 @@ def comment_add(aid: str, text: str, *, author: str = "user", anchor: Optional[d
         items.append(c)
         if len(items) > 2000:
             raise ValueError("too many comments")
-        _write_json(_comments_path(aid), items)
+        _write_json(_comments_path(aid), items, backup=True)
         return c
 
 
@@ -1490,7 +2576,7 @@ def comment_resolve(aid: str, cid: str, resolved: bool = True) -> dict:
         for c in items:
             if c["id"] == cid:
                 c["resolved"] = bool(resolved)
-                _write_json(_comments_path(aid), items)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise NotFound(f"no comment {cid!r}", next=f"ha_comments id={aid} lists them")
 
@@ -1499,7 +2585,7 @@ REACTIONS = ("👍", "❤️", "🎉", "✅", "👀", "😄")
 
 
 def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
-    """Toggle one reaction (Claude's emoji on a comment) by the person or Hermes."""
+    """Toggle one reaction (an emoji on a comment) by the person or Hermes."""
     if emoji not in REACTIONS or who not in ("user", "hermes"):
         raise ValueError("unknown reaction")
     with _LOCK:
@@ -1513,7 +2599,7 @@ def comment_react(aid: str, cid: str, emoji: str, who: str = "user") -> dict:
                 else:
                     people.append(who)
                 c["reactions"] = {k: v for k, v in r.items() if v}
-                _write_json(_comments_path(aid), items)
+                _write_json(_comments_path(aid), items, backup=True)
                 return c
     raise FileNotFoundError(cid)
 
@@ -1525,8 +2611,10 @@ def _approvals_path(aid: str) -> Path:
 
 
 def approvals(aid: str) -> dict:
-    p = _approvals_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    try:
+        return read_json(_approvals_path(aid))
+    except FileNotFoundError:
+        return {}
 
 
 def approved(aid: str, call_id: str) -> bool:
@@ -1539,7 +2627,7 @@ def set_approval(aid: str, call_id: str, tool: str, allowed: bool) -> dict:
     with _LOCK:
         data = approvals(aid)
         data[call_id] = {"tool": str(tool)[:200], "allowed": bool(allowed), "ts": time.time()}
-        _write_json(_approvals_path(aid), data)
+        _write_json(_approvals_path(aid), data, backup=True)
         return data[call_id]
 
 
@@ -1564,14 +2652,14 @@ def report_set(aid: str, kind: str, data: dict) -> None:
         raise ValueError("report too large")
     with _LOCK:
         p = _reports_path(aid)
-        allr = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        allr = json.loads(read_text(p)) if p.is_file() else {}
         allr[kind] = {**json.loads(blob), "received": time.time()}
-        _write_json(p, allr)
+        _write_json(p, allr, durable=False)  # the page sends it again
 
 
 def reports(aid: str) -> dict:
     p = _reports_path(aid)
-    return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return json.loads(read_text(p)) if p.is_file() else {}
 
 
 # --- previews: a picture of a version the page drew (a model's view), outside the versions -------------
@@ -1606,13 +2694,15 @@ def preview_set(aid: str, data_url: str, version: Optional[int] = None) -> Optio
         d = _dir(aid) / "previews"
         d.mkdir(exist_ok=True)
         p = d / f"v{latest}.png"
-        tmp = p.with_suffix(".tmp")
-        tmp.write_bytes(raw)
-        os.replace(tmp, p)
+        write_atomic(p, raw, durable=False)
         keep = {f"v{v['n']}.png" for v in meta["versions"][-PREVIEWS_KEPT:]}
         for f in d.iterdir():
             if f.name not in keep:
                 f.unlink(missing_ok=True)
+        try:
+            os.utime(_dir(aid))  # the gallery's listing notices a card's change by its folder's stamp (cards)
+        except OSError:
+            pass
         return latest
 
 
@@ -1621,10 +2711,11 @@ def preview_path(aid: str, n: int, base: Optional[Path] = None) -> Path:
 
 
 def preview_get(aid: str, n: int) -> Optional[str]:
-    """The picture of version ``n`` as a data URL, or None."""
+    """The picture of version ``n`` as a data URL, or None; one held for a moment is waited out (_while_held)."""
     import base64
+    p = preview_path(aid, n)
     try:
-        raw = preview_path(aid, n).read_bytes()
+        raw = _while_held(p, p.read_bytes)
     except OSError:
         return None
     return "data:image/png;base64," + base64.b64encode(raw).decode()
@@ -1642,7 +2733,7 @@ def _history_path(aid: str) -> Path:
 
 def history(aid: str, dsid: Optional[str] = None) -> Any:
     p = _history_path(aid)
-    data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    data = json.loads(read_text(p)) if p.is_file() else {}
     return data.get(dsid, []) if dsid is not None else data
 
 
@@ -1678,7 +2769,7 @@ def view_set(session: str, aid: Optional[str], context: Optional[dict]) -> None:
         raise ValueError("bad session")
     with _LOCK:
         p = _views_path()
-        data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        data = json.loads(read_text(p)) if p.is_file() else {}
         now = time.time()
         data = {k: v for k, v in data.items() if now - v.get("at", 0) <= VIEW_TTL_S}
         if aid is None:
@@ -1692,17 +2783,89 @@ def view_set(session: str, aid: Optional[str], context: Optional[dict]) -> None:
                 raise ValueError("view context too large")
             data[session] = {"artifact": aid, "title": meta.get("title", aid), "type": meta.get("type", "page"),
                              "version": meta["versions"][-1]["n"], "context": json.loads(blob), "at": now}
-        _write_json(p, data)
+        _write_json(p, data, durable=False)  # lives ten minutes
 
 
 def view_get(session: str) -> Optional[dict]:
     p = _views_path()
     if not p.is_file():
         return None
-    v = json.loads(p.read_text(encoding="utf-8")).get(session)
+    v = json.loads(read_text(p)).get(session)
     if not v or time.time() - v.get("at", 0) > VIEW_TTL_S:
         return None
     return v
+
+
+# --- chat notes: the reference a message into the chat carries for the model only ----------------------
+# Hermes Desktop puts a comment or an ask into the chat as the person's plain sentence; the ids it is about
+# (artifact, block, comment, request) wait here under that sentence, and the plugin's pre_llm_call hook adds
+# them to that turn's model input, so the bubble never shows them. Taken once; gone after CHAT_NOTE_TTL_S.
+# A note is bound to its chat (the stored session id Desktop submits into, the session_id the hook gets): the
+# same sentence sent in another chat never takes it. A note whose chat Desktop did not know yet (a composer
+# draft) goes to the first chat that sends the sentence, within CHAT_NOTE_LOOSE_TTL_S, and to no other.
+
+CHAT_NOTE_TTL_S = 10 * 60
+CHAT_NOTE_LOOSE_TTL_S = 2 * 60
+MAX_CHAT_NOTES = 50
+
+
+def _chat_notes_path() -> Path:
+    return root() / "chat-notes.json"
+
+
+def _note_key(text) -> str:
+    return " ".join(str(text or "").split())[:2000]
+
+
+def _notes_live(notes, now: float) -> list:
+    """chat-notes.json's notes not past their time at ``now`` (a note with no chat: the shorter one)."""
+    if not isinstance(notes, list):
+        return []
+    return [n for n in notes if isinstance(n, dict) and isinstance(n.get("at"), (int, float))
+            and isinstance(n.get("text"), str) and isinstance(n.get("ref"), str) and isinstance(n.get("session", ""), str)
+            and now - n["at"] <= (CHAT_NOTE_TTL_S if n.get("session") else min(CHAT_NOTE_TTL_S, CHAT_NOTE_LOOSE_TTL_S))]
+
+
+def chat_note_add(text: str, ref: str, session: str = "") -> None:
+    """``session``: the chat (stored session id) the message goes into; empty when Desktop does not know it."""
+    key, ref, session = _note_key(text), str(ref or "")[:600], str(session or "")[:200]
+    if not key or not ref:
+        raise ValueError("a chat note needs text and ref")
+    with _LOCK:
+        p, now = _chat_notes_path(), time.time()
+        try:
+            notes = json.loads(read_text(p))
+        except (FileNotFoundError, ValueError):
+            notes = []
+        notes = (_notes_live(notes, now) + [{"text": key, "ref": ref, "session": session, "at": now}])[-MAX_CHAT_NOTES:]
+        _write_json(p, notes, durable=False)
+
+
+def chat_note_take(text, session=None) -> Optional[str]:
+    """The reference waiting under this message in this chat (the newest; else the newest no chat was known for),
+    taken: the file goes with the last note."""
+    p = _chat_notes_path()
+    if not isinstance(text, str) or not p.is_file():
+        return None
+    key, session = _note_key(text), str(session or "")[:200]
+    with _LOCK:
+        try:
+            notes = json.loads(read_text(p))
+        except FileNotFoundError:
+            return None
+        except ValueError:
+            notes = []
+        notes = _notes_live(notes, time.time())
+        newest = range(len(notes) - 1, -1, -1)
+        hit = next((i for i in newest if notes[i]["text"] == key and session and notes[i].get("session") == session), None)
+        if hit is None:
+            hit = next((i for i in newest if notes[i]["text"] == key and not notes[i].get("session")), None)
+        ref = notes.pop(hit)["ref"] if hit is not None else None
+        if notes:
+            _write_json(p, notes, durable=False)
+        else:
+            p.unlink(missing_ok=True)
+        return ref
 
 
 # --- making: a chat's artifact being made (Hermes read a type's guide; nothing published yet) ----------
@@ -1721,7 +2884,7 @@ def _making_read() -> dict:
     if not p.is_file():
         return {}
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(read_text(p))
     except (ValueError, OSError):
         return {}
     return data if isinstance(data, dict) else {}
@@ -1746,7 +2909,7 @@ def making_set(session: str, kind: str, phase: str, **fields) -> dict:
         state = {"type": kind, "phase": str(phase)[:40], "started": started, "at": now,
                  **{k: str(v)[:200] for k, v in fields.items() if v not in (None, "")}}
         data[session] = state
-        _write_json(_making_path(), data)
+        _write_json(_making_path(), data, durable=False)  # lives twenty minutes
         return {"session": session, **state}
 
 
@@ -1772,7 +2935,7 @@ def making_clear(session: str) -> Optional[dict]:
         if session not in data:
             return None
         prev = data.pop(session)
-        _write_json(_making_path(), _making_live(data, time.time()))
+        _write_json(_making_path(), _making_live(data, time.time()), durable=False)
         if not isinstance(prev, dict) or time.time() - prev.get("at", 0) > MAKING_TTL_S:
             return None
         return {"session": session, **prev}

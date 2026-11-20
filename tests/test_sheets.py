@@ -185,6 +185,48 @@ class EditTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in sheets.read(self.aid)["charts"]], ["c2"])
         self.assertTrue(r["ok"])
 
+    def test_a_new_chart_never_covers_another(self):
+        # the 0.20.0 acceptance run: Hermes added a second chart at F2, where the first one was; it hid it whole
+        r = sheets.apply(self.aid, [{"op": "add_chart", "type": "pie", "range": "A1:D3", "at": "F2"}], by="hermes")
+        self.assertEqual(r["charts"], [{"id": "c2", "at": "F15", "asked": "F2"}])  # below the first: 13 rows of 20 px
+        r = sheets.apply(self.aid, [{"op": "add_chart", "type": "bar", "range": "A1:B3", "at": "M40"}], by="hermes")
+        self.assertEqual(r["charts"], [{"id": "c3", "at": "M40"}])  # a free spot stays as asked
+        # a type change (delete, then add where it was) keeps its place
+        r = sheets.apply(self.aid, [{"op": "delete_chart", "id": "c1"}, {"op": "add_chart", "type": "line", "range": "A1:D2", "at": "F2"}], by="user")
+        self.assertEqual(r["charts"], [{"id": "c1", "at": "F2"}])
+
+    def test_a_chart_the_person_drops_stays_where_it_is_dropped(self):
+        # V6m item 7: a chart dragged near another (the page's move: delete, then add where it was dropped) went to the
+        # next free spot, ~620 px away. Put by the person's own hand it stays there, over the other or not.
+        sheets.apply(self.aid, [{"op": "add_chart", "type": "pie", "range": "A1:D3", "at": "F20"}], by="hermes")
+        r = sheets.apply(self.aid, [{"op": "delete_chart", "id": "c2"}, {"op": "add_chart", "type": "pie", "range": "A1:D3", "at": "E5"}], by="user")
+        self.assertEqual(r["charts"], [{"id": "c2", "at": "E5"}])
+        self.assertEqual([c["at"] for c in sheets.read(self.aid)["charts"]], ["F2", "E5"])
+
+    def test_charts_published_on_one_spot_are_placed_apart(self):
+        # live loop V6l: a sheet published with two charts at F2 drew one over the other, hidden whole; a drag of the
+        # top one up towards it was "ignored" (placed below the hidden one, where it already was)
+        aid = pub({"sheets": [{"name": "S", "rows": [["a", 1], ["b", 2]], "charts": [
+            {"type": "bar", "range": "A1:B2", "at": "F2"}, {"type": "pie", "range": "A1:B2", "at": "F2"}]}]})
+        self.assertEqual([c["at"] for c in sheets.read(aid)["charts"]], ["F2", "F15"])
+
+    def test_random_charts_never_overlap(self):
+        import random
+        rnd = random.Random(7)
+        for trial in range(25):
+            aid = pub({"sheets": [{"name": "S", "rows": [["a", 1], ["b", 2]],
+                                   "cols": {sheets.col_name(rnd.randrange(12)): rnd.choice((40, 96, 180, 400))}}]})
+            for _ in range(rnd.randrange(2, sheets.MAX_CHARTS + 1)):
+                o = {"op": "add_chart", "type": "bar", "range": "A1:B2"}
+                if rnd.random() < 0.8:
+                    o["at"] = sheets.key(rnd.randrange(30), rnd.randrange(10))
+                sheets.apply(aid, [o], by="hermes")
+            sh = sheets.load(aid)["sheets"][0]
+            boxes = [sheets.chart_box(sh, c["at"]) for c in sh["charts"]]
+            for i, a in enumerate(boxes):
+                for b in boxes[i + 1:]:
+                    self.assertFalse(a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3], (trial, sh["charts"]))
+
     def test_guards_and_conflicts(self):
         # Hermes writing over values needs base_rev; into empty cells it does not.
         with self.assertRaises(sheets.SheetError) as e:
@@ -330,7 +372,8 @@ class BridgeTests(unittest.TestCase):
         cut = lambda t: re.sub(m.group(1), "", t.strip(), count=1, flags=re.I)  # noqa: E731
         self.assertEqual([cut(t) for t in ("@Hermes ", "@hermes, ", "@Hermes: fix it", "@Hermesx")], ["", "", "fix it", "@Hermesx"])
         self.assertIn("if (!body || busy) return", submit)                   # nothing is sent then
-        self.assertIn("if (e.key === 'Escape') return onDone()", form)       # Esc closes, sends nothing
+        self.assertIn("onEsc ? onEsc() : discard()", form)                   # Esc closes or discards, sends nothing
+        self.assertIn("const discard = () => (setText(''), onDone())", form)
         page = (ROOT / "plugin" / "hermes_artifacts" / "types" / "sheet" / "sheet.js").read_text("utf-8")
         sel = page[page.index("function commentSel()"):page.index("function askSel()")]
         self.assertNotIn("hm.sheet.edit", sel)
@@ -411,7 +454,7 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(json.loads(p._doc_read({"id": aid, "at_rev": 1}))["rows"][1][1], 1200)
         live = json.loads(p._read({"id": aid}))
         self.assertEqual(live["type"], "sheet")
-        self.assertEqual(json.loads(live["content"])["sheets"][0]["rows"][1][1:3], [1300, 5])
+        self.assertEqual(live["content"]["sheets"][0]["rows"][1][1:3], [1300, 5])  # an object, not JSON in a string
         self.assertIn("1200", json.loads(p._read({"id": aid, "path": "sheet.json"}))["content"])
         again = json.loads(p._publish({"id": aid, "type": "sheet", "files": {"sheet.json": BOOK}, "open": False}))
         self.assertFalse(again["ok"])

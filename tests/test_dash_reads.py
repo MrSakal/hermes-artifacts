@@ -1,4 +1,4 @@
-"""The loader's ready-made readers (Claude's read.bigquery / governed / snowflake / databricks), run under Node."""
+"""The loader's ready-made readers (read.bigquery / governed / snowflake / databricks), run under Node."""
 
 import json
 import shutil

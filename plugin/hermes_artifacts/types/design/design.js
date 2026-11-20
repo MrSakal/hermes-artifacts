@@ -38,14 +38,15 @@
       bad: "canvas.json is missing or not valid JSON.", empty: "This canvas has no artboards yet.", missing: "Missing file",
       error: "Error", noLib: "The export library didn't load (open the canvas in Hermes Desktop)", tooBig: "Images up to 8 MB",
       undo: "Undo", redo: "Redo", del: "Delete", ask: "Ask Hermes", askPh: "Ask Hermes about this…", sent: "Sent to the chat",
-      comment: "Comment", editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties",
+      comment: "Comment", kinds: { image: "Image", text: "Text", shape: "Shape", line: "Line", other: "Element" },
+      roles: { group: "Group", text: "Text", heading: "Heading", picture: "Picture", button: "Button", link: "Link", list: "List", field: "Field", shape: "Shape", component: "Component" }, editText: "Edit text", image: "Replace image…", theme: "Theme", defTheme: "Default", panel: "Properties", close: "Close",
       exp: "Export", png: "This artboard (PNG)", pdf: "This artboard (PDF)", pdfAll: "All artboards (PDF)", html: "This artboard (HTML)",
       dupEl: "Duplicate", group: "Group", ungroup: "Ungroup", forward: "Bring forward", backward: "Send backward",
       text: "Text", color: "Color", size: "Size", weight: "Weight", align: "Align", fill: "Fill", background: "Background",
       layout: "Layout", width: "Width", height: "Height", padding: "Padding", gap: "Gap", radius: "Radius", display: "Display",
       direction: "Direction", columns: "Columns", rows: "Rows", justify: "Justify", items: "Align items", wrap: "Wrap", style: "Text style",
       artboard: "Artboard", title: "Title", fillPage: "Page (fills the window)", interactive: "Interactive (Play)", reset: "Reset",
-      bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", none: "Select an element or an artboard.",
+      bound: "Set from the template ({{…}})", noTweaks: "This artboard has no tweaks.", boardHint: "Select an element in it to edit its style.",
       noBoard: "No artboard to export", imgOnly: "png, jpeg, gif or webp",
       about: function (board, file, label) { return "(artboard “" + board + "”, " + file + (label ? ", element “" + label + "”" : "") + ")"; } },
     hu: { noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", pages: "Oldalak", page1: "1. oldal", pageN: "Oldal", newPage: "Új oldal", prototypes: "Prototípusok", statics: "Álló rajzlapok", zoom: "Nagyítás",
@@ -60,7 +61,8 @@
       bad: "A canvas.json hiányzik, vagy nem érvényes JSON.", empty: "Ezen a vásznon még nincs rajztábla.", missing: "Hiányzó fájl",
       error: "Hiba", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", tooBig: "Legfeljebb 8 MB-os kép",
       undo: "Visszavonás", redo: "Mégis", del: "Törlés", ask: "Kérdezd a Hermest", askPh: "Kérdezd a Hermest erről…", sent: "Elküldve a chatbe",
-      comment: "Megjegyzés", editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok",
+      comment: "Megjegyzés", kinds: { image: "Kép", text: "Szöveg", shape: "Alakzat", line: "Vonal", other: "Elem" },
+      roles: { group: "Csoport", text: "Szöveg", heading: "Címsor", picture: "Kép", button: "Gomb", link: "Hivatkozás", list: "Lista", field: "Mező", shape: "Alakzat", component: "Összetevő" }, editText: "Szöveg szerkesztése", image: "Kép cseréje…", theme: "Téma", defTheme: "Alap", panel: "Tulajdonságok", close: "Bezárás",
       exp: "Exportálás", png: "Ez a rajztábla (PNG)", pdf: "Ez a rajztábla (PDF)", pdfAll: "Minden rajztábla (PDF)", html: "Ez a rajztábla (HTML)",
       fixIt: "Kérd meg a Hermest, hogy javítsa",
       dupEl: "Duplikálás", group: "Csoportosítás", ungroup: "Csoport bontása", forward: "Előrébb", backward: "Hátrébb",
@@ -68,7 +70,7 @@
       layout: "Elrendezés", width: "Szélesség", height: "Magasság", padding: "Belső margó", gap: "Térköz", radius: "Lekerekítés", display: "Megjelenés",
       direction: "Irány", columns: "Oszlopok", rows: "Sorok", justify: "Igazítás (fő)", items: "Igazítás (kereszt)", wrap: "Tördelés", style: "Szövegstílus",
       artboard: "Rajztábla", title: "Cím", fillPage: "Oldal (kitölti az ablakot)", interactive: "Interaktív (lejátszható)", reset: "Alaphelyzet",
-      bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", none: "Jelölj ki egy elemet vagy rajztáblát.",
+      bound: "A sablon állítja ({{…}})", noTweaks: "Ennek a rajztáblának nincs hangolása.", boardHint: "Jelölj ki benne egy elemet a stílusa szerkesztéséhez.",
       noBoard: "Nincs exportálható rajztábla", imgOnly: "png, jpeg, gif vagy webp",}
   }, L);
   kit.degraded(T.noHost); // no host: said once; the page still shows what it has
@@ -159,6 +161,11 @@
   }
   var FRAME_CSS = "html.dc-edit,html.dc-edit *{cursor:default!important}html.dc-edit [contenteditable=true],html.dc-edit [contenteditable=true] *{cursor:text!important;outline:none}" +
     "html.dc-canvas{overflow:hidden;scrollbar-width:none}html.dc-canvas::-webkit-scrollbar{display:none}" +
+    // an artboard that scrolls (opened in the full-window view) has the kit's thin bar, no arrow buttons; a grey that
+    // reads on the artboard's own ground, light or dark (an artboard styling its own bar overrides it)
+    "::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-button{display:none;width:0;height:0}" +
+    "::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}" +
+    "::-webkit-scrollbar-thumb{background:rgba(128,128,128,.42);border-radius:9999px}::-webkit-scrollbar-thumb:hover{background:rgba(128,128,128,.62)}" +
     "[data-dc-ximport]:empty{display:inline-block!important;min-width:24px;min-height:24px;outline:1px dashed #9aa4b2}";
   var SRCDOC = '<!doctype html><html lang="en"><head><meta charset="utf-8"><style>' + FRAME_CSS + "</style><script>" + SRC.kit + "</" + "script><script>" +
     SRC.dc + "</" + "script><script>" + SRC.frame + "</" + "script></head><body></body></html>";
@@ -169,8 +176,9 @@
     var self = this;
     this.path = opts.path; this.mode = opts.mode; this.wheel = opts.wheel; this.onMsg = opts.onMsg; this.queue = []; this.loaded = false;
     this.reqs = {};
+    // data-comment-frame: the host's comment pick goes on inside it (frame.js picks; bridge.js leaves it the pointer).
     this.iframe = h("iframe", { "class": "dc-iframe", title: titleOf(opts.path), sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox",
-      tabindex: opts.mode === "export" ? "-1" : null });
+      tabindex: opts.mode === "export" ? "-1" : null, "data-comment-frame": "" });
     this.iframe.srcdoc = SRCDOC;
     opts.parent.appendChild(this.iframe);
     frames.push(this);
@@ -195,6 +203,12 @@
       self.send(m);
     });
   };
+  /** Drawn (its template mounted), before its pictures and fonts have come: what a pick in it needs. */
+  Frame.prototype.whenMounted = function () {
+    var self = this;
+    if (this.mounted) return Promise.resolve();
+    return new Promise(function (r) { (self.mountWaiters = self.mountWaiters || []).push(r); });
+  };
   Frame.prototype.whenReady = function () {
     var self = this;
     if (this.ready) return Promise.resolve();
@@ -212,8 +226,10 @@
         f.queue.splice(0).forEach(function (q) { f.iframe.contentWindow.postMessage(q, "*"); });
         return;
       }
+      if (m.t === "mounted" || m.t === "ready") { f.mounted = true; (f.mountWaiters || []).splice(0).forEach(function (r) { r(); }); }
       if (m.t === "ready") { f.ready = true; (f.readyWaiters || []).splice(0).forEach(function (r) { r(); }); }
       if (m.t === "raster" && f.reqs[m.req]) { f.reqs[m.req](m); return; }
+      if (m.t === "picked") { framePicked(f, m); return; }
       if (f.onMsg) f.onMsg(m, f);
       return;
     }
@@ -221,7 +237,7 @@
   function broadcast(m, path) { frames.forEach(function (f) { if (!path || f.path === path) f.send(Object.assign({}, m)); }); }
 
   // ------------------------------------------------------------------ design system
-  // Up to four systems (Claude's): the first is the canvas's own (its themes); the others add their colors,
+  // Up to four systems: the first is the canvas's own (its themes); the others add their colors,
   // type styles and CSS. Each is the copy the canvas carries (ds/<namespace>/), so a later edit of a system
   // changes nothing here.
   var dsRecs = (Array.isArray(canvas.designSystems) ? canvas.designSystems : []).filter(function (r) { return r && r.artifact; }).slice(0, 4);
@@ -299,7 +315,51 @@
     viewEl.style.backgroundSize = g + "px " + g + "px";
     viewEl.style.backgroundPosition = tx + "px " + ty + "px";
     zoomLabel.textContent = R(z * 100) + "%";
-    drawSel(); placeTools(); sendView();
+    drawSel(); placeTools(); sendView(); stripsSoon();
+    if (commentPicking) sendPick();
+    if (window.hermes && window.hermes.moved) window.hermes.moved(); // a comment's pin follows a pan or a zoom
+  }
+  // A frame's name strip keeps its screen size at any zoom: zoomed far out it would reach over a title or another
+  // frame above it. One that meets anything stays hidden until there is room (its name truncates, its buttons go
+  // when the frame is narrow on screen: design.css).
+  var stripsRaf = 0;
+  function stripsSoon() { if (!stripsRaf) stripsRaf = requestAnimationFrame(function () { stripsRaf = 0; crowdStrips(); }); }
+  function crowdStrips() {
+    var others = [];
+    Object.keys(boards).forEach(function (p) { var b = boards[p]; if (!b.el.hidden) others.push(b.wrap.getBoundingClientRect()); });
+    notesLayer.querySelectorAll(".dc-note").forEach(function (n) { others.push(n.getBoundingClientRect()); });
+    var shown = [], left = vrect().left;
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (b.el.hidden) return;
+      b.strip.style.visibility = "";
+      var r = b.strip.getBoundingClientRect(), hit = function (o) { return o.width && r.left + 1 < o.right && o.left < r.right - 1 && r.top + 1 < o.bottom && o.top < r.bottom - 1; };
+      var crowded = others.some(hit) || shown.some(hit);
+      if (crowded) b.strip.style.visibility = "hidden"; else shown.push(r);
+      // cut by the canvas's left edge: its name (or handle) in the part in sight, at that edge (V6h: an empty
+      // 26 px sliver read as no strip at all); its full name in its tooltip
+      var cut = Math.max(0, Math.min(r.width, left - r.left)), pad = cut >= 1 ? Math.round(cut) + "px" : "";
+      if (b.strip.style.paddingLeft !== pad) b.strip.style.paddingLeft = pad;
+      var fit = stripFit(b, r.width - cut);
+      if (b.strip.getAttribute("data-fit") !== fit) b.strip.setAttribute("data-fit", fit);
+    });
+    placeCrumbs(); // the strips it keeps off are the ones shown now
+  }
+  /** What a strip w px wide on screen shows (design.css data-fit): its buttons and its name (cut with an ellipsis, at
+   *  least six letters' room: ""), or, too narrow for that, its buttons and its handle ("grip"), or, too narrow
+   *  for its buttons, its name or handle alone ("none"). Its buttons go last (V6s: Play and Full window were gone from
+   *  every frame under 110 px, a 99 px one in a 1500 px window too). */
+  var SBTN = 24, GRIP = 16, measure = null;
+  function stripFit(b, w) {
+    var n = b.strip.querySelectorAll(".dc-sbtn:not([hidden])").length, room = w - n * SBTN;
+    if (!n) return "";
+    if (b.nameW == null || b.nameFor !== b.name.textContent) {
+      measure = measure || document.createElement("canvas").getContext("2d");
+      measure.font = getComputedStyle(b.strip).font;
+      b.nameFor = b.name.textContent; b.nameW = measure.measureText(b.nameFor).width;
+    }
+    var dot = b.el.classList.contains("is-interactive") ? 13 : 0;
+    return room >= Math.min(dot + b.nameW + 6, dot + 52) ? "" : room >= GRIP ? "grip" : "none";
   }
   function vrect() { return viewEl.getBoundingClientRect(); }
   function zoomAt(f, sx, sy) {
@@ -370,35 +430,38 @@
   function makeBoard(p) {
     var b = { path: p, playing: false, errors: [] };
     b.el = h("div", { "class": "dc-board", "data-path": p });
-    b.wrap = h("div", { "class": "dc-frame" });
+    // the artboard's picture: a new comment's pin may lie on it (data-comment-under: its words and controls are not
+    // the page's to keep off; the artboard picks inside its own frame)
+    b.wrap = h("div", { "class": "dc-frame", "data-comment-under": "" });
     b.name = h("span", { "class": "dc-name" });
-    b.strip = h("div", { "class": "dc-strip" }, [h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
+    // chrome that acts while a comment is picked (bridge.js data-comment-use: V6u, its double click opened nothing), but
+    // never drags then (a pick is a look)
+    b.strip = h("div", { "class": "dc-strip", "data-comment-keep": "", "data-comment-use": "" }, [h("span", { "class": "dc-grip", "aria-hidden": "true", html: kit.icon("frame") }),
+      h("span", { "class": "dc-dot", "aria-hidden": "true" }), b.name]);
     b.tw = sbtn("sliders", T.tweaks, function () { selectBoard(p); setTab("tweaks"); });
     b.playBtn = sbtn("play", T.play, function () { setPlay(b, !b.playing); });
     b.full = sbtn("expand", T.expand, function () { openFocus(p); });
     b.strip.append(b.tw, b.playBtn, b.full);
     b.err = h("div", { "class": "dc-err", hidden: true });
     b.guides = h("div", { "class": "dc-guides" });
-    b.resize = h("div", { "class": "dc-resize", title: T.size });
+    // the size handle: the design's chrome, never a part to comment on (V6w: it rang and took a draft while picking)
+    b.resize = h("div", { "class": "dc-resize", title: T.size, "data-comment-keep": "" });
     b.el.append(b.strip, b.wrap, b.guides, b.err, b.resize);
     world.insertBefore(b.el, notesLayer);
-    b.strip.addEventListener("pointerdown", function (e) { if (e.button === 0 && !e.target.closest("button")) dragBoard(e, b); });
+    b.strip.addEventListener("pointerdown", function (e) { if (e.button === 0 && !e.target.closest("button") && !commentPicking) dragBoard(e, b); });
     b.strip.addEventListener("dblclick", function (e) { if (!e.target.closest("button")) openFocus(p); });
     b.resize.addEventListener("pointerdown", function (e) { if (e.button === 0) resizeBoard(e, b); });
     boards[p] = b;
     layoutBoard(b);
     return b;
   }
-  function sbtn(icon, title, fn) {
-    var bt = h("button", { type: "button", "class": "dc-sbtn", title: title, "aria-label": title, html: ICON[icon] || kit.icon(icon) });
+  function sbtn(icon, title, fn) { // acts while a comment is picked too (bridge.js data-comment-use: V6s)
+    var bt = h("button", { type: "button", "class": "dc-sbtn", "data-comment-use": "", title: title, "aria-label": title, html: kit.icon(icon) });
     bt.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     bt.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
     return bt;
   }
-  var ICON = {
-    sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6"/></svg>',
-    stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
-  };
+
   function layoutBoard(b) {
     var p = b.path, g = geo(p), e = entry(p) || {}, z0 = canvas.order.indexOf(p);
     b.el.style.cssText = "left:" + g.x + "px;top:" + g.y + "px;width:" + g.w + "px;height:" + g.h + "px;--bw:" + g.w + "px;z-index:" + (z0 < 0 ? 1 : z0 + 2);
@@ -406,14 +469,18 @@
     b.el.classList.toggle("is-frameless", !!e.frameless);
     b.wrap.style.borderRadius = num(e.radius, 0) ? num(e.radius, 0) + "px" : "";
     b.name.textContent = titleOf(p);
+    b.strip.title = titleOf(p); // its name in a tooltip, also when the strip is too narrow to show it (design.css)
+    b.strip.toggleAttribute("data-short", titleOf(p).length <= 6);
     b.el.classList.toggle("is-interactive", !!e.is_interactive);
     b.playBtn.hidden = !e.is_interactive;
     b.tw.hidden = !tweakKeys(p).length;
     b.el.classList.toggle("is-missing", !files[p]);
     if (!files[p]) { b.err.hidden = false; b.err.textContent = T.missing + ": " + p; }
     drawGuides(b, e.guides);
+    stripsSoon();
     if (!b.frame && !b.el.hidden && files[p]) {
       b.frame = new Frame({ path: p, mode: "edit", wheel: "forward", parent: b.wrap, onMsg: function (m) { boardMsg(b, m); } });
+      if (b.markTids) b.frame.send({ t: "marks", tids: b.markTids });
     }
   }
   function drawGuides(b, gs) {
@@ -468,7 +535,7 @@
           fx.addEventListener("click", function (e) {
             e.stopPropagation();
             window.hermes.send(T.fixMsg(b.path, String(b.errors[0]).slice(0, 300)), { artboard: b.path }, { deliver: "send" })
-              .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }).catch(function (er) { kit.toast(String(er && er.message || er)); });
+              .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }).catch(function (er) { kit.toast(String(er && er.message || er), 0, "error"); });
           });
           b.err.append(fx);
         }
@@ -514,6 +581,7 @@
   var SIZES = { s: 14, m: 17, l: 22, xl: 28, xxl: 36 }, TSIZES = { s: 40, m: 52, l: 64, xl: 72, xxl: 96 };
   function renderNotes() {
     notesLayer.replaceChildren();
+    stripsSoon();
     Object.keys(canvas.notes).forEach(function (id) {
       var n = canvas.notes[id];
       if (!n || typeof n !== "object" || !isFinite(+n.x) || !isFinite(+n.y) || pageOf(n) !== page) return;
@@ -629,6 +697,7 @@
       case "link": followLink(b.path, m.file); break;
       case "drop": replaceImage(b.path, m.tid, m.url, m.type, m.size); break;
       case "size": b.contentH = m.h; break;
+      case "marks": b.marks = m.rects || {}; break;
     }
   }
   function toView(b, x, y) {
@@ -642,6 +711,10 @@
   overlay.append(selLayer, hoverBox);
   function receiveSel(b, m) {
     var items = (m.items || []).filter(function (it) { return it && typeof it.tid === "number" && it.count > 0; });
+    // An artboard saying it has nothing selected after another took the selection (its answer to the deselect it
+    // was sent, which comes after the new one's): the selection stays the new one's (V6: a click from the landing
+    // page into a phone lost it, its toolbar and its properties).
+    if (!items.length && sel.path !== b.path) return;
     var same = sel.path === b.path && items.map(function (i) { return i.tid; }).join() === sel.tids.join();
     if (sel.path && sel.path !== b.path && boards[sel.path] && boards[sel.path].frame) boards[sel.path].frame.send({ t: "select", tids: [] });
     selBoard = null;
@@ -690,7 +763,7 @@
   }
 
   // breadcrumb: the selected element's template ancestors
-  var crumbs = h("nav", { "class": "dc-crumbs", "aria-label": "Breadcrumb", hidden: true });
+  var crumbs = h("nav", { "class": "dc-crumbs", "data-comment-keep": "", "aria-label": "Breadcrumb", hidden: true });
   viewEl.appendChild(crumbs);
   function nodeOf(path, tid) { var f = files[path]; return f ? f.nodes[tid] : null; }
   function tagLabel(n) {
@@ -704,21 +777,75 @@
     for (var p = n; p && p.nodeType === 1; p = p.parentNode) if (!/^(sc-for|sc-if)$/.test(p.localName)) out.unshift(p);
     return out;
   }
-  function drawCrumbs() {
-    crumbs.replaceChildren();
+  /** A part as a person calls it, never its tag: the name its source gives it (a component's, an aria-label, a
+   *  picture's alt, a title, an id), else its own words (a heading's, a link's), else its role ("Group"). */
+  function partName(n) {
+    if (n.localName === "dc-import") return n.getAttribute("name") || T.roles.component;
+    var given = n.getAttribute("aria-label") || (n.localName === "img" && n.getAttribute("alt")) || n.getAttribute("title") || n.id;
+    if (given && given.indexOf("{{") < 0) return clipWords(given, 24);
+    var own = Array.prototype.filter.call(n.childNodes, function (c) { return c.nodeType === 3; }).map(function (c) { return c.nodeValue; }).join(" ");
+    if (own.trim() && own.indexOf("{{") < 0) return clipWords(own, 24);
+    return T.roles[roleOf(n)];
+  }
+  function roleOf(n) {
+    var t = n.localName;
+    if (/^h[1-6]$/.test(t)) return "heading";
+    if (/^(img|picture|video|canvas)$/.test(t)) return "picture";
+    if (t === "button") return "button";
+    if (t === "a") return "link";
+    if (/^(ul|ol|dl)$/.test(t)) return "list";
+    if (/^(input|textarea|select)$/.test(t)) return "field";
+    if (n.namespaceURI !== "http://www.w3.org/1999/xhtml") return "shape";
+    if (/^(p|span|label|b|strong|em|i|small|blockquote|figcaption|dt|dd)$/.test(t)) return "text";
+    return "group";
+  }
+  /** The selection's breadcrumb: the artboard, then each ancestor of the element, each a button selecting it (the
+   *  canvas's, and the Properties sheet's while the sheet covers the canvas's). [] when nothing is selected. */
+  function crumbParts() {
     var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[sel.tids.length - 1]) : null;
-    if (!n && !selBoard) { crumbs.hidden = true; return; }
-    crumbs.hidden = false;
-    var bp = sel.path || selBoard;
-    crumbs.appendChild(h("button", { type: "button", text: titleOf(bp), onclick: function () { selectBoard(bp); } }));
+    if (!n && !selBoard) return [];
+    var bp = sel.path || selBoard, out = [h("button", { type: "button", text: titleOf(bp), onclick: function () { selectBoard(bp); } })];
     if (n) ancestors(n).forEach(function (a) {
-      crumbs.appendChild(h("span", { "class": "dc-crumb-sep", text: "›", "aria-hidden": "true" }));
-      crumbs.appendChild(h("button", { type: "button", "class": a === n ? "is-on" : null, text: tagLabel(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
+      out.push(h("span", { "class": "dc-crumb-sep", text: "›", "aria-hidden": "true" }),
+        h("button", { type: "button", "class": a === n ? "is-on" : null, text: partName(a), onclick: function () { select(sel.path, [a.__dcTid]); } }));
     });
+    return out;
+  }
+  function drawCrumbs() {
+    var parts = crumbParts();
+    crumbs.replaceChildren.apply(crumbs, parts);
+    crumbs.hidden = !parts.length;
+    if (parts.length) placeCrumbs();
+  }
+  /** The breadcrumb's place, the first of the canvas's corners by its pills (over the drawing tools at the left, then
+   *  at the right; under the top pills at the left, then at the right) that covers neither the selection nor its
+   *  toolbar and, where one does, no frame, name strip or note (the toolbar's rule: toolSpot); none away from the
+   *  selection and its toolbar: not shown. */
+  function placeCrumbs() {
+    crumbs.style.display = ""; crumbs.style.left = ""; // measured at its CSS left: its whole width
+    if (crumbs.hidden || !crumbs.getClientRects().length) return;
+    var v = vrect(), cw = crumbs.offsetWidth, ch = crumbs.offsetHeight;
+    var edge = function (p, top) { return p && p.isConnected && p.getClientRects().length ? (top ? p.getBoundingClientRect().top : p.getBoundingClientRect().bottom) : null; };
+    var foot = edge(toolPill, true), headL = edge(pagesPill), headR = edge(viewPill);
+    var low = (foot == null ? v.bottom - 4 : foot) - 8 - ch, xl = v.left + 12, xr = v.right - 12 - cw;
+    var spots = [[xl, low], [xr, low], [xl, (headL == null ? v.top + 4 : headL) + 8], [xr, (headR == null ? v.top + 4 : headR) + 8]];
+    var must = [selScreenRect()], content = [];
+    if (!tools.hidden && tools.getClientRects().length) must.push(tools.getBoundingClientRect());
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (!b.el.isConnected || !b.el.getClientRects().length) return;
+      content.push(b.el.getBoundingClientRect());
+      if (b.strip.style.visibility !== "hidden" && b.strip.getClientRects().length) content.push(b.strip.getBoundingClientRect());
+    });
+    notesLayer.querySelectorAll(".dc-note").forEach(function (n) { content.push(n.getBoundingClientRect()); });
+    var hits = function (s, list) { return list.some(function (q) { return q && s[0] < q.right && q.left < s[0] + cw && s[1] < q.bottom && q.top < s[1] + ch; }); };
+    var ok = spots.filter(function (s) { return !hits(s, must); }), at = ok.filter(function (s) { return !hits(s, content); })[0] || ok[0];
+    if (!at) { crumbs.style.display = "none"; return; }
+    crumbs.style.left = at[0] - v.left + "px"; crumbs.style.top = at[1] - v.top + "px";
   }
 
   // ------------------------------------------------------------------ element toolbar
-  var tools = h("div", { "class": "dc-tools", hidden: true, role: "toolbar" });
+  var tools = h("div", { "class": "dc-tools", "data-comment-keep": "", hidden: true, role: "toolbar" });
   document.body.appendChild(tools);
   function tbtn(icon, label, fn, withText) {
     var b = h("button", { type: "button", "class": "kit-btn", title: label, "aria-label": label, html: kit.icon(icon) });
@@ -726,20 +853,25 @@
     b.addEventListener("click", fn);
     return b;
   }
-  function drawTools() {
-    var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null;
-    if (!editable || (!n && !selBoard) || focus) { tools.hidden = true; return; }
-    var kids = [];
-    if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(tbtn("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
-    if (n && n.localName === "img") kids.push(tbtn("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
-    kids.push(tbtn("sparkle", T.ask, askAbout, true), tbtn("comment", T.comment, commentOn, true));
+  /** The selection's actions, each made by make(icon, label, fn, withText): the toolbar's buttons, and the
+   *  Properties sheet's while the sheet is open and the toolbar steps aside (renderPanel). */
+  function selActions(make) {
+    var n = sel.path && sel.tids.length ? nodeOf(sel.path, sel.tids[0]) : null, kids = [];
+    if (n && sel.tids.length === 1 && DC.textEditable(n) && !editing) kids.push(make("text", T.editText, function () { boards[sel.path].frame.send({ t: "edit", tid: sel.tids[0] }); }));
+    if (n && n.localName === "img") kids.push(make("image", T.image, function () { pickImage(sel.path, sel.tids[0]); }));
+    kids.push(make("sparkle", T.ask, askAbout, true), make("comment", T.comment, commentOn, true));
     if (n && !editing) {
-      kids.push(tbtn("copy", T.dupEl, dupSel), tbtn("front", T.forward, function () { reorderSel(1); }), tbtn("back", T.backward, function () { reorderSel(-1); }));
-      if (sameParent().length > 1) kids.push(tbtn("grid", T.group, groupSel));
-      else if (n.localName === "div" && n.children.length && n.parentNode && n.parentNode.nodeType === 1) kids.push(tbtn("panel", T.ungroup, ungroupSel));
-      kids.push(tbtn("trash", T.del, removeSel));
+      kids.push(make("copy", T.dupEl, dupSel), make("front", T.forward, function () { reorderSel(1); }), make("back", T.backward, function () { reorderSel(-1); }));
+      if (sameParent().length > 1) kids.push(make("grid", T.group, groupSel));
+      else if (n.localName === "div" && n.children.length && n.parentNode && n.parentNode.nodeType === 1) kids.push(make("panel", T.ungroup, ungroupSel));
+      kids.push(make("trash", T.del, removeSel));
     }
-    tools.replaceChildren.apply(tools, kids);
+    return kids;
+  }
+  function drawTools() {
+    // every selection has its toolbar (an element the source does not name: Ask and Comment, on its artboard)
+    if (!editable || (!sel.path && !selBoard) || focus) { tools.hidden = true; return; }
+    tools.replaceChildren.apply(tools, selActions(tbtn));
     tools.hidden = false;
     placeTools();
   }
@@ -749,19 +881,97 @@
       var o = geo(sel.path), rs = [];
       sel.tids.forEach(function (t) { ((sel.info[t] || {}).rects || []).slice(0, 1).forEach(function (r) { rs.push({ x: o.x + r.x, y: o.y + r.y, w: r.w, h: r.h }); }); });
       var u = bounds(rs);
-      if (u) return { left: v.left + tx + u.x * z, top: v.top + ty + u.y * z, bottom: v.top + ty + (u.y + u.h) * z };
+      if (u) return { left: v.left + tx + u.x * z, right: v.left + tx + (u.x + u.w) * z, top: v.top + ty + u.y * z, bottom: v.top + ty + (u.y + u.h) * z };
     }
-    if (selBoard) { var g = geo(selBoard); return { left: v.left + tx + g.x * z, top: v.top + ty + (g.y - 30) * z, bottom: v.top + ty + (g.y + g.h) * z }; }
+    if (selBoard) { var g = geo(selBoard); return { left: v.left + tx + g.x * z, right: v.left + tx + (g.x + g.w) * z, top: v.top + ty + (g.y - 30) * z, bottom: v.top + ty + (g.y + g.h) * z }; }
     return null;
   }
   function placeTools() {
-    if (tools.hidden) return;
+    if (!tools.hidden) placeToolbar();
+    placeCrumbs(); // off the selection and its toolbar, wherever they went
+  }
+  function placeToolbar() {
     var r = selScreenRect();
     if (!r) { tools.hidden = true; return; }
-    var v = vrect(), top = r.top - tools.offsetHeight - 10;
-    if (top < v.top + 4) top = r.bottom + 10;
-    tools.style.top = clamp(top, v.top + 4, innerHeight - tools.offsetHeight - 8) + "px";
-    tools.style.left = clamp(r.left, v.left + 4, v.right - tools.offsetWidth - 8) + "px";
+    var v = vrect();
+    // never wider than the canvas: Ask Hermes and Comment keep their icons and drop their words when it would be
+    tools.classList.remove("is-compact");
+    if (tools.offsetWidth > v.width - 12) tools.classList.add("is-compact");
+    var spot = toolSpot(r, v, tools.offsetWidth, tools.offsetHeight, true);
+    // No room by the selection for the whole toolbar: its icons alone where they fit by it (V6g: the landing page's
+    // Group went 106 px off to the canvas's top where the artboard's shorter toolbar sat 10 px under it).
+    if (!spot && !tools.classList.contains("is-compact")) {
+      tools.classList.add("is-compact");
+      spot = toolSpot(r, v, tools.offsetWidth, tools.offsetHeight, true);
+      if (!spot) tools.classList.remove("is-compact");
+    }
+    var w = tools.offsetWidth, hh = tools.offsetHeight;
+    if (!spot) spot = toolSpot(r, v, w, hh, false);
+    if (!spot) {
+      var top = r.top - hh - 10;
+      if (top < v.top + 4) top = r.bottom + 10;
+      spot = { x: r.left, y: top };
+    }
+    tools.style.top = clamp(spot.y, v.top + 4, innerHeight - hh - 8) + "px";
+    tools.style.left = clamp(spot.x, v.left + 4, v.right - w - 8) + "px";
+  }
+  /** Where the selection's toolbar (w x hh) covers none of the page's own controls (the pills, the Properties
+   *  panel), no other frame (its name strip, its top edge) nor its own frame's strip, the canvas's words (its title,
+   *  its notes), nor the selection: by it; by it on another frame; above its frame's strip or under its frame
+   *  (the board's rule: the first free spot near it). A selection the stage cannot show whole (V6e: the
+   *  landing page's Group at 1510 and 999 px, its toolbar on the palette): in the stage in sight, under or over a
+   *  pill, over the selection then, other frames kept clear where they can be, the controls always. Null when none
+   *  is free in the canvas (the toolbar then goes just above the selection, as before). byIt: only the first kind. */
+  function toolSpot(r, v, w, hh, byIt) {
+    var own = sel.path || selBoard, me = { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, others = [], strips = [], oe = null, os = null;
+    Object.keys(boards).forEach(function (p) {
+      var b = boards[p];
+      if (!b.el.isConnected || !b.el.getClientRects().length) return;
+      var sr = b.strip.getClientRects().length ? b.strip.getBoundingClientRect() : null;
+      if (sr) strips.push(sr);
+      if (p === own) { oe = b.el.getBoundingClientRect(); os = sr; return; }
+      others.push(b.el.getBoundingClientRect());
+    });
+    var ctl = Array.prototype.slice.call(document.querySelectorAll(".dc-pill")).concat(panelEl.hidden ? [] : [panelEl])
+      .filter(function (e) { return e.getClientRects().length; }).map(function (e) { return e.getBoundingClientRect(); });
+    // the canvas's own words (its title, the notes) are kept clear like a frame (V6f: the toolbar over the title)
+    var notes = Array.prototype.map.call(notesLayer.querySelectorAll(".dc-note"), function (n) { return n.getBoundingClientRect(); })
+      .filter(function (q) { return q.width && q.height; });
+    var keep = [me].concat(strips, notes, others);
+    var first = function (ys, xs, list) {
+      for (var i = 0; i < ys.length; i++) for (var j = 0; j < xs.length; j++) {
+        var x = clamp(xs[j], v.left + 4, v.right - w - 8), y = ys[i];
+        if (y < v.top + 4 || y + hh > v.bottom - 4) continue;
+        var hit = list.some(function (k) { return x < k.right && k.left < x + w && y < k.bottom && k.top < y + hh; });
+        if (!hit) return { x: x, y: y };
+      }
+      return null;
+    };
+    // By the selection, from its left, its right, its middle, then slid past what is in the way (nearest first):
+    // above it, below it (on its own frame), else beside it level with its top.
+    var slid = function (list) {
+      var xs = [r.left, r.right - w, (r.left + r.right) / 2 - w / 2];
+      list.forEach(function (k) { xs.push(k.right + 8, k.left - w - 8); });
+      return xs.sort(function (a, b) { return Math.abs(a - r.left) - Math.abs(b - r.left); });
+    };
+    var near = function (list) {
+      return first([r.top - hh - 10, r.bottom + 10], slid(list), list) ||
+        first([r.top], [r.right + 10, r.left - w - 10], list);
+    };
+    var all = keep.concat(ctl), spot = near(all);
+    if (spot || byIt) return spot; // byIt: only a spot by it, clear of everything
+    // Still by it, on another frame, never on a control, the selection, a strip or the canvas's words (V6f: a logo at
+    // the canvas's top got its toolbar under its whole artboard, 460 px off); else above its frame's strip or under
+    // its frame, clear of everything.
+    spot = near([me].concat(strips, notes, ctl));
+    if (spot) return spot;
+    var ys = [];
+    if (oe) ys.push(Math.min(oe.top, os ? os.top : oe.top) - hh - 8, oe.bottom + 10);
+    spot = first(ys, [r.left, r.right - w, (r.left + r.right) / 2 - w / 2], all);
+    if (spot) return spot;
+    var l = Math.max(r.left, v.left), rr = Math.min(r.right, v.right), inside = [v.top + 8, v.bottom - hh - 8], xs = [l + 8, rr - w - 8, (l + rr) / 2 - w / 2];
+    ctl.forEach(function (c) { inside.push(c.bottom + 8, c.top - hh - 8); });
+    return first(inside, xs, keep.slice(1).concat(ctl)) || first(inside, xs, ctl);
   }
 
   // ------------------------------------------------------------------ editing the templates
@@ -929,12 +1139,17 @@
       n.setAttribute("src", new Array(path.split("/").length).join("../") + up);
       commitFile(path);
       select(path, [tid]);
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
 
   // ------------------------------------------------------------------ properties panel
-  var tab = "design", panelHidden = false;
-  function setTab(t) { tab = t; panelHidden = false; renderPanel(); }
+  // emptyAsked: the panel opened (Properties pressed) with nothing selected: it shows what to select
+  var tab = "design", panelHidden = false, sheetAsked = false, emptyAsked = false;
+  // The stylesheet's own test (design.css: max-width 759.98px), not innerWidth, a whole number: a frame 759.63 px wide
+  // has innerWidth 760, laid out beside while the stylesheet made the panel a sheet over the view (V6s)
+  var NARROW = matchMedia("(max-width: 759.98px)");
+  function narrow() { return NARROW.matches; }
+  function setTab(t) { tab = t; panelHidden = false; if (narrow()) sheetAsked = true; renderPanel(); drawTools(); }
   function computed(k) { var i = sel.info[sel.tids[0]]; return i && i.computed ? i.computed[k] || "" : ""; }
   function inline(prop) { var n = nodeOf(sel.path, sel.tids[0]); return n ? DC.styleGet(n.getAttribute("style") || "", prop) : ""; }
   function hex(c) {
@@ -943,7 +1158,11 @@
     return "#" + m[1].split(/[\s,\/]+/).slice(0, 3).map(function (v) { return ("0" + clamp(R(+v), 0, 255).toString(16)).slice(-2); }).join("");
   }
   function px(v) { v = String(v).trim(); return /^-?\d+(\.\d+)?$/.test(v) ? v + "px" : v; }
-  function row(label, ctl) { return h("label", { "class": "dc-row" }, [h("span", { text: label }), ctl]); }
+  // A checkbox leads its words, which take the row's width (V6f: "Page (fills the w…" cut in the label's column).
+  function row(label, ctl) {
+    if (ctl.type === "checkbox") return h("label", { "class": "dc-row dc-tick" }, [ctl, h("span", { text: label })]);
+    return h("label", { "class": "dc-row" }, [h("span", { text: label }), ctl]);
+  }
   function boundNote(v) { return v.indexOf("{{") >= 0; }
   function textField(prop, ph, norm) {
     var v = inline(prop), inp = h("input", { type: "text", value: v, placeholder: ph || "", spellcheck: "false" });
@@ -954,13 +1173,13 @@
   }
   function colorField(prop, comp) {
     var v = inline(prop), wrap = h("span", { "class": "dc-color" });
-    var sw = h("input", { type: "color", value: hex(v || computed(comp)), "aria-label": prop });
+    var sw = kit.noFill(h("input", { type: "color", value: hex(v || computed(comp)), "aria-label": prop }), v || computed(comp));
     var tx2 = h("input", { type: "text", value: v, placeholder: computed(comp), spellcheck: "false" });
     if (boundNote(v)) { sw.disabled = tx2.disabled = true; tx2.title = T.bound; }
     var live = false;
-    sw.addEventListener("input", function () { setStyle(prop, sw.value, live); live = true; tx2.value = sw.value; });
+    sw.addEventListener("input", function () { setStyle(prop, sw.value, live); live = true; tx2.value = sw.value; kit.noFill(sw, sw.value); });
     sw.addEventListener("change", function () { live = false; });
-    tx2.addEventListener("change", function () { setStyle(prop, tx2.value.trim()); });
+    tx2.addEventListener("change", function () { setStyle(prop, tx2.value.trim()); kit.noFill(sw, tx2.value.trim() || computed(comp)); });
     tx2.addEventListener("keydown", function (e) { e.stopPropagation(); if (e.key === "Enter") tx2.blur(); });
     wrap.append(sw, tx2);
     if (ds.model && ds.model.colors.length) {
@@ -974,7 +1193,7 @@
     return wrap;
   }
   function selectField(prop, opts) {
-    var v = inline(prop), s = h("select", {}, [h("option", { value: "", text: "—" })].concat(opts.map(function (o) { return h("option", { value: o, text: o }); })));
+    var v = inline(prop), s = h("select", { "class": "kit-select" }, [h("option", { value: "", text: "—" })].concat(opts.map(function (o) { return h("option", { value: o, text: o }); })));
     if (v && opts.indexOf(v) < 0) s.appendChild(h("option", { value: v, text: v }));
     s.value = v;
     if (boundNote(v)) s.disabled = true;
@@ -1001,18 +1220,42 @@
     return inp;
   }
   function section(title, rows) { return h("section", { "class": "dc-sec" }, [h("h3", { text: title })].concat(rows)); }
+  /** The panel drawn, then the toolbar and breadcrumb placed in the canvas it leaves: a selection's change can hide
+   *  the panel and show it again in one task (the crumb "App: your order" after a heading), a size the canvas's
+   *  ResizeObserver never sees change, and the toolbar measured in between lay over the Properties sheet (V6d). */
   function renderPanel() {
     if (!editable) return;
+    fillPanel();
+    placeTools();
+  }
+  function fillPanel() {
     var bp = sel.path || selBoard;
-    panelEl.hidden = panelHidden || !!focus || (!bp && tab !== "outline");
-    panelBtn.classList.toggle("is-on", !panelHidden);
+    // Under 760 px the panel is a sheet over the canvas: open only when asked (the Properties button), so a pick
+    // leaves the canvas, its element toolbar and breadcrumb in view.
+    var off = narrow() ? !sheetAsked : panelHidden;
+    // pressed only while it shows (V6l: pressed with nothing selected, it showed nothing, as if dead): then, with
+    // nothing selected, it says what to select
+    panelEl.hidden = off || !!focus || (!bp && tab !== "outline" && !emptyAsked);
+    panelBtn.classList.toggle("is-on", !panelEl.hidden); panelBtn.setAttribute("aria-pressed", String(!panelEl.hidden));
+    app.classList.toggle("is-sheet", narrow() && !panelEl.hidden);
     if (panelEl.hidden) return;
     var tabBtn = function (k, label) { return h("button", { type: "button", "class": "kit-btn", "aria-pressed": String(tab === k), text: label, onclick: function () { setTab(k); } }); };
     var tabs = h("div", { "class": "dc-tabs" }, [tabBtn("design", T.properties), tabBtn("outline", T.outline), tabBtn("code", T.code), tabBtn("tweaks", T.tweaks),
-      h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.panel, "aria-label": T.panel, html: kit.icon("close"), onclick: function () { panelHidden = true; renderPanel(); } })]);
+      h("span", { "class": "dc-gap" }), h("button", { type: "button", "class": "kit-btn", title: T.close, "aria-label": T.close, html: kit.icon("close"), onclick: function () {
+        if (narrow()) sheetAsked = false; else panelHidden = true;
+        emptyAsked = false; renderPanel(); drawTools(); panelBtn.focus();
+      } })]);
     var body = tab === "outline" ? outlinePanel() : !bp ? h("div", { "class": "dc-pbody dc-pnote", text: T.nothing })
       : tab === "code" ? codePanel(bp) : tab === "tweaks" ? tweaksPanel(bp) : sel.path && sel.tids.length ? designPanel() : boardPanel(bp);
-    panelEl.replaceChildren(tabs, body);
+    // The sheet covers the selection's toolbar and breadcrumb (they step aside: design.css): its actions are here,
+    // under the tabs, the breadcrumb first (V6e: at 999 px the hierarchy could not be climbed with the sheet open; a
+    // crumb keeps the sheet). An action taken closes the sheet, back to the canvas where it acts (Ask's field, the
+    // comment's box, the edit).
+    var acts = narrow() && bp ? h("div", { "class": "dc-sheet-acts", role: "toolbar" }, selActions(function (icon, label, fn) {
+      return tbtn(icon, label, function () { sheetAsked = false; renderPanel(); drawTools(); fn(); });
+    })) : null;
+    var trail = acts ? h("nav", { "class": "dc-sheet-crumbs", "aria-label": "Breadcrumb" }, crumbParts()) : null;
+    panelEl.replaceChildren.apply(panelEl, acts ? [tabs, trail, acts, body] : [tabs, body]);
   }
   /** Outline: the page's notes, then each artboard and (for the open one) its elements; a click selects. */
   var openOutline = {};
@@ -1071,7 +1314,7 @@
     var n = nodeOf(sel.path, sel.tids[0]), out = h("div", { "class": "dc-pbody" });
     if (!n) return out;
     var disp = inline("display") || computed("display");
-    out.appendChild(h("div", { "class": "dc-ptitle", text: tagLabel(n) + (sel.tids.length > 1 ? " +" + (sel.tids.length - 1) : "") }));
+    out.appendChild(h("div", { "class": "dc-ptitle", text: partName(n) + (sel.tids.length > 1 ? " +" + (sel.tids.length - 1) : "") }));
     if (n.localName === "img") out.appendChild(section(T.image.replace("…", ""), [h("button", { type: "button", "class": "kit-btn dc-wide", text: T.image, onclick: function () { pickImage(sel.path, sel.tids[0]); } })]));
     var textRows = [row(T.color, colorField("color", "color")), row(T.size, textField("font-size", computed("fontSize"))),
       row(T.weight, selectField("font-weight", ["300", "400", "500", "600", "700", "800", "900"])),
@@ -1080,7 +1323,7 @@
       var names = [];
       ds.model.type.groups.forEach(function (g) { g.styles.forEach(function (s) { names.push(s.name); }); });
       var cls = (n.getAttribute("class") || "").split(/\s+/).filter(Boolean), curName = cls.filter(function (c) { return names.indexOf(c) >= 0; })[0] || "";
-      var ts = h("select", {}, [h("option", { value: "", text: "—" })].concat(names.map(function (x) { return h("option", { value: x, text: x }); })));
+      var ts = h("select", { "class": "kit-select" }, [h("option", { value: "", text: "—" })].concat(names.map(function (x) { return h("option", { value: x, text: x }); })));
       ts.value = curName;
       ts.addEventListener("change", function () {
         var rest = cls.filter(function (c) { return names.indexOf(c) < 0; });
@@ -1120,7 +1363,7 @@
     inter.addEventListener("change", function () { boardSet(function (en) { if (inter.checked) en.is_interactive = true; else delete en.is_interactive; }); });
     [title, w, hh].forEach(function (i) { i.addEventListener("keydown", function (ev) { ev.stopPropagation(); if (ev.key === "Enter") i.blur(); }); });
     out.appendChild(section(T.artboard, [row(T.title, title), row(T.width, w), row(T.height, hh), row(T.fillPage, fill), row(T.interactive, inter)]));
-    out.appendChild(h("p", { "class": "dc-hint", text: T.none }));
+    out.appendChild(h("p", { "class": "dc-hint", text: T.boardHint }));
     return out;
   }
   function tweakKeys(p) {
@@ -1156,14 +1399,14 @@
       ctl.addEventListener("change", function () { setProp(p, k, ctl.checked); });
     } else if (ed === "enum") {
       var os = opts();
-      ctl = h("select", {}, os.map(function (o, i) { return h("option", { value: String(i), text: o.l }); }));
+      ctl = h("select", { "class": "kit-select" }, os.map(function (o, i) { return h("option", { value: String(i), text: o.l }); }));
       ctl.value = String(Math.max(0, os.map(function (o) { return o.v; }).indexOf(val)));
       ctl.addEventListener("change", function () { setProp(p, k, os[+ctl.value].v); });
     } else if (ed === "color") {
-      var sw = h("input", { type: "color", value: hex(val) }), t2 = h("input", { type: "text", value: val == null ? "" : String(val), spellcheck: "false" });
-      sw.addEventListener("input", function () { setProp(p, k, sw.value, live); live = true; t2.value = sw.value; });
+      var sw = kit.noFill(h("input", { type: "color", value: hex(val) }), val), t2 = h("input", { type: "text", value: val == null ? "" : String(val), spellcheck: "false" });
+      sw.addEventListener("input", function () { setProp(p, k, sw.value, live); live = true; t2.value = sw.value; kit.noFill(sw, sw.value); });
       sw.addEventListener("change", function () { live = false; });
-      t2.addEventListener("change", function () { setProp(p, k, t2.value.trim()); });
+      t2.addEventListener("change", function () { setProp(p, k, t2.value.trim()); kit.noFill(sw, t2.value.trim()); });
       t2.addEventListener("keydown", function (e) { e.stopPropagation(); });
       ctl = h("span", { "class": "dc-color" }, [sw, t2]);
       var os2 = opts();
@@ -1197,7 +1440,7 @@
     if (!b.frame) return;
     b.playing = on;
     b.el.classList.toggle("is-playing", on);
-    b.playBtn.innerHTML = on ? ICON.stop : kit.icon("play");
+    b.playBtn.innerHTML = kit.icon(on ? "stop" : "play");
     b.playBtn.title = on ? T.stop : T.play;
     if (on && sel.path === b.path) select(null, []);
     b.frame.send({ t: "mode", mode: on ? "play" : "edit", wheel: "forward" });
@@ -1223,19 +1466,23 @@
     var list = pagePaths().filter(function (x) { return files[x]; }), i = list.indexOf(p);
     var stage = h("div", { "class": "dc-fstage" + (fill ? " is-fill" : "") }), boxEl = h("div", { "class": "dc-fbox" });
     stage.appendChild(boxEl);
-    var head = h("div", { "class": "dc-fhead" }, [
+    // Its own head row (Back, the title, Previous / Next): the canvas's pills, tools and breadcrumb are the canvas's and hide.
+    var prevB = kit.button("", "prev", function () { if (i > 0) openFocus(list[i - 1]); }, T.prev);
+    var nextB = kit.button("", "next", function () { if (i < list.length - 1) openFocus(list[i + 1]); }, T.next);
+    prevB.setAttribute("aria-label", T.prev); nextB.setAttribute("aria-label", T.next);
+    prevB.disabled = i <= 0; nextB.disabled = i >= list.length - 1;
+    var head = h("div", { "class": "dc-fhead", "data-comment-keep": "", "data-comment-use": "" }, [ // the strip's Full window opened it while picking (V6s)
       kit.labelled(kit.button(T.back, "prev", function () { closeFocus(); }, T.back), T.back),
-      h("span", { "class": "dc-ftitle", text: titleOf(p) }),
-      kit.button("", "prev", function () { if (i > 0) openFocus(list[i - 1]); }, T.prev),
-      h("span", { "class": "dc-fcount", text: (i + 1) + " / " + list.length }),
-      kit.button("", "next", function () { if (i < list.length - 1) openFocus(list[i + 1]); }, T.next)]);
+      h("span", { "class": "dc-ftitle", text: titleOf(p) }), prevB,
+      h("span", { "class": "dc-fcount", text: (i + 1) + " / " + list.length }), nextB]);
     focusEl.replaceChildren(head, stage);
     focusEl.hidden = false;
+    app.classList.add("is-focus");
     focus = { path: p, fill: fill, g: g, box: boxEl, stage: stage };
     focus.frame = new Frame({ path: p, mode: "play", wheel: "native", parent: boxEl, onMsg: function (m) {
       if (m.t === "link") followLink(p, m.file);
       else if (m.t === "key") key(m);
-      else if (m.t === "error" && m.errors && m.errors.length) kit.toast(T.error + ": " + m.errors[0]);
+      else if (m.t === "error" && m.errors && m.errors.length) kit.toast(T.error + ": " + m.errors[0], 0, "error");
     } });
     fitFocus();
     drawTools(); renderPanel(); sendView();
@@ -1252,6 +1499,7 @@
     focus.frame.dispose();
     focus = null;
     focusEl.hidden = true; focusEl.replaceChildren();
+    app.classList.remove("is-focus");
     if (!quiet) { drawTools(); renderPanel(); sendView(); }
   }
 
@@ -1337,18 +1585,90 @@
       var text = T.about(titleOf(a.p), a.p, a.label) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawTools(); return; }
       window.hermes.send(text, { artboard: a.p, element: a.id, selector: a.n ? cssPath(a.n) : null }, { deliver: "send" })
-        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(String(err && err.message || err)); });
+        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(String(err && err.message || err), 0, "error"); });
       drawTools();
     });
   }
   function commentOn() {
     var a = about();
     if (!a.p || !window.hermes || !window.hermes.comment) return;
-    var text = a.n ? ((sel.info[sel.tids[0]] || {}).text || labelOf(a.n) || "") : titleOf(a.p);
-    window.hermes.comment({ selector: a.id, text: text.slice(0, 200), label: (a.p + (a.n ? " · " + tagLabel(a.n) : "")).slice(0, 40) });
+    var b = boards[a.p];
+    // An element: its frame says where it is (framePicked opens the comment there); the artboard: its frame's box.
+    if (a.n && b && b.frame) { b.frame.send({ t: "where", tid: sel.tids[0], k: scaleOf(b.frame) }); return; }
+    if (b && b.frame) framePicked(b.frame, { t: "picked", tid: null });
   }
+  /** The scale a frame is shown at (the canvas's zoom, an opened artboard's fit): frame px to the page's. */
+  function scaleOf(f) { return f.iframe.getBoundingClientRect().width / (f.iframe.offsetWidth || 1) || 1; }
+  function clipWords(s, n) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (s.length <= n) return s;
+    var c = s.slice(0, n - 1), i = c.lastIndexOf(" ");
+    return (i > n * 0.4 ? c.slice(0, i) : c).replace(/[\s,;:.·–-]+$/, "") + "…";
+  }
+  /** A comment on what a frame picked (m: frame.js where(); tid null: the artboard), beside it with its pin: its
+   *  box in the frame's px, scaled and moved to this page's (and again after a pan or a zoom: hermes.moved). */
+  function framePicked(f, m) {
+    if (!window.hermes || !window.hermes.comment) return;
+    var p = f.path, n = m.tid != null ? nodeOf(p, m.tid) : null, name = titleOf(p);
+    var anchor = n ? { selector: selId(p, m.tid), text: String(m.text || labelOf(n) || "").slice(0, 200),
+                       label: clipWords(name + " · " + (labelOf(n) || T.kinds[kindOf(n)] || T.kinds.other), 40) }
+                   : { selector: enc(p), text: name.slice(0, 200), label: clipWords(name, 40) };
+    if (!anchor.selector) return;
+    var inner = m.rect;
+    window.hermes.comment(anchor, { el: f.iframe, box: function () {
+      if (!f.iframe.isConnected) return null;
+      var ir = f.iframe.getBoundingClientRect(), k = scaleOf(f);
+      if (!inner) return { x: ir.left, y: ir.top, w: ir.width, h: ir.height };
+      var bx = { x: ir.left + inner.x * k, y: ir.top + inner.y * k, w: inner.w * k, h: inner.h * k };
+      if (isFinite(inner.ly) && isFinite(inner.lh)) { bx.ly = ir.top + inner.ly * k; bx.lh = inner.lh * k; }
+      if (isFinite(inner.lr)) bx.lr = ir.left + inner.lr * k;
+      ["fr", "fl", "fw", "fa", "fb"].forEach(function (s2) { if (m[s2] === false) bx[s2] = false; });
+      return bx;
+    } });
+  }
+  // The host's comment pick: the frames pick inside themselves (frame.js); a zoom while picking tells them again.
+  // The host holds a click until every artboard has drawn and picks (runtime.html data-pick-later: V6e, a click in
+  // the 1.5 s an artboard took to load picked nothing), then gives it back (bridge pick-at: a click on its frame).
+  // Drawn, not settled: an artboard's pictures and fonts (ready) took up to 4 s more, the pick held all that time (V6n).
+  var commentPicking = false;
+  function sendPick() { frames.forEach(function (f) { if (f.mode !== "export") f.send({ t: "pick", on: commentPicking, k: scaleOf(f) }); }); }
+  function pickWhenDrawn() {
+    var waits = frames.filter(function (f) { return f.mode !== "export"; }).map(function (f) { return f.whenMounted(); });
+    Promise.race([Promise.all(waits), new Promise(function (r) { setTimeout(r, 4000); })]).then(function () {
+      if (commentPicking && window.hermes.pickReady) window.hermes.pickReady();
+    });
+  }
+  // A click on an artboard's own box while picking (around its frame): the comment is on that artboard; its name
+  // strip and size handle are the design's chrome, a click there picks nothing (bridge.js: data-comment-keep; V6w:
+  // the handle's click took the artboard). One the host held and gives back on an artboard's frame: picked in it,
+  // where it was.
+  window.addEventListener("click", function (e) {
+    if (!commentPicking) return;
+    var be = e.target.closest && e.target.closest(".dc-board"), b = be && boards[be.getAttribute("data-path")];
+    if (!b || !b.frame || e.target.closest("[data-comment-keep]")) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.target === b.frame.iframe) {
+      var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
+      b.frame.send({ t: "pickAt", x: (e.clientX - ir.left) / k, y: (e.clientY - ir.top) / k });
+      return;
+    }
+    framePicked(b.frame, { t: "picked", tid: null });
+  }, true);
   if (window.hermes && window.hermes.on) {
     // A comment's anchor clicked in the host: show that element.
+    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); sendPick(); if (commentPicking) pickWhenDrawn(); });
+    // An artboard with an open thread: its numbered mark by the artboard while it is drawn; an element with one, by
+    // the element, where its artboard's frame says it is drawn (frame.js sendMarks), with the canvas panned and zoomed.
+    if (window.hermes.locate) window.hermes.locate(function (sel) {
+      var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(sel), ep = m && Object.keys(boards).filter(function (f) { return enc(f) === m[1]; })[0];
+      if (ep) return markOf(ep, +m[2]);
+      var p = Object.keys(boards).filter(function (f) { return enc(f) === sel; })[0];
+      return p ? { el: boards[p].el, box: function () {
+        var b = boards[p], n = b && b.el;
+        if (!n || n.hidden || !n.isConnected || !n.getClientRects().length) return null;
+        var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height };
+      } } : null;
+    });
     window.hermes.on("flash", function (d) {
       var m = /^(.+\.dc\.html)#(\d{1,4}):/.exec(String(d && d.selector || ""));
       var p = m && Object.keys(files).filter(function (f) { return enc(f) === m[1]; })[0];
@@ -1358,6 +1678,26 @@
       center(p);
       select(p, [+m[2]], true);
     });
+  }
+
+  /** An element's mark (tid in the artboard p): asked of its frame with the other marks the host asked for at once
+   *  (its pins, each time: the frames measure only those), its box on the canvas while the frame has it drawn. */
+  var markWant = null;
+  function markOf(p, tid) {
+    if (!markWant) {
+      markWant = {};
+      Promise.resolve().then(function () {
+        var w = markWant; markWant = null;
+        Object.keys(boards).forEach(function (q) { var b = boards[q]; b.markTids = w[q] || []; if (b.frame) b.frame.send({ t: "marks", tids: b.markTids }); });
+      });
+    }
+    (markWant[p] = markWant[p] || []).push(tid);
+    return { el: document.body, box: function () {
+      var b = boards[p], r = b && b.marks && b.marks[tid];
+      if (!r || focus || b.el.hidden || !b.frame || !b.frame.iframe.isConnected) return null;
+      var ir = b.frame.iframe.getBoundingClientRect(), k = scaleOf(b.frame);
+      return { x: ir.left + r.x * k, y: ir.top + r.y * k, w: r.w * k, h: r.h * k, el: b.frame.iframe };
+    } };
   }
 
   // ------------------------------------------------------------------ saving (every change, as a new version)
@@ -1391,7 +1731,7 @@
     if (!window.hermes || !window.hermes.save) { status("failed"); return; }
     inFlight = true; status("saving");
     window.hermes.save(d.files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; status("failed"); kit.toast(T.conflict, 0, "error"); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || !r.ok) throw new Error(r && r.error || "save failed");
       C.version = r.version;
       Object.keys(d.files).forEach(function (p) { if (d.cur[p] != null) saved.files[p] = d.cur[p]; });
@@ -1511,7 +1851,7 @@
     try {
       var r = await picture(p, { scale: 2 });
       kit.download(baseName() + "-" + kit.slug(stem(p).replace(/\//g, "-")) + ".png", r.blob, "image/png");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
   var PAPER = { letter: [816, 1056], a4: [794, 1123] };
   async function addBoardPages(P, pdf, layer, p) {
@@ -1554,7 +1894,7 @@
       layer.finish();
       var bytes = await pdf.save();
       kit.download(baseName() + (all ? "" : "-" + kit.slug(stem(list[0]).replace(/\//g, "-"))) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
   /** A standalone page: the artboard and the runtime, working (links to the other artboards too). */
   function exportHtml() {
@@ -1580,7 +1920,7 @@
   var exportList = [{ id: "png", label: T.png, run: exportPng }, { id: "pdf", label: T.pdf, run: function () { exportPdf(false); } },
     { id: "pdf-all", label: T.pdfAll, run: function () { exportPdf(true); } }, { id: "html", label: T.html, run: exportHtml }];
   kit.exports(exportList); // the host's title menu lists them too
-  // The canvas's chrome, as Claude's: no bar. Pages at the top left, the view's tools at the top right (play, properties,
+  // The canvas's chrome: no bar. Pages at the top left, the view's tools at the top right (play, properties,
   // zoom), and the drawing tools in a row at the bottom (select, hand, text, artboard, sticky, pen, shapes).
   function cbtn(html, title, fn, cls) {
     var b = h("button", { type: "button", "class": "kit-btn" + (cls ? " " + cls : ""), title: title, "aria-label": title, html: html });
@@ -1594,7 +1934,7 @@
   var pagesLabel = h("span");
   var pagesBtn = cbtn(kit.icon("pages") + kit.icon("caretDown"), T.pages, function () {
     kit.menu(pagesBtn, (pages.length ? pages : [{ id: null, name: T.page1 }]).map(function (pg) {
-      return { label: (pg.id === page || (!pg.id && !pages.length) ? "✓ " : "   ") + String(pg.name || pg.id).slice(0, 40), onClick: function () { if (pg.id) { setPage(pg.id); fitAll(); } } };
+      return { on: pg.id === page || (!pg.id && !pages.length), label: String(pg.name || pg.id).slice(0, 40), onClick: function () { if (pg.id) { setPage(pg.id); fitAll(); } } };
     }).concat(editable ? [{ label: T.newPage, onClick: newPage }] : []));
   }, "dc-caret");
   pagesBtn.insertBefore(pagesLabel, pagesBtn.lastChild);
@@ -1613,13 +1953,14 @@
     pages = canvas.pages;
     changed(); setPage(id);
   }
-  var pagesPill = h("div", { "class": "dc-pill dc-pill-l" }, [pagesBtn]);
+  var pagesPill = h("div", { "class": "dc-pill dc-pill-l", "data-comment-keep": "" }, [pagesBtn]);
 
   // the view (top right)
-  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
+  var EXP_ICON = { png: "image", pdf: "file", "pdf-all": "pages", html: "code" };
+  var dlBtn = cbtn(kit.icon("download"), T.exp, function () { kit.menu(dlBtn, exportList.map(function (x) { return { icon: EXP_ICON[x.id], label: x.label, onClick: x.run }; })); });
   var themeBtn = cbtn(kit.icon("palette"), T.theme, function () {
-    kit.menu(themeBtn, [{ label: T.defTheme, onClick: function () { setTheme(null); } }].concat(ds.themes.map(function (t) {
-      return { label: t.name, onClick: function () { setTheme(t.id); } };
+    kit.menu(themeBtn, [{ label: T.defTheme, on: !ds.theme, onClick: function () { setTheme(null); } }].concat(ds.themes.map(function (t) {
+      return { label: t.name, on: ds.theme === t.id, onClick: function () { setTheme(t.id); } };
     })));
   });
   themeBtn.hidden = true;
@@ -1628,16 +1969,22 @@
     var item = function (p) { return { label: titleOf(p), onClick: function () { openFocus(p); } }; };
     kit.menu(playBtn, (live.length ? [{ hint: T.prototypes }].concat(live.map(item)) : []).concat(rest.length ? [{ hint: T.statics }].concat(rest.map(item)) : []));
   });
-  var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () { panelHidden = !panelHidden; renderPanel(); });
+  playBtn.setAttribute("data-comment-use", ""); // it and its menu act while a comment is picked, as a strip's Play (V6u)
+  var panelBtn = cbtn(kit.icon("sliders"), T.panel, function () {
+    var open = panelEl.hidden; // shown or not, not by its own flag alone (nothing selected hides it too)
+    if (narrow()) sheetAsked = open; else panelHidden = !open;
+    emptyAsked = open; renderPanel(); drawTools();
+  });
   var zoomLabel = h("span");
   var zoomBtn = cbtn("", T.zoom, function () {
     kit.menu(zoomBtn, [{ label: T.zoomIn, onClick: function () { zoomTo(z * 1.25); } }, { label: T.zoomOut, onClick: function () { zoomTo(z / 1.25); } },
-      { label: T.fit, onClick: fitAll }, { label: T.sel, onClick: zoomSel }]
-      .concat([0.25, 0.5, 0.75, 1, 1.5, 2].map(function (v) { return { label: v * 100 + "%", onClick: function () { zoomTo(v); } }; }))
-      .concat(editable ? [{ label: T.undo + "  (Ctrl+Z)", onClick: undo }, { label: T.redo + "  (Ctrl+Shift+Z)", onClick: redo }] : []));
+      { label: T.fit, onClick: fitAll }, { label: T.sel, disabled: !sel.path && !selBoard, onClick: zoomSel }, { sep: true }]
+      .concat([0.25, 0.5, 0.75, 1, 1.5, 2].map(function (v) { return { label: v * 100 + "%", on: Math.abs(z - v) < 0.001, onClick: function () { zoomTo(v); } }; }))
+      .concat(editable ? [{ sep: true }, { label: T.undo + "  (Ctrl+Z)", disabled: !undos.length, onClick: undo },
+        { label: T.redo + "  (Ctrl+Shift+Z)", disabled: !redos.length, onClick: redo }] : []));
   }, "dc-zoomval");
   zoomBtn.appendChild(zoomLabel); zoomBtn.insertAdjacentHTML("beforeend", kit.icon("caretDown"));
-  var viewPill = h("div", { "class": "dc-pill dc-pill-r" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
+  var viewPill = h("div", { "class": "dc-pill dc-pill-r", "data-comment-keep": "" }, [statusEl, saveBtn, themeBtn, dlBtn, playBtn].concat(editable ? [panelBtn] : [], [zoomBtn]));
 
   // the tools (bottom)
   var tool = "select", toolBtns = {}, shapeKind = "rect";
@@ -1649,11 +1996,12 @@
   }
   function tbtn2(key, icon, title) { return (toolBtns[key] = cbtn(kit.icon(icon), title, function () { setTool(key === "shape" ? shapeKind : key); })); }
   var shapeCaret = cbtn(kit.icon("caretDown"), T.shapes, function () {
+    var ic = { rect: "shape", oval: "oval", arrow: "arrowUR", line: "lineD" };
     kit.menu(shapeCaret, [["rect", T.rect], ["oval", T.oval], ["arrow", T.arrow], ["line", T.line]].map(function (x) {
-      return { label: x[1], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(x[0] === "rect" ? "shape" : x[0] === "oval" ? "oval" : x[0] === "arrow" ? "arrowUR" : "lineD"); setTool(x[0]); } };
+      return { icon: ic[x[0]], label: x[1], on: shapeKind === x[0], onClick: function () { shapeKind = x[0]; toolBtns.shape.innerHTML = kit.icon(ic[x[0]]); setTool(x[0]); } };
     }));
   }, "dc-caretonly");
-  var toolPill = h("div", { "class": "dc-pill dc-pill-b", role: "toolbar", "aria-label": T.tools }, [
+  var toolPill = h("div", { "class": "dc-pill dc-pill-b", "data-comment-keep": "", role: "toolbar", "aria-label": T.tools }, [
     tbtn2("select", "cursor", T.tSelect), tbtn2("hand", "hand", T.tHand), tbtn2("text", "text", T.tText), tbtn2("board", "frame", T.tBoard),
     tbtn2("sticky", "sticky", T.tSticky), tbtn2("pen", "pencil", T.tPen), tbtn2("shape", "shape", T.shapes), shapeCaret]);
   viewEl.append(pagesPill, viewPill);
@@ -1748,10 +2096,35 @@
   drawPages();
   layoutAll();
   fitAll();
+  // The view fits its artboards until the person moves it or works in it: one measured while its tile was still being
+  // laid out fits again once it has its real size (V6u: 2% after a restart, the artboards crammed top left). A pan, a
+  // zoom, a page or a fit of their own, a press or a pick leaves the view as they put it.
+  var autoFit = { z: z, tx: tx, ty: ty };
+  document.addEventListener("pointerdown", function () { autoFit = null; }, true);
+  function refit() {
+    if (!autoFit || sel.path || selBoard || z !== autoFit.z || tx !== autoFit.tx || ty !== autoFit.ty) { autoFit = null; return; }
+    fitAll();
+    autoFit = { z: z, tx: tx, ty: ty };
+  }
   if (launch.view === "focused" && files[launch.file]) openFocus(launch.file);
-  window.addEventListener("resize", function () { apply(); fitFocus(); });
-  new ResizeObserver(function () { placeTools(); fitFocus(); }).observe(viewEl);
-  window.addEventListener("beforeunload", function () { if (pending) save(); });
+  var wasNarrow = narrow();
+  function resized() {
+    apply(); fitFocus();
+    // across 760 px an open panel stays open in the other layout (a sheet below, beside the canvas above); it was
+    // closed silently by a resize before
+    if (narrow() !== wasNarrow) {
+      var wasOpen = !panelEl.hidden;
+      wasNarrow = narrow();
+      if (wasNarrow) sheetAsked = wasOpen; else if (wasOpen) panelHidden = false;
+      renderPanel(); drawTools();
+    }
+  }
+  window.addEventListener("resize", resized);
+  NARROW.addEventListener("change", resized); // across 760 px within a pixel: innerWidth, and maybe no resize, unchanged
+  new ResizeObserver(function () { refit(); placeTools(); fitFocus(); }).observe(viewEl);
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: what waits for its pause is saved now, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (pending) save(); });
   window.__design = { select: select, selectBoard: selectBoard, boards: boards, files: files, cur: cur, canvas: function () { return canvas; },
     state: function () { return { z: z, tx: tx, ty: ty, sel: sel, selBoard: selBoard, focus: focus && focus.path, page: page, pending: pending }; },
     openFocus: openFocus, closeFocus: closeFocus, setPlay: function (p, on) { setPlay(boards[p], on); }, undo: undo, redo: redo, setStyle: setStyle,

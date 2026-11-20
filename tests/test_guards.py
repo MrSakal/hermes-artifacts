@@ -1014,5 +1014,74 @@ class ThirdPassTests(_Base):
         self.assertIn("to keep them", r["error"])
 
 
+class MemoryBoundTests(_Base):
+    """A gateway runs for weeks: what this process remembers per chat, agent and artifact is bounded, the
+    least recently used going first; a chat it forgot is a fresh one, never a crash."""
+
+    MEMS = ("_SEEN", "_TOLD", "_GUIDED", "_WHO_SESSION", "_SESSION_BEFORE", "_LAST_VIEW", "_SHOWN_AT", "_PLATFORM_SEEN")
+
+    def test_the_lru(self):
+        m = self.p._Lru(3)
+        for k in "abc":
+            m[k] = k
+        self.assertEqual(m["a"], "a")  # read: the newest now
+        m["d"] = "d"
+        self.assertEqual(list(m), ["c", "a", "d"])  # b, the least recently used, went
+        self.assertEqual(m.get("c"), "c")
+        m.setdefault("e", {})["x"] = 1
+        self.assertEqual(list(m), ["d", "c", "e"])  # a went
+        self.assertEqual(m["e"], {"x": 1})
+        self.assertIsNone(m.get("b"))
+        self.assertEqual(m.setdefault("e", "other"), {"x": 1})  # kept, not replaced
+        self.assertEqual(len(m), 3)
+
+    def test_every_per_session_memory_is_bounded(self):
+        for name in self.MEMS:
+            mem = getattr(self.p, name)
+            self.assertIsInstance(mem, self.p._Lru, name)
+            self.assertLessEqual(mem.cap, self.p.SEEN_KEPT, name)
+        self.assertEqual(self.p._REFUSED_MAX, 256)  # bounded already (test_refusals)
+
+    def test_a_flood_of_chats_keeps_the_live_one_and_forgets_the_oldest(self):
+        cap = self.p.AGENTS_KEPT
+        self.addCleanup(lambda: (self.p._GUIDED.clear(), self.p._WHO_SESSION.clear(), self.p._SESSION_BEFORE.clear()))
+        old, live = chat(), chat()
+        self.guide(old, "slides")
+        for i in range(cap // 2):
+            self.p._GUIDED.setdefault(f"flood-{i}", {})
+            self.p._WHO_SESSION[f"flood-{i}"] = f"flood-{i}"
+        self.guide(live, "slides")
+        for i in range(cap // 2, cap + 50):
+            self.p._GUIDED.setdefault(f"flood-{i}", {})
+            self.p._WHO_SESSION[f"flood-{i}"] = f"flood-{i}"
+        self.assertLessEqual(len(self.p._GUIDED), cap)
+        self.assertLessEqual(len(self.p._WHO_SESSION), cap)
+        self.assertNotIn(old["task_id"], self.p._GUIDED)
+        # the live chat publishes as before; the forgotten one is as a new chat: handed the guide, then runs
+        self.assertTrue(self.pub(live, type="slides", title="D", files=SLIDES)["ok"])
+        self.refused(self.pub(old, type="slides", title="D", files=SLIDES), "guide_first")
+        self.assertTrue(self.pub(old, type="slides", title="D", files=SLIDES)["ok"])
+        # a compaction of a forgotten session, and of one whose entries go while it is carried over
+        self.p._compacted_agents("gone-" + old["session_id"], "new-" + old["session_id"])
+        self.p._compacted_agents(live["session_id"], "next-" + live["session_id"])
+        self.assertEqual(self.p._GUIDED["next-" + live["session_id"]], {"slides": "stale"})
+
+    def test_a_forgotten_artifact_reading_is_a_fresh_agents(self):
+        self.addCleanup(lambda: (self.p._SEEN.clear(), self.p._TOLD.clear()))
+        kw = chat()
+        aid = self.deck(kw)
+        store.publish(aid=aid, base=True, files={"slides/a.html": "<section>USER edit</section>"}, by="user")
+        for i in range(self.p.SEEN_KEPT + 10):  # other agents' reads push this one's out
+            self.p._SEEN[(f"flood-{i}", aid, 0)] = {"files": {}, "top": 0}
+            self.p._TOLD[(f"flood-{i}", aid, 0)] = {}
+        self.assertLessEqual(len(self.p._SEEN), self.p.SEEN_KEPT)
+        self.assertFalse(any(k[0] == kw["task_id"] for k in list(self.p._SEEN)))
+        # as after a restart: the user's edit in the file it rewrites is handed back first, then it runs
+        call = {"id": aid, "base": True, "files": {"slides/a.html": "<section>agent</section>"}}
+        r = self.refused(self.pub(kw, **call), "stale_version")
+        self.assertIn("USER edit", r["live"]["content"]["slides/a.html"])
+        self.assertTrue(self.pub(kw, **call)["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

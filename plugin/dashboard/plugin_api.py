@@ -16,6 +16,7 @@ import importlib
 import json
 import sys
 import threading
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -30,6 +31,8 @@ _MODULES = tuple("hermes_artifacts." + m for m in (
     "dsbuild", "models", "store", "diagnostics", "running", "docs", "calc", "sheets", "xlsx_in", "boards", "history", "bundle", "render", "server", "live", "api"))
 _lock = threading.Lock()
 _stamp = None
+STAMP_SECS = 1.5  # the package's files are stat'ed at most this often (a request each 5 s poll and more)
+_looked = (float("-inf"), None)  # (monotonic time, stamp) of the last look
 
 router = APIRouter()
 
@@ -40,9 +43,12 @@ def _code_stamp() -> tuple:
 
 def _api():
     """The api module, reloaded when the plugin's Python files changed (a plugin update)."""
-    global _stamp
+    global _stamp, _looked
     with _lock:
-        now = _code_stamp()
+        t = time.monotonic()
+        if t - _looked[0] >= STAMP_SECS:
+            _looked = (t, _code_stamp())
+        now = _looked[1]
         if _stamp is None:
             mod = importlib.import_module("hermes_artifacts.api")
         elif now != _stamp:

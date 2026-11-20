@@ -93,7 +93,7 @@
       if (tools) { tools.remove(); tools = null; }
       if (!c) return;
       var r = c.getBoundingClientRect();
-      tools = h("div", { "class": "dash-edit-tools", style: "left:" + Math.max(8, r.right - 140) + "px;top:" + Math.max(52, r.top - 34) + "px" }, [
+      tools = h("div", { "class": "dash-edit-tools", "data-comment-keep": "", style: "left:" + Math.max(8, r.right - 140) + "px;top:" + Math.max(52, r.top - 34) + "px" }, [
         kit.button("", "prev", function () { move(c, -1); }, T.editEarlier),
         kit.button("", "next", function () { move(c, 1); }, T.editLater),
         kit.button("", "trash", function () { remove(c); }, T.editDelete)
@@ -122,7 +122,7 @@
       if (!on) { if (barEl) { barEl.remove(); barEl = null; } return; }
       var box = h("div", { "class": "dash-notice dash-edit-bar" }, [
         h("b", { text: T.editorMode }), h("span", { style: "flex:1;min-width:0", text: status || T.editEvery }),
-        kit.button("", "undo", undo, T.draftUndo), kit.button("", "redo", redo, T.draftRedo),
+        kit.button("", "undo", undo, T.undo), kit.button("", "redo", redo, T.redo),
         kit.labelled(kit.button(T.editDone, "", stop), T.editDone)
       ]);
       if (barEl) barEl.replaceWith(box); else api.root.parentNode.insertBefore(box, api.root);
@@ -140,7 +140,7 @@
       var p = api.pagePath();
       var html = p ? kit.fileText(p) : null;
       if (html == null) {
-        if (window.hermes && window.hermes.send) window.hermes.send(T.editAskMsg, { editable: false }).then(function () { kit.toast(T.staged); }, function () {});
+        if (window.hermes && window.hermes.send) window.hermes.send(T.editAskMsg, { editable: false }).then(function () { kit.toast(T.staged, 0, "success"); }, function () {});
         kit.toast(T.editNeedsPage);
         return;
       }

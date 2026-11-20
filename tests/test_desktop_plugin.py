@@ -45,7 +45,9 @@ def stub_module(extra: str = "") -> Path:
 
 def run_node(d: Path, body: str) -> dict:
     """Runs ``body`` (an async function body; ``m`` is the module) and returns the JSON it prints last."""
-    script = (f"import('./plugin.mjs').then(async m => {{ {body} }}).then(() => process.exit(0))"
+    # Exit only once stdout has drained: on a pipe (Linux) process.exit cuts a long line at 64 KiB.
+    script = (f"import('./plugin.mjs').then(async m => {{ {body} }})"
+              ".then(() => new Promise(r => process.stdout.write('', r))).then(() => process.exit(0))"
               ".catch(e => { console.error(String(e && e.stack || e)); process.exit(1) })")
     r = subprocess.run([NODE, "-e", script], cwd=d, capture_output=True, text=True, encoding="utf-8", timeout=60)
     if r.returncode != 0:
@@ -61,7 +63,7 @@ class DesktopPluginTests(unittest.TestCase):
 
 
 TRASH_KEYS = ["delConfirm", "delConfirmSub", "trashChip", "trashNote", "deletedAgo", "daysLeft", "restore", "restoreTip", "restored",
-              "deleteForever", "deleteForeverTip", "foreverConfirm", "foreverConfirmSub", "deletedForever"]
+              "deleteForeverTip", "foreverConfirm", "foreverConfirmSub", "deletedForever"]
 
 
 @unittest.skipIf(NODE is None, "node not installed")
@@ -102,7 +104,7 @@ class GalleryTrashTests(unittest.TestCase):
         src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         gallery = src[src.index("function Gallery("):src.index("// ---------------------------------------------------------------- viewer")]
         self.assertRegex(gallery, r"trash\.length\s*\?\s*jsx\(Chip, \{ label: t\('trashChip', trash\.length\), active: inTrash")
-        self.assertIn("jsx(TrashRow, { ctx, item: x }, x.name)", gallery)
+        self.assertIn("jsx(TrashRow, { ctx, item: x, cols }, x.name)", gallery)
 
     def test_restore_posts_the_entry_name_and_reloads_both_lists(self):
         body = """
@@ -154,8 +156,8 @@ class GalleryTrashTests(unittest.TestCase):
         self.assertNotEqual(out["en"]["restore"], out["hu"]["restore"])
         self.assertIn("Trash", out["en"]["delConfirmSub"])
         self.assertIn("Kukából", out["hu"]["delConfirmSub"])
-        self.assertEqual((out["hu"]["deleteForever"], out["hu"]["foreverConfirm"], out["hu"]["foreverConfirmSub"]),
-                         ("Végleges törlés", "Végleg törlöd?", "Ez nem vonható vissza."))
+        self.assertEqual((out["hu"]["foreverConfirm"], out["hu"]["foreverConfirmSub"]),
+                         ("Végleg törlöd?", "Ez nem vonható vissza."))
         self.assertIn("undone", out["en"]["foreverConfirmSub"])
         for lang in ("en", "hu"):
             for k in ("delConfirm", "delConfirmSub", "foreverConfirm", "foreverConfirmSub"):
@@ -175,7 +177,7 @@ GOOD_CMD = "hermes config set plugins.entries.hermes-artifacts.mcp_allowlist '[b
 class AllowlistDialogTests(unittest.TestCase):
     """A denied MCP server: the host's own dialog shows the server's command, checked again, with Copy."""
 
-    EXPORTS = "\nexport { STRINGS, allowCommand, showAllowHelp, copyCommand, $confirm, $toast, toolLabel }\n"
+    EXPORTS = "\nexport { STRINGS, allowCommand, showAllowHelp, copyCommand, $confirm, $toast, toolStep }\n"
 
     def _copy(self, clipboard: str) -> dict:
         body = f"""
@@ -245,10 +247,30 @@ class AllowlistDialogTests(unittest.TestCase):
         for k in ("deniedTitle:", "deniedBody:", "howAllow:"):
             self.assertEqual(dash.count(k), 2, k)  # en and hu
 
-    def test_the_step_line_says_our_tools_without_the_prefix(self):
-        names = ["ha_check", "ha_live_read", "ha_design_system_export", "ha_inbox", "ha_other", "mcp__db__run_query"]
-        out = run_node(stub_module(self.EXPORTS), f"console.log(JSON.stringify({json.dumps(names)}.map(m.toolLabel)))")
-        self.assertEqual(out, ["check", "live read", "design system export", "inbox", "ha other", "db run query"])
+    def test_the_step_line_never_names_a_tool(self):
+        # Acceptance round 2: "Using tool describe 11s". Our tools say what they do; any other is Working.
+        names = ["ha_check", "ha_live_read", "ha_live_edit", "ha_inbox", "ha_other", "describe", "mcp__db__run_query", None]
+        out = run_node(stub_module(self.EXPORTS), f"console.log(JSON.stringify({{ s: {json.dumps(names)}.map(m.toolStep), en: m.STRINGS.en, hu: m.STRINGS.hu }}))")
+        self.assertEqual(out["s"], ["stepCheck", "stepRead", "stepEdit", "stepRead", "stepWork", "stepWork", "stepWork", "stepWork"])
+        for k in ("stepCheck", "stepRead", "stepEdit", "stepWork"):
+            self.assertTrue(out["en"][k] and out["hu"][k] and out["en"][k] != out["hu"][k], k)
+        self.assertNotIn("stepTool", out["en"])
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        self.assertIn("if (m.step === 'tool') return t(TOOL_STEP_KEYS.has(m.tool) ? m.tool : 'stepWork')", src)
+
+    def test_the_being_made_tab_title_fits_and_open_chat_is_not_offered_beside_its_chat(self):
+        # Round 2: the tab read "PAGE (BEING MA", clipped under its x (Hermes' tab: max-w-48, uppercase, clipped).
+        body = """
+        const out = {}
+        for (const l of ['en', 'hu']) { const S = m.STRINGS[l]; out[l] = Object.keys(S).filter(k => k.startsWith('type_') || k === 'makingArtifact').map(k => S.makingTab(S[k])) }
+        console.log(JSON.stringify(out))
+        """
+        out = run_node(stub_module(self.EXPORTS), body)
+        for l, titles in out.items():
+            self.assertTrue(titles and all(len(x) <= 13 for x in titles), (l, titles))
+        self.assertIn("Page…", out["en"])
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        self.assertIn("...($chat.get() === 'split' && art.session && onChatRoute(art.session) ? []", src)
 
 
 class DownloadTests(unittest.TestCase):
@@ -391,3 +413,57 @@ class VersionNoticeTests(unittest.TestCase):
                          "0.15.0; 0.16.1 is installed. On the server run hermes plugins disable hermes-artifacts, then hermes plugins "
                          "enable hermes-artifacts (next time, update from Desktop › Plugins). Still shown? Restart that process: "
                          "hermes gateway restart alone doesn’t.")
+
+
+@unittest.skipIf(NODE is None, "node not installed")
+class OpResendTests(unittest.TestCase):
+    """A page's write whose connection dropped before its answer (Hermes never resends a POST whose body went
+    out) goes once more when the gateway applies it at most once; an HTTP answer is never resent."""
+
+    EXPORTS = "\nexport { postOp }\n"
+    RESET = "Error invoking remote method 'hermes:api': Error: read ECONNRESET"
+
+    def run_op(self, op, args, fails):
+        body = f"""
+        const calls = [], fails = {json.dumps(fails)}
+        const ctx = {{ rest: async (url, opts) => {{
+          calls.push({{ url, opts }})
+          const f = fails[calls.length - 1]
+          if (f) throw new Error(f)
+          return {{ ok: true, version: 3 }}
+        }} }}
+        let value = null, error = null
+        try {{ value = await m.postOp(ctx, 'd-1', {json.dumps(op)}, {json.dumps(args)}) }} catch (e) {{ error = String(e.message) }}
+        console.log(JSON.stringify({{ calls, value, error }}))
+        """
+        return run_node(stub_module(self.EXPORTS), body)
+
+    def test_a_reset_save_goes_once_more_and_the_page_gets_its_answer(self):
+        args = {"files": {"deck.json": "{}"}, "base_version": 2}
+        out = self.run_op("save", args, [self.RESET])
+        self.assertEqual(out["value"], {"ok": True, "version": 3})
+        self.assertEqual([c["opts"]["body"] for c in out["calls"]], [{"op": "save", "args": args}] * 2)
+        self.assertEqual(out["calls"][0]["url"], "/artifacts/d-1/op")
+
+    def test_a_socket_hang_up_doc_batch_under_its_client_ids_goes_once_more(self):
+        args = {"ops": [{"op": "batch", "entries": [{"cid": "p.1", "ops": [{"op": "replace", "block": "b", "md": "x"}]}]}]}
+        out = self.run_op("doc.edit", args, ["socket hang up"])
+        self.assertEqual((len(out["calls"]), out["value"]), (2, {"ok": True, "version": 3}))
+
+    def test_it_is_resent_once_only(self):
+        out = self.run_op("save", {"files": {"deck.json": "{}"}, "base_version": 2}, [self.RESET, self.RESET])
+        self.assertEqual((len(out["calls"]), out["error"]), (2, self.RESET))
+
+    def test_an_http_answer_or_a_write_not_safe_twice_is_not_resent(self):
+        for op, args, fail in (("save", {"files": {"deck.json": "{}"}, "base_version": 2}, '500: {"detail":"read ECONNRESET"}'),
+                               ("save", {"files": {"deck.json": "{}"}}, self.RESET),
+                               ("sheet.edit", {"ops": [{"op": "set"}], "base_rev": 4}, self.RESET),
+                               ("board.edit", {"ops": [{"op": "add"}], "base_rev": 4}, self.RESET),
+                               ("doc.edit", {"ops": [{"op": "replace", "block": "b", "md": "x"}]}, self.RESET)):
+            out = self.run_op(op, args, [fail])
+            self.assertEqual((len(out["calls"]), out["error"]), (1, fail), op)
+
+    def test_the_bridge_sends_page_ops_through_it(self):
+        src = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
+        bridge = src[src.index("function useBridge("):]
+        self.assertIn("const op = () => postOp(ctx, aid, m.op, m.args || {})", bridge)

@@ -1,4 +1,4 @@
-"""A design system's generated files, as Claude's Design System type writes them on every save."""
+"""A design system's generated files, as the Design System type writes them on every save."""
 
 import json
 import os
@@ -87,7 +87,6 @@ class BuildTests(unittest.TestCase):
     def test_gallery_folders_and_last_opened(self):
         from hermes_artifacts import api
         a = store.publish(title="F1", html="<p>x</p>")["id"]
-        self.assertIsNone(api.handle("GET", "artifacts", {}, None)["artifacts"][0].get("opened") if False else None)
         v = api.handle("POST", f"artifacts/{a}/meta", {}, {"opened": True, "folder": "  Q4   reports "})
         self.assertEqual(v["folder"], "Q4 reports")
         self.assertIsInstance(v["opened"], float)
@@ -99,6 +98,43 @@ class BuildTests(unittest.TestCase):
         self.assertNotIn("Empty one", api.handle("GET", "artifacts", {}, None)["folders"])
         with self.assertRaises(api.ApiError):
             api.handle("POST", "folders", {}, {"name": "  "})
+
+    def test_a_folder_is_renamed_and_deleted_with_what_is_in_it(self):
+        # Round 1: an empty folder stayed for good (the gallery could neither rename nor delete it).
+        from hermes_artifacts import api
+        a = store.publish(title="R1", html="<p>x</p>")["id"]
+        b = store.publish(title="R2", html="<p>y</p>")["id"]
+        for name in ("Alpha", "Beta", "Gamma"):
+            api.handle("POST", "folders", {}, {"name": name})
+        api.handle("POST", f"artifacts/{a}/meta", {}, {"folder": "Beta"})
+        api.handle("POST", f"artifacts/{b}/meta", {}, {"folder": "Beta"})
+        out = api.handle("POST", "folders", {}, {"name": "Beta", "rename": "  Beta   two "})
+        self.assertEqual([f for f in out["folders"] if f in ("Alpha", "Beta", "Beta two", "Gamma")], ["Alpha", "Beta two", "Gamma"])  # in its place
+        self.assertEqual({store.get_meta(x).get("folder") for x in (a, b)}, {"Beta two"})
+        api.handle("POST", "folders", {}, {"name": "Gamma", "rename": "Alpha"})  # into a folder there is: one entry
+        self.assertEqual(api.handle("GET", "artifacts", {}, None)["folders"].count("Alpha"), 1)
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", "folders", {}, {"name": "Alpha", "rename": " "})
+        api.handle("POST", "folders", {}, {"name": "Beta two", "delete": True})  # what was in it: No folder
+        self.assertEqual({store.get_meta(x).get("folder") for x in (a, b)}, {None})
+        self.assertNotIn("Beta two", api.handle("GET", "artifacts", {}, None)["folders"])
+        api.handle("POST", "folders", {}, {"name": "Alpha", "delete": True})
+        self.assertNotIn("Alpha", api.handle("GET", "artifacts", {}, None)["folders"])
+
+    def test_a_new_folder_name_is_at_most_40_characters_and_says_so(self):
+        # V5: a 39-character name wrapped the gallery's chips onto three lines at 400 px (the chip is cut now);
+        # a new name, made or renamed to, is at most 40, refused in words; one already there keeps working.
+        from hermes_artifacts import api
+        api.handle("POST", "folders", {}, {"name": "x" * 40})
+        with self.assertRaises(api.ApiError) as e:
+            api.handle("POST", "folders", {}, {"name": "y" * 41})
+        self.assertIn("at most 40 characters", str(e.exception))
+        with self.assertRaises(api.ApiError):
+            api.handle("POST", "folders", {}, {"name": "x" * 40, "rename": "z" * 41})
+        old = "o" * 50
+        store.settings_set("folders", list(store.settings().get("folders") or []) + [old])
+        api.handle("POST", "folders", {}, {"name": old, "rename": "Short"})  # an older, longer one renames
+        self.assertIn("Short", api.handle("GET", "artifacts", {}, None)["folders"])
 
     def test_a_stylesheet_of_their_own_stays(self):
         m = store.publish(title="Own", type="design-system", files={

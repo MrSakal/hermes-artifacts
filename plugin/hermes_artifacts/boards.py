@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import math
 import re
 import threading
@@ -744,9 +745,11 @@ def _arrange(units: list, edges: list, layout: str, flow: str, auto: bool = Fals
     return at, x - GAP, max(u["h"] for u in units)
 
 
-def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tuple = (), floor: Optional[tuple] = None) -> tuple:
+def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tuple = (), floor: Optional[tuple] = None,
+            ok=None) -> Optional[tuple]:
     """A free spot for a w x h block next to ``target`` (x, y, w, h): right of it, under it, left, above,
-    then further out the same way. ``floor``: the least x and y allowed (inside a section)."""
+    then further out the same way. ``floor``: the least x and y allowed (inside a section); ``ok(rect)``: a
+    further test a spot must pass (None when none does)."""
     tx, ty, tw, th = target[:4]
     for k in range(60):
         d = gap + k * (GAP + 16)
@@ -754,9 +757,9 @@ def _beside(target: tuple, w: float, h: float, occ: list, gap: float, skip: tupl
                      (tx + tw + d, ty + th + d)):
             if floor and (x < floor[0] or y < floor[1]):
                 continue
-            if not _hit((x, y, w, h), occ, skip):
+            if not _hit((x, y, w, h), occ, skip) and (ok is None or ok((x, y, w, h))):
                 return round(x), round(y)
-    return round(tx + tw + gap), round(ty)
+    return None if ok is not None else (round(tx + tw + gap), round(ty))
 
 
 def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "right", near: Optional[str] = None,
@@ -881,6 +884,9 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
         for it, dx, dy in u["parts"]:
             it["x"], it["y"] = round(x + dx), round(y + dy)
         occ.append((x, y, u["w"], u["h"], u["key"]))
+        # Each part too: a spot inside a section (its frame skipped) must still keep clear of its members.
+        if len(u["parts"]) > 1:
+            occ.extend(o for o in (_occ(it) for it, _dx, _dy in u["parts"]) if o)
 
     def near_of(u):
         for it, _dx, _dy in u["parts"]:
@@ -895,18 +901,33 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
         tr = rect(t)
         # A neighbour of something inside a section goes inside it too (the section grows to hold it).
         homes = [s for s in by.values() if s["type"] == "section" and "x" in s and s is not t and _centre_in(tr, rect(s))]
+        if any(p[0]["type"] == "section" for p in u["parts"]):
+            homes = []  # a block holding a section of its own goes beside, never into another section
         home = min(homes, key=lambda s: s["w"] * s["h"]) if homes else None
-        floor = (home["x"] + SEC_PAD, home["y"] + SEC_PAD) if home else None
-        x, yy = _beside(tr, u["w"], u["h"], occ, gap, tuple(s["id"] for s in homes), floor)
-        put(u, x, yy)
+        spot = None
         if home:
-            _grow(home, (x, yy, u["w"], u["h"]))
+            # Inside it, where the section, grown to hold it, still clears everything around it.
+            hr = rect(home)
+            around = [o for o in occ if o[4] not in {s["id"] for s in homes} and not _centre_in(o, hr)]
+
+            def fits(r):
+                gw = max(home["w"], r[0] + r[2] + SEC_PAD - home["x"])
+                gh = max(home["h"], r[1] + r[3] + SEC_PAD - home["y"])
+                return not _hit((home["x"], home["y"] - SEC_TITLE, gw, gh + SEC_TITLE), around)
+            spot = _beside(tr, u["w"], u["h"], occ, gap, tuple(s["id"] for s in homes), (home["x"] + SEC_PAD, home["y"] + SEC_PAD), fits)
+        if spot is None:  # no room in it: beside it, outside
+            home = None
+            spot = _beside(tr, u["w"], u["h"], occ, gap)
+        put(u, *spot)
+        if home:
+            _grow(home, (spot[0], spot[1], u["w"], u["h"]))
 
     def _grow(sec, r):
         w = max(sec["w"], math.ceil(r[0] + r[2] + SEC_PAD - sec["x"]))
         h = max(sec["h"], math.ceil(r[1] + r[3] + SEC_PAD - sec["y"]))
         if (w, h) != (sec["w"], sec["h"]):
             sec["w"], sec["h"] = w, h
+            occ[:] = [o for o in occ if o[4] != sec["id"]] + [_occ(sec)]  # what follows sees its new size
             if sec["id"] not in todo_ids and not any(sec is n for n in new):
                 grown.add(sec["id"])
 
@@ -994,7 +1015,24 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
                 xx += GAP
             yy += GAP
         if spot is None:
-            spot = (sec["x"] + SEC_PAD, max([o[1] + o[3] + GAP for o in mine] + [sec["y"] + SEC_PAD]))
+            # No room inside: under its members or right of them, where the section grown to hold the block
+            # still clears everything around it; else beside the section, outside it (never over a neighbour).
+            around = [o for o in occ if o[4] != sec["id"] and not _centre_in(o, sr)]
+
+            def fits(r):
+                gw = max(sec["w"], r[0] + r[2] + SEC_PAD - sec["x"])
+                gh = max(sec["h"], r[1] + r[3] + SEC_PAD - sec["y"])
+                return not _hit((sec["x"], sec["y"] - SEC_TITLE, gw, gh + SEC_TITLE), around) and not _hit(r, mine)
+            low = max([o[1] + o[3] + GAP for o in mine] + [sec["y"] + SEC_PAD])
+            right = max([o[0] + o[2] + GAP for o in mine] + [sec["x"] + SEC_PAD])
+            for cand in ((sec["x"] + SEC_PAD, low), (right, sec["y"] + SEC_PAD), (right, low)):
+                if fits((*cand, w, h)):
+                    spot = cand
+                    break
+        if spot is None:
+            spot = _beside((sec["x"], sec["y"] - SEC_TITLE, sec["w"], sec["h"] + SEC_TITLE), w, h, occ, GAP)
+            put(block, *spot)
+            continue
         put(block, *spot)
         _grow(sec, (*spot, w, h))
 
@@ -1043,9 +1081,15 @@ def _place(new: list, arrows: list, hints: dict, existing: list, flow: str = "ri
     for it in new:
         if it["id"] in tall_ok and "y" in it:
             rows.setdefault((round(it["y"]), member_of.get(it["id"])), []).append(it)
+    # Not where a note made taller would reach what was put under it: the row keeps its notes' own heights.
+    placed = [o for o in (_occ(it) for it in list(existing) + [n for n in new if n["type"] != "arrow" and "x" in n]) if o]
     for row in rows.values():
         if len(row) > 1:
             top = max(it["h"] for it in row)
+            ids = {it["id"] for it in row}
+            others = [o for o in placed if o[4] not in ids and not any(_centre_in(rect(it), o[:4]) for it in row)]
+            if any(_hit((it["x"], it["y"], it["w"], top), others, m=0) for it in row):
+                continue
             for it in row:
                 it["h"] = top
     return grown
@@ -1142,7 +1186,7 @@ def check_file(path: Path) -> None:
 
 # ----------------------------------------------------------------------------- state
 
-_CACHE: dict = {}  # aid -> ((mtime_ns, size), state)
+_CACHE: dict = {}  # aid -> ((mtime_ns, size, inode), state): at most store.STATES_KEPT, the least recently used go
 
 
 def _state_path(aid: str) -> Path:
@@ -1167,12 +1211,16 @@ def load(aid: str) -> dict:
     with _LOCK:
         p = _state_path(aid)
         st = None
-        if p.is_file():
+        try:
             s = p.stat()
-            stamp = (s.st_mtime_ns, s.st_size)
+        except FileNotFoundError:
+            s = None
+        if s is not None:
+            stamp = (s.st_mtime_ns, s.st_size, s.st_ino)
             hit = _CACHE.get(aid)
-            st = hit[1] if hit and hit[0] == stamp else json.loads(p.read_text(encoding="utf-8"))
-            _CACHE[aid] = (stamp, st)
+            st = hit[1] if hit and hit[0] == stamp else store.load_state(p)
+            if st is not None:
+                store._cache_put(_CACHE, store.STATES_KEPT, aid, stamp, st)  # (a hit too: it goes last)
         if st is None or st.get("version") != meta["versions"][-1]["n"]:
             st = _fresh(aid, meta)
             _save(aid, st)
@@ -1183,11 +1231,8 @@ def _save(aid: str, st: dict) -> None:
     p = _state_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
     st["updated"] = time.time()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    tmp.replace(p)
-    s = p.stat()
-    _CACHE[aid] = ((s.st_mtime_ns, s.st_size), st)
+    s = store.write_atomic(p, json.dumps(st, ensure_ascii=False, separators=(",", ":")), backup=True)
+    store._cache_put(_CACHE, store.STATES_KEPT, aid, (s.st_mtime_ns, s.st_size, s.st_ino), st)
 
 
 def outline(aid: str) -> dict:
@@ -1222,15 +1267,21 @@ def _ints(v):
     return v
 
 
+_GEOMETRY = ("x", "y", "w", "h")
+
+
 def compact(it: dict, full: bool = False) -> dict:
     """An item for the agent: defaults left out, numbers whole, and the bulky fields (svg, html, pen
-    points, a data: image, a long embed state) as their length unless ``full``."""
+    points, a data: image, a long embed state) as their length, and no place or size (x, y, w, h: the server
+    lays items out, an edit moves by dx/dy), unless ``full`` (ha_live_read range=<ids>)."""
     dflt = DEFAULTS.get(it["type"], {})
     out = {}
     for k, v in it.items():
         if k in dflt and dflt[k] == v:
             continue
         if not full:
+            if k in _GEOMETRY:
+                continue
             if k in _BLOBS:
                 v = len(v)
             elif k == "src" and v.startswith("data:"):
@@ -1309,10 +1360,10 @@ def read(aid: str, range: Optional[str] = None, *, since_rev: Optional[int] = No
     return out
 
 
-def dump(aid: str) -> str:
+def snapshot(aid: str) -> dict:
     """The live board as board.json (ha_read without a path)."""
     st = load(aid)
-    return json.dumps({"title": st["title"], "items": st["items"]}, ensure_ascii=False, separators=(",", ":"))
+    return {"title": st["title"], "items": st["items"]}
 
 
 # ----------------------------------------------------------------------------- editing
@@ -1370,6 +1421,58 @@ def _shift(items: list, ids: list, dx, dy) -> None:
                 it["via"] = [[_num(p[0] + dx, "x"), _num(p[1] + dy, "y")] for p in it["via"]]
         elif it["id"] in moved:
             it["x"], it["y"] = _num(it["x"] + dx, "x"), _num(it["y"] + dy, "y")
+
+
+def _make_room(items: list, grown: str, before: tuple, where: str) -> dict:
+    """An item grew where it stands (Hermes set longer text, a bigger size): what it now runs into moves out
+    of its way, down (right, for what stood to its right; a section with its members), keeping its gap (8 at
+    least); the sections that hold it grow to keep it; and so on for what moved or grew in turn. Which
+    section holds what is read before anything moves. A locked item in the way refuses the edit.
+    -> {id: fields changed}."""
+    by = {it["id"]: it for it in items}
+    was = {it["id"]: (before if it["id"] == grown else rect(it)) for it in items if rect(it) is not None}
+    secs = [s for s in items if s["type"] == "section"]
+    home = {i: {s["id"] for s in secs if s["id"] != i and s["w"] * s["h"] > r[2] * r[3] and _centre_in(r, was[s["id"]])}
+            for i, r in was.items()}
+    fp = lambda it, r: (r[0], r[1] - SEC_TITLE, r[2], r[3] + SEC_TITLE) if it["type"] == "section" else r
+    near = lambda a, b: _hit(a, [(*b, "")], m=0) is not None
+    changed, queue = {}, [(grown, before)]
+    for _ in range(8 * len(items) + 8):
+        if not queue:
+            break
+        cid, old = queue.pop(0)
+        c = by[cid]
+        new = rect(c)
+        for sid in home[cid]:  # the sections that hold it grow with it
+            s = by[sid]
+            w = max(s["w"], math.ceil(new[0] + new[2] + SEC_PAD - s["x"]))
+            h = max(s["h"], math.ceil(new[1] + new[3] + SEC_PAD - s["y"]))
+            if (w, h) != (s["w"], s["h"]):
+                queue.append((sid, rect(s)))
+                s["w"], s["h"] = w, h
+                changed[sid] = sorted(set(changed.get(sid, ())) | {"w", "h"})
+        nf, of = fp(c, new), fp(c, old)
+        for x in items:
+            r = rect(x)
+            if r is None or x is c or x["id"] in home[cid] or cid in home[x["id"]]:
+                continue
+            xf = fp(x, r)
+            if not near(xf, nf) or near(xf, of):
+                continue
+            ids = [x["id"]] + [i for i, h in home.items() if x["id"] in h]
+            locked = [i for i in ids if by[i].get("locked")]
+            if locked:
+                raise _bad(f"{where}: it would grow over {locked[0]}, locked by the user: shorter text or another w")
+            if xf[0] >= of[0] + of[2] and xf[1] < of[1] + of[3]:  # it stood to its right
+                dx, dy = nf[0] + nf[2] + max(8, xf[0] - of[0] - of[2]) - xf[0], 0
+            else:
+                dx, dy = 0, nf[1] + nf[3] + max(8, xf[1] - of[1] - of[3]) - xf[1]
+            olds = [(i, rect(by[i])) for i in ids]
+            _shift(items, ids, dx, dy)
+            for i, o in olds:
+                changed[i] = sorted(set(changed.get(i, ())) | {"x", "y"})
+                queue.append((i, o))
+    return changed
 
 
 def _head(sel: list) -> list:
@@ -1466,6 +1569,10 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
         if by == "hermes" and base_rev is None and guarded:
             raise BoardError("missing_guard", "changing items that are on the board needs base_rev: the rev you read "
                                               "(ha_live_read)", rev=st["rev"])
+        if by == "hermes" and guarded:  # an item whose text the user is typing, not saved yet
+            busy = store.typing_hits(aid, list(guarded))
+            if busy:
+                raise store.typing_conflict(BoardError, "items", busy, st["rev"], f"ha_live_read id={aid} range=<ids>")
         if base_rev is not None and guarded:
             _guard(st, by, int(base_rev), guarded, aid)
         _check_refs(work["items"])
@@ -1495,6 +1602,7 @@ def apply(aid: str, ops, *, by: str, base_rev: Optional[int] = None) -> dict:
             _CACHE.pop(aid, None)
             raise
         if not ctx["state_only"]:
+            store.edited(aid)  # the gallery's Last edited
             _record(aid, st, by, before)
         if retitled and st["title"].strip():
             try:
@@ -1621,6 +1729,10 @@ def _one(work: dict, o: dict, ctx: dict, where: str, guarded: dict) -> None:
                 _touch(ctx, m, ("x", "y"))
         else:
             items[index[i]] = new
+            was, now = rect(old), rect(new)
+            if by == "hermes" and was and now and was[:2] == now[:2] and (now[2] > was[2] or now[3] > was[3]):
+                for k, f in _make_room(items, i, was, where).items():
+                    _touch(ctx, k, f)
         _touch(ctx, i, mark)
         _mark(guarded, i, mark)
     elif op == "move":
@@ -1704,6 +1816,15 @@ SNAP_GAP = 120              # seconds: edits by the same author closer than this
 _HIST_CACHE: dict = {}
 
 
+def _forget(aid: str, d: Path) -> None:
+    _CACHE.pop(aid, None)
+    for k in [k for k in _HIST_CACHE if str(k).startswith(str(d) + os.sep)]:
+        _HIST_CACHE.pop(k, None)
+
+
+store.on_forget(_forget)
+
+
 def _hist_path(aid: str) -> Path:
     return store._dir(aid) / "board" / "history.json"
 
@@ -1722,11 +1843,9 @@ def _hist_save(aid: str, version: int, snaps: list) -> None:
         snaps.pop(0)
     p = _hist_path(aid)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
     h = {"version": version, "snaps": snaps}
-    tmp.write_text(json.dumps(h, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    s = tmp.stat()
-    tmp.replace(p)
+    # Not fsynced (it holds every snapshot: megabytes); written whole and moved, an unreadable one reads as no history.
+    s = store.write_atomic(p, json.dumps(h, ensure_ascii=False, separators=(",", ":")), durable=False)
     store.json_remember(p, _HIST_CACHE, h, s, 8)
 
 
@@ -1787,5 +1906,6 @@ def restore(aid: str, rev: int) -> dict:
         except BaseException:
             _CACHE.pop(aid, None)
             raise
+        store.edited(aid)
         _record(aid, st, "restore", before)
         return {"ok": True, "rev": st["rev"], "restored": x["rev"]}

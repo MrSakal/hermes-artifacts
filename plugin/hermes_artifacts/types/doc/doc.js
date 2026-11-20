@@ -14,14 +14,13 @@
   var kit = window.kit, h = kit.h, C = kit.content, md = window.md, hm = window.hermes, E = window.docEdit, WG = window.docWidgets;
   var L = /^hu\b/i.test(kit.content.lang || navigator.language || "") ? "hu" : "en";
   var T = pickLang({
-    en: { hist: "History", histNone: "No earlier states yet", byYou: "you", byH: "Hermes", byRestore: "restored", 
+    en: { hist: "History", histNone: "No earlier states yet", byYou: "You", byH: "Hermes", byRestore: "restored", 
       restoreThis: "Restore this state", restored: "Restored", cancel: "Cancel",
       exp: "Export", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Web page (HTML)", toSlides: "Slides from this doc", toDesign: "Design from this doc",
       building: "Building…", noLib: "The export library didn't load (open the doc in Hermes Desktop)", empty: "Type / for blocks, or @Hermes and a request.",
       saving: "Saving…", saved: "Saved", offline: "Not saved: open the doc in Hermes Desktop", noHost: "Not connected to Hermes: changes won't be saved.", conflict: "Hermes changed this block meanwhile: it shows Hermes' text, yours is kept as a suggestion on it",
       keptGone: "Hermes removed this block meanwhile: your text is kept as a new block",
       retrying: "Not saved yet: your text stays here and is sent again",
-      keptNew: "Hermes changed this block meanwhile: your text is kept as a new block after it",
       asking: "Hermes is writing…", editWith: "Edit with Hermes", comment: "Comment",
       editAsk: "What should Hermes change?", send: "Send", newTab: "New tab", tabName: "Tab name", delTab: "Delete tab", rename: "Rename tab", tabs: "Tabs", delTabAsk: "Delete this tab and everything in it?", ok: "OK",
       byHermes: "Hermes edited this", sent: "Sent to Hermes", drafted: "Put in the chat box: press Enter there", untitled: "Untitled",
@@ -31,7 +30,7 @@
       bold: "Bold", italic: "Italic", underline: "Underline", strike: "Strikethrough", code: "Code", color: "Colour", link: "Link", linkAsk: "Link address",
       clear: "No colour", textColor: "Text colour", highlight: "Highlight",
       insert: "Insert", text: "Text", h1: "Heading 1", h2: "Heading 2", h3: "Heading 3", bullets: "Bulleted list", numbers: "Numbered list",
-      checklist: "Checklist", quote: "Quote", codeBlock: "Code block", divider: "Divider", table: "Table", date: "Date", dropdown: "Dropdown",
+      checklist: "Checklist", checklistItem: "Checklist item", quote: "Quote", codeBlock: "Code block", divider: "Divider", table: "Table", date: "Date", dropdown: "Dropdown",
       mention: "Mention", formula: "Formula", chart: "Chart", image: "Image", slashHint: "Type / in the document for more",
       mentionAsk: "Who? (a name)", dropdownAsk: "Dropdown name (e.g. Status)", optionsAsk: "Options, comma-separated", editOptions: "Edit options…",
       rowAbove: "Insert row above", rowBelow: "Insert row below", colLeft: "Insert column left", colRight: "Insert column right",
@@ -48,14 +47,13 @@
       accept: "Accept", reject: "Reject", sReplace: "Change", sInsert: "Addition", sDelete: "Deletion", replies: "replies", reply1: "reply",
       wLabels: { latex: "Formula", math: "Formula", tex: "Formula", csv: "CSV", chart: "Chart", svg: "Drawing" },
       colors: { gray: "Gray", red: "Red", orange: "Orange", yellow: "Yellow", green: "Green", blue: "Blue", purple: "Purple" } },
-    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "te", byH: "Hermes", byRestore: "visszaállítva", 
+    hu: { hist: "Előzmények", histNone: "Még nincs korábbi állapot", byYou: "Te", byH: "Hermes", byRestore: "visszaállítva", 
       restoreThis: "Visszaállítás erre", restored: "Visszaállítva", cancel: "Mégse",
       exp: "Exportálás", docx: "Word (.docx)", pdf: "PDF", mdf: "Markdown (.md)", html: "Weboldal (HTML)", toSlides: "Slides készítése a doksiból", toDesign: "Design készítése a doksiból",
       building: "Készül…", noLib: "Az export könyvtár nem töltődött be (nyisd meg a Hermes Desktopban)", empty: "Írj / jelet a blokkokhoz, vagy @Hermes és a kérésed.",
       saving: "Mentés…", saved: "Elmentve", offline: "Nincs mentve: nyisd meg a Hermes Desktopban", noHost: "Nincs kapcsolat a Hermesszel: a módosítások nem mentődnek.", conflict: "Ezt a blokkot közben a Hermes módosította: az ő szövege látszik, a tiéd javaslatként megmaradt rajta",
       keptGone: "Ezt a blokkot közben a Hermes törölte: a szövegedet új blokként megtartottuk",
       retrying: "Még nincs mentve: a szöveged itt marad, és újra elküldjük",
-      keptNew: "Ezt a blokkot közben a Hermes módosította: a szövegedet utána, új blokként megtartottuk",
       asking: "A Hermes ír…", editWith: "Szerkesztés a Hermesszel", comment: "Komment",
       editAsk: "Mit változtasson a Hermes?", send: "Küldés", newTab: "Új fül", tabName: "Fül neve", delTab: "Fül törlése", rename: "Fül átnevezése", tabs: "Fülek", delTabAsk: "Törlöd ezt a fület a teljes tartalmával együtt?", ok: "OK",
       byHermes: "A Hermes módosította", sent: "Elküldve a Hermesnek", drafted: "Beírva a chat mezőbe: nyomj ott Entert", untitled: "Névtelen",
@@ -65,7 +63,7 @@
       bold: "Félkövér", italic: "Dőlt", underline: "Aláhúzott", strike: "Áthúzott", code: "Kód", color: "Szín", link: "Hivatkozás", linkAsk: "Hivatkozás címe",
       clear: "Nincs szín", textColor: "Szövegszín", highlight: "Kiemelés",
       insert: "Beszúrás", text: "Szöveg", h1: "Címsor 1", h2: "Címsor 2", h3: "Címsor 3", bullets: "Felsorolás", numbers: "Számozott lista",
-      checklist: "Teendőlista", quote: "Idézet", codeBlock: "Kódblokk", divider: "Elválasztó", table: "Táblázat", date: "Dátum", dropdown: "Legördülő",
+      checklist: "Teendőlista", checklistItem: "Teendő", quote: "Idézet", codeBlock: "Kódblokk", divider: "Elválasztó", table: "Táblázat", date: "Dátum", dropdown: "Legördülő",
       mention: "Említés", formula: "Képlet", chart: "Grafikon", image: "Kép", slashHint: "Írj / jelet a doksiban a többihez",
       mentionAsk: "Kit? (név)", dropdownAsk: "A legördülő neve (pl. Státusz)", optionsAsk: "Opciók vesszővel elválasztva", editOptions: "Opciók szerkesztése…",
       rowAbove: "Sor beszúrása fölé", rowBelow: "Sor beszúrása alá", colLeft: "Oszlop beszúrása balra", colRight: "Oszlop beszúrása jobbra",
@@ -89,7 +87,6 @@
   var view = document.getElementById("doc-view");
   bar.className = "kit-bar doc-bar";
   var live = !!(hm && hm.doc) && !C.thumb;
-  if (live) document.documentElement.setAttribute("data-own-pins", ""); // comments show as cards in the margin
   if (live) document.documentElement.classList.add("doc-live"); // room for the block handles
 
   // ------------------------------------------------------------------ the doc
@@ -127,8 +124,7 @@
     }
     return kit.fileUrl(p) || "";
   }
-  var dateFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { year: "numeric", month: "short", day: "numeric" });
-  function fmtDate(v) { var d = new Date(v + "T12:00:00"); return isNaN(d) ? v : dateFmt.format(d); }
+  function fmtDate(v) { return kit.date(v) || v; }
   var PALETTE = ["gray", "blue", "green", "yellow", "orange", "red", "purple"]; // by option order: not started, under way, done…
   function optionsOf(name) {
     var list = (selects[name] || []).slice();
@@ -138,11 +134,10 @@
     }); });
     return list;
   }
-  var ICON = { date: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>' };
   function chipHtml(n) {
     var src = n.kind === "date" ? "{{date:" + n.v + "}}" : n.kind === "mention" ? "{{@" + n.v + "}}" : "{{select:" + n.name + "=" + n.v + "}}";
     var a = ' contenteditable="false" data-md="' + kit.esc(src) + '"';
-    if (n.kind === "date") return '<span class="chip chip-date"' + a + ">" + ICON.date + kit.esc(fmtDate(n.v)) + "</span>";
+    if (n.kind === "date") return '<span class="chip chip-date"' + a + ">" + kit.icon("calendar") + kit.esc(fmtDate(n.v)) + "</span>";
     if (n.kind === "mention") return '<span class="chip chip-mention"' + a + ">@" + kit.esc(n.v) + "</span>";
     var i = optionsOf(n.name).indexOf(n.v), col = n.v ? PALETTE[Math.max(0, i) % PALETTE.length] : "gray";
     return '<span class="chip chip-select c-' + col + '"' + a + ' data-select="' + kit.esc(n.name) + '">' + kit.esc(n.v || "—") + '<i aria-hidden="true">▾</i></span>';
@@ -154,7 +149,7 @@
   var R = { chip: chipHtml, widget: widgetHtml, live: live, date: fmtDate };
   function renderMd(x) { return md.html(md.parse(x), imgSrc, R); }
   function fixDom(el) {
-    el.querySelectorAll("table").forEach(function (t) { // a new, still blank table spans the page, as in Claude's doc
+    el.querySelectorAll("table").forEach(function (t) { // a new, still blank table spans the page
       t.classList.toggle("t-blank", !Array.prototype.some.call(t.querySelectorAll("td,th"), function (c) { return c.textContent.trim() || c.querySelector("[data-md],img"); }));
     });
     el.querySelectorAll("td, th").forEach(function (c) {
@@ -265,6 +260,8 @@
     else if (ed) el.setAttribute("contenteditable", "true");
     else el.removeAttribute("contenteditable");
     if (!s(b.md) && tab().blocks.length === 1) el.setAttribute("data-empty", T.empty); else el.removeAttribute("data-empty");
+    if (ed && live) markEmpty(el, false);
+    if (el.isConnected) markQuotes(el); // drawn again (a focus left, an edit, Hermes' change): its open threads' words stay marked
     return el;
   }
   function s(x) { return String(x || "").trim(); }
@@ -455,6 +452,7 @@
     page.classList.toggle("head-serif", settings.head === "serif"); // the theme's font unless the doc chose serif
     page.classList.toggle("body-serif", settings.body === "serif");
     document.documentElement.classList.toggle("doc-wide", !!settings.wide);
+    if (typeof widthBtn !== "undefined" && widthBtn) widthBtn.setAttribute("aria-pressed", String(!!settings.wide)); // the button shows the state it set
   }
 
   // ------------------------------------------------------------------ saving (each change goes to the server)
@@ -510,8 +508,42 @@
   }
   /** base: the rev a block's words were typed against (its own, older than the tab's when Hermes changed
    *  that block meanwhile), so the server sees the conflict instead of the person's save overwriting it. */
-  function edit(ops, base) { return enqueue("edit", ops, base); }
-  function propose(ops) { return enqueue("suggest", ops).then(function (r) { return pull(true).then(function () { return r; }); }); }
+  function edit(ops, base) { ops = withUnsent(ops); return ops.length ? enqueue("edit", ops, base) : Promise.resolve({ ok: true }); }
+  function propose(ops) {
+    ops.forEach(function (o) { [o.block, o.after].forEach(function (id) { var c = claim(id); if (c) enqueue("edit", [c]); }); });
+    return enqueue("suggest", ops).then(function (r) { return pull(true).then(function () { return r; }); });
+  }
+  // An empty block "+" made (addBelow) stays here, unsent, until something is written in it or names it: its
+  // insert goes then, with its words (a replace of it), or first (another edit naming it); a delete of it sends
+  // nothing (V6j: "+" then Esc saved an insert and a delete, and the doc's time moved with nothing changed). A type
+  // chosen for it with nothing in it yet (a heading's "## ", a bullet's "- ") is no words: it stays unsent, and is
+  // taken back when left empty (commit; V6j: an empty heading saved, drawn 0 px high), as an empty code block is
+  // (V6l: "+" Code block, nothing written, saved).
+  var unsent = {}; // tmp id -> { after, aprevs, md }
+  function bare(m) {
+    m = String(m || "");
+    if (/^\s*(`{3,}|~{3,})[\w+#.-]*\n\s*\1\s*$/.test(m)) return true; // a code block with nothing in it
+    return !m.replace(/^[ \t]*(#{1,6}|[-*+]([ \t]+\[[ xX]\])?|\d+[.)]|>)(?=\s|$)/gm, "").trim();
+  }
+  function bareEl(el) { return bare(mdOf(el)) && !el.querySelector("img,[data-md],table,hr"); } // a block shown with nothing in it
+  function claim(id, md) { // the insert of an unsent block, now going out
+    var v = id && unsent[id];
+    if (!v) return null;
+    delete unsent[id];
+    return { op: "insert", after: v.after, md: md != null ? md : (blockOf(id) || {}).md || "", tmp: id };
+  }
+  function withUnsent(ops) {
+    var out = [];
+    ops.forEach(function (o) {
+      if (o.op === "delete" && unsent[o.block]) { delete unsent[o.block]; return; }
+      if (o.op === "replace" && unsent[o.block] && bare(o.md)) { unsent[o.block].md = o.md; return; }
+      var c = o.op === "replace" && claim(o.block, o.md);
+      if (c) { out.push(c); return; }
+      [o.block, o.after].forEach(function (id) { var c2 = claim(id); if (c2) out.push(c2); });
+      out.push(o);
+    });
+    return out;
+  }
   function wire(e) { // the ops as the server takes them: ids it gave meanwhile, an anchor still unsettled moved back, the cid
     return e.ops.map(function (o, i) {
       var x = {}; for (var k in o) if (k !== "tmp" && k.charAt(0) !== "_") x[k] = o[k];
@@ -595,7 +627,7 @@
         fix.ops.forEach(function (o) { if (o.tmp && focused && focused.id === o.tmp) focused.sug = false; }); // its words: a block of its own now
       } else {
         outbox.shift(); e.done(r);
-        kit.toast(String(r.message || r.refused));
+        kit.toast(String(r.message || r.refused), 0, "error");
       }
       pump();
     });
@@ -765,6 +797,7 @@
     var n = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
     return n && n.closest ? n.closest(".doc-blk[data-block]") : null;
   }
+  function drawnMd(b) { return isWidget(b.md) ? null : mdOf(drawBlock(b, h("div"))); } // the block as drawn, read back
   function mdOf(el) {
     var src = el.querySelector("textarea.doc-src");
     if (src) return src.fenced ? src.fenced(src.value) : src.value;
@@ -784,19 +817,45 @@
     return outbox.some(function (e) { return e.ops.some(function (o) { return (realIds[o.block] || o.block) === id || o.tmp === id || realIds[o.tmp] === id; }); });
   }
   function dirty(f, el) { return !!(f.timer || f.sug || composing || pendingFor(f.id) || (el && mdOf(el) !== f.saved)); }
+  // The server is told at once, and every 1.5 s for as long as the block has words not saved yet (typing,
+  // a save waiting or on its way), which block that is: Hermes' edit of it is refused, and Hermes told, until
+  // the save (store.typing_set, held 4 s). A race the ping loses is the save's conflict (conflicted): the
+  // words stay, as a suggestion on Hermes' text, and the page says so.
+  var typed = {}, typingTimer = null;
+  function typingPing(id) {
+    var real = realIds[id] || id, now = Date.now();
+    if (!live || !hm.typing || /^tmp-/.test(real) || now - (typed[real] || 0) < 1000) return;
+    typed[real] = now;
+    hm.typing([real]).catch(function () {});
+  }
+  function typingTick() {
+    var f = focused, el = f && blockEl(f.id);
+    if (!f || !el || !dirty(f, el)) { clearInterval(typingTimer); typingTimer = null; return; }
+    typingPing(f.id);
+  }
+  // A save waits for a pause in the typing (SAVE_PAUSE), but never longer than SAVE_MAX after the first key
+  // not saved: someone typing on and on is saved every 2 s, not only when they stop.
+  var SAVE_PAUSE = 700, SAVE_MAX = 2000;
   function scheduleSave(el) {
-    var id = el.getAttribute("data-block");
+    var id = el.getAttribute("data-block"), now = Date.now();
+    typingPing(id);
+    if (!typingTimer) typingTimer = setInterval(typingTick, 1500);
     if (!focused || focused.id !== id) focused = track(id, el);
+    if (!focused.first) focused.first = now;
     clearTimeout(focused.timer);
-    focused.timer = setTimeout(function () { save(false); }, 700);
+    focused.timer = setTimeout(function () { save(false); }, Math.max(0, Math.min(SAVE_PAUSE, focused.first + SAVE_MAX - now)));
   }
   function save(final) {
     if (!focused) return Promise.resolve();
     var f = focused, el = blockEl(f.id);
-    clearTimeout(f.timer); f.timer = null;
+    clearTimeout(f.timer); f.timer = null; f.first = 0;
     if (!el) return Promise.resolve();
     var now = mdOf(el);
     if (now === f.saved) return Promise.resolve();
+    // Words that read back as the block's Markdown drawn again are no edit: a focus, a click, a pick for a
+    // comment never write (a Markdown spelling the editor writes differently stays as the server has it).
+    var b0 = blockOf(f.id);
+    if (b0 && b0.md === f.saved && now === drawnMd(b0)) return Promise.resolve();
     f.saved = now; // in the outbox now: kept and sent until the server takes it (a block Hermes removed comes back: repairOps)
     var p = writeBlock(f.id, now, f.sug ? { sug: true } : { base: f.base });
     if (final) redrawOne(f.id);
@@ -807,9 +866,10 @@
   function redrawOne(id) { var b = blockOf(id), el = blockEl(id); if (b && el && !(focused && focused.id === id)) { drawBlock(b, el); drawToc(); } }
   function commit() {
     if (!focused) return;
-    var f = focused;
+    var f = focused, el0 = blockEl(f.id);
     save(false);
     focused = null;
+    if (unsent[f.id] && el0 && bareEl(el0)) { removeBlock(f.id); return; } // left empty
     if (f.sug) { var b0 = blockOf(f.id); if (b0 && f.theirs != null) b0.md = f.theirs; pull(true); } // now it shows Hermes' text and the person's suggestion on it
     redrawOne(f.id);
     ast = md.parse(fullText());
@@ -817,7 +877,8 @@
   }
   // Notion's hint on the empty line being typed in
   function markEmpty(el, on) {
-    var empty = on && !el.textContent.trim() && !el.querySelector("img,[data-md],table,hr,pre");
+    // an empty heading always says what it is (Heading 2), a line being typed in only while it has the caret
+    var empty = (on || /^H[1-6]$/.test((el.firstElementChild || {}).tagName)) && !el.textContent.trim() && !el.querySelector("img,[data-md],table,hr,pre");
     el.classList.toggle("is-empty", !!empty);
     if (empty) el.setAttribute("data-ph", /^H[1-6]$/.test((el.firstElementChild || {}).tagName) ? el.firstElementChild.tagName.replace("H", T.h1.replace(/1$/, "")) : T.typeHint);
   }
@@ -834,7 +895,10 @@
     if (el) markEmpty(el, false);
     setTimeout(function () {
       if (!el || !focused || focused.id !== el.getAttribute("data-block")) return;
-      if (el.contains(document.activeElement) || floating()) return;
+      // the page itself left (a press in Hermes) with a block "+" made still empty: gone at once (V6l: it stayed
+      // until the doc was opened again); anything else keeps its caret for when the page is back
+      var left = !document.hasFocus() && unsent[focused.id] && bareEl(el);
+      if (!left && (el.contains(document.activeElement) || floating())) return;
       commit();
     }, 0);
   });
@@ -982,6 +1046,10 @@
   });
   function enterInBlock(el) {
     var id = el.getAttribute("data-block"), r = E.caretRange();
+    if (!r || !el.contains(r.startContainer)) { // no caret in it (a block just made, a click beside it): Enter goes at its end
+      E.placeCaret(el.firstElementChild || el, true); r = E.caretRange();
+      if (!r) return;
+    }
     var c0 = containerOf(r.startContainer, el) || el, quote = c0.tagName === "BLOCKQUOTE";
     var line = el.textContent.trim();
     if (/^(```|~~~)\s*[\w+#.-]*$/.test(line) || /^-{3,}$/.test(line)) { // "```" or "---" then Enter
@@ -1106,29 +1174,13 @@
       if (right) ref.after(c); else ref.before(c);
     });
   }
-  // ------------------------------------------------------------------ menus like Claude's doc: icons, groups, submenus, a swatch row
-  var MI = {
-    plus: "M12 5v14M5 12h14",
-    text: "M5 7V5h14v2M12 5v14M9 19h6", h1: "M4 6v12M12 6v12M4 12h8M17 10l2-1v9", h2: "M4 6v12M12 6v12M4 12h8M16 10.5a2 2 0 0 1 4 .5c0 2-4 3.5-4 6h4", h3: "M4 6v12M12 6v12M4 12h8M16 9.5h4l-2.5 3a2.3 2.3 0 1 1-1.5 4",
-    table: "M4 5h16v14H4zM4 10h16M4 14.5h16M10 5v14", dropdown: "M4 6h16v12H4zM14 11l2 2 2-2", bullets: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
-    checklist: "M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8", code: "M9 8l-4 4 4 4M15 8l4 4-4 4", date: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4", divider: "M4 12h16",
-    image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01", numbers: "M10 6h10M10 12h10M10 18h10M4 5l1.5-1v5M3.5 13.5a1.5 1.5 0 0 1 3 0c0 1.5-3 2-3 3.5h3", quote: "M5 6v12M9 8h10M9 12h10M9 16h6",
-    formula: "M18 5H8l5 7-5 7h10", chart: "M5 19V9M10 19V5M15 19v-7M20 19v-4", mention: "M16 12a4 4 0 1 1-1.2-2.8V13a2 2 0 0 0 4 0v-1a7 7 0 1 0-3 5.7",
-    hermes: "M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2", person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0", tab: "M7 3h7l5 5v12H7zM14 3v5h5",
-    rowAbove: "M4 14h16v6H4zM12 4v7M9 7l3-3 3 3", rowBelow: "M4 4h16v6H4zM12 13v7M9 17l3 3 3-3", colLeft: "M14 4h6v16h-6zM4 12h7M7 9l-3 3 3 3", colRight: "M4 4h6v16H4zM13 12h7M17 9l3 3-3 3",
-    move: "M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3", width: "M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3M12 5v14",
-    delRow: "M4 8h16v8H4zM9 12h6", delCol: "M8 4h8v16H8zM12 9v6", trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13", sortAsc: "M12 19V5M6 11l6-6 6 6", sortDesc: "M12 5v14M6 13l6 6 6-6",
-    alignL: "M4 6h16M4 10h10M4 14h16M4 18h10", alignC: "M4 6h16M7 10h10M4 14h16M7 18h10", alignR: "M4 6h16M10 10h10M4 14h16M10 18h10", header: "M4 5h16v14H4zM4 10h16",
-    duplicate: "M8 8h12v12H8zM16 8V4H4v12h4", up: "M12 19V5M6 11l6-6 6 6", down: "M12 5v14M6 13l6 6 6-6", comment: "M4 5h16v11H9l-5 4z", turn: "M4 7h11l-3-3M20 17H9l3 3",
-    caret: "M10 7l5 5-5 5"
-  };
-  function micon(name) {
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (MI[name] || "") + '"/></svg>';
-  }
+  // ------------------------------------------------------------------ menus: icons, groups, submenus, a swatch row
+  // the doc's icons in its menus: doc-<name>, the kit's where it has no own
+  function micon(name) { return kit.icon("doc-" + name); }
   var menuStack = [];
   function closeMenus(from) {
     while (menuStack.length > (from || 0)) { var m = menuStack.pop(); m.el.remove(); }
-    if (!menuStack.length) { document.removeEventListener("mousedown", menuOut, true); window.removeEventListener("scroll", closeAllMenus, true); window.removeEventListener("resize", closeAllMenus); }
+    if (!menuStack.length) { document.removeEventListener("pointerdown", menuOut, true); window.removeEventListener("scroll", closeAllMenus, true); window.removeEventListener("resize", closeAllMenus); }
   }
   function closeAllMenus(e) { // the page scrolling closes menus; a menu's own list scrolling does not
     if (e && e.type === "scroll" && e.target && e.target.nodeType === 1 && e.target.closest(".doc-rmenu")) return;
@@ -1138,7 +1190,31 @@
   function menuOut(e) {
     var opener = menuStack[0] && menuStack[0].from;
     if (opener && opener.contains(e.target)) return; // its own button: the click closes it (no close-and-reopen)
-    if (!menuStack.some(function (m) { return m.el.contains(e.target); })) closeMenus(0);
+    if (!menuStack.some(function (m) { return m.el.contains(e.target); })) { kit.swallowPress(e); closeMenus(0); } // only closes them
+  }
+  /** A menu at x, y (under its button `from` when there is one): as tall as its items within the window. A button's
+   *  menu with no room under it opens above it when there is more there; a menu at a point (a right-click) moves up
+   *  as far as it must. Taller than the window, it scrolls, cut between two rows (never through one, never on a divider). */
+  function placeMenu(el, x, y, from) {
+    el.style.maxHeight = "none"; el.style.paddingBottom = "";
+    var full = el.offsetHeight, fr = from && from.getBoundingClientRect && from.getBoundingClientRect(), top = y, avail = innerHeight - 8 - y;
+    if (full > avail) {
+      var up = fr ? fr.top - 6 - 8 : 0;
+      if (fr && up > avail) { avail = up; top = Math.max(8, fr.top - 6 - full); }
+      else if (!fr) { avail = innerHeight - 16; top = Math.max(8, innerHeight - 8 - full); }
+    }
+    if (full > avail) {
+      // no bottom padding then: the next row would show a sliver in it
+      var cut = 0;
+      Array.prototype.forEach.call(el.children, function (c) {
+        if (/doc-rm-(sep|hint|foot)/.test(c.className)) return;
+        if (c.offsetTop + c.offsetHeight + 2 <= avail) cut = c.offsetTop + c.offsetHeight;
+      });
+      el.style.paddingBottom = "0px"; el.style.maxHeight = (cut + 2) + "px";
+      if (fr && top < fr.top) top = Math.max(8, fr.top - 6 - (cut + 2));
+    }
+    el.style.left = Math.max(8, Math.min(x, innerWidth - el.offsetWidth - 8)) + "px";
+    el.style.top = top + "px";
   }
   /** items: {icon, label, onClick, danger, disabled, sub: [items] | () => [items], hint, sep, swatches: [{color, label, onClick}]} */
   function richMenu(x, y, items, level, from) {
@@ -1159,7 +1235,7 @@
         return;
       }
       var b = h("button", { type: "button", role: "menuitem", "class": "doc-rm-item" + (it.danger ? " is-danger" : "") + (it.active ? " is-on" : ""), disabled: it.disabled || null,
-        html: (it.icon ? micon(it.icon) : '<span class="doc-rm-noicon"></span>') + "<span>" + kit.esc(it.label) + "</span>" + (it.sub ? micon("caret") : it.active ? '<i class="doc-rm-check">✓</i>' : "") });
+        html: (it.icon ? micon(it.icon) : '<span class="doc-rm-noicon"></span>') + "<span>" + kit.esc(it.label) + "</span>" + (it.sub ? micon("caret") : it.active ? '<i class="doc-rm-check">' + kit.icon("check") + "</i>" : "") });
       b.addEventListener("mousedown", function (e) { e.preventDefault(); });
       var openSub = function () {
         var r = b.getBoundingClientRect(), list = typeof it.sub === "function" ? it.sub() : it.sub;
@@ -1172,12 +1248,10 @@
       el.appendChild(b);
     });
     document.body.appendChild(el);
-    var w = el.offsetWidth, hh = el.offsetHeight;
-    el.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
-    el.style.top = Math.max(8, Math.min(y, innerHeight - hh - 8)) + "px";
+    placeMenu(el, x, y, from);
     menuStack.push({ el: el, rows: rows, i: -1, from: from || null });
     if (menuStack.length === 1) setTimeout(function () {
-      document.addEventListener("mousedown", menuOut, true);
+      document.addEventListener("pointerdown", menuOut, true);
       window.addEventListener("scroll", closeAllMenus, true); window.addEventListener("resize", closeAllMenus); // a menu never drifts from its button
     }, 0);
     return el;
@@ -1229,7 +1303,7 @@
     document.execCommand("insertHTML", false, tmp.innerHTML + "&nbsp;");
     saveEl(el);
   }
-  // Claude's cell menu: right-click a cell, or Shift+F10 in it.
+  // The cell menu: right-click a cell, or Shift+F10 in it.
   function tableMenu(cell, x, y, from) {
     var table = cell.closest("table"), el = table.closest(".doc-blk"), id = el.getAttribute("data-block");
     var row = cell.parentNode, rows = rowsOf(table), k = cellsOf(row).indexOf(cell), i = rows.indexOf(row), cols = cellsOf(rows[0]).length;
@@ -1273,12 +1347,12 @@
     tableMenu(cell, e.clientX, e.clientY);
   });
 
-  // Claude's table handles: a pill on the hovered row's left edge and the hovered column's top edge,
+  // The table's handles: a pill on the hovered row's left edge and the hovered column's top edge,
   // a + bar when the pointer nears the bottom or right edge, a … menu, and ⋮⋮ to move the table.
-  var PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>';
-  var GRIP_V = '<svg viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="8" r="1.3"/><circle cx="7" cy="8" r="1.3"/><circle cx="3" cy="13" r="1.3"/><circle cx="7" cy="13" r="1.3"/></svg>';
+  var PLUS = kit.icon("plus");
+  var GRIP_V = kit.icon("gripper");
   function uiBtn(cls, label, html) {
-    var b = h("button", { type: "button", "class": "doc-tui " + cls, title: label, "aria-label": label, html: html || "", hidden: true });
+    var b = h("button", { type: "button", "class": "doc-tui " + cls, "data-comment-hide": "", title: label, "aria-label": label, html: html || "", hidden: true });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); });
     document.body.appendChild(b);
     return b;
@@ -1328,11 +1402,12 @@
     var r = t.getBoundingClientRect(); place(tui.addCol, r.right + 2, r.top, null, r.height); // the bar moves with the table's new edge
   });
 
-  // ⋮⋮ beside a table: drag it to another place, or click for its menu (as in Claude's doc).
+  // ⋮⋮ beside a table: drag it to another place, or click for its menu.
   var drag = null, dropLine = h("div", { "class": "doc-dropline", hidden: true });
   document.body.appendChild(dropLine);
   // ⋮⋮ and + beside every block, as in Notion: + adds a block below and opens the / menu; ⋮⋮ drags it or opens its menu.
-  var gut = { el: h("div", { "class": "doc-gutter", hidden: true }), id: null };
+  // data-comment-hide: hover-only, not shown while a comment is picked or written (bridge.js)
+  var gut = { el: h("div", { "class": "doc-gutter", "data-comment-hide": "", hidden: true }), id: null };
   gut.plus = h("button", { type: "button", "class": "doc-g-plus", title: T.addBelow, "aria-label": T.addBelow, html: PLUS });
   gut.grip = h("button", { type: "button", "class": "doc-g-grip", title: T.blockMenu, "aria-label": T.blockMenu, html: GRIP_V });
   gut.el.append(gut.plus, gut.grip);
@@ -1344,15 +1419,23 @@
     var lh = parseFloat(cs.lineHeight); if (!isFinite(lh)) lh = (parseFloat(cs.fontSize) || 16) * 1.5;
     var ft = first ? first.getBoundingClientRect().top + (parseFloat(cs.paddingTop) || 0) : r.top;
     if (first && /^(TABLE|DIV|FIGURE|PRE)$/.test(first.tagName)) lh = 32;
+    // + and ⋮⋮ keep a clear 6 px from the block; a narrow pane has room for ⋮⋮ only (its menu then offers "add
+    // below"); with no room for that either, none shows.
+    var GAP = 6, roomy = r.left - 45 - GAP >= 0;
+    if (!roomy && r.left - 22 - GAP < 0) { hideGutter(); return; }
     gut.id = el.getAttribute("data-block"); gut.el.hidden = false;
-    var roomy = r.left >= 50; // a narrow pane has room for ⋮⋮ only; its menu then offers "add below"
     gut.plus.hidden = !roomy;
-    gut.el.style.left = Math.max(0, r.left - (roomy ? 46 : 23)) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
+    gut.el.style.left = (r.left - (roomy ? 45 : 22) - GAP) + "px"; gut.el.style.top = (ft + Math.min(lh, 40) / 2 - 12) + "px";
   }
   function addBelow(id) {
-    insertBlock(id, "", "end");
+    if (realIds[id]) id = realIds[id];
+    var tmp = mode === "suggest" ? null : showNew(id, "", "end");
+    if (tmp) unsent[tmp] = { after: id, aprevs: [id].concat(prevsOf(id)) };
+    var made = tmp ? Promise.resolve(tmp) : insertBlock(id, "", "end");
     var el = document.activeElement && document.activeElement.closest && document.activeElement.closest(".doc-blk");
-    if (el) setTimeout(function () { slash.show(el, "/", true); }, 0); // after this click has passed the page's close-on-click
+    // after this click has passed the page's close-on-click; Esc on that menu takes the block back while it is
+    // still empty (V6h: an empty paragraph left behind)
+    if (el) setTimeout(function () { slash.show(el, "/", true); slash.made = mode === "suggest" ? null : { made: made, after: id }; }, 0);
   }
   gut.plus.addEventListener("click", function () { var id = gut.id; if (!id) return; hideGutter(); addBelow(id); });
   gut.grip.addEventListener("mousedown", function (e) {
@@ -1538,7 +1621,7 @@
     if (m[3] != null) {
       var name = m[3].trim(), opts = optionsOf(name);
       menuAt(r.left, r.bottom + 4, opts.map(function (o, i) {
-        return { label: (o === m[4].trim() ? "✓ " : "   ") + o, onClick: function () {
+        return { on: o === m[4].trim(), label: o, onClick: function () {
           chipChanged(place, "{{select:" + name + "=" + o + "}}");
         } };
       }).concat([{ label: T.editOptions, onClick: function () {
@@ -1582,10 +1665,10 @@
     var meta = null;
     if (spec) {
       var titleIn = h("input", { type: "text", "class": "doc-data-in", value: spec.title || "", placeholder: T.chartTitle, "aria-label": T.chartTitle });
-      var typeSel = h("select", { "class": "doc-data-in", "aria-label": T.chartType }, [["bar", T.cBar], ["line", T.cLine], ["area", T.cArea]].map(function (o) {
+      var typeSel = h("select", { "class": "doc-data-in kit-select", "aria-label": T.chartType }, [["bar", T.cBar], ["line", T.cLine], ["area", T.cArea]].map(function (o) {
         var op = h("option", { value: o[0], text: o[1] }); if ((spec.type || "bar") === o[0]) op.selected = true; return op; }));
       var unitIn = h("input", { type: "text", "class": "doc-data-in doc-data-short", value: spec.unit || "", placeholder: T.chartUnit, "aria-label": T.chartUnit });
-      var hiSel = h("select", { "class": "doc-data-in", "aria-label": T.chartHighlight });
+      var hiSel = h("select", { "class": "doc-data-in kit-select", "aria-label": T.chartHighlight });
       hiSel.addEventListener("change", function () { spec.highlight = hiSel.value || null; });
       var srcIn = h("input", { type: "text", "class": "doc-data-in", value: spec.source || "", placeholder: T.chartSource, "aria-label": T.chartSource });
       meta = h("div", { "class": "doc-data-meta" }, [
@@ -1636,9 +1719,9 @@
       }
     }
     draw();
-    var addRow = h("button", { type: "button", "class": "doc-data-add", text: "+ " + T.addRow });
+    var addRow = h("button", { type: "button", "class": "doc-data-add", html: kit.icon("plus") + "<span>" + kit.esc(T.addRow) + "</span>" });
     addRow.addEventListener("click", function () { readGrid(); rows.push(head.map(function () { return ""; })); draw(); var last = grid.rows[grid.rows.length - 1].querySelector("input"); if (last) last.focus(); });
-    var addCol = h("button", { type: "button", "class": "doc-data-add", text: "+ " + (spec ? T.addSeries : T.addCol) });
+    var addCol = h("button", { type: "button", "class": "doc-data-add", html: kit.icon("plus") + "<span>" + kit.esc(spec ? T.addSeries : T.addCol) + "</span>" });
     addCol.addEventListener("click", function () { readGrid(); head.push(spec ? T.seriesN + " " + head.length : String.fromCharCode(64 + head.length + 1)); rows.forEach(function (r) { r.push(""); }); draw(); });
     var ok = h("button", { type: "button", "class": "doc-src-done", text: T.done });
     var cancelB = h("button", { type: "button", "class": "doc-data-cancel", text: T.cancel });
@@ -1720,6 +1803,27 @@
       var s0 = window.getSelection(); s0.removeAllRanges(); var nr = document.createRange(); nr.selectNodeContents(w); s0.addRange(nr);
     });
   }
+  /** Code toggles as Bold does: words all in code come out of it, any others go in (one <code>, never one inside
+   *  another; a code the words held before is folded into the new one). */
+  function inCodeSel() {
+    var r = E.caretRange(), blk = currentBlockEl(); if (!r || !blk) return false;
+    var a = r.commonAncestorContainer, c = (a.nodeType === 1 ? a : a.parentNode).closest("code");
+    return !!(c && blk.contains(c) && !c.closest("pre"));
+  }
+  function toggleCode() {
+    var r = E.caretRange(); if (!r || r.collapsed || !inEditable()) return;
+    var blk = currentBlockEl(), a = r.commonAncestorContainer, home = (a.nodeType === 1 ? a : a.parentNode).closest("code");
+    var whole = home && blk.contains(home) ? home : Array.prototype.filter.call(blk.querySelectorAll("code"), function (c) {
+      return r.intersectsNode(c) && c.textContent === r.toString() && !c.parentNode.closest("code");
+    })[0];
+    if (!whole) return wrapSel("code");
+    while (whole.parentNode.closest && whole.parentNode.closest("code") && blk.contains(whole.parentNode.closest("code"))) whole = whole.parentNode.closest("code");
+    after(function () {
+      var txt = document.createTextNode(whole.textContent);
+      whole.parentNode.insertBefore(txt, whole); whole.remove();
+      var s0 = window.getSelection(), nr = document.createRange(); nr.selectNode(txt); s0.removeAllRanges(); s0.addRange(nr);
+    });
+  }
   function clearColor() {
     var r = E.caretRange(); if (!r || !inEditable()) return;
     after(function () {
@@ -1753,17 +1857,13 @@
     return ids.length ? { ids: ids, text: String(s0).trim(), rect: r.getBoundingClientRect() } : null;
   }
   function tb(label, ico, fn, cls) {
-    var b = h("button", { type: "button", "class": "doc-sb" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: ico });
+    var b = h("button", { type: "button", "class": "doc-sb" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: ico,
+      "aria-pressed": /\bis-on\b/.test(cls || "") ? "true" : null });
     b.addEventListener("click", fn);
     return b;
   }
-  var SVG = function (d, extra) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + (extra || "") + '><path d="' + d + '"/></svg>'; };
-  var I = {
-    hermes: SVG("M12 6v15M12 6.5c-1.8-2.2-4.6-2.9-8-2.4 1.6 1.6 4.4 2.6 8 2.6M12 6.5c1.8-2.2 4.6-2.9 8-2.4-1.6 1.6-4.4 2.6-8 2.6M12 4.6a1.3 1.3 0 1 0 0-.1M9 10.5c4.5 1.2 6 2.6 6 3.6s-6 1.6-6 3.4c0 1 1.5 1.6 3 2M15 10.5c-4.5 1.2-6 2.6-6 3.6s6 1.6 6 3.4c0 1-1.5 1.6-3 2"), comment: SVG("M4 5h16v11H9l-5 4z"),
-    bold: '<b>B</b>', italic: '<i style="font-family:Georgia,serif">I</i>', underline: '<u>U</u>', strike: '<s>S</s>', code: SVG("M9 8l-4 4 4 4M15 8l4 4-4 4"),
-    color: SVG("M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-1.1-.9-1.4-.9-2.4 0-.9.8-1.5 1.7-1.5H17a4 4 0 0 0 4-4c0-4.6-4-8.5-9-8.5z"),
-    link: SVG("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1")
-  };
+  var I = { hermes: kit.icon("doc-hermes"), comment: kit.icon("comment"), bold: kit.icon("bold"), italic: kit.icon("italic"),
+    underline: kit.icon("underline"), strike: kit.icon("strike"), code: kit.icon("code"), color: kit.icon("palette"), link: kit.icon("link") };
   function showSelBar() {
     var sel = live ? selectedBlocks() : null;
     if (!sel || !sel.text) { selBar.hidden = true; return; }
@@ -1780,7 +1880,7 @@
       }),
       tb(T.bold, I.bold, function () { format("bold"); }), tb(T.italic, I.italic, function () { format("italic"); }),
       tb(T.underline, I.underline, function () { format("underline"); }), tb(T.strike, I.strike, function () { format("strikeThrough"); }),
-      tb(T.code, I.code, function () { wrapSel("code"); }),
+      tb(T.code, I.code, toggleCode, inCodeSel() ? "is-on" : ""),
       tb(T.color, I.color + CARET_S, function (e) { colorMenu(e.currentTarget); }),
       tb(T.listStyle, micon("bullets") + CARET_S, function (e) {
         var r = e.currentTarget.getBoundingClientRect();
@@ -1794,7 +1894,7 @@
     selBar.style.top = Math.max(floor, top < floor ? sel.rect.bottom + 8 : top) + "px";
     selBar.style.left = Math.max(8, Math.min(innerWidth - selBar.offsetWidth - 8, sel.rect.left + sel.rect.width / 2 - selBar.offsetWidth / 2)) + "px";
   }
-  var CARET_S = '<svg class="doc-sb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
+  var CARET_S = kit.icon("caretDown", "doc-sb-caret");
   function colorMenu(anchor) {
     var r0 = anchor.getBoundingClientRect(), saved0 = E.caretRange() && E.caretRange().cloneRange();
     var back = function () { var s0 = window.getSelection(); s0.removeAllRanges(); if (saved0) s0.addRange(saved0); };
@@ -1820,6 +1920,22 @@
     if (selBar.contains(document.activeElement)) return;
     selTimer = setTimeout(showSelBar, 200);
   });
+  // The person went to the host (its Comment, the comments list, the chat): a frame's selection stays while it has no
+  // focus, its bar would float there, stale (and cut by the list opening beside it). It closes; the comment pick too.
+  window.addEventListener("blur", function () { clearTimeout(selTimer); selBar.hidden = true; });
+  if (hm && hm.on) hm.on("comment-mode", function (d) { if (d && d.on) { clearTimeout(selTimer); selBar.hidden = true; } nameEmpty(d && d.on); });
+  // A block with nothing in it, picked for a comment, is named by its kind (V6l: "Selected part" for an empty
+  // checklist item), while picking; one with words is named by them.
+  function nameEmpty(on) {
+    page.querySelectorAll(".doc-blk[data-block]").forEach(function (el) {
+      var f = el.firstElementChild, t = f && f.tagName, name = null;
+      if (on && !el.textContent.trim() && !el.querySelector("img,table,hr,[data-md]")) {
+        name = /^H[1-6]$/.test(t) ? T["h" + Math.min(3, +t[1])] : t === "UL" ? (f.querySelector("li.task") ? T.checklistItem : T.bullets)
+          : t === "OL" ? T.numbers : t === "BLOCKQUOTE" ? T.quote : t === "PRE" ? T.codeBlock : T.text;
+      }
+      if (name) el.setAttribute("data-comment-label", name); else el.removeAttribute("data-comment-label");
+    });
+  }
   document.addEventListener("mousedown", function (e) {
     if (!selBar.contains(e.target)) selBar.hidden = true;
     if (slash.open && !slash.el.contains(e.target)) slash.close();
@@ -1867,7 +1983,7 @@
     ];
   }
   function itemByKey(k) { return blockItems().find(function (it) { return it.k === k; }); }
-  // "@": ask Hermes, a person, a date (Claude's @ menu)
+  // "@": ask Hermes, a person, a date (the @ menu)
   function atItems() {
     var people = [];
     tabs.forEach(function (t) { t.blocks.forEach(function (b) { var re = /\{\{@([^{}\n]+)\}\}/g, m; while ((m = re.exec(b.md))) if (people.indexOf(m[1].trim()) < 0) people.push(m[1].trim()); }); });
@@ -1886,7 +2002,7 @@
     if (it.chip) {
       var saved = E.caretRange() && E.caretRange().cloneRange();
       return Promise.resolve(it.chip()).then(function (c) { // a chip that asks first (a name, the options) comes later
-      if (!c) return;
+      if (!c) { var be = id && blockEl(id); if (be && unsent[id] && bareEl(be)) removeBlock(id); return; } // its question left (Esc): a block "+" made goes, empty
       var cur = id && blockEl(id), bb = id && blockOf(id);
       if (cur && bb && editable(bb) && !isCode(bb.md)) { // in the line, where the caret was
         cur.focus();
@@ -1956,13 +2072,22 @@
       if (this.trigger === "/") nodes.push(h("div", { "class": "doc-rm-foot", text: T.slashHint }));
       this.el.replaceChildren.apply(this.el, nodes);
       var r = E.caretRange(), rc = r && r.getClientRects()[0] || this.block.getBoundingClientRect();
-      this.el.style.left = Math.min(rc.left, innerWidth - 240) + "px";
-      this.el.style.top = Math.min(rc.bottom + 6, innerHeight - this.el.offsetHeight - 8) + "px";
+      placeMenu(this.el, rc.left, rc.bottom + 6, { getBoundingClientRect: function () { return rc; } }); // under the caret, else over it
+      var on = this.el.querySelector(".is-focus"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
     },
     key: function (e) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); this.idx = (this.idx + (e.key === "ArrowDown" ? 1 : this.items.length - 1)) % this.items.length; this.update(); return true; }
       if (e.key === "Enter") { e.preventDefault(); this.pick(this.idx); return true; }
-      if (e.key === "Escape") { e.preventDefault(); this.close(); return true; }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        var made = this.made, el = this.block;
+        this.close();
+        if (made && el) made.made.then(function (nid) {
+          var bid = nid || el.getAttribute("data-block"), be = bid && blockEl(bid);
+          if (be && !be.textContent.trim() && !be.querySelector("[data-md],img")) { removeBlock(bid); focusBlock(made.after, true); }
+        });
+        return true;
+      }
       return false;
     },
     pick: function (i) {
@@ -1982,7 +2107,8 @@
       scheduleSave(el);
       applyItem(it, el, false);
     },
-    close: function () { this.open = false; this.bare = false; if (this.el) this.el.hidden = true; }
+    made: null, // the block + made, the menu opened on it: {made: its insert, after: the block before it}
+    close: function () { this.open = false; this.bare = false; this.made = null; if (this.el) this.el.hidden = true; }
   };
 
   // ------------------------------------------------------------------ pictures: insert, paste, drop
@@ -1994,7 +2120,7 @@
       hm.doc.upload(rd.result).then(function (r) {
         docFiles[r.name] = rd.result;
         insertBlock(afterId, "![" + (file.name || "").replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "") + "](" + r.src + ")", null);
-      }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e)); });
+      }).catch(function (e) { setStatus(""); kit.toast(String(e && e.message || e), 0, "error"); });
     };
     rd.readAsDataURL(file);
   }
@@ -2032,18 +2158,44 @@
     var el = e.target.closest && e.target.closest(".doc-blk[data-block]");
     Array.prototype.forEach.call(e.dataTransfer.files, function (f) { upload(f, el ? el.getAttribute("data-block") : null); });
   });
-  view.addEventListener("click", function (e) { // a click below the last block: type at the end
+  // A click below the last block: type at the end. The caret goes into a line of the page's own (not a block of
+  // the doc yet): the first thing typed there makes it one (an edit with those words); left untouched, it goes
+  // when it loses the focus, and nothing was saved, no revision, no history entry (the round-3 run saw an empty
+  // paragraph saved by a click).
+  var ghost = null;
+  function dropGhost() { if (ghost) { var g = ghost; ghost = null; g.parentNode && g.parentNode.remove(); } }
+  function ghostLine() {
+    dropGhost();
+    var wrap = h("div", { "class": page.className + " doc-ghostwrap" }), g = h("div", { "class": "doc-blk doc-ghost is-empty", contenteditable: "true", "data-ph": T.typeHint, html: "<p><br></p>" });
+    wrap.appendChild(g); page.after(wrap); ghost = g;
+    g.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); }); // an empty line does not split
+    g.addEventListener("input", function () {
+      if (composing || ghost !== g) return;
+      var text = E.toMd(g);
+      if (!s(text)) return;
+      dropGhost();
+      var last = tab().blocks[tab().blocks.length - 1];
+      insertBlock(last ? last.id : null, text, "end");
+      var nb = tab().blocks[tab().blocks.length - 1], el = nb && blockEl(nb.id);
+      if (el && slashTyped(el)) slash.show(el, slashTyped(el));
+    });
+    g.addEventListener("compositionend", function () { setTimeout(function () { if (ghost === g) g.dispatchEvent(new Event("input")); }, 0); });
+    g.addEventListener("focusout", function () { setTimeout(function () { if (ghost === g && document.activeElement !== g) dropGhost(); }, 0); });
+    commit();
+    g.focus(); E.placeCaret(g.firstChild, false);
+  }
+  view.addEventListener("click", function (e) {
     if (!live || e.target !== view && e.target !== page) return;
     var last = tab().blocks[tab().blocks.length - 1];
     if (last && editable(last) && !s(last.md)) return focusBlock(last.id, true);
-    if (last) insertBlock(last.id, "", "start");
+    if (last) ghostLine();
   });
 
   // ------------------------------------------------------------------ asking Hermes in the doc
   function toChat(kind, txt, blocks, selection, extra) {
     return hm.doc.ask(Object.assign({ kind: kind, tab: tab().id, tabTitle: tab().title, blocks: blocks, selection: selection || "", text: txt }, extra || {}))
-      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent); return r; })
-      .catch(function (e) { kit.toast(String(e && e.message || e)); });
+      .then(function (r) { kit.toast(r && r.mode === "draft" ? T.drafted : T.sent, 0, "success"); return r; })
+      .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function askHere(id, request) {
     var b = blockOf(id);
@@ -2056,41 +2208,50 @@
   }
 
   // ------------------------------------------------------------------ the margin: comment cards and suggestion cards
-  var margin = h("div", { "class": "doc-margin", "aria-label": T.comment });
+  // data-flash-keep: a block the host flashes (a thread's Show) stays off its cards and icons (bridge.js keepClear)
+  var margin = h("div", { "class": "doc-margin", "aria-label": T.comment, "data-flash-keep": "" });
   view.appendChild(margin);
   var pins = [];
-  var timeFmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   function drawMargin() {
     if (!live) return;
     var cards = [];
     suggestions.forEach(function (sg) {
       var anchor = sg.kind === "insert" ? page.querySelector('[data-sug="' + sg.id + '"]') : blockEl(sg.block);
       if (!anchor) return;
-      cards.push({ el: anchor, node: h("div", { "class": "doc-card is-sug" }, [
+      cards.push({ el: anchor, node: h("div", { "class": "doc-card is-sug", "data-comment-keep": "" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (sg.by === "hermes" ? " is-hermes" : ""), text: sg.by === "hermes" ? T.byH : T.byYou }),
-          h("span", { "class": "doc-card-when", text: sg.at ? timeFmt.format(new Date(sg.at * 1000)) : "" }),
+          h("span", { "class": "doc-card-when", text: sg.at ? kit.date(sg.at, true) : "" }),
           h("button", { type: "button", "class": "doc-card-ok", "data-sid": sg.id, "data-decide": "accept", title: T.accept, "aria-label": T.accept, text: "✓", onclick: function () { decide(sg.id, "accept"); } }),
           h("button", { type: "button", "class": "doc-card-no", "data-sid": sg.id, "data-decide": "reject", title: T.reject, "aria-label": T.reject, text: "✕", onclick: function () { decide(sg.id, "reject"); } })]),
         h("div", { "class": "doc-card-text", text: sg.kind === "replace" ? T.sReplace : sg.kind === "insert" ? T.sInsert : T.sDelete })]) });
     });
-    pins.forEach(function (p) {
-      var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
-      if (!anchor) return;
-      var node = h("div", { "class": "doc-card", tabindex: "0", role: "button" }, [
+    // The commented words are marked while their thread is open: a resolved one's mark goes with its card.
+    var want = {};
+    pins.forEach(function (p) { if (p.quote) want[p.selector + "\n" + p.quote] = true; });
+    page.querySelectorAll("mark.doc-cq").forEach(function (m) { if (!want[m.getAttribute("data-cq")]) unQuote(m); });
+    // Beside the page when there is room; else each suggestion's card folds to a small mark that opens on a click,
+    // and a comment shows only its numbered mark by its part (bridge.js badge, as in every type: V6s, its folded card
+    // was a second, unnumbered mark for the same thread).
+    view.classList.remove("has-mini");
+    var pr = page.getBoundingClientRect(), vr0 = view.getBoundingClientRect();
+    var marked = pins.filter(function (p) { try { return !!page.querySelector(p.selector); } catch (_) { return false; } });
+    // the cards past the commented parts' numbered marks (by their parts' right: up to 24 px wide, 6 px off)
+    var edge = marked.reduce(function (m, p) { return Math.max(m, page.querySelector(p.selector).getBoundingClientRect().right + 38); }, pr.right + 24);
+    var left = edge - vr0.left, room = vr0.width - left - 12;
+    var mini = vr0.right - pr.right - 36 < 170 && cards.length + marked.length > 0; // as before the marks: 170 px past the page
+    if (!mini) marked.forEach(function (p) {
+      var anchor = page.querySelector(p.selector);
+      var node = h("div", { "class": "doc-card", "data-comment-keep": "", tabindex: "0", role: "button" }, [
         h("div", { "class": "doc-card-head" }, [
           h("span", { "class": "doc-card-who" + (p.author === "hermes" ? " is-hermes" : ""), text: p.author === "hermes" ? T.byH : T.byYou }),
-          h("span", { "class": "doc-card-when", text: p.at ? timeFmt.format(new Date((p.at > 1e12 ? p.at : p.at * 1000))) : "" })]),
+          h("span", { "class": "doc-card-when", text: p.at ? kit.date(p.at, true) : "" })]),
         h("div", { "class": "doc-card-text", text: p.text }),
         p.replies ? h("div", { "class": "doc-card-rep", text: p.replies + " " + (p.replies === 1 ? T.reply1 : T.replies) }) : null]);
       node.addEventListener("click", function () { hm.openPin && hm.openPin(p.n); });
-      if (p.quote) hiQuote(anchor, p.quote);
       cards.push({ el: anchor, node: node });
     });
-    // Beside the page when there is room; else each card folds to a small mark that opens on a click.
-    view.classList.remove("has-mini");
-    var pr = page.getBoundingClientRect(), vr0 = view.getBoundingClientRect();
-    var left = pr.right - vr0.left + 24, room = vr0.width - left - 12, mini = room < 170 && cards.length > 0;
+    marked.forEach(function (p) { if (p.quote) hiQuote(page.querySelector(p.selector), p.quote, p.selector + "\n" + p.quote); });
     view.classList.toggle("has-mini", mini); // the page leaves a lane for the marks
     if (mini) pr = page.getBoundingClientRect();
     margin.style.left = (mini ? pr.right - vr0.left - 28 : left) + "px";
@@ -2110,19 +2271,44 @@
       .sort(function (a, b) { return a.y - b.y; })
       .forEach(function (x) { var top = Math.max(x.y, y0); x.c.node.style.top = top + "px"; y0 = top + (mini ? 26 : x.c.node.offsetHeight + 8); });
   }
-  function hiQuote(el, q) { // the commented words, lightly marked
+  function hiQuote(el, q, key) { // the commented words, lightly marked (still the doc's words: editor.js inlineMd)
     if (el.querySelector("mark.doc-cq") || !q) return;
     var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), t;
     while ((t = w.nextNode())) {
       var i = t.nodeValue.indexOf(q);
-      if (i >= 0) { var r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + q.length); var m = document.createElement("mark"); m.className = "doc-cq"; m.setAttribute("data-ui", ""); try { r.surroundContents(m); } catch (_) {} return; }
+      if (i >= 0) { var r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + q.length); var m = document.createElement("mark"); m.className = "doc-cq"; m.setAttribute("data-cq", key); try { r.surroundContents(m); } catch (_) {} return; }
     }
   }
+  /** The open threads' marks inside el, drawn again from its Markdown (which has none): drawMargin is not run
+   *  for a block drawn again on its own (a commit when the focus leaves it, as when a comment draft is discarded). */
+  function markQuotes(el) {
+    (pins || []).forEach(function (p) {
+      if (!p.quote) return;
+      var anchor; try { anchor = page.querySelector(p.selector); } catch (_) {}
+      if (anchor && (anchor === el || el.contains(anchor))) hiQuote(anchor, p.quote, p.selector + "\n" + p.quote);
+    });
+  }
+  function unQuote(m) { // the words back as they were
+    var p = m.parentNode;
+    if (!p) return;
+    while (m.firstChild) p.insertBefore(m.firstChild, m);
+    p.removeChild(m);
+    p.normalize();
+  }
   if (live && hm.on) hm.on("pins", function (items) { pins = items || []; drawMargin(); });
+  // An open thread's numbered mark by its part (bridge.js), found again wherever the part is drawn: a block drawn
+  // again, another tab shown (V6s: a thread's part not drawn when the marks came had none).
+  if (live && hm.locate) hm.locate(function (sel) {
+    return { el: page, box: function () {
+      var a; try { a = page.querySelector(sel); } catch (_) {}
+      if (!a || !a.getClientRects().length) return null;
+      var r = a.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height };
+    } };
+  });
   var marginRaf = 0; // a resize fires many times a frame; the cards are laid out once
   window.addEventListener("resize", function () { if (!marginRaf) marginRaf = requestAnimationFrame(function () { marginRaf = 0; drawMargin(); }); });
   function decide(sid, verdict) {
-    hm.doc.decide(sid, verdict).then(function () { return pull(true); }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    hm.doc.decide(sid, verdict).then(function () { return pull(true); }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
 
   // ------------------------------------------------------------------ live: Hermes' changes appear here
@@ -2159,6 +2345,10 @@
     var t = tabs[cur];
     if (typeof full.edits === "number") edits = full.edits;
     selects = full.selects || {}; settings = full.settings || {}; suggestions = full.suggestions || [];
+    // A setting the person changed whose save is still on its way stays as they set it (a read sent before it
+    // landed said the old one: two quick presses of Full width left the page narrow and the doc wide).
+    outbox.forEach(function (e) { e.ops.forEach(function (o) { if (o.op === "settings") for (var k in o.set) settings[k] = o.set[k]; }); });
+    applySettings();
     if (t.id !== full.tab) return;
     // An edit the server applied whose answer never came (an error after it, a lost connection): the read
     // says so (done: cid -> its blocks), so it is settled here and never sent, nor shown, twice.
@@ -2183,7 +2373,8 @@
     }
     var was = t.blocks;
     t.srv = full.blocks.map(function (b) { return b.id; }); // what the server has: an edit it refuses is made to fit it (mend)
-    var m = mergeBlocks(replayOps(full.blocks, outbox, realIds), was, keepMd);
+    var held = Object.keys(unsent).map(function (id) { return { via: "edit", ops: [{ op: "insert", after: unsent[id].after, md: unsent[id].md || "", tmp: id, _aprevs: unsent[id].aprevs }] }; });
+    var m = mergeBlocks(replayOps(full.blocks, outbox.concat(held), realIds), was, keepMd);
     t.blocks = m.blocks;
     m.back.forEach(function (x) { if (x.id === mine) f.sug = false; }); // gone there: its words go back in as a new block
     if (act === "drop") { clearTimeout(f.timer); focused = null; }
@@ -2219,24 +2410,24 @@
   window.addEventListener("scroll", sendView, { passive: true });
   document.addEventListener("selectionchange", sendView);
 
-  // ------------------------------------------------------------------ chrome (Claude's doc bar)
+  // ------------------------------------------------------------------ chrome (the doc bar)
   function barBtn(label, html, fn, cls) {
     var b = h("button", { type: "button", "class": "kit-btn doc-tool" + (cls ? " " + cls : ""), title: label, "aria-label": label, html: html });
     b.addEventListener("mousedown", function (e) { e.preventDefault(); }); // the caret stays where it is
     b.addEventListener("click", fn);
     return b;
   }
-  var CARET = '<svg class="doc-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10l5 5 5-5"/></svg>';
+  var CARET = kit.icon("caretDown", "doc-caret");
   var tabBtn = barBtn(T.tabs, "", function () { tabMenu(); }, "doc-tabbtn");
   function drawTabs() {
     tabBtn.innerHTML = "<span>" + kit.esc(tab().title || T.untitled) + "</span>" + CARET;
   }
   function tabMenu() {
     var items = tabs.map(function (t, i) {
-      return { label: (i === cur ? "✓ " : "   ") + (t.title || T.untitled), onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
+      return { icon: "file", on: i === cur, label: t.title || T.untitled, onClick: function () { if (i !== cur) { commit(); cur = i; focused = null; render(); pull(true); sendView(); } } };
     });
-    if (live) items = items.concat([
-      { label: "+ " + T.newTab, onClick: function () {
+    if (live) items = items.concat([{ sep: true },
+      { icon: "plus", label: T.newTab, onClick: function () {
         ask(T.tabName, T.newTab).then(function (name) {
           if (!name) return;
           edit([{ op: "add_tab", title: name, md: "" }]).then(function (r) { pull(true).then(function () {
@@ -2245,12 +2436,12 @@
           }); });
         });
       } },
-      { label: T.rename, onClick: function () {
+      { icon: "pencil", label: T.rename, onClick: function () {
         ask(T.tabName, tab().title).then(function (name) {
           if (!name || name === tab().title) return;
           edit([{ op: "rename_tab", title: name }]).then(function () { tab().title = name; drawTabs(); });
         });
-      } }].concat(tabs.length > 1 ? [{ label: T.delTab, onClick: function () {
+      } }].concat(tabs.length > 1 ? [{ icon: "trash", label: T.delTab, onClick: function () {
         var full = tab().blocks.some(function (b) { return s(b.md); }); // an empty tab goes without asking
         (full ? ask(T.delTabAsk, undefined, T.delTab) : Promise.resolve(true)).then(function (yes) {
           if (yes) edit([{ op: "delete_tab" }]).then(function () { cur = 0; pull(true); });
@@ -2265,27 +2456,28 @@
   }
   var fontBtn = barBtn(T.fonts, '<span class="doc-tt">T<small>T</small></span>', function () {
     kit.menu(fontBtn, [{ hint: T.headings },
-      { label: (settings.head === "serif" ? "✓ " : "   ") + T.serif, onClick: function () { setSettings({ head: "serif" }); } },
-      { label: (settings.head !== "serif" ? "✓ " : "   ") + T.sans, onClick: function () { setSettings({ head: "sans" }); } },
+      { on: settings.head === "serif", label: T.serif, onClick: function () { setSettings({ head: "serif" }); } },
+      { on: settings.head !== "serif", label: T.sans, onClick: function () { setSettings({ head: "sans" }); } },
       { hint: T.textFont },
-      { label: (settings.body === "serif" ? "✓ " : "   ") + T.serif, onClick: function () { setSettings({ body: "serif" }); } },
-      { label: (settings.body !== "serif" ? "✓ " : "   ") + T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
+      { on: settings.body === "serif", label: T.serif, onClick: function () { setSettings({ body: "serif" }); } },
+      { on: settings.body !== "serif", label: T.sans, onClick: function () { setSettings({ body: "sans" }); } }]);
   });
-  var widthBtn = barBtn(T.width, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>', function () { setSettings({ wide: !settings.wide }); });
+  var widthBtn = barBtn(T.width, kit.icon("width"), function () { setSettings({ wide: !settings.wide }); });
+  widthBtn.setAttribute("aria-pressed", String(!!settings.wide));
   function insertHere(it) { var el = focused && blockEl(focused.id); applyItem(it, el, !!(el && el.textContent.trim() === "" && !it.chip && !it.image)); }
-  var tableBtn = barBtn(T.table, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 14.5h16M10 5v14"/></svg>', function () { insertHere({ md: TABLE_MD }); });
-  var imageBtn = barBtn(T.image, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 16l5-5 4 4 3-3 4 4"/><circle cx="15" cy="9" r="1"/></svg>', function () { insertHere({ image: true }); });
-  var checkBtn = barBtn(T.checklist, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2 2 3-3M4 15l2 2 3-3M12 8h8M12 16h8"/></svg>', function () { insertHere({ md: "- [ ] " }); });
-  var plusBtn = barBtn(T.insert, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>' + CARET, function () {
+  var tableBtn = barBtn(T.table, kit.icon("table"), function () { insertHere({ md: TABLE_MD }); }, "doc-short");
+  var imageBtn = barBtn(T.image, kit.icon("image"), function () { insertHere({ image: true }); }, "doc-short");
+  var checkBtn = barBtn(T.checklist, kit.icon("doc-checklist"), function () { insertHere({ md: "- [ ] " }); }, "doc-short");
+  var plusBtn = barBtn(T.insert, kit.icon("plus") + CARET, function () {
     var r = plusBtn.getBoundingClientRect();
     richMenu(r.left, r.bottom + 6, blockItems().filter(function (it) { return it.k !== "text"; }).map(function (it) { return it.sep ? it : { icon: it.ic, label: it.label, onClick: function () { insertHere(it); } }; })
       .concat([{ sep: true }, { hint: T.slashHint }]), 0, plusBtn);
   }, "doc-plus");
-  var PEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg>';
+  var PEN = kit.icon("pencil");
   var modeBtn = barBtn(T.editing, "", function () {
     kit.menu(modeBtn, [
-      { label: (mode === "edit" ? "✓ " : "   ") + T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
-      { label: (mode === "suggest" ? "✓ " : "   ") + T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
+      { icon: "pencil", on: mode === "edit", label: T.editing + " — " + T.editingHint, onClick: function () { setMode("edit"); } },
+      { icon: "comment", on: mode === "suggest", label: T.suggesting + " — " + T.suggestingHint, onClick: function () { setMode("suggest"); } }]);
   }, "doc-mode");
   function setMode(m) {
     commit();
@@ -2528,7 +2720,7 @@
       var zip = fflate.zipSync(files, { level: 6 });
       kit.download(kit.slug(title()) + ".docx", new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }),
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   // --- PDF: A4 pages laid out from whole blocks, each page pictured (SVG foreignObject) ----------
@@ -2630,44 +2822,46 @@
       }
       var bytes = await pdf.save();
       kit.download(kit.slug(title()) + ".pdf", new Blob([bytes], { type: "application/pdf" }), "application/pdf");
-    } catch (e) { kit.toast(String(e && e.message || e)); } finally { busy(false); }
+    } catch (e) { kit.toast(String(e && e.message || e), 0, "error"); } finally { busy(false); }
   }
 
   // ------------------------------------------------------------------ export menu, history, the bar
   var titleEl = h("span", { "class": "kit-title", style: "display:none" }); // the host toolbar shows the title
-  var exportList = [{ id: "docx", label: T.docx, run: exportDocx }, { id: "pdf", label: T.pdf, run: exportPdf },
-    { id: "md", label: T.mdf, run: function () { kit.download(kit.slug(title()) + ".md", fullText(), "text/markdown"); } },
-    { id: "html", label: T.html, run: exportHtml }];
-  if (live) exportList.push(
-    { id: "to-slides", label: T.toSlides, run: function () { toChat("convert", "", [], "", { target: "slides" }); } },
-    { id: "to-design", label: T.toDesign, run: function () { toChat("convert", "", [], "", { target: "design" }); } });
+  var exportList = [{ id: "docx", icon: "file", label: T.docx, run: exportDocx }, { id: "pdf", icon: "pages", label: T.pdf, run: exportPdf },
+    { id: "md", icon: "text", label: T.mdf, run: function () { kit.download(kit.slug(title()) + ".md", fullText(), "text/markdown"); } },
+    { id: "html", icon: "code", label: T.html, run: exportHtml }];
+  if (live) exportList.push( // these ask Hermes (its caduceus), after a divider
+    { id: "to-slides", icon: "sparkle", label: T.toSlides, run: function () { toChat("convert", "", [], "", { target: "slides" }); } },
+    { id: "to-design", icon: "sparkle", label: T.toDesign, run: function () { toChat("convert", "", [], "", { target: "design" }); } });
   var expBtn = kit.labelled(kit.button(T.exp, "download", function () {
-    kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; }));
+    var items = [];
+    exportList.forEach(function (x) { if (x.id === "to-slides") items.push({ sep: true }); items.push({ icon: x.icon, label: x.label, onClick: x.run }); });
+    kit.menu(expBtn, items);
   }), T.exp);
   kit.exports(exportList); // the host's title menu lists them too; the bar keeps its own button
-  // History (Claude's): the tab's earlier states; picking one and confirming brings it back as a new edit.
+  // History: the tab's earlier states; picking one and confirming brings it back as a new edit.
   var histBtn = kit.labelled(kit.button(T.hist, "history", function () {
     commit();
     var t = tab();
     hm.doc.history(t.id).then(function (r) {
-      var fmt = new Intl.DateTimeFormat(L === "hu" ? "hu" : undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       var list = (r.snaps || []).filter(function (x) { return x.rev < r.rev; });
-      if (!list.length) return kit.menu(histBtn, [{ label: T.histNone, onClick: function () {} }]);
+      if (!list.length) return kit.menu(histBtn, [{ hint: T.histNone }]); // a note, not a row that does nothing
       kit.menu(histBtn, list.slice(0, 30).map(function (x) {
         var who = x.by === "hermes" ? T.byH : x.by === "restore" ? T.byRestore : x.by === "start" ? "" : T.byYou;
-        return { label: fmt.format(new Date(x.at * 1000)) + (who ? " · " + who : ""), onClick: function () {
-          kit.menu(histBtn, [{ label: T.restoreThis, onClick: function () {
-            hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored); return pull(true); })
-              .catch(function (e) { kit.toast(String(e && e.message || e)); });
-          } }, { label: T.cancel, onClick: function () {} }]);
+        return { label: kit.date(x.at, true) + (who ? " · " + who : ""), onClick: function () {
+          kit.menu(histBtn, [{ icon: "history", label: T.restoreThis, onClick: function () {
+            hm.doc.restore(t.id, x.rev).then(function () { kit.toast(T.restored, 0, "success"); return pull(true); })
+              .catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
+          } }, { icon: "close", label: T.cancel, onClick: function () {} }]);
         } };
       }));
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }), T.hist);
   histBtn.hidden = !live;
   var sep = function () { return h("span", { "class": "doc-sep" }); };
   var tools = live ? [tabBtn, fontBtn, widthBtn, sep(), tableBtn, imageBtn, checkBtn, plusBtn] : [tabBtn, fontBtn, widthBtn];
   bar.append.apply(bar, [titleEl].concat(tools).concat([h("span", { "class": "doc-gap" }), status, histBtn, expBtn]).concat(live ? [modeBtn] : []));
+  kit.status(status); // "Saved" whole, or a dot with it as its tooltip when the bar is tight: never a clipped letter
   setMode(mode);
 
   // The first render, then ready for the host, once: also when the render throws (the bridge then says threw;

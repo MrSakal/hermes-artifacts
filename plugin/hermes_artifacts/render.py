@@ -13,6 +13,7 @@ import re
 from collections import Counter
 import json
 import mimetypes
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -116,6 +117,14 @@ def _matches(a: list, b: list) -> list:
 _maps: dict = {}  # (version folder, entry, its mtime and size) -> the note: versions never change
 
 
+def _forget(aid: str, d: Path) -> None:
+    for k in [k for k in _maps if str(k[0]).startswith(str(d) + os.sep)]:
+        _maps.pop(k, None)
+
+
+store.on_forget(_forget)
+
+
 def line_map(entry: str, raw: str, html: str) -> str:
     """A note appended to a page's document (it moves no line): which of the document's lines are the entry
     file's own, as ``[first line here, first line in the file, count]`` blocks (1-based), so the bridge can name
@@ -151,15 +160,31 @@ def _page_map(vdir: Path, entry: str, html: str) -> str:
     return hit
 
 
-def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "") -> str:
+def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = False, lang: str = "",
+           lines: bool = True) -> str:
+    """The document: a page's own (bundled), or the type's runtime with the content tag before </head>.
+    ``lines``: a page's document carries its line map (#hermes-lines, for the bridge; not on a card's picture
+    nor in an export)."""
     kind = meta.get("type", "page")
     if kind == "page":
-        entry = store.safe_rel(page) if page else "index.html"
-        if not (vdir / entry).is_file():
-            raise FileNotFoundError(entry)
-        html = bundle.bundle(vdir, entry)
-        # A card's picture reports no errors: no map for it.
-        return html if thumb else html + _page_map(vdir, entry, html)
+        return _page(vdir, page, lines and not thumb)
+    tag = content_tag(meta, vdir, thumb, lang)
+    html = runtime(kind)
+    i = html.lower().find("</head>")
+    return html[:i] + tag + html[i:] if i != -1 else tag + html
+
+
+def _page(vdir: Path, page: Optional[str], lines: bool) -> str:
+    entry = store.safe_rel(page) if page else "index.html"
+    if not (vdir / entry).is_file():
+        raise FileNotFoundError(entry)
+    html = bundle.bundle(vdir, entry)
+    return html + _page_map(vdir, entry, html) if lines else html
+
+
+def content_tag(meta: dict, vdir: Path, thumb: bool = False, lang: str = "") -> str:
+    """A typed artifact's own part of its document: the content its runtime reads, as one script tag."""
+    kind = meta.get("type", "page")
     data = {"id": meta["id"], "title": meta["title"], "type": kind,
             "version": int(vdir.name[1:]), "thumb": bool(thumb), "lang": lang if re.fullmatch(r"[a-z]{2}(-[A-Za-z]{2})?", lang or "") else "",  # the app's language, for the page's own words
             # A model's card draws no 3D: it needs model.json (its title), not the meshes.
@@ -172,12 +197,14 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
         # and thumbnails; an open doc then follows it through doc.read.
         try:
             from . import docs
-            st = docs.load(meta["id"])
-            data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"], "blocks": t["blocks"]} for t in st["tabs"]],
-                           "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
-                           "hermes_left": 0 if thumb else docs.left(st), "hermes_ago": 0 if thumb else docs.ago(st),
-                           "selects": st.get("selects") or {}, "settings": st.get("settings") or {},
-                           "suggestions": [x for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
+            with docs._LOCK:  # the state is shared between callers (docs.load): copy what goes out
+                st = docs.load(meta["id"])
+                data["doc"] = {"tabs": [{"id": t["id"], "title": t["title"], "rev": t["rev"],
+                                         "blocks": [dict(b) for b in t["blocks"]]} for t in st["tabs"]],
+                               "hermes_active": not thumb and docs.time.time() - st.get("hermes_at", 0) < docs.ACTIVE_SECS,
+                               "hermes_left": 0 if thumb else docs.left(st), "hermes_ago": 0 if thumb else docs.ago(st),
+                               "selects": dict(st.get("selects") or {}), "settings": dict(st.get("settings") or {}),
+                               "suggestions": [dict(x) for x in st.get("suggestions", []) if x["tab"] == st["tabs"][0]["id"]]}
         except Exception:
             pass
     if kind == "sheet" and data["version"] == meta["versions"][-1]["n"]:
@@ -209,7 +236,4 @@ def render(meta: dict, vdir: Path, page: Optional[str] = None, thumb: bool = Fal
             pass
     # </script inside JSON would end the block; < keeps it valid JSON.
     blob = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
-    tag = f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'
-    html = runtime(kind)
-    i = html.lower().find("</head>")
-    return html[:i] + tag + html[i:] if i != -1 else tag + html
+    return f'<script type="application/json" id="hermes-artifact-content">{blob}</script>'

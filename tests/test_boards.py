@@ -695,8 +695,10 @@ class ReadTests(unittest.TestCase):
         r = boards.read(self.aid, agent=True)
         self.assertEqual((r["rev"], r["title"], r["count"]), (1, "Read", 8))
         by = {it["id"]: it for it in r["items"]}
-        self.assertEqual(by["a"], {"id": "a", "type": "box", "text": "Alpha", "x": 0, "y": 11, "w": 180, "h": 60})  # defaults out, whole numbers
-        self.assertEqual(by["b"], {"id": "b", "type": "note", "text": "Beta budget", "x": 300, "y": 0, "w": 180, "h": 60})
+        self.assertEqual(by["a"], {"id": "a", "type": "box", "text": "Alpha"})  # defaults out, no place or size
+        self.assertEqual(by["b"], {"id": "b", "type": "note", "text": "Beta budget"})
+        full = boards.read(self.aid, "a,b", agent=True)["items"]  # range: the items in full, place and size too
+        self.assertEqual([(it["x"], it["y"], it["w"], it["h"]) for it in full], [(0.4, 10.6, 180, 60), (300, 0, 180, 60)])
         self.assertEqual(by["r"], {"id": "r", "type": "arrow", "from": "a", "to": "b", "label": "feeds"})
         self.assertEqual((by["d"]["svg"], by["e"]["html"], by["p"]["points"], by["i"]["src"]), (len(SVG), 12, 6, len(PNG)))
         self.assertEqual(by["e"]["state"], {"n": 1})
@@ -748,7 +750,7 @@ class ReadTests(unittest.TestCase):
         self.assertIn("320", r["more"])
 
     def test_dump(self):
-        d = json.loads(boards.dump(self.aid))
+        d = json.loads(json.dumps(boards.snapshot(self.aid)))
         self.assertEqual((d["title"], len(d["items"]), d["items"][3]["svg"]), ("Read", 8, SVG))
         self.assertEqual(boards.from_spec(d)["items"], d["items"])  # a dump is a board.json again
 
@@ -834,8 +836,8 @@ class PublishTests(unittest.TestCase):
         desk = (PLUGIN / "desktop" / "plugin.js").read_text("utf-8")
         for s in ("type_board", "tile_board", "prompt_board", "boardAskMsg", "plugin.${ID}.board", "m.op === 'board.restore' && !gesture"):
             self.assertIn(s, desk)
-        self.assertIn("version: 0.19.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
-        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.19.0")
+        self.assertIn("version: 0.20.0", (PLUGIN / "plugin.yaml").read_text("utf-8"))
+        self.assertEqual(json.loads((PLUGIN / "dashboard" / "manifest.json").read_text("utf-8"))["version"], "0.20.0")
 
     def test_ask_goes_to_the_inbox(self):
         aid = pub()
@@ -888,7 +890,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.call("ha_live_read", id=aid, at_rev=1)["rev"], 1)
         r = self.call("ha_read", id=aid)
         self.assertEqual((r["type"], r["path"], r["note"]), ("board", "board.json", self.p.BOARD_NOTE))
-        self.assertEqual(len(json.loads(r["content"])["items"]), 10)
+        self.assertEqual(len(r["content"]["items"]), 10)  # an object, not JSON in a string
         g = self.call("ha_guide", type="board")
         self.assertTrue(g["ok"])
         self.assertIn("board.json", g["guide"])
@@ -1292,6 +1294,129 @@ class RealConflictTests(unittest.TestCase):
         # a different field of the same item is no conflict (last writer per field)
         self.hermes(id=aid, base_rev=boards.read(aid)["rev"], ops=[{"op": "set", "id": "b", "color": "pink"}])
         self.assertTrue(op(aid, "board.edit", ops=[{"op": "move", "ids": ["b"], "dx": 5, "dy": 5}], base_rev=now["rev"])["ok"])
+
+
+
+WORDS = ("survey order panels scaffold rails windows insulation permit budget quote samples approve check anchor "
+         "photos measure crane delivery").split()
+
+
+def generated(seed):
+    """~20 notes and boxes of varied length, sections, members put `in` them, neighbours `near` others, arrows."""
+    import random
+    rnd = random.Random(seed)
+    items = [{"type": "text", "size": "title", "text": f"Board {seed}"}] if rnd.random() < .5 else []
+    secs = [f"s{s}" for s in range(rnd.randint(0, 4))]
+    items += [{"id": s, "type": "section", "text": "Section " + s} for s in secs]
+    for n in range(rnd.randint(14, 24)):
+        it = {"id": f"n{n}", "type": rnd.choice(["note", "note", "box"]),
+              "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(1, 14)))}
+        r = rnd.random()
+        if secs and r < .5:
+            it["in"] = rnd.choice(secs)
+        elif n and r < .7:
+            it["near"] = f"n{rnd.randrange(n)}"
+        items.append(it)
+    for _ in range(rnd.randint(0, 6)):
+        a, b = rnd.randrange(14), rnd.randrange(14)
+        if a != b:
+            items.append({"type": "arrow", "from": f"n{a}", "to": f"n{b}"})
+    return items, rnd
+
+
+class NoOverlapTests(unittest.TestCase):
+    """The invariant: nothing the server places overlaps anything else on the board (a section and its own
+    members aside), at the first publish and when Hermes adds items later, `near` an item in a section and
+    `in` a section that has no room left included. Before: a neighbour of a section's member landed on
+    another member, a section grown for a newcomer covered its neighbours, a row of notes made as tall as
+    its tallest reached the note put under one, a block holding a section went into another section."""
+
+    def test_a_generated_board_never_overlaps(self):
+        placed = 0
+        for seed in range(120):
+            items, _ = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:  # a `near` an item placed later: refused, as it should be
+                continue
+            placed += 1
+            self.assertEqual(overlaps(b["items"]), [], f"seed {seed}")
+        self.assertGreater(placed, 40)
+
+    def test_items_added_later_never_overlap(self):
+        adds = 0
+        for seed in range(60):
+            items, rnd = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:
+                continue
+            items, seq = b["items"], 100
+            ids = [it["id"] for it in items if it["type"] != "arrow"]
+            secs = [it["id"] for it in items if it["type"] == "section"]
+            for batch in range(3):
+                new = []
+                for k in range(rnd.randint(1, 6)):
+                    it = {"id": f"b{batch}_{k}", "type": rnd.choice(["note", "box"]),
+                          "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(1, 12)))}
+                    r = rnd.random()
+                    if secs and r < .35:
+                        it["in"] = rnd.choice(secs)
+                    elif r < .75:
+                        it["near"] = rnd.choice(ids)
+                    new.append(it)
+                if rnd.random() < .3 and len(new) > 1:
+                    new.append({"type": "arrow", "from": new[0]["id"], "to": new[1]["id"]})
+                try:
+                    _added, _grown, seq = boards._add(items, seq, new, "right", None, "t")
+                except boards.BoardError:
+                    break
+                adds += 1
+                ids += [n["id"] for n in new if n["type"] != "arrow"]
+                self.assertEqual(overlaps(items), [], f"seed {seed}, batch {batch}")
+        self.assertGreater(adds, 40)
+
+    def test_longer_text_set_later_never_overlaps(self):
+        """Hermes `set`s longer text into an item (or a wider w): the item grows where it stands and what it
+        would run into moves out of its way, in a section too (which grows), and so on down the board."""
+        edits = 0
+        for seed in range(80):
+            items, rnd = generated(seed)
+            try:
+                b = boards.from_spec({"items": items})
+            except boards.BoardError:
+                continue
+            work = {"items": b["items"], "seq": 100, "title": ""}
+            for k in range(6):
+                its = [it for it in work["items"] if it["type"] in ("note", "box", "text")]
+                it = rnd.choice(its)
+                o = {"op": "set", "id": it["id"], "text": " ".join(rnd.choice(WORDS) for _ in range(rnd.randint(20, 90)))}
+                if it["type"] != "text" and rnd.random() < .25:
+                    o["w"] = it["w"] + rnd.randint(40, 300)
+                ctx = {"touched": {}, "added": [], "removed": [], "state_only": True, "by": "hermes", "all": False}
+                before = boards.rect(it)
+                boards._one(work, o, ctx, f"ops[{k}]", {})
+                edits += 1
+                grown = next(x for x in work["items"] if x["id"] == it["id"])
+                self.assertEqual(boards.rect(grown)[:2], before[:2])  # it stays where it stood
+                self.assertEqual(overlaps(work["items"]), [], f"seed {seed}, edit {k}")
+        self.assertGreater(edits, 200)
+
+    def test_what_makes_room_is_reported_and_locked_items_refuse(self):
+        b = boards.from_spec({"items": [{"id": "a", "type": "note", "text": "short", "x": 0, "y": 0},
+                                        {"id": "b", "type": "note", "text": "under", "x": 0, "y": 140},
+                                        {"id": "c", "type": "note", "text": "beside", "x": 400, "y": 0}]})
+        aid = store.publish(type="board", title="room", files={"board.json": {"items": b["items"]}})["id"]
+        rev = boards.load(aid)["rev"]
+        out = boards.apply(aid, [{"op": "set", "id": "a", "text": "a much longer text " * 30}], by="hermes", base_rev=rev)
+        self.assertEqual(sorted(out["changed"]), ["a", "b"])  # b moved down; c, beside it, stays
+        st = boards.load(aid)
+        self.assertEqual(overlaps(st["items"]), [])
+        self.assertEqual(next(it for it in st["items"] if it["id"] == "c")["y"], 0)
+        boards.apply(aid, [{"op": "set", "id": "b", "locked": True}], by="user")
+        with self.assertRaises(boards.BoardError) as cm:
+            boards.apply(aid, [{"op": "set", "id": "a", "text": "a much longer text " * 90}], by="hermes", base_rev=boards.load(aid)["rev"])
+        self.assertIn("locked", cm.exception.message)
 
 
 if __name__ == "__main__":

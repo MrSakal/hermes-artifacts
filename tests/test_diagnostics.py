@@ -56,7 +56,8 @@ class Base(unittest.TestCase):
     def tearDown(self):
         for mod, real in zip(self._mods, self._real):
             mod.enabled = real
-        D.flush_all()
+        for aid in list(D._PENDING):
+            D.flush(aid)
 
     def page(self, title="p", html="<p>x</p>", who="T"):
         r = json.loads(self.p._publish({"html": html, "title": title}, task_id=who, session_id="S-" + who))

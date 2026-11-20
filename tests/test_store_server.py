@@ -27,8 +27,8 @@ class StoreTests(unittest.TestCase):
         m1 = store.publish(html=PAGE, title="Report")
         m2 = store.publish(html=PAGE.replace("hi", "v2"), aid=m1["id"])
         self.assertEqual([v["n"] for v in m2["versions"]], [1, 2])
-        self.assertIn("v2", store.read_html(m1["id"]))
-        self.assertIn("hi", store.read_html(m1["id"], 1))
+        self.assertIn("v2", (store.version_dir(m1["id"]) / "index.html").read_text("utf-8"))
+        self.assertIn("hi", (store.version_dir(m1["id"], 1) / "index.html").read_text("utf-8"))
 
     def test_rejects_bad_id_and_unknown(self):
         with self.assertRaises(ValueError):

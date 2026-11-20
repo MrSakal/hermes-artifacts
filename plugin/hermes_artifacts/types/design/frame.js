@@ -9,7 +9,7 @@
   var DC = window.DC, kit = window.kit;
   var standalone = document.getElementById("dc-standalone");
   var st = { id: null, file: null, sources: {}, parsed: {}, urls: {}, css: {}, props: {}, propsAll: {}, mode: "edit", wheel: "forward",
-    inst: null, map: new WeakMap(), sel: [], editing: null, editStart: "", space: false, errors: [], hover: null, ready: false };
+    inst: null, map: new WeakMap(), sel: [], editing: null, editStart: "", space: false, errors: [], hover: null, ready: false, marks: [], marksSent: "" };
 
   function post(m) {
     if (standalone || window.parent === window) return;
@@ -213,6 +213,7 @@
     st.inst = DC.mount({ doc: document, host: document.body, file: st.file, parsed: parsed, get: get, props: st.props, url: url, css: css,
       live: live, map: st.map, onError: fail, onRender: rendered, xi: XI });
     if (!st.errors.length) post({ t: "error", errors: [] });
+    post({ t: "mounted" }); // drawn and picks: its pictures and fonts may still come (ready)
     if (!st.ready) settle().then(function () { st.ready = true; post({ t: "ready" }); size(); });
   }
   var selTimer = 0;
@@ -224,7 +225,19 @@
   function size() {
     var h = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
     if (h !== lastH) { lastH = h; post({ t: "size", h: h }); }
+    sendMarks();
   }
+  /** The canvas's open threads' parts here (st.marks: their template ids): where each is drawn (null: not drawn), sent
+   *  when that changed (a render, its pictures come, a resize), for their numbered marks on the canvas (design.js
+   *  locate: V6s, an element's thread had none, the artboard drawn in a frame of its own). */
+  function sendMarks() {
+    if (!st.marks.length) return;
+    var rects = {};
+    st.marks.forEach(function (tid) { var el = elementsOf(tid)[0]; rects[tid] = el ? rectOf(el) : null; });
+    var k = JSON.stringify(rects);
+    if (k !== st.marksSent) { st.marksSent = k; post({ t: "marks", rects: rects }); }
+  }
+  window.addEventListener("resize", sendMarks);
   function settle() {
     var imgs = Array.prototype.map.call(document.images, function (i) { return i.decode ? i.decode().catch(function () {}) : 0; });
     // A frame the browser isn't drawing may never finish decoding: wait 4 s at most.
@@ -332,6 +345,86 @@
     pan = { id: e.pointerId };
     try { document.documentElement.setPointerCapture(e.pointerId); } catch (x) {}
     post({ t: "pan", ph: "start", sx: e.screenX, sy: e.screenY });
+  }
+  // The host's comment pick (the canvas says when: "pick"): a click picks the element it means (or the artboard),
+  // nothing else happens (no selection, no edit, no link); the canvas gets where it is ("picked").
+  window.addEventListener("pointerdown", function (e) {
+    if (!st.pick) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  ["pointerup", "mousedown", "mouseup", "dblclick", "contextmenu", "auxclick"].forEach(function (t) {
+    window.addEventListener(t, function (e) { if (st.pick) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  });
+  window.addEventListener("click", function (e) {
+    if (!st.pick) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    var el = pick(e.target);
+    post(where(el, st.pick.k, e.button));
+  }, true);
+  /** Where el is for the comment's pin (pin: its size in this frame's px, the canvas's zoom undone): its box,
+   *  its first line, and which spots beside it are free here (inside this artboard, over none of its other
+   *  words, pictures or controls: bridge.js pickRect's, seen from inside). el null: the artboard. */
+  function where(el, k, button) {
+    var P = 26 / (k || 1), G = 6 / (k || 1);
+    if (!el) return { t: "picked", tid: null, rect: { x: 0, y: 0, w: innerWidth, h: innerHeight }, button: button };
+    var r = rectOf(el), line = firstLine(el);
+    var ly = line ? line.top : r.y, lh = line ? line.height : Math.min(r.h, 24 / (k || 1)), cy = ly + lh / 2 - P / 2;
+    var at = function (x, y) { return { l: x, t: y, r: x + P, b: y + P }; };
+    var out = { t: "picked", tid: infoOf(el).tpl.__dcTid, button: button,
+      rect: { x: r.x, y: r.y, w: r.w, h: r.h, ly: ly, lh: lh },
+      text: (el.innerText || el.textContent || el.getAttribute("alt") || "").replace(/\s+/g, " ").trim().slice(0, 200),
+      fr: free(el, at(r.x + r.w + G, cy)), fl: free(el, at(r.x - G - P, cy)),
+      fa: free(el, at(r.x + r.w - P, r.y - G - P)), fb: free(el, at(r.x + r.w - P, r.y + r.h + G)) };
+    if (line) { out.rect.lr = line.right; out.fw = free(el, at(line.right + G, cy), true); }
+    return out;
+  }
+  function firstLine(el) {
+    try {
+      var w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), n, rg = document.createRange(), line = null;
+      for (var i = 0; (n = w.nextNode()) && i < 400; i++) {
+        if (!/\S/.test(n.nodeValue)) continue;
+        rg.selectNodeContents(n);
+        var rs = rg.getClientRects();
+        for (var j = 0; j < rs.length; j++) {
+          var q = rs[j];
+          if (!(q.height > 0 && q.width > 0)) continue;
+          if (!line) line = { top: q.top, height: q.height, right: q.right };
+          else if (q.top < line.top + line.height / 2) line.right = Math.max(line.right, q.right);
+          else return line;
+        }
+      }
+      return line;
+    } catch (x) {}
+    return null;
+  }
+  var SOLID = /^(IMG|INPUT|SELECT|TEXTAREA|BUTTON|SVG|CANVAS|VIDEO|IFRAME|svg)$/;
+  function wordsIn(n, b) {
+    var w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT), t, rg = document.createRange();
+    for (var i = 0; (t = w.nextNode()) && i < 400; i++) {
+      if (!/\S/.test(t.nodeValue)) continue;
+      rg.selectNodeContents(t);
+      var rs = rg.getClientRects();
+      for (var j = 0; j < rs.length; j++) { var q = rs[j]; if (q.width && q.height && q.left < b.r && q.right > b.l && q.top < b.b && q.bottom > b.t) return true; }
+    }
+    return false;
+  }
+  function free(el, b, ownToo) {
+    // Past its artboard this frame sees nothing (undefined: the canvas looks there, V6h: a Group at the artboard's
+    // edge, every side "taken", pinned over its own nav); the part inside it, here.
+    b = { l: Math.max(0, b.l), t: Math.max(0, b.t), r: Math.min(innerWidth, b.r), b: Math.min(innerHeight, b.b) };
+    if (b.r - b.l < 2 || b.b - b.t < 2) return undefined;
+    if (ownToo && wordsIn(el, b)) return false;
+    var pts = [[(b.l + b.r) / 2, (b.t + b.b) / 2], [b.l + 1, b.t + 1], [b.r - 1, b.t + 1], [b.l + 1, b.b - 1], [b.r - 1, b.b - 1]], seen = [];
+    for (var p = 0; p < pts.length; p++) {
+      var hits = document.elementsFromPoint(pts[p][0], pts[p][1]);
+      for (var k = 0; k < hits.length; k++) {
+        var hn = hits[k];
+        if (seen.indexOf(hn) >= 0 || hn === el || hn.contains(el) || el.contains(hn)) continue;
+        seen.push(hn);
+        if (SOLID.test(hn.tagName) || wordsIn(hn, b)) return false;
+      }
+    }
+    return true;
   }
   window.addEventListener("pointerdown", function (e) {
     if (standalone) return;
@@ -612,6 +705,14 @@
       case "edit": var els = elementsOf(m.tid); if (els[0] && DC.textEditable(infoOf(els[0]).tpl)) startEdit(els[0]); break;
       case "commit": commit(); break;
       case "space": st.space = !!m.on; break;
+      case "pick":
+        st.pick = m.on ? { k: +m.k || 1 } : null;
+        if (st.pick && !st.pickCss) { st.pickCss = document.createElement("style"); st.pickCss.textContent = "*{cursor:crosshair!important}"; document.head.appendChild(st.pickCss); }
+        if (!st.pick && st.pickCss) { st.pickCss.remove(); st.pickCss = null; }
+        break;
+      case "pickAt": if (st.pick) post(where(pick(document.elementFromPoint(m.x, m.y)), st.pick.k, 0)); break; // a click the host held
+      case "marks": st.marks = (m.tids || []).filter(function (x) { return typeof x === "number"; }); st.marksSent = ""; sendMarks(); break;
+      case "where": var we = elementsOf(m.tid)[0]; if (we) post(where(we, +m.k || 1)); break;
       case "ds": setDs(m.css); if (installSystems(m.scripts) && st.inst) mount(); break;
       case "theme": setTheme(m.theme); break;
       case "raster":

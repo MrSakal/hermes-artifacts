@@ -15,21 +15,35 @@ body { overflow: hidden; }
 .dc-board.is-frameless .dc-frame { background: transparent; box-shadow: none; }
 .dc-iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: light; }
 .dc-strip { position: absolute; left: 0; bottom: 100%; width: calc(var(--bw) * var(--z)); height: 28px; display: flex; align-items: center; gap: 2px;
-  transform: scale(var(--inv)); transform-origin: 0 100%; font-size: 12px; color: var(--color-fg-muted); white-space: nowrap; cursor: grab; }
+  transform: scale(var(--inv)); transform-origin: 0 100%; font-size: 12px; color: var(--color-fg-muted); white-space: nowrap; cursor: grab;
+  overflow: hidden; container-type: inline-size; box-sizing: border-box; }
 .dc-strip:active { cursor: grabbing; }
 .dc-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
-.dc-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dc-play); margin-right: 5px; flex-shrink: 0; }
+/* an interactive frame (it plays): a small play mark before its name, in the play colour; a triangle, never a
+   round dot a comment's pin could be taken for */
+.dc-dot { display: none; width: 6px; height: 8px; background: var(--dc-play); clip-path: polygon(0 0, 100% 50%, 0 100%); margin-right: 5px; flex-shrink: 0; }
 .dc-board.is-interactive .dc-dot { display: inline-block; }
-.dc-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px;
+/* too narrow for six letters of a longer name: not "A…" nor a lone play mark, but the frame's handle (V6g: a 35 px
+   strip showed nothing and read as no strip at all); its name in the strip's tooltip. Under 16 px, nothing. */
+.dc-grip { display: none; width: 14px; height: 14px; align-items: center; justify-content: center; flex-shrink: 0; }
+.dc-grip svg { width: 12px; height: 12px; }
+@container (max-width: 52px) { .dc-strip:not([data-short]) .dc-name, .dc-board.is-interactive .dc-strip:not([data-short]) .dc-dot { display: none; }
+  .dc-strip:not([data-short]) .dc-grip { display: inline-flex; } }
+@container (max-width: 15px) { .dc-strip .dc-grip { display: none; } }
+/* a frame narrow on screen (design.js stripFit): its buttons and its handle, the name in the tooltip; narrower, no buttons */
+.dc-strip[data-fit=grip] .dc-name, .dc-board.is-interactive .dc-strip[data-fit=grip] .dc-dot { display: none; }
+.dc-strip[data-fit=grip] .dc-grip { display: inline-flex; }
+.dc-strip[data-fit=none] .dc-sbtn { display: none; }
+.dc-sbtn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--kit-r-icon);
   background: transparent; color: var(--color-fg-muted); cursor: pointer; flex-shrink: 0; }
-.dc-sbtn:hover { background: var(--color-hover); color: var(--color-fg); }
+.dc-sbtn:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .dc-sbtn svg { width: 14px; height: 14px; }
 .dc-sbtn[hidden] { display: none; }
 .dc-board.is-interactive .dc-strip .dc-sbtn:nth-of-type(2) { color: var(--dc-play); }
 .dc-board.is-playing .dc-frame { box-shadow: 0 0 0 calc(2px * var(--inv)) var(--dc-play), 0 2px 12px rgba(0,0,0,.10); }
 .dc-board.has-error .dc-frame { box-shadow: 0 0 0 calc(2px * var(--inv)) var(--color-bad), 0 2px 12px rgba(0,0,0,.10); }
 .dc-err { position: absolute; left: 0; top: 0; width: max-content; max-width: max(260px, calc(var(--bw) * var(--z))); transform: scale(var(--inv)); transform-origin: 0 0; margin: 8px;
-  padding: 6px 10px; border-radius: 6px; background: var(--color-bad); color: #fff; font-size: 12px; line-height: 1.4; pointer-events: none;
+  padding: 6px 10px; border-radius: var(--kit-r-lg); background: var(--color-bad); color: #fff; font-size: 12px; line-height: 1.4; pointer-events: none;
   white-space: pre-wrap; word-break: break-word; }
 .dc-board.is-missing .dc-frame { background: repeating-linear-gradient(45deg, transparent 0 10px, rgba(0,0,0,.04) 10px 20px); }
 .dc-guides { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -47,12 +61,14 @@ body { overflow: hidden; }
 .dc-selbox.is-editing { outline-style: dashed; }
 .dc-hover { outline: calc(1px * var(--inv)) solid color-mix(in srgb, var(--dc-sel) 70%, transparent); }
 .dc-hover[hidden] { display: none; }
-.dc-crumbs { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 200px);
-  overflow: hidden; padding: 3px; border-radius: 8px; background: var(--color-panel); box-shadow: var(--shadow-popover); font-size: 12px; }
+.dc-crumbs { position: absolute; left: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; max-width: calc(100% - 200px);
+  overflow: hidden; padding: 3px; border-radius: var(--kit-r-lg); background: var(--color-panel); box-shadow: var(--shadow-popover); font-size: 12px; }
 .dc-crumbs[hidden] { display: none; }
-.dc-crumbs button { border: 0; background: none; padding: 3px 6px; border-radius: 5px; color: var(--color-fg-secondary); font: inherit; cursor: pointer; white-space: nowrap; }
-.dc-crumbs button:hover { background: var(--color-hover); }
-.dc-crumbs button.is-on { color: var(--dc-sel); font-weight: 600; }
+.dc-crumbs button, .dc-sheet-crumbs button { border: 0; background: none; padding: 3px 6px; border-radius: var(--kit-r-btn); color: var(--color-fg-secondary); font: inherit; cursor: pointer; white-space: nowrap; }
+.dc-crumbs button:hover, .dc-sheet-crumbs button:hover { background: var(--color-action-hover); }
+.dc-crumbs button.is-on, .dc-sheet-crumbs button.is-on { color: var(--dc-sel); font-weight: 600; }
+/* the breadcrumb in the Properties sheet (the canvas's is under it): wraps, never cut */
+.dc-sheet-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: 6px; font-size: 12px; }
 .dc-crumb-sep { color: var(--color-fg-muted); }
 .dc-emptymsg { position: absolute; inset: 0; min-height: 0; }
 
@@ -66,7 +82,7 @@ body { overflow: hidden; }
 .dc-shape { box-sizing: border-box; border: 2px solid; }
 
 /* Element toolbar */
-.dc-tools { position: fixed; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 8px;
+.dc-tools { position: fixed; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg);
   border: 1px solid var(--color-border-line); background: var(--color-panel); box-shadow: var(--shadow-popover); }
 .dc-tools[hidden] { display: none; }
 .dc-askin { width: 300px; height: 28px; padding: 0 8px; border: 0; outline: none; background: transparent; color: var(--color-fg); font: inherit; font-size: 13px; }
@@ -78,9 +94,11 @@ body { overflow: hidden; }
 .dc-sec { padding: 8px 0; border-top: 1px solid var(--color-border-line); }
 .dc-sec h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-fg-muted); }
 .dc-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 6px; min-height: 30px; color: var(--color-fg-secondary); }
-.dc-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-row > span:first-child { overflow-wrap: break-word; min-width: 0; }
+.dc-row.dc-tick { grid-template-columns: auto minmax(0, 1fr); }
+.dc-row.dc-tick > span { overflow-wrap: break-word; min-width: 0; }
 .dc-row input[type=text], .dc-row input[type=number], .dc-row select, .dc-row textarea { width: 100%; min-width: 0; height: 26px; padding: 0 6px;
-  border: 1px solid var(--color-border-line); border-radius: 5px; background: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 12px; }
+  border: 1px solid var(--color-border-line); border-radius: var(--kit-r-btn); background-color: var(--color-bg); color: var(--color-fg); font: inherit; font-size: 12px; }
 .dc-row textarea { height: auto; padding: 4px 6px; resize: vertical; }
 .dc-row input:disabled, .dc-row select:disabled { opacity: .55; }
 .dc-row input[type=checkbox] { justify-self: start; }
@@ -92,9 +110,9 @@ body { overflow: hidden; }
 .dc-range { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .dc-range input { flex: 1; min-width: 0; }
 .dc-rangeval { font-variant-numeric: tabular-nums; color: var(--color-fg-muted); min-width: 32px; text-align: right; }
-.dc-reset { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--color-fg-muted); cursor: pointer; }
+.dc-reset { width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--kit-r-icon); background: none; color: var(--color-fg-muted); cursor: pointer; }
 .dc-reset svg { width: 13px; height: 13px; }
-.dc-reset:hover { background: var(--color-hover); color: var(--color-fg); }
+.dc-reset:hover { background: var(--color-action-hover); color: var(--color-fg); }
 .dc-wide { width: 100%; justify-content: center; border: 1px solid var(--color-border-line) !important; }
 .dc-hint { color: var(--color-fg-muted); margin: 8px 0; }
 .dc-row .kit-seg .kit-btn { height: 24px; padding: 0 6px; }
@@ -102,7 +120,6 @@ body { overflow: hidden; }
 /* Toolbar */
 .dc-status { font-size: 12px; color: var(--color-fg-muted); }
 .dc-save { background: var(--color-accent) !important; }
-@media (max-width: 760px) { #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); } }
 
 /* The full-window view */
 #dc-focus { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: var(--dc-canvas); }
@@ -125,7 +142,7 @@ html[data-thumb] body { background: #fff; }
 html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-thumb { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #fff; }
 
-.dc-err .dc-fix { display: block; white-space: nowrap; margin-top: 6px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 4px;
+.dc-err .dc-fix { display: block; white-space: nowrap; margin-top: 6px; padding: 2px 8px; border: 1px solid currentColor; border-radius: var(--kit-r-btn);
   background: transparent; color: inherit; font: inherit; cursor: pointer; pointer-events: auto; }
 .dc-err .dc-fix:hover { background: rgba(255,255,255,.12); }
 
@@ -135,12 +152,12 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-link-t:hover { text-decoration: underline; }
 .dc-link-u { display: block; margin-top: 4px; font-size: 12px; color: var(--color-fg-muted); overflow-wrap: anywhere; }
 
-/* The canvas's chrome, as Claude's and in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
+/* The canvas's chrome, in Hermes' theme: no bar; pills float over the canvas (pages, the view's tools, the drawing tools),
    the panel has four tabs. Its colours, radii and shadows are the app's and follow it; the artboards keep their own look. */
 #dc-bar { display: none; }
 :root, :root[data-theme="dark"], :root[data-theme="light"] { --dc-canvas: color-mix(in srgb, var(--color-bg) 92%, var(--color-fg)); --dc-dots: color-mix(in srgb, var(--color-fg) 12%, transparent);
   --dc-sel: var(--color-accent); --dc-play: var(--color-accent); --dc-note-fg: var(--color-fg); }
-.dc-pill { position: absolute; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg, 8px);
+.dc-pill { position: absolute; z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--kit-r-lg);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg);
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
 .dc-pill[hidden] { display: none; }
@@ -167,21 +184,49 @@ html[data-thumb] #dc-app { height: 100vh; display: block; }
 .dc-tabs .dc-gap { flex: 1; }
 .dc-pnote { color: var(--color-fg-muted); line-height: 1.5; padding: 8px 2px; }
 .dc-outline { display: flex; flex-direction: column; gap: 1px; }
-.dc-orow { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 6px; border: 0; border-radius: var(--kit-r-sm, 6px); background: none;
+.dc-orow { display: flex; align-items: center; gap: 6px; width: 100%; height: 28px; padding: 0 6px; border: 0; border-radius: var(--kit-r-md); background: none;
   color: var(--color-fg-secondary); font: inherit; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; flex: none; }
-.dc-orow:hover { background: var(--color-hover); }
+.dc-orow:hover { background: var(--color-active); }
 .dc-orow.is-on { background: var(--color-hover); color: var(--color-accent); }
 .dc-orow b { font-weight: 500; flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
 .dc-orow > span:last-child { color: var(--color-fg-muted); overflow: hidden; text-overflow: ellipsis; }
 .dc-ocaret, .dc-oicon { flex: none; width: 14px; height: 14px; display: inline-flex; }
 .dc-ocaret svg, .dc-oicon svg { width: 14px; height: 14px; }
 .dc-oicon { color: var(--color-fg-muted); }
-.dc-code { margin: 0 0 8px; padding: 8px; max-height: 60vh; overflow: auto; border-radius: var(--kit-r-sm, 6px); border: 1px solid var(--color-border-line);
+.dc-code { margin: 0 0 8px; padding: 8px; max-height: 60vh; overflow: auto; border-radius: var(--kit-r-sm); border: 1px solid var(--color-border-line);
   background: var(--color-bg); color: var(--color-fg-secondary); font: 11.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .dc-save { color: var(--color-accent-fg, var(--color-bg)) !important; }
 html[data-thumb] .dc-pill { display: none; }
 .dc-pill .dc-status:empty { display: none; }
-/* the view's pill stays over the panel's top; the panel starts below it, its tabs fit its width */
-#dc-panel { padding-top: 58px; overflow-x: hidden; }
-.dc-tabs .kit-btn { flex: 0 1 auto; min-width: 0; padding: 0 6px; overflow: hidden; }
-.dc-tabs .kit-btn:last-child { flex: none; }
+/* the panel starts at the top of the stage, beside the view (its pills are the view's); its tabs fit its width */
+#dc-panel { overflow-x: hidden; }
+/* tabs keep their whole words (Hungarian's are long): a row too narrow for them all takes a second one */
+.dc-tabs { flex-wrap: wrap; row-gap: 2px; }
+.dc-tabs .kit-btn { flex: none; padding: 0 6px; white-space: nowrap; }
+.dc-tabs .kit-btn:last-child { margin-left: auto; } /* Close stays at the right, on whichever row it lands */
+
+/* The element toolbar's words never wrap; when it would be wider than the canvas they go and the icons stay. */
+.dc-tools .kit-btn { flex: none; white-space: nowrap; }
+.dc-tools.is-compact .kit-btn span { display: none; }
+/* The breadcrumb is placed by the page (design.js placeCrumbs): by the pills, never under them, off the selection. */
+#dc-view:has(.dc-pill-b) .dc-crumbs { max-width: calc(100% - 24px); }
+/* The full-window view is above the canvas's pills; its own head row has Back, the title, Previous / Next.
+   The canvas-only chrome (pills, the element toolbar, the breadcrumb) hides while it is open. */
+#dc-focus { z-index: 45; }
+#dc-app.is-focus .dc-pill, #dc-app.is-focus .dc-crumbs, #dc-app.is-focus ~ .dc-tools { display: none; }
+.dc-fhead .kit-btn { flex: none; white-space: nowrap; }
+.dc-fhead .kit-btn:disabled { opacity: .35; }
+/* Under 760 px the panel is a sheet over the canvas (opened by Properties, closed by its Close); while it is open the
+   canvas's tools step aside, the top pills too (Export, Play, Properties and Zoom were drawn over the sheet's tabs at
+   400 px): the sheet is above all canvas chrome and starts at the top. At 760 px and up the panel is beside the
+   canvas, as the page lays it out (design.js narrow()), its pills in the view (at 760 px the panel lay over the
+   view, its tabs under Save, Play, Properties and Zoom). */
+@media (max-width: 759.98px) {
+  #dc-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; box-shadow: var(--shadow-popover); width: min(320px, 100%); }
+  #dc-app.is-sheet .dc-pill-b, #dc-app.is-sheet .dc-crumbs, #dc-app.is-sheet ~ .dc-tools,
+  #dc-app.is-sheet .dc-pill-l, #dc-app.is-sheet .dc-pill-r { display: none; }
+  #dc-app.is-sheet #dc-panel { z-index: 40; padding-top: 10px; }
+}
+/* the selection's actions in the sheet (its toolbar steps aside while the sheet is open) */
+.dc-sheet-acts { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border-line); }
+.dc-sheet-acts .kit-btn { flex: none; }

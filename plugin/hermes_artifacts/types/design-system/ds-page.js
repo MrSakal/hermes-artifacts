@@ -60,6 +60,11 @@
   kit.degraded(T.noHost); // no host: said once; the page still shows what it has
 
   var bar = document.getElementById("ds-bar"), nav = document.getElementById("ds-nav"), main = document.getElementById("ds-main");
+  // A narrow page shows the nav as a strip of tabs with no scrollbar: the wheel scrolls it sideways.
+  if (nav) nav.addEventListener("wheel", function (e) {
+    if (nav.scrollWidth <= nav.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || getComputedStyle(nav).flexDirection !== "row") return;
+    nav.scrollLeft += e.deltaY; e.preventDefault();
+  }, { passive: false });
   bar.hidden = true; // no bar of its own: the artifact header carries the title, Export and Make default
   var IMG = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i, VIDEO = /\.(mp4|webm|mov)$/i, FONT = /\.(woff2?|ttf|otf|ttc)$/i;
   var NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
@@ -171,13 +176,13 @@
     if (C.files["design-system.json"] != null) files["design-system.json"] = withChange(note);
     status("saving");
     return window.hermes.save(files, C.version).then(function (r) {
-      if (!r || r.conflict || !r.ok) { status("failed"); kit.toast(r && r.conflict ? T.conflict : T.notSaved); return false; }
+      if (!r || r.conflict || !r.ok) { status("failed"); kit.toast(r && r.conflict ? T.conflict : T.notSaved, 0, "error"); return false; }
       C.version = r.version;
       Object.keys(files).forEach(function (p) { if (files[p] == null) delete C.files[p]; else C.files[p] = files[p]; });
       load();
       status("saved");
       return true;
-    }, function (e) { status("failed"); kit.toast(String(e && e.message || T.notSaved)); return false; });
+    }, function (e) { status("failed"); kit.toast(String(e && e.message || T.notSaved), 0, "error"); return false; });
   }
   function tokensText(t) { return JSON.stringify(t, null, 2) + "\n"; }
 
@@ -234,7 +239,7 @@
       if (!all["tokens.css"]) all["tokens.css"] = new TextEncoder().encode(tokensCss());
       var zip = fflate.zipSync(all, { level: 6 });
       kit.download(kit.slug(S.title) + ".zip", new Blob([zip], { type: "application/zip" }), "application/zip");
-    }).catch(function (e) { kit.toast(String(e && e.message || e)); });
+    }).catch(function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   var exportList = [
     { id: "tokens-css", label: T.css, run: function () { kit.download("tokens.css", tokensCss(), "text/css"); } },
@@ -249,7 +254,7 @@
   // The theme the page previews in, picked where themes show (Colors, Shadows, Components).
   function themeSelect() {
     if (!multiTheme()) return null;
-    var sel = h("select", { "class": "ds-in ds-theme-sel", "aria-label": T.theme, title: T.theme },
+    var sel = h("select", { "class": "ds-in ds-theme-sel kit-select", "aria-label": T.theme, title: T.theme },
       S.m.themes.map(function (t) { return h("option", { value: t.id, text: t.name }); }));
     sel.value = state.theme;
     sel.addEventListener("change", function () { state.chosenTheme = true; setTheme(sel.value); });
@@ -269,20 +274,11 @@
     out.push({ id: "files", title: T.files });
     return out;
   }
-  var NAV_ICON = {
-    overview: "M4 11l8-7 8 7v9h-5v-6H9v6H4z", md: "M7 3h7l5 5v12H7zM14 3v5h5M9 13h6M9 17h6",
-    colors: "M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1-.9-1.4-.9-2.3 0-.9.8-1.6 1.7-1.6h1.9a4.2 4.2 0 0 0 4.2-4.2C20.5 6.7 16.7 3 12 3zM7.5 12h.01M9.5 7.8h.01M14.5 7.8h.01",
-    type: "M4 19l5-14 5 14M6 14h6M15 19v-6.5a2.5 2.5 0 0 1 5 0V19M15 15.5h5",
-    spacing: "M4 4v16M20 4v16M8 12h8M8 12l2-2M8 12l2 2M16 12l-2-2M16 12l-2 2",
-    radius: "M4 20v-8a8 8 0 0 1 8-8h8", shadow: "M4 4h12v12H4zM8 20h12V8",
-    family: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
-    components: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7",
-    assets: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01", files: "M3 6h6l2 2h10v11H3z",
-    search: "M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4"
-  };
+  // A section's icon in the navigation: ds-<name>, the kit's where it has no own (a family without one: sliders).
+  var NAV_ICONS = ["overview", "md", "colors", "type", "spacing", "radius", "shadow", "family", "components", "assets", "files", "search"];
   function navIcon(id) {
-    var k = id.slice(0, 3) === "md:" ? "md" : id.slice(0, 4) === "fam:" ? (NAV_ICON[id.slice(4)] ? id.slice(4) : "family") : id;
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (NAV_ICON[k] || NAV_ICON.family) + '"/></svg>';
+    var k = id.slice(0, 3) === "md:" ? "md" : id.slice(0, 4) === "fam:" ? id.slice(4) : id;
+    return kit.icon(NAV_ICONS.indexOf(k) < 0 ? "ds-family" : "ds-" + k);
   }
   // Search: tokens, type styles, components, sections and files, by name.
   function searchHits(q) {
@@ -319,7 +315,7 @@
     });
     var foot = [navBtn("files", T.files, state.section === "files", function () { go("files"); }, String(Object.keys(C.files).length))];
     var lc = S.index.lastChange;
-    foot.push(h("div", { "class": "ds-nav-meta" }, [statusEl, lc && (lc.by || lc.at) ? h("span", { text: T.updated(lc.by, String(lc.at || "").slice(0, 10)) }) : null]));
+    foot.push(h("div", { "class": "ds-nav-meta" }, [statusEl, lc && (lc.by || lc.at) ? h("span", { text: T.updated(lc.by, lc.at ? kit.date(lc.at) || String(lc.at).slice(0, 10) : "") }) : null]));
     kids.push(h("div", { "class": "ds-nav-foot" }, foot));
     nav.replaceChildren.apply(nav, kids);
   }
@@ -363,6 +359,10 @@
       var p = resolveRel(dirOf(path || ""), u);
       return p && C.files[p] != null ? kit.fileUrl(p) : "";
     });
+    // A comment is on a whole block (a paragraph, a bullet, a heading, a table), never on a word of it.
+    art.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, table, img, hr").forEach(function (b) {
+      if (!b.parentElement.closest("[data-comment-whole]")) b.setAttribute("data-comment-whole", "");
+    });
     // A brand-book section (title given): each heading an anchor, section:<file>#<slug>, with a comment button.
     if (title != null) {
       var seen = {};
@@ -379,19 +379,24 @@
     return art;
   }
   function mdEditor(path, text, onDone, toFile) {
-    var ta = h("textarea", { "class": "ds-md-edit", spellcheck: "true" });
+    var ta = h("textarea", { "class": "ds-md-edit", spellcheck: "false" });
     ta.value = text || "";
-    var wrap = h("div", { "class": "ds-editor" }, [ta, h("div", { "class": "ds-row-btns" }, [
-      btn(T.save, "primary", function () {
-        var v = ta.value.replace(/\r\n?/g, "\n"), files = {}; files[path] = toFile ? toFile(v) : v;
-        saveFiles(files, "edited " + path).then(function (ok) { if (ok) { state.editing = null; render(); } });
-      }),
-      btn(T.cancel, "", function () { state.editing = null; onDone ? onDone() : render(); })
-    ])]);
-    setTimeout(function () { ta.focus(); ta.style.height = Math.min(640, Math.max(220, ta.scrollHeight + 4)) + "px"; }, 0);
+    // Save and Cancel in a bar that stays at the frame's foot while the text runs past it, kit buttons
+    var save = kit.button(T.save, "check", function () {
+      var v = ta.value.replace(/\r\n?/g, "\n"), files = {}; files[path] = toFile ? toFile(v) : v;
+      saveFiles(files, "edited " + path).then(function (ok) { if (ok) { state.editing = null; render(); } });
+    });
+    kit.labelled(save, T.save).classList.add("ds-primary");
+    var cancel = kit.labelled(kit.button(T.cancel, "close", function () { state.editing = null; onDone ? onDone() : render(); }), T.cancel);
+    var wrap = h("div", { "class": "ds-editor ds-md-editor" }, [ta, h("div", { "class": "ds-md-bar" }, [save, cancel])]);
+    // at its first line: setting the value put the caret at the end, and the focus scrolled the start out of sight
+    setTimeout(function () { ta.style.height = Math.min(640, Math.max(220, ta.scrollHeight + 4)) + "px"; ta.setSelectionRange(0, 0); ta.focus({ preventScroll: true }); ta.scrollTop = 0; }, 0);
     return wrap;
   }
   function btn(label, kind, fn, title) {
+    // "+ Add …": the kit's plus icon, not a typed glyph
+    if (/^\+ /.test(label)) return h("button", { type: "button", "class": "ds-btn ds-btn-add" + (kind ? " ds-btn-" + kind : ""), title: title || null, onclick: fn,
+      html: kit.icon("plus") + "<span>" + kit.esc(label.slice(2)) + "</span>" });
     return h("button", { type: "button", "class": "ds-btn" + (kind ? " ds-btn-" + kind : ""), text: label, title: title || null, onclick: fn });
   }
   // A section's title row: the anchor section:<file>, a comment button after the title.
@@ -472,14 +477,14 @@
     var iframe = h("iframe", { sandbox: "allow-scripts", title: opts.title || path, loading: opts.lazy ? "lazy" : null, "class": "ds-frame" });
     iframe.srcdoc = frameHtml(path, id);
     var wrap = h("div", { "class": "ds-frame-wrap" + (w ? " ds-scaled" : "") }, [iframe]);
-    var f = frames[id] = { iframe: iframe, wrap: wrap, h: hgt, base: hgt, w: w, grow: !opts.fixed, onError: opts.onError, onLoad: opts.onLoad };
+    var f = frames[id] = { iframe: iframe, wrap: wrap, h: hgt, base: hgt, w: w, grow: !opts.fixed, fill: !!opts.fill, onError: opts.onError, onLoad: opts.onLoad };
     layoutFrame(f);
     return wrap;
   }
   function layoutFrame(f) {
     if (f.w) {
       var avail = f.wrap.clientWidth || f.wrap.parentNode && f.wrap.parentNode.clientWidth || f.w;
-      var k = Math.min(1, avail / f.w);
+      var k = f.fill ? avail / f.w : Math.min(1, avail / f.w); // fill: as wide as its box, larger too (a card's cover)
       f.iframe.style.width = f.w + "px"; f.iframe.style.height = f.h + "px";
       f.iframe.style.transform = "scale(" + k + ")";
       f.wrap.style.height = Math.ceil(f.h * k) + "px";
@@ -498,20 +503,20 @@
       if (Math.abs(nh - f.h) > 1) { f.h = nh; layoutFrame(f); }
     }
   });
-  if (window.ResizeObserver) new ResizeObserver(function () {
+  kit.onResize(main, function () {
     Object.keys(frames).forEach(function (k) { if (frames[k].w) layoutFrame(frames[k]); });
-  }).observe(main);
+  });
 
   function cover(opts) {
     var path = "components/Cover/preview.html";
     if (S.coverIsComponent || C.files[path] == null) return null;
     var mk = marker(kit.fileText(path));
-    return h("div", { "class": "ds-cover" }, [frame(path, { marker: { height: mk.height, width: 960 }, min: 240, max: 360, height: 288, fixed: true,
-      title: S.title, onLoad: opts && opts.onLoad })]);
+    return h("div", { "class": "ds-cover", "data-comment-label": X.hero }, [frame(path, { marker: { height: mk.height, width: 960 }, min: 240, max: 360, height: 288, fixed: true,
+      fill: !!(opts && opts.fill), title: S.title, onLoad: opts && opts.onLoad })]);
   }
 
   // ------------------------------------------------------------------ views
-  // Claude's Design System page: each foundation a table (Name | a column per theme), values edited in place,
+  // The Design System page: each foundation a table (Name | a column per theme), values edited in place,
   // usage notes and a row menu on every token, contrast on what is read, empty states that ask Hermes.
   var README_MARK = "<!-- @generated below by the Design System type: Consuming this system, Index -->";
   var X = pickLang({
@@ -528,7 +533,7 @@
       lineHeight: "Line height", layers: "Layers", addLayer: "Add layer", inset: "inset", color: "Color", blur: "Blur", spread: "Spread",
       cats: { docs: "Documents", css: "Stylesheets", js: "Scripts", data: "Data", fonts: "Fonts", images: "Images", other: "Other" },
       noFilePreview: "No preview for this file.", delFile: "Delete this file?", fontTooBig: "Fonts up to 8 MB (woff2, woff, ttf, otf)",
-      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", comment: "Comment", guideline: "Guidelines", noGuide: "No guidelines yet.",
+      askHermes: "Ask Hermes", fixHermes: "Fix with Hermes", comment: "Comment", hero: "Hero", guideline: "Guidelines", noGuide: "No guidelines yet.",
       desc: { "design-system.json": "The index: title, namespace, libraries, asset groups", "tokens.json": "The tokens every stylesheet is compiled from",
         "README.md": "The brand book: every reader starts here", "components/bundle.js": "The components, compiled for the global scope",
         "components/bundle.css": "The components' styles", "components/index.d.ts": "The components' props" },
@@ -552,7 +557,7 @@
       lineHeight: "Sormagasság", layers: "Rétegek", addLayer: "Új réteg", inset: "belső", color: "Szín", blur: "Elmosás", spread: "Terítés",
       cats: { docs: "Dokumentumok", css: "Stíluslapok", js: "Szkriptek", data: "Adat", fonts: "Betűk", images: "Képek", other: "Egyéb" },
       noFilePreview: "Ehhez a fájlhoz nincs előnézet.", delFile: "Törlöd ezt a fájlt?", fontTooBig: "Legfeljebb 8 MB-os betűfájl (woff2, woff, ttf, otf)",
-      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", comment: "Megjegyzés", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
+      askHermes: "Kérdezd Hermest", fixHermes: "Javítsa Hermes", comment: "Megjegyzés", hero: "Nyitókép", guideline: "Irányelvek", noGuide: "Még nincsenek irányelvek.",
       desc: { "design-system.json": "Az index: cím, névtér, könyvtárak, eszközcsoportok", "tokens.json": "A tokenek: minden stíluslap ebből készül",
         "README.md": "A brand book: minden olvasó itt kezdi", "components/bundle.js": "A komponensek, a globális scope-ba fordítva",
         "components/bundle.css": "A komponensek stílusai", "components/index.d.ts": "A komponensek propjai" },
@@ -585,7 +590,7 @@
   // ---- asking Hermes (staged in the artifact's chat, the user sends it)
   function askHermes(text, data) {
     if (!window.hermes || !window.hermes.send) return;
-    window.hermes.send(text, data || { section: state.section }).then(null, function (e) { kit.toast(String(e && e.message || e)); });
+    window.hermes.send(text, data || { section: state.section }).then(null, function (e) { kit.toast(String(e && e.message || e), 0, "error"); });
   }
   function askBox(what) {
     var can = !C.thumb && window.hermes && window.hermes.send;
@@ -628,13 +633,39 @@
     el.scrollIntoView({ block: "center", behavior: "smooth" });
     el.classList.remove("ds-flash"); void el.offsetWidth; el.classList.add("ds-flash");
   }
+  // The host's comment pick on a part with an anchor (a token's row, a type style, a component): the comment is
+  // on that anchor (showAnchor finds it again), titled with its name, its pin beside what was pressed: the control
+  // in it the pick outlined (a swatch, a value; V6j: the swatch's pin 662 px off at the row's end), else the row.
+  var dsPicking = false;
+  window.addEventListener("click", function (e) {
+    if (!dsPicking || !CAN_COMMENT) return;
+    var el = e.target.closest && e.target.closest("[data-ds-anchor]");
+    if (!el || e.target.closest("[data-comment-off]")) return; // the page's own controls by it: no part (bridge.js off)
+    e.preventDefault(); e.stopImmediatePropagation();
+    var a = el.getAttribute("data-ds-anchor"), name = el.getAttribute("data-token") || el.getAttribute("data-component") || a.replace(/^[a-z]+:/, "").split("/").pop();
+    var part = e.target.closest("button, input, select, textarea, a[href]");
+    // a section's heading (a page's own, or one in its words): titled by its words, its pin by them, not by the
+    // file's name and the heading's whole bar (V6l: "README.md", the pin 99 px off the heading)
+    var head = /^section:/.test(a) ? (/^H\d$/.test(el.tagName) ? el : el.querySelector("h1, h2, h3, h4")) : null;
+    if (head) name = [].filter.call(head.childNodes, function (n) { return n.nodeType === 3; }).map(function (n) { return n.nodeValue; }).join("").trim() || name;
+    window.hermes.comment({ selector: a, text: String(el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 200), label: String(name).slice(0, 40) }, part && el.contains(part) ? part : head || el);
+  }, true);
   if (CAN_COMMENT && window.hermes.on) {
+    window.hermes.on("comment-mode", function (d) { dsPicking = !!(d && d.on); });
     // A comment's anchor clicked in the host: show that row or heading.
     window.hermes.on("flash", function (d) { showAnchor(String(d && d.selector || "")); });
+    // A part with an open thread (a token's row, a section's heading): its numbered mark by it while it is shown.
+    if (window.hermes.locate) window.hermes.locate(function (sel) {
+      return /^(token|style|component|asset|section):/.test(sel) ? { el: main, box: function () {
+        var n = [].filter.call(main.querySelectorAll("[data-ds-anchor]"), function (x) { return x.getAttribute("data-ds-anchor") === sel; })[0];
+        if (!n || !n.getClientRects().length) return null;
+        var q = n.getBoundingClientRect(); return { x: q.left, y: q.top, w: q.width, h: q.height, el: n };
+      } } : null;
+    });
   }
   function confirmMenu(anchor, q, fn) { kit.menu(anchor, [{ hint: q }, { label: T.del, onClick: fn }]); }
   function copyText(s) {
-    var done = function () { kit.toast(X.copied + ": " + s); };
+    var done = function () { kit.toast(X.copied + ": " + s, 0, "success"); };
     try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s).then(done, fallback); } catch (e) {}
     fallback();
     function fallback() {
@@ -643,8 +674,8 @@
     }
   }
   var pop = null;
-  function closePop() { if (pop) { pop.remove(); pop = null; document.removeEventListener("mousedown", popOut, true); } }
-  function popOut(e) { if (pop && !pop.contains(e.target)) closePop(); }
+  function closePop() { if (pop) { pop.remove(); pop = null; document.removeEventListener("pointerdown", popOut, true); } }
+  function popOut(e) { if (pop && !pop.contains(e.target)) { kit.swallowPress(e); closePop(); } } // only closes it
   function popover(anchor, kids, wide) {
     closePop();
     pop = h("div", { "class": "ds-pop" + (wide ? " ds-pop-wide" : ""), role: "dialog" }, kids);
@@ -652,7 +683,7 @@
     var r = anchor.getBoundingClientRect();
     pop.style.top = Math.max(8, Math.min(r.bottom + 6, innerHeight - pop.offsetHeight - 8)) + "px";
     pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + "px";
-    setTimeout(function () { document.addEventListener("mousedown", popOut, true); }, 0);
+    setTimeout(function () { document.addEventListener("pointerdown", popOut, true); }, 0);
     pop.addEventListener("keydown", function (e) { if (e.key === "Escape") closePop(); });
     return pop;
   }
@@ -686,7 +717,7 @@
     var next = JSON.parse(JSON.stringify(S.tokens || {}));
     var list = next[fam] && Array.isArray(next[fam].tokens) ? next[fam].tokens : [];
     var entry = list.filter(function (t) { return t && cleanKey(t.name) === name; })[0];
-    if (!entry) { kit.toast(T.notSaved); return Promise.resolve(false); }
+    if (!entry) { kit.toast(T.notSaved, 0, "error"); return Promise.resolve(false); }
     var err = fn(entry, next);
     if (err) { kit.toast(err); render(); return Promise.resolve(false); }
     return saveTokens(next, note);
@@ -1207,7 +1238,7 @@
   function editStyle(name, fn, note) {
     var next = JSON.parse(JSON.stringify(S.tokens || {})), hit = null;
     ((next.type && next.type.groups) || []).forEach(function (g) { (g.styles || []).forEach(function (s) { if (!hit && s && cleanKey(s.name) === name) hit = s; }); });
-    if (!hit) { kit.toast(T.notSaved); return Promise.resolve(false); }
+    if (!hit) { kit.toast(T.notSaved, 0, "error"); return Promise.resolve(false); }
     var err = fn(hit, next);
     if (err) { kit.toast(err); return Promise.resolve(false); }
     return saveTokens(next, note);
@@ -1281,7 +1312,7 @@
       inp.value = val == null ? "" : String(val); f[k] = inp;
       return h("label", { "class": "ds-field" }, [h("span", { text: label }), inp]);
     }
-    var famSel = h("select", { "class": "ds-in", "aria-label": X.family }, [h("option", { value: "", text: "—" })].concat(S.m.type.familyKeys.map(function (k) {
+    var famSel = h("select", { "class": "ds-in kit-select", "aria-label": X.family }, [h("option", { value: "", text: "—" })].concat(S.m.type.familyKeys.map(function (k) {
       return h("option", { value: k, text: familyLabel(k) + " (" + k + ")" });
     })));
     famSel.value = raw.family ? String(raw.family).toLowerCase() : "";
@@ -1324,7 +1355,7 @@
     var file = fontPick.files && fontPick.files[0];
     if (!file) return;
     var ext = (/\.(woff2?|ttf|otf)$/i.exec(file.name) || [])[1];
-    if (!ext || file.size > 8 * 1024 * 1024) { kit.toast(X.fontTooBig); return; }
+    if (!ext || file.size > 8 * 1024 * 1024) { kit.toast(X.fontTooBig, 0, "error"); return; }
     ext = ext.toLowerCase();
     var base = file.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "font";
     var name = base + "." + ext, n = 2;
@@ -1341,7 +1372,7 @@
       var family = base.replace(/[-_]?(thin|extra-?light|light|regular|medium|semi-?bold|extra-?bold|bold|black|heavy|italic|variable|vf)\b/gi, "").replace(/[-_]+/g, " ").trim() || base;
       next.type.fonts.push({ family: family, file: name, weight: String(w), style: /italic/i.test(base) ? "italic" : "normal" });
       files["tokens.json"] = tokensText(next);
-      saveFiles(files, "uploaded fonts/" + name).then(function (ok) { if (ok) { kit.toast(T.uploaded + ": " + name); state.section = "type"; render(); } });
+      saveFiles(files, "uploaded fonts/" + name).then(function (ok) { if (ok) { kit.toast(T.uploaded + ": " + name, 0, "success"); state.section = "type"; render(); } });
     };
     rd.readAsDataURL(file);
   });
@@ -1519,7 +1550,7 @@
     if (!file || !g) return;
     // An SVG goes up as its text (the server keeps it only when static) and shows through <img>.
     var svg = file.type === "image/svg+xml" || (!file.type && /\.svg$/i.test(file.name));
-    if (svg ? file.size > 2 * 1024 * 1024 : !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig); return; }
+    if (svg ? file.size > 2 * 1024 * 1024 : !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) { kit.toast(T.tooBig, 0, "error"); return; }
     var ext = svg ? "svg" : { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" }[file.type];
     var base = file.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "image";
     var name = base + "." + ext, n = 2;
@@ -1538,7 +1569,7 @@
       rec.files[name] = { name: name, size: file.size, type: svg ? "image/svg+xml" : file.type };
       saveFiles(files, "uploaded " + path).then(function (ok) {
         if (!ok) { load(); return; }
-        kit.toast(T.uploaded + ": " + name);
+        kit.toast(T.uploaded + ": " + name, 0, "success");
         state.section = "assets"; state.editing = null; render();
       });
     };
@@ -1585,6 +1616,24 @@
     return [heading(T.files, [h("span", { "class": "ds-muted", text: paths.length + " · " + fmtSize(paths.reduce(function (s, p) { return s + sizeOf(p); }, 0)) }), expBtn]),
       h("div", { "class": "ds-fb" }, [list, cur ? filePane(cur) : h("div")])];
   }
+  /** The Files list ends after a whole row: its height (ds.css's cap, 240 px stacked, the window's less 80 px beside
+   *  the file) is cut back to the last row that fits in it whole (V6w: a 2 px sliver of a 9th row at its foot). */
+  function fitFileList() {
+    var list = main.querySelector(".ds-fl");
+    if (!list) return;
+    list.style.maxHeight = "";
+    var cap = parseFloat(getComputedStyle(list).maxHeight);
+    if (!(cap > 0) || list.scrollHeight <= cap + 1) return;
+    var top = list.getBoundingClientRect().top - list.scrollTop, end = 0;
+    for (var i = 0; i < list.children.length; i++) {
+      var b = list.children[i].getBoundingClientRect().bottom - top;
+      if (b > cap) break;
+      end = b;
+    }
+    if (end > 0) list.style.maxHeight = Math.ceil(end) + "px";
+  }
+  window.addEventListener("resize", fitFileList);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitFileList);
   function filePane(p) {
     var gen = isGenerated(p), desc = gen ? X.generated : X.desc[p] || (/^components\/[^/]+\/README\.md$/.test(p) ? X.guideline : /^components\/[^/]+\/preview\.html$/.test(p) ? X.preview : "");
     var del = S.editable && !gen && DELETABLE.test(p) ? btn(T.del, "danger", null) : null;
@@ -1603,6 +1652,18 @@
   function fontFamOf(p) { var f = S.m.type.fonts.filter(function (x) { return x.file === p; })[0]; return f ? f.family : "inherit"; }
 
   // ------------------------------------------------------------------ render
+  // A narrow frame stacks a table's rows (ds.css): each value cell then says which column it is.
+  function labelCells(root) {
+    root.querySelectorAll("table.ds-table").forEach(function (t) {
+      var ths = t.querySelectorAll("thead th");
+      t.querySelectorAll("tr.ds-row").forEach(function (tr) {
+        Array.prototype.forEach.call(tr.children, function (td, i) {
+          var th = ths[i], label = th && th.textContent.trim();
+          if (label && !td.classList.contains("ds-cname")) td.setAttribute("data-th", label);
+        });
+      });
+    });
+  }
   function render() {
     frames = {}; closePop();
     drawNav();
@@ -1615,8 +1676,14 @@
     else if (s === "components") kids = componentView();
     else if (s === "assets") kids = assetView();
     else kids = filesView();
-    main.replaceChildren(h("div", { "class": "ds-page" }, kids.filter(Boolean)));
+    main.replaceChildren(h("div", s === "files" ? { "class": "ds-page ds-page-files", "data-comment-off": "" } : { "class": "ds-page" }, kids.filter(Boolean)));
+    labelCells(main);
+    // Only what the system holds is commented on: not the page's own words and controls round it (a section's Edit
+    // and comment buttons, its banners and hints, the generated "Consuming this system · Index"), nor the files.
+    main.querySelectorAll(".ds-head > :not(h1), .ds-banner, .ds-gen, .ds-empty, .ds-problems").forEach(function (e) { e.setAttribute("data-comment-off", ""); });
+    main.querySelectorAll(".ds-gen [data-comment-whole], [data-comment-off].ds-page [data-comment-whole]").forEach(function (e) { e.removeAttribute("data-comment-whole"); });
     Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); });
+    fitFileList();
     sendView();
   }
 
@@ -1624,8 +1691,13 @@
   if (C.thumb) {
     document.documentElement.setAttribute("data-ds-thumb", "");
     var done = false, finish = function () { if (!done) { done = true; kit.ready(); } };
-    var cv = cover({ onLoad: function () { setTimeout(finish, 150); } });
-    if (cv) { main.appendChild(cv); Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); }); setTimeout(finish, 2500); }
+    var cv = cover({ fill: true, onLoad: function () { setTimeout(finish, 150); } });
+    if (cv) {
+      // The card is taller than the cover: the cover across its width, the palette's first colours below it, to the foot.
+      var pal = S.m.colors.slice(0, 6).map(function (c) { return h("span", { style: "background:" + (S.m.resolve(c.name, S.m.first) || "transparent") }); });
+      main.appendChild(h("div", { "class": "ds-thumb-cover" }, [cv, h("div", { "class": "ds-thumb-pal" }, pal)]));
+      Object.keys(frames).forEach(function (k) { layoutFrame(frames[k]); }); setTimeout(finish, 2500);
+    }
     else {
       var blocks = S.m.colors.slice(0, 5).map(function (c) { return h("span", { style: "background:" + (S.m.resolve(c.name, S.m.first) || "transparent") }); });
       main.appendChild(h("div", { "class": "ds-thumb-fallback" }, [h("div", { "class": "ds-thumb-blocks" }, blocks), h("div", { "class": "ds-thumb-name", text: S.title })]));

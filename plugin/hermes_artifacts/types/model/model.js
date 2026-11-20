@@ -27,7 +27,7 @@
       views: "Views", top: "Top", front: "Front", right: "Right", iso: "Iso", named: "Saved views",
       persp: "Perspective (P)", ortho: "Orthographic (P)", fit: "Zoom to fit (F)", fitSel: "Zoom to selection (F)",
       select: "Select (Q)", move: "Move (W)", rotate: "Rotate (E)", scale: "Scale (R)",
-      snap: "Snap", snapOff: "No snapping", snapMove: "Move step", snapRot: "Rotate step",
+      snap: "Snap", tools: "Tools", snapOff: "No snapping", snapMove: "Move step", snapRot: "Rotate step",
       add: "Add a part", importBtn: "Bring in a mesh file", dropHere: "Drop a mesh file (glb, gltf, stl, obj, ply, 3mf)",
       tooBig: "Mesh files up to 12 MB", badExt: "glb, gltf, stl, obj, ply or 3mf", imported: "Added",
       section: "Section (X)", flip: "Flip", axis: "Axis", measure: "Measure (M)", measureHint: "Click two points. Esc clears.",
@@ -50,7 +50,7 @@
       color: "Colour", metal: "Metalness", rough: "Roughness", opacity: "Opacity", custom: "Custom colour", presets: "Presets",
       modelMats: "This model's materials", defMat: "Default",
       sharedMat: function (n, k) { return "Changes the material \u201c" + n + "\u201d on " + k + (k === 1 ? " part" : " parts"); },
-      layers: "Layers", problems: "Problems", noLayer: "(no layer)", noProblems: "No problems.", exprBad: "Not a number or expression: ",
+      layers: "Layers", problems: "Problems", noProblems: "No problems.", exprBad: "Not a number or expression: ",
       copy: "copy", items: "items",
       cId: "Id", cName: "Name", cKind: "Kind", cMat: "Material", cTag: "Layer", cCount: "Count", cX: "Size X (mm)", cY: "Size Y (mm)",
       cZ: "Size Z (mm)", cVol: "Volume (m\u00b3)", cArea: "Area (m\u00b2)", cTVol: "Total volume (m\u00b3)", cTArea: "Total area (m\u00b2)",
@@ -67,7 +67,7 @@
       views: "N\u00e9zetek", top: "Fel\u00fcln\u00e9zet", front: "El\u00f6ln\u00e9zet", right: "Jobb oldal", iso: "Izometrikus", named: "Mentett n\u00e9zetek",
       persp: "Perspektivikus (P)", ortho: "Ortogon\u00e1lis (P)", fit: "Mindent mutat (F)", fitSel: "Kijel\u00f6l\u00e9sre nagy\u00edt (F)",
       select: "Kijel\u00f6l\u00e9s (Q)", move: "Mozgat\u00e1s (W)", rotate: "Elforgat\u00e1s (E)", scale: "M\u00e9retez\u00e9s (R)",
-      snap: "Illeszt\u00e9s", snapOff: "Nincs illeszt\u00e9s", snapMove: "Mozgat\u00e1si l\u00e9p\u00e9s", snapRot: "Forgat\u00e1si l\u00e9p\u00e9s",
+      snap: "Illeszt\u00e9s", tools: "Eszk\u00f6z\u00f6k", snapOff: "Nincs illeszt\u00e9s", snapMove: "Mozgat\u00e1si l\u00e9p\u00e9s", snapRot: "Forgat\u00e1si l\u00e9p\u00e9s",
       add: "Elem hozz\u00e1ad\u00e1sa", importBtn: "H\u00e1l\u00f3f\u00e1jl behoz\u00e1sa", dropHere: "Ejts ide egy h\u00e1l\u00f3f\u00e1jlt (glb, gltf, stl, obj, ply, 3mf)",
       tooBig: "Legfeljebb 12 MB-os h\u00e1l\u00f3f\u00e1jl", badExt: "glb, gltf, stl, obj, ply vagy 3mf", imported: "Hozz\u00e1adva",
       section: "Metszet (X)", flip: "Megford\u00edt\u00e1s", axis: "Tengely", measure: "M\u00e9r\u00e9s (M)", measureHint: "Kattints k\u00e9t pontra. Esc: t\u00f6rl\u00e9s.",
@@ -90,7 +90,7 @@
       color: "Sz\u00edn", metal: "F\u00e9mess\u00e9g", rough: "\u00c9rdess\u00e9g", opacity: "\u00c1tl\u00e1tszatlans\u00e1g", custom: "Egyedi sz\u00edn", presets: "El\u0151re megadott",
       modelMats: "A modell anyagai", defMat: "Alap\u00e9rtelmezett",
       sharedMat: function (n, k) { return "A(z) \u201e" + n + "\u201d anyagot m\u00f3dos\u00edtja " + k + " elemen"; },
-      layers: "R\u00e9tegek", problems: "Hib\u00e1k", noLayer: "(nincs r\u00e9teg)", noProblems: "Nincs hiba.", exprBad: "Nem sz\u00e1m vagy kifejez\u00e9s: ",
+      layers: "R\u00e9tegek", problems: "Hib\u00e1k", noProblems: "Nincs hiba.", exprBad: "Nem sz\u00e1m vagy kifejez\u00e9s: ",
       copy: "m\u00e1solat", items: "db",
       cId: "Azonos\u00edt\u00f3", cName: "N\u00e9v", cKind: "T\u00edpus", cMat: "Anyag", cTag: "R\u00e9teg", cCount: "Darab", cX: "M\u00e9ret X (mm)", cY: "M\u00e9ret Y (mm)",
       cZ: "M\u00e9ret Z (mm)", cVol: "T\u00e9rfogat (m\u00b3)", cArea: "Fel\u00fclet (m\u00b2)", cTVol: "\u00d6sszt\u00e9rfogat (m\u00b3)", cTArea: "\u00d6sszfel\u00fclet (m\u00b2)",
@@ -115,27 +115,8 @@
     var f = NF[d] || (NF[d] = new Intl.NumberFormat(L === "hu" ? "hu-HU" : "en-US", { maximumFractionDigits: d }));
     return f.format(Math.abs(v) < Math.pow(10, -d) / 2 ? 0 : v);
   }
-  var ICON = {
-    cube: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
-    move: "M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3",
-    rotate: "M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5",
-    scale: "M4 20V11h9v9zM13 11l7-7M15 4h5v5",
-    section: "M4 6h16v12H4zM2 12h20",
-    ruler: "M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",
-    dims: "M4 7v10M20 7v10M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3",
-    eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
-    eyeOff: "M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.8-1.3M9.9 9.9a3 3 0 0 0 4.2 4.2",
-    upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
-    fitAll: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
-    fitSel: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5M9 9h6v6H9z",
-    persp: "M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10",
-    ortho: "M5 5h14v14H5z",
-    magnet: "M6 3v8a6 6 0 0 0 12 0V3M6 7h4M14 7h4",
-    target: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"
-  };
-  function icon(n) {
-    return ICON[n] ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICON[n] + '"/></svg>' : kit.icon(n);
-  }
+  // the model's icons, its menus' too (kit.menu takes a name): md-<name>, the kit's where it has no own
+  function icon(n) { return kit.icon("md-" + n); }
 
   // ------------------------------------------------------------------ thumbnail: the saved picture, never WebGL
   var model = kit.json("model.json", null);
@@ -264,10 +245,10 @@
   var statusEl = h("span", { "class": "md-status", "aria-live": "polite" });
   var saveBtn = btn(null, T.saveKey, function () { save(); }, "md-save");
   saveBtn.textContent = T.save; saveBtn.hidden = true;
-  var pillL = h("div", { "class": "md-pill md-pill-l", role: "toolbar", "aria-label": T.views });
-  var pillR = h("div", { "class": "md-pill md-pill-r", role: "toolbar", "aria-label": T.exp });
-  var pillB = h("div", { "class": "md-pill md-pill-b md-wide-only", role: "toolbar", "aria-label": T.select });
-  var pillS = h("div", { "class": "md-pill md-pill-s", role: "toolbar", "aria-label": T.props, hidden: true });
+  var pillL = h("div", { "class": "md-pill md-pill-l", "data-comment-keep": "", role: "toolbar", "aria-label": T.views });
+  var pillR = h("div", { "class": "md-pill md-pill-r", "data-comment-keep": "", role: "toolbar", "aria-label": T.exp });
+  var pillB = h("div", { "class": "md-pill md-pill-b md-wide-only", "data-comment-keep": "", role: "toolbar", "aria-label": T.select });
+  var pillS = h("div", { "class": "md-pill md-pill-s", "data-comment-keep": "", role: "toolbar", "aria-label": T.props, hidden: true });
   var secCard = h("div", { "class": "md-card", hidden: true }), measCard = h("div", { "class": "md-card", hidden: true, "aria-live": "polite" });
   // above the tools: the measure and section cards, then the selection's pill
   var dock = h("div", { "class": "md-dock" }, [measCard, secCard, pillS]);
@@ -298,8 +279,8 @@
       btn("fitAll", T.fit, function () { fitAll(true); }), btn("fitSel", T.fitSel, function () { focusSel(); }, "md-wide-only")].filter(Boolean));
     pillL.querySelectorAll("button").forEach(function (b) { if (!glOK) b.disabled = true; });
     // file and panel (top right)
-    var expBtn = btn("download", T.exp, function () { kit.menu(expBtn, exportList.map(function (x) { return { label: x.label, onClick: x.run }; })); });
-    var moreBtn = btn("more", T.more, function () { kit.menu(moreBtn, moreItems()); }, "md-narrow-only");
+    var expBtn = btn("download", T.exp, function () { kit.menu(expBtn, exportItems()); });
+    var moreBtn = btn("more", T.more, function () { kit.menu(moreBtn, moreItems()); }, "md-narrow-only md-morebtn");
     var panelBtn = btn("panel", T.panel, function () { togglePanel(); }, panelShown() ? "is-on" : "");
     pillR.replaceChildren(statusEl, saveBtn, moreBtn, expBtn, panelBtn);
     // tools (bottom)
@@ -324,31 +305,47 @@
     pillB.replaceChildren.apply(pillB, items);
     pillB.hidden = !items.length;
     drawSelPill();
+    fitChrome();
+  }
+  // A view too narrow for the wide chrome (the panel beside it takes 300 px) folds it as a narrow pane does: the
+  // views into their menu, the tools into More. Measured, so the two top pills never meet whatever the width.
+  function fitChrome() {
+    app.classList.remove("is-tight");
+    if (narrow || pillL.hidden) return;
+    // the tools' own width (scrollWidth: the pill is capped at the view's, its last tools then cut off under the panel)
+    var a = pillL.getBoundingClientRect(), b = pillR.getBoundingClientRect(), w = pillB.hidden ? 0 : pillB.scrollWidth;
+    if (a.right + 8 > b.left || w + 24 > viewEl.clientWidth) app.classList.add("is-tight");
   }
   function toolBtn(ic, title, mode) {
     var on = tool === "select" && gizmoMode === mode;
     return btn(ic, title, function () { setGizmo(mode); }, on ? "is-on" : "");
   }
   function snapItems() {
-    var ck = function (b) { return b ? "\u2713 " : "   "; };
-    return [{ label: ck(!snap.on) + T.snapOff, onClick: function () { snap.on = false; applySnap(); drawChrome(); } }, { hint: T.snapMove }]
-      .concat([1, 10, 100].map(function (s) { return { label: ck(snap.on && snap.move === s) + s + " mm", onClick: function () { snap.on = true; snap.move = s; applySnap(); drawChrome(); } }; }))
-      .concat([{ hint: T.snapRot }], [5, 15, 45].map(function (s) { return { label: ck(snap.on && snap.rot === s) + s + "\u00b0", onClick: function () { snap.on = true; snap.rot = s; applySnap(); drawChrome(); } }; }));
+    return [{ on: !snap.on, label: T.snapOff, onClick: function () { snap.on = false; applySnap(); drawChrome(); } }, { hint: T.snapMove }]
+      .concat([1, 10, 100].map(function (s) { return { on: !!snap.on && snap.move === s, label: s + " mm", onClick: function () { snap.on = true; snap.move = s; applySnap(); drawChrome(); } }; }))
+      .concat([{ hint: T.snapRot }], [5, 15, 45].map(function (s) { return { on: !!snap.on && snap.rot === s, label: s + "\u00b0", onClick: function () { snap.on = true; snap.rot = s; applySnap(); drawChrome(); } }; }));
   }
   function addItems() {
     return ["box", "cyl", "sphere", "cone", "prism", "extrude", "lathe"].map(function (k) { return { label: T.addKinds[k], onClick: function () { addPart(k); } }; });
   }
+  // the Export menu's items with their icons, as More's have theirs (one look per page)
+  var EXP_ICON = { glb: "md-cube", stl: "md-cube", obj: "md-cube", ply: "md-cube", png: "image", csv: "table" };
+  function exportItems() { return exportList.map(function (x) { return { icon: EXP_ICON[x.id] || "file", label: x.label, onClick: x.run }; }); }
   function moreItems() {
     var ed = editable(), out = [];
-    if (!glOK) return exportList.map(function (x) { return { label: x.label, onClick: x.run }; });
-    if (ed) out.push({ label: T.select, onClick: function () { setGizmo(null); } }, { label: T.move, onClick: function () { setGizmo("translate"); } },
-      { label: T.rotate, onClick: function () { setGizmo("rotate"); } }, { label: T.scale, onClick: function () { setGizmo("scale"); } },
-      { label: (snap.on ? "\u2713 " : "   ") + T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
-      { hint: T.add }, { label: T.addKinds.box, onClick: function () { addPart("box"); } }, { label: T.addKinds.cyl, onClick: function () { addPart("cyl"); } },
-      { label: T.addKinds.extrude, onClick: function () { addPart("extrude"); } }, { label: T.importBtn, onClick: pickFile }, { hint: T.views });
-    out.push({ label: (sec.on ? "\u2713 " : "   ") + T.section, onClick: toggleSection }, { label: (tool === "measure" ? "\u2713 " : "   ") + T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
-      { label: (showDims ? "\u2713 " : "   ") + T.dims, onClick: toggleDims }, { label: T.fitSel, onClick: focusSel });
-    if (ed) out.push({ label: T.undo, onClick: undo }, { label: T.redo, onClick: redo });
+    if (!glOK) return exportItems();
+    // Grouped as the bottom toolbar is: the tools (the one in use checked), adding, the view's aids, undo and redo;
+    // every item with its icon
+    if (ed) out.push({ hint: T.tools }, { on: tool === "select" && gizmoMode == null, icon: "cursor", label: T.select, onClick: function () { setGizmo(null); } },
+      { on: tool === "select" && gizmoMode === "translate", icon: "md-move", label: T.move, onClick: function () { setGizmo("translate"); } },
+      { on: tool === "select" && gizmoMode === "rotate", icon: "md-rotate", label: T.rotate, onClick: function () { setGizmo("rotate"); } },
+      { on: tool === "select" && gizmoMode === "scale", icon: "md-scale", label: T.scale, onClick: function () { setGizmo("scale"); } },
+      { on: !!snap.on, icon: "md-magnet", label: T.snap, onClick: function () { snap.on = !snap.on; applySnap(); drawChrome(); } },
+      { sep: true }, { hint: T.add }, { icon: "md-cube", label: T.addKinds.box, onClick: function () { addPart("box"); } }, { icon: "md-cube", label: T.addKinds.cyl, onClick: function () { addPart("cyl"); } },
+      { icon: "md-cube", label: T.addKinds.extrude, onClick: function () { addPart("extrude"); } }, { icon: "md-upload", label: T.importBtn, onClick: pickFile }, { sep: true });
+    out.push({ on: !!sec.on, icon: "md-section", label: T.section, onClick: toggleSection }, { on: tool === "measure", icon: "md-ruler", label: T.measure, onClick: function () { setMeasure(tool !== "measure"); } },
+      { on: !!showDims, icon: "md-dims", label: T.dims, onClick: toggleDims }, { icon: "md-fitSel", label: T.fitSel, onClick: focusSel });
+    if (ed) out.push({ sep: true }, { icon: "undo", label: T.undo, disabled: !undoStack.length, onClick: undo }, { icon: "redo", label: T.redo, disabled: !redoStack.length, onClick: redo });
     return out;
   }
   function status(flashSaved) {
@@ -476,7 +473,7 @@
     return c;
   }
   function selectInput(val, opts, onSet, k) {
-    var s = h("select", { "data-k": k, disabled: !editable() }, opts.map(function (o) {
+    var s = h("select", { "class": "kit-select", "data-k": k, disabled: !editable() }, opts.map(function (o) {
       return o.group ? h("optgroup", { label: o.group }, o.items.map(function (x) { return h("option", { value: x[0], text: x[1] }); })) : h("option", { value: o[0], text: o[1] });
     }));
     s.value = val == null ? "" : String(val);
@@ -803,7 +800,7 @@
     renderer.localClippingEnabled = true;
     renderer.toneMapping = THREE.NeutralToneMapping != null ? THREE.NeutralToneMapping : THREE.ACESFilmicToneMapping;
     canvas = renderer.domElement;
-    canvas.className = "md-canvas"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
+    canvas.className = "md-canvas kit-surface"; canvas.tabIndex = 0; canvas.setAttribute("aria-label", "3D");
     viewEl.insertBefore(canvas, viewEl.firstChild);
     scene = new THREE.Scene();
     scene.environment = makeEnv();
@@ -908,6 +905,7 @@
   }
   function render() {
     if (!renderer) return;
+    reachGrid();
     updateClipRange();
     draw(true);
     labels.render(scene, camera);
@@ -921,6 +919,7 @@
   function resize() {
     if (!renderer) return;
     viewW = Math.max(1, viewEl.clientWidth); viewH = Math.max(1, viewEl.clientHeight);
+    fitChrome();
     renderer.setSize(viewW, viewH);
     labels.setSize(viewW, viewH);
     setAspect(viewW / viewH);
@@ -1030,27 +1029,53 @@
   function visibleChain(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
 
   // ------------------------------------------------------------------ grid and axes
-  var gridKey = "";
+  /** How many times the grid's own reach (whole doublings, 1 to GRID_FAR) covers r times it. */
+  function farOf(r) { return r <= 1 ? 1 : Math.min(GRID_FAR, Math.pow(2, Math.ceil(Math.log2(r)))); }
+  /** The grid as far as the view reaches on its ground: the farthest of the view's corners there from its middle (a
+   *  corner past the horizon, or an edge-on view's: as far as it goes). Drawn again only when that changes its size. */
+  var gridPlane = null, gridRay = null, gridHit = null;
+  function reachGrid() {
+    if (!gridAt) return;
+    gridPlane = gridPlane || new THREE.Plane(); gridRay = gridRay || new THREE.Raycaster(); gridHit = gridHit || new THREE.Vector3();
+    gridPlane.set(new THREE.Vector3(0, 0, 1), -gridAt.z);
+    var far = 0;
+    for (var i = 0; i < 4; i++) {
+      gridRay.setFromCamera(new THREE.Vector2(i % 2 ? 1 : -1, i < 2 ? -1 : 1), camera);
+      var hit = gridRay.ray.intersectPlane(gridPlane, gridHit);
+      far = Math.max(far, hit ? Math.max(Math.abs(hit.x - gridAt.cx), Math.abs(hit.y - gridAt.cy)) : Infinity);
+    }
+    if (gridAt.near * farOf(far / gridAt.near) === gridAt.half) return;
+    gridReach = far; updateGrid();
+  }
+  // The grid as far as the view reaches on the ground, up to GRID_FAR times the model's own (V6s: a Top view wider than
+  // the model showed the grid ending 488 px in, a plain band past it), its minor lines up to GRID_MINOR times (past
+  // that only the major lines, dense ones far off are noise): in whole doublings, so a pan or a zoom draws it again
+  // only past one.
+  var gridKey = "", gridAt = null, gridReach = 0, GRID_FAR = 16, GRID_MINOR = 4;
   function updateGrid() {
     if (!gridGrp) return;
     var b = bbox || new THREE.Box3(new THREE.Vector3(-500, -500, 0), new THREE.Vector3(500, 500, 500));
     var size = Math.max(b.max.x - b.min.x, b.max.y - b.min.y, (b.max.z - b.min.z) * 0.5, 1);
     var minor = Math.pow(10, Math.floor(Math.log10(size / 10))), major = minor * 10;
-    var half = Math.max(2, Math.ceil(size * 0.9 / major + 0.5)) * major;
+    var near = Math.max(2, Math.ceil(size * 0.9 / major + 0.5)) * major;
     var cx = Math.round((b.min.x + b.max.x) / 2 / major) * major, cy = Math.round((b.min.y + b.max.y) / 2 / major) * major;
     var z = Math.min(0, b.min.z) - minor * 0.01;
-    var key = [minor, half, cx, cy, z].join(",");
+    var half = near * farOf(gridReach / near);
+    gridAt = { cx: cx, cy: cy, z: z, near: near, half: half };
+    var key = [minor, near, half, cx, cy, z].join(",");
     var all = new THREE.Box3(new THREE.Vector3(cx - half, cy - half, z), new THREE.Vector3(cx + half, cy + half, z)).union(b);
     sphere = all.getBoundingSphere(new THREE.Sphere());
     if (key === gridKey) return;
     gridKey = key;
     gridGrp.children.slice().forEach(function (c) { gridGrp.remove(c); c.geometry.dispose(); c.material.dispose(); });
     var lines = { minor: [], major: [], x: [], y: [] };
-    var n = Math.round(half / minor);
+    var fine = Math.min(half, near * GRID_MINOR), n = Math.round(half / minor), nn = Math.round(fine / minor);
     for (var i = -n; i <= n; i++) {
-      var v = i * minor, isMajor = i % 10 === 0, isAxisX = cy + v === 0, isAxisY = cx + v === 0;
-      (isAxisX ? lines.x : isMajor ? lines.major : lines.minor).push(cx - half, cy + v, z, cx + half, cy + v, z);
-      (isAxisY ? lines.y : isMajor ? lines.major : lines.minor).push(cx + v, cy - half, z, cx + v, cy + half, z);
+      // the minor lines as far as they go; the major lines and the axes as far as the grid goes
+      var v = i * minor, isMajor = i % 10 === 0, ax = cy + v === 0, ay = cx + v === 0, round = Math.abs(i) <= nn;
+      var ex = ax || isMajor ? half : fine, ey = ay || isMajor ? half : fine;
+      if (ax || isMajor || round) (ax ? lines.x : isMajor ? lines.major : lines.minor).push(cx - ex, cy + v, z, cx + ex, cy + v, z);
+      if (ay || isMajor || round) (ay ? lines.y : isMajor ? lines.major : lines.minor).push(cx + v, cy - ey, z, cx + v, cy + ey, z);
     }
     var mk = function (arr, color, op) {
       if (!arr.length) return;
@@ -1640,8 +1665,8 @@
   function importFile(file) {
     if (!editable()) return;
     var m = MESH_EXT.exec(file.name || "");
-    if (!m) return kit.toast(T.badExt);
-    if (file.size > MAX_MESH) return kit.toast(T.tooBig);
+    if (!m) return kit.toast(T.badExt, 0, "error");
+    if (file.size > MAX_MESH) return kit.toast(T.tooBig, 0, "error");
     var ext = m[1].toLowerCase();
     busy(true);
     file.arrayBuffer().then(function (buf) {
@@ -1653,7 +1678,7 @@
           if (res.object) res.object.traverse(function (o) { if (o.geometry) o.geometry.dispose(); });
         });
       });
-    }).catch(function (e) { kit.toast(errText(e)); }).then(function () { busy(false); });
+    }).catch(function (e) { kit.toast(errText(e), 0, "error"); }).then(function () { busy(false); });
   }
   function addFilePart(name, ext, bytes, res) {
     var base = String(name).replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 56) || "mesh", path, n = 1;
@@ -1670,7 +1695,7 @@
     if (fit) { fit = round(fit, 0); part.fit = [fit, fit, fit]; }
     edit(function () { if (!Array.isArray(model.parts)) model.parts = []; model.parts.push(part); sel = [part.id]; });
     pendingPlace = part.id;
-    kit.toast(T.imported + ": " + path);
+    kit.toast(T.imported + ": " + path, 0, "success");
   }
   /** An imported mesh lands on the ground at the origin: once built, its box tells the offset. */
   function placeImported() {
@@ -1712,7 +1737,7 @@
     files["model.json"] = text;
     saving = true; status();
     window.hermes.save(files, C.version).then(function (r) {
-      if (r && r.conflict) { stopped = true; kit.toast(T.conflict); attachGizmo(); drawChrome(); if (window.hermes.history) window.hermes.history.show(null); return; }
+      if (r && r.conflict) { stopped = true; kit.toast(T.conflict, 0, "error"); attachGizmo(); drawChrome(); if (window.hermes.history) window.hermes.history.show(null); return; }
       if (!r || !r.ok) throw new Error(r && r.error || "save failed");
       C.version = r.version;
       savedText = text; C.files["model.json"] = text;
@@ -1721,7 +1746,7 @@
       dirty = modelText() !== savedText || pendingRefs().length > 0;
       status(true);
       sendPreview();
-    }).catch(function (e) { kit.toast(T.notSaved + ": " + errText(e)); }).then(function () { saving = false; status(statusEl.textContent === T.saved); sendView(); });
+    }).catch(function (e) { kit.toast(T.notSaved + ": " + errText(e), 0, "error"); }).then(function () { saving = false; status(statusEl.textContent === T.saved); sendView(); });
   }
   /** The current view as a PNG without the grid, helpers, gizmo or selection; transparent background. */
   function picture(width) {
@@ -1762,7 +1787,7 @@
   function bare(fn) {
     if (!root || !MK) { kit.toast(T.noView); return Promise.resolve(); }
     busy(true); restoreAll(); removeCaps();
-    return Promise.resolve().then(fn).catch(function (e) { kit.toast(errText(e)); }).then(function () { busy(false); paint(); addCaps(); invalidate(); });
+    return Promise.resolve().then(fn).catch(function (e) { kit.toast(errText(e), 0, "error"); }).then(function () { busy(false); paint(); addCaps(); invalidate(); });
   }
   function blob(data, type) { return new Blob([data], { type: type }); }
   function dataUrlBlob(url) {
@@ -1797,9 +1822,38 @@
   // ------------------------------------------------------------------ Hermes: comment, ask, view context, versions
   function commentOn() {
     if (!sel.length || !window.hermes || !window.hermes.comment) return;
-    var f = find(sel[0]), name = label(f && f.part);
-    window.hermes.comment({ selector: "part:" + sel[0], text: name.slice(0, 200), label: name.slice(0, 40) });
+    var id = sel[0], f = find(id), name = label(f && f.part);
+    window.hermes.comment({ selector: "part:" + id, text: name.slice(0, 200), label: name.slice(0, 40) },
+      { el: canvas, box: function () { return cornerBox(silhouette(built && built.byId[id])); } });
   }
+  /** A part as the camera shows it: the box round its vertices on screen, in the window, and its top right point
+   *  on its outline (the vertex furthest up and right); null while it is hidden, not drawn or behind the camera. Its
+   *  3D box's corners lie off a part seen at an angle (V6q: its mark 60 px off a panel in the iso view). */
+  var vtx = null, vm = null, im = null;
+  function silhouette(o) {
+    if (!o || !canvas || !camera || !THREE || !visibleChain(o)) return null;
+    vtx = vtx || new THREE.Vector3(); vm = vm || new THREE.Matrix4(); im = im || new THREE.Matrix4();
+    var r = canvas.getBoundingClientRect(), s = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, tx: 0, ty: 0 }, best = -Infinity;
+    o.updateWorldMatrix(true, true);
+    o.traverse(function (m) {
+      var pos = (m.isMesh && !m.userData.mdCap) && visibleChain(m) && m.geometry && m.geometry.attributes.position;
+      if (!pos) return;
+      for (var k = 0; k < (m.isInstancedMesh ? m.count : 1); k++) { // an array's copies: each where it is drawn
+        if (m.isInstancedMesh) { m.getMatrixAt(k, im); vm.multiplyMatrices(m.matrixWorld, im); } else vm.copy(m.matrixWorld);
+        for (var i = 0; i < pos.count; i++) {
+          vtx.fromBufferAttribute(pos, i).applyMatrix4(vm).project(camera);
+          if (vtx.z > 1 || vtx.z < -1) continue;
+          var x = r.left + (vtx.x + 1) / 2 * r.width, y = r.top + (1 - vtx.y) / 2 * r.height;
+          if (x < s.x0) s.x0 = x; if (x > s.x1) s.x1 = x; if (y < s.y0) s.y0 = y; if (y > s.y1) s.y1 = y;
+          if (x - y > best) { best = x - y; s.tx = x; s.ty = y; }
+        }
+      }
+    });
+    if (best === -Infinity || s.x1 < r.left || s.y1 < r.top || s.x0 > r.right || s.y0 > r.bottom) return null;
+    return s;
+  }
+  /** The part's box as far as its top right point (where its pin and its thread's mark go: after that point). */
+  function cornerBox(s) { return s ? { x: s.x0, y: s.ty, w: Math.max(1, s.tx - s.x0), h: Math.max(1, s.y1 - s.ty) } : null; }
   function askAbout() {
     if (!sel.length) return;
     var ids = sel.slice(0, 20);
@@ -1815,16 +1869,46 @@
       var text = T.about(list) + " " + inp.value.trim();
       if (!window.hermes || !window.hermes.send) { kit.toast(T.noSave); drawSelPill(); return; }
       window.hermes.send(text, { parts: ids, file: "model.json" }, { deliver: "send" })
-        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent); }, function (err) { kit.toast(errText(err)); });
+        .then(function (r) { if (!(r && r.mode === "declined")) kit.toast(T.sent, 0, "success"); }, function (err) { kit.toast(errText(err), 0, "error"); });
       drawSelPill();
     });
   }
+  // The host's comment pick on the view: the part under the click, its pin on the point of it clicked, wherever an
+  // orbit, a pan or a zoom takes that point (behind the camera: not drawn). The view itself (its floor, grid, axes)
+  // is no part: a click where there is none picks nothing (the view is [data-comment-off] for the bridge).
+  var commentPicking = false;
+  window.addEventListener("click", function (e) {
+    if (!commentPicking || !canvas || e.target !== canvas || !window.hermes || !window.hermes.comment) return;
+    var p = pick(e.clientX, e.clientY), f = p && find(p.id);
+    if (!f) return;
+    var name = label(f.part), at = p.hit && p.hit.point ? p.hit.point.clone() : null;
+    e.preventDefault(); e.stopImmediatePropagation();
+    window.hermes.comment({ selector: "part:" + p.id, text: name.slice(0, 200), label: name.slice(0, 40) },
+      { el: canvas, box: at ? function () {
+        if (!canvas.isConnected || !camera) return null;
+        var q = at.clone().project(camera), r = canvas.getBoundingClientRect();
+        if (q.z > 1 || q.z < -1) return null;
+        return { x: r.left + (q.x + 1) / 2 * r.width, y: r.top + (1 - q.y) / 2 * r.height, w: 0, h: 0, point: true };
+      } : { x: e.clientX, y: e.clientY, w: 0, h: 0, point: true } });
+  }, true);
   if (window.hermes && window.hermes.on) {
+    window.hermes.on("comment-mode", function (d) { commentPicking = !!(d && d.on); });
     // A comment's anchor clicked in the host: show that part.
     window.hermes.on("flash", function (d) {
       var m = /^part:(.+)$/.exec(String(d && d.selector || ""));
       if (!m || !find(m[1])) return;
       setSel([m[1]]); focusSel();
+    });
+    // A part with an open thread: its numbered mark by the part's top right on its outline, wherever the camera goes.
+    if (window.hermes.locate) window.hermes.locate(function (sel) {
+      var m = /^part:(.+)$/.exec(sel);
+      return m ? { el: viewEl, box: function () { return cornerBox(silhouette(built && built.byId[m[1]])); } } : null;
+    });
+    // While picking, the ring round the part a click would pick, as the camera shows it.
+    if (window.hermes.hover) window.hermes.hover(function (x, y) {
+      var p = commentPicking && canvas && document.elementFromPoint(x, y) === canvas ? pick(x, y) : null;
+      var s = p && silhouette(built && built.byId[p.id]);
+      return s ? { x: s.x0, y: s.y0, w: s.x1 - s.x0, h: s.y1 - s.y0 } : null;
     });
     // An earlier version is shown: the page only reads.
     window.hermes.on("versions", function (d) {
@@ -1890,7 +1974,9 @@
     renderPanel(); drawChrome();
   }
   if (narrowMq) { if (narrowMq.addEventListener) narrowMq.addEventListener("change", layout); else if (narrowMq.addListener) narrowMq.addListener(layout); }
-  window.addEventListener("beforeunload", function () { if (dirty && editable()) save(); });
+  // The frame going (Hermes takes it away, a reload, a new version) gets pagehide, never beforeunload when Hermes
+  // removes it: a change not saved yet is saved now, as Save does, through the host, which still serves a frame that goes.
+  window.addEventListener("pagehide", function () { if (dirty && editable()) save(); });
 
   // ------------------------------------------------------------------ start
   refreshParams();
@@ -1923,6 +2009,7 @@
     measure: setMeasure, measurePts: function (a, b) { meas.pts = [new THREE.Vector3().fromArray(a), new THREE.Vector3().fromArray(b)]; drawMeasure(); invalidate(); },
     state: function () { return { dirty: dirty, tool: tool, gizmo: gizmoMode, sec: sec, dims: showDims, latest: latest, glOK: glOK, probs: probs, live: live, tab: tab, narrow: narrow, camera: camera && camera.type }; },
     three: function () { return { renderer: renderer, scene: scene, camera: camera, controls: controls, tc: tc, pivot: pivot }; },
-    drag: function (fn) { dragStart(); fn(pivot); dragMove(); dragEnd(); }, pick: pick, commitParam: commitParam, render: render
+    drag: function (fn) { dragStart(); fn(pivot); dragMove(); dragEnd(); }, pick: pick, commitParam: commitParam, render: render,
+    grid: function () { return gridAt && Object.assign({}, gridAt); }
   };
 })();

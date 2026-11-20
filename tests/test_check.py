@@ -172,26 +172,14 @@ class ViewContextTests(unittest.TestCase):
             self.skipTest("Hermes' gateway is not importable here: the copy in the plugin is used")
         self.assertEqual(self.p._MESSAGING, {p.value for p in Platform} - {"local"})
 
-    def test_the_route_switch(self):
-        old, section_ok = os.environ.get("HERMES_ARTIFACTS_ROUTE"), self.p._section_ok
+    def test_the_section_routes_and_the_hint_only_without_one(self):
+        section_ok = self.p._section_ok
         first = {"session_id": "sess-switch", "is_first_turn": True, "parent_session_id": "", "platform": "desktop"}
         try:
             self.p._section_ok = True
-            for mode, section, hint in (("section", True, False), ("", True, False), ("bogus", True, False),
-                                        ("hint", False, True), ("HINT", False, True), ("none", False, False)):
-                os.environ["HERMES_ARTIFACTS_ROUTE"] = mode
-                self.assertEqual(self.p._route_section({"platform": "desktop"}),
-                                 self.p.ROUTE_LINE if section else "", mode)
-                self.assertEqual(self.p._view_context(**first),
-                                 {"context": self.p.ROUTE_HINT} if hint else None, mode)
-            self.p._section_ok = False  # a Hermes without sections: "section" falls back to the hint
-            os.environ["HERMES_ARTIFACTS_ROUTE"] = "section"
-            self.assertEqual(self.p._view_context(**first), {"context": self.p.ROUTE_HINT})
-            os.environ["HERMES_ARTIFACTS_ROUTE"] = "none"
+            self.assertEqual(self.p._route_section({"platform": "desktop"}), self.p.ROUTE_LINE)
             self.assertIsNone(self.p._view_context(**first))
+            self.p._section_ok = False  # a Hermes without sections: the first-turn hint instead
+            self.assertEqual(self.p._view_context(**first), {"context": self.p.ROUTE_HINT})
         finally:
             self.p._section_ok = section_ok
-            if old is None:
-                os.environ.pop("HERMES_ARTIFACTS_ROUTE", None)
-            else:
-                os.environ["HERMES_ARTIFACTS_ROUTE"] = old

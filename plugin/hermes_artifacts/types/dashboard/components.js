@@ -137,9 +137,19 @@
 
   // ---------------------------------------------------------------- templates ("{kpi}" / "{param:x}")
   var values = {}, bare = {}, units = {}; // kpi id -> formatted value (with its unit), without it, the unit
+  var allLabels = {};                     // a select filter's param -> its "all" choice in a sentence
+  // The default "All" choice of a filter named "Region", in a sentence: "all regions" ("minden régió").
+  function allOf(noun) {
+    noun = String(noun || "").trim().toLowerCase();
+    if (!noun) return w("all", "mind");
+    if (HU) return "minden " + noun;
+    return "all " + (/[^aeiou]y$/.test(noun) ? noun.slice(0, -1) + "ies" : /(s|x|z|ch|sh)$/.test(noun) ? noun + "es" : noun + "s");
+  }
   function fill(text) {
     return String(text || "").replace(/\{(param:)?([A-Za-z_]\w*)\}/g, function (m, isParam, name, at, all) {
-      if (isParam) { var p = window.dash.params()[name]; return p == null ? "" : String(p); }
+      // a filter on its "all" choice reads as that choice in words ("orders in all regions"; the author's own label
+      // for it when it has one), never as nothing ("orders in") nor as the bare "All"
+      if (isParam) { var p = window.dash.params()[name]; return p == null || p === "" ? (allLabels[name] || "") : String(p); }
       if (values[name] == null) return "—";
       // "{area} m²" when the KPI's own unit is m²: the unit is written once.
       var u = units[name], after = all.slice(at + m.length).replace(/^\*+/, "").replace(/^\s+/, "");
@@ -186,9 +196,11 @@
   };
 
   builders.filters = function (b) {
-    var bar = h("div", { "class": "c-filters c-full" }), controls = [];
+    // data-comment-label: what a comment pick on a part is titled ("Region filter"; the row: "Filters")
+    var named = function (f) { return w((f.label || f.param) + " filter", (f.label || f.param) + " szűrő"); };
+    var bar = h("div", { "class": "c-filters c-full", "data-comment-label": (b.items || []).length === 1 ? named(b.items[0]) : w("Filters", "Szűrők") }), controls = [];
     (b.items || []).forEach(function (f) {
-      var lab = h("label", { "class": "c-filter" }, [h("span", { text: f.label || f.param })]);
+      var lab = h("label", { "class": "c-filter", "data-comment-label": named(f) }, [h("span", { text: f.label || f.param })]);
       var ctl;
       if (f.input === "text" || f.input === "number" || f.input === "date") {
         ctl = h("input", { type: f.input, placeholder: f.placeholder || "", "aria-label": f.label || f.param,
@@ -203,15 +215,17 @@
         if (f.input === "date") ctl.addEventListener("change", apply);
         else ctl.addEventListener("blur", apply);
       } else {
-        ctl = h("select", { "aria-label": f.label || f.param });
+        ctl = h("select", { "class": "kit-select", "aria-label": f.label || f.param });
+        if (f.all !== false) allLabels[f.param] = f.all || allOf(f.label || f.param);
         ctl.addEventListener("change", function () { var o = {}; o[f.param] = ctl.value === "" ? null : ctl.value; window.dash.setParams(o); });
       }
+      ctl.setAttribute("data-comment-keep", ""); // the page's own control: a new comment's pin keeps off it (V6g: Reset)
       lab.appendChild(ctl);
       bar.appendChild(lab);
       controls.push({ f: f, ctl: ctl });
     });
     if (b.reset !== false) {
-      bar.appendChild(h("button", { type: "button", "class": "c-btn", text: w("Reset", "Alaphelyzet"),
+      bar.appendChild(h("button", { type: "button", "class": "c-btn", "data-comment-keep": "", text: w("Reset", "Alaphelyzet"),
         onclick: function () { window.dash.resetParams(); } }));
     }
     return { el: bar, draw: function () {
@@ -241,9 +255,18 @@
       var val = h("div", { "class": "c-kpi-value", "data-source": k.source, "data-field": k.agg && k.agg !== "first" && k.agg !== "last" ? null : k.field,
         "data-where": whereAttr(k.where) });
       var delta = h("div", { "class": "c-kpi-delta" }), note = h("div", { "class": "c-kpi-note" });
-      var card = h("div", { "class": "c-card c-kpi" }, [h("div", { "class": "c-label", text: k.label || k.field }), val, delta, note]);
+      var card = h("div", { "class": "c-card c-kpi", "data-comment-label": k.label || k.field }, [h("div", { "class": "c-label", text: k.label || k.field }), val, delta, note]);
       wrap.appendChild(card);
       cells.push({ k: k, val: val, delta: delta, note: note });
+    });
+    // As many to a row as fit (12rem each), but never one left alone on the last row: four go 4 or 2 + 2, not 3 + 1
+    var n = cells.length;
+    if (n > 2) kit.onResize(wrap, function () {
+      var gap = parseFloat(getComputedStyle(wrap).columnGap) || 0, rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var fit = Math.max(1, Math.floor((wrap.clientWidth + gap) / (12 * rem + gap))), c = Math.min(fit, n);
+      while (c > 2 && n % c === 1) c--;
+      var cols = "repeat(" + c + ", minmax(0, 1fr))";
+      if (wrap.style.gridTemplateColumns !== cols) wrap.style.gridTemplateColumns = cols;
     });
     return { el: wrap, draw: function () {
       cells.forEach(function (c) {
@@ -283,9 +306,86 @@
     tip.style.top = (y + 14) + "px";
   }
 
+  /** A bar chart's values, drawn (their boxes measured), with their bars (the rects, in the values' order): each
+   *  keeps VALUE_GAP screen px, its halo included, off the dashed reference line's stroke at ry (null: none). A
+   *  value whose bar reaches the line goes above it, over its bar. One whose bar stops under the line stays on its
+   *  side of it: between the line and the bar where there is room, else inside its bar's top (IN_SIDE px inside the
+   *  bar's sides, IN_PAD under its top, IN_GAP px under the line's stroke, in the theme's text or ground colour,
+   *  whichever reads on the bar at 4.5:1, a token's alpha laid over the bar), else in its own place on its bar with
+   *  the line broken behind it, BREAK_GAP px past its box either side (live, "88", "97.9" and "92.4" moved above the
+   *  line read as cut off their bars: a 20 px bar under a 906 px frame's half-width chart). A value of a bar reaching
+   *  the line with no room above in the chart keeps its place, the line broken the same way. A series' values are
+   *  all shown or none: one closer than VALUE_GAP px to a neighbour and none is drawn, each in its bar's tooltip
+   *  (V6f: every second one read as values gone at random). Never a label touching the line or another. Measured in the chart's own units (its viewBox), the px turned into them
+   *  at the size it is drawn; drawn again when a font arrives (dashboard.js), the boxes being the font's. */
+  var VALUE_GAP = 4, REF_HALF = 0.75, HALO = 1.75; // the line's half stroke, a value's half halo (dashboard.css .c-ref, .c-value)
+  var IN_SIDE = 2, IN_PAD = 4, IN_GAP = 6, BREAK_GAP = 7; // a glyph's ink can reach ~0.5 px past its box
+  function inkOn(fill, el) {
+    var K = window.dashDesignKit, bg = K && K.rgb(fill), cs = getComputedStyle(el), best = null, most = 0;
+    if (bg) ["--color-fg", "--color-bg"].forEach(function (v) {
+      var c = K.rgb(cs.getPropertyValue(v).trim()), k = c ? K.contrast(K.flat(c, bg), bg) : 0; // Hermes' text is 94% alpha
+      if (k > most) { most = k; best = v; }
+    });
+    return most >= 4.5 ? "var(" + best + ")" : null;
+  }
+  function fitValues(svg, ry, bars) {
+    var items = svg.selectAll("g.c-values text").nodes().map(function (t, i) {
+      var bb = t.getBBox();
+      return { t: t, x: bb.x, y: bb.y, w: bb.width, h: bb.height, bar: +t.getAttribute("y") + 5, rect: bars[i] };
+    });
+    if (!items.length) return;
+    var node = svg.node(), vb = node.viewBox && node.viewBox.baseVal, drawn = node.getBoundingClientRect().width;
+    var u = vb && vb.width && drawn ? vb.width / drawn : 1; // one screen px in the chart's units
+    var off = (VALUE_GAP + REF_HALF + HALO) * u, side = BREAK_GAP * u; // from the line's middle; past a value's box
+    var pad = IN_PAD * u, edge = IN_SIDE * u, under = ry + (REF_HALF + IN_GAP) * u;
+    if (ry != null) items.forEach(function (o) {
+      if (o.y - off >= ry || o.y + o.h + off <= ry) return;
+      var up = ry - off - (o.y + o.h), down = ry + off - o.y, dy = null;
+      if (o.bar <= ry) { if (o.y + up >= 0) dy = up; } // its bar reaches the line: above it
+      else if (o.bar - 1 - (ry + off) >= o.h) dy = down; // below the line, over its bar
+      else if (o.rect) { // inside its bar's top, under the line
+        var r = o.rect.getBBox(), top = Math.max(o.bar + pad, under), ink;
+        if (o.x >= r.x + edge && o.x + o.w <= r.x + r.width - edge && top + o.h <= r.y + r.height - pad && (ink = inkOn(o.rect.getAttribute("fill"), o.t))) {
+          dy = top - o.y;
+          o.t.classList.add("c-value-in");
+          o.t.style.fill = ink;
+        }
+      }
+      if (dy == null) return; // on its bar, the line broken behind it (below)
+      o.y += dy;
+      o.t.setAttribute("y", +o.t.getAttribute("y") + dy);
+    });
+    var near = function (a, c) { return Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)) < VALUE_GAP * u; };
+    var all = true;
+    for (var i = 1; i < items.length && all; i++) all = !near(items[i - 1], items[i]);
+    if (!all) items.forEach(function (o) { o.t.remove(); o.gone = true; });
+    // Every rule of the plot a shown value's box comes within VALUE_GAP px of (its halo and the rule's half stroke
+    // counted) is broken BREAK_GAP px past the box either side: the target line behind a value left on its bar, a
+    // gridline through or beside a value (V6e: the solid gridline at 100 ran through "92.4"). A gridline under a bar
+    // is hidden by it: one inside its bar breaks only the target line.
+    var shift = function (n) { var x = 0, y = 0; for (; n && n !== node; n = n.parentNode) { var t = n.transform && n.transform.baseVal.consolidate(); if (t) { x += t.matrix.e; y += t.matrix.f; } } return [x, y]; };
+    svg.selectAll("line.c-ref, .c-grid .tick line").nodes().forEach(function (ln) {
+      var at = shift(ln), ly = at[1] + (+ln.getAttribute("y1") || 0), ref = ln.classList.contains("c-ref");
+      var clear = (VALUE_GAP + (ref ? REF_HALF : 0.5) + HALO) * u - 0.01; // a value moved off the line is not on it
+      var gaps = items.filter(function (o) { return !o.gone && (ref || !o.t.classList.contains("c-value-in")) && o.y - clear < ly && ly < o.y + o.h + clear; })
+        .map(function (o) { return [o.x - side - at[0], o.x + o.w + side - at[0]]; });
+      if (!gaps.length) return;
+      var a = +ln.getAttribute("x1") || 0, z = +ln.getAttribute("x2") || 0, segs = [], from = a;
+      gaps.sort(function (p, c) { return p[0] - c[0]; }).forEach(function (g) { if (g[0] > from) segs.push([from, Math.min(g[0], z)]); from = Math.max(from, g[1]); });
+      if (from < z) segs.push([from, z]);
+      var prev = null;
+      segs.forEach(function (s) {
+        var n = prev ? ln.parentNode.insertBefore(ln.cloneNode(false), prev.nextSibling) : ln;
+        n.setAttribute("x1", s[0]); n.setAttribute("x2", s[1]);
+        prev = n;
+      });
+      if (!segs.length) ln.remove();
+    });
+  }
+
   builders.chart = function (b) {
     var box = h("div", { "class": "c-chart", "data-source": b.source });
-    var card = h("section", { "class": "c-card c-block" + (b.width === "full" ? " c-full" : "") }, [
+    var card = h("section", { "class": "c-card c-block" + (b.width === "full" ? " c-full" : ""), "data-comment-label": b.title || w("Chart", "Diagram") }, [
       b.title ? h("h2", { "class": "c-h", text: b.title }) : null,
       b.note ? h("p", { "class": "c-note", text: b.note }) : null, box]);
     return { el: card, draw: function () {
@@ -335,7 +435,7 @@
           .attr("width", function (d) { return Math.max(0, xl(num(d[ys[0]]) || 0) - M.l); }).attr("rx", 3).attr("fill", colors[0])
           .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) }), h("div", { text: fy(d[ys[0]]) })]); })
           .on("mouseleave", function () { tooltip(false); });
-        svg.append("g").selectAll("text").data(rows).join("text").attr("class", "c-value")
+        svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value")
           .attr("x", function (d) { return xl(num(d[ys[0]]) || 0) + 6; }).attr("y", function (d) { return yb(String(d[b.x])) + yb.bandwidth() / 2; })
           .attr("dy", "0.35em").text(function (d) { return fy(d[ys[0]]); });
         box.replaceChildren(svg.node());
@@ -352,21 +452,22 @@
         .call(function (g) { g.select(".domain").remove(); });
       var every = Math.ceil(xs.length / Math.max(1, Math.floor((W - M.l) / 56)));
       svg.append("g").attr("class", "c-axis").attr("transform", "translate(0," + (H - M.b) + ")")
-        .call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickFormat(function (v, i) { return i % every ? "" : fx(v); }))
+        .call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickFormat(fx))
         .call(function (g) { g.select(".domain").remove(); });
       if (kind === "bar") {
-        var sub = d3.scaleBand(ys, [0, x.bandwidth()]).padding(0.08);
+        var sub = d3.scaleBand(ys, [0, x.bandwidth()]).padding(0.08), bars = [];
         ys.forEach(function (yk, j) {
-          svg.append("g").selectAll("rect").data(rows).join("rect")
+          var sel = svg.append("g").selectAll("rect").data(rows).join("rect")
             .attr("x", function (d) { return x(String(d[b.x])) + sub(yk); }).attr("width", sub.bandwidth())
             .attr("y", function (d) { return y(Math.max(0, num(d[yk]) || 0)); })
             .attr("height", function (d) { return y(0) - y(Math.max(0, num(d[yk]) || 0)); })
             .attr("rx", 3).attr("fill", colors[j % colors.length])
             .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) })].concat(ys.map(function (k) { return h("div", { text: k + ": " + fy(d[k]) }); }))); })
             .on("mouseleave", function () { tooltip(false); });
+          if (!j) bars = sel.nodes();
         });
         if (rows.length <= 16 && ys.length === 1) {
-          svg.append("g").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
+          svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
             .attr("x", function (d) { return x(String(d[b.x])) + x.bandwidth() / 2; }).attr("y", function (d) { return y(num(d[ys[0]]) || 0) - 5; })
             .text(function (d) { return format(d[ys[0]], b.format === "number" || !b.format ? "compact" : b.format); });
         }
@@ -390,8 +491,10 @@
       }
       if (b.reference && !isNaN(num(b.reference.value))) {
         var ry = y(num(b.reference.value));
+        svg.selectAll(".c-grid .tick").filter(function (v) { return Math.abs(y(v) - ry) < 1; }).select("line").remove(); // the target line is the rule there
         svg.append("line").attr("x1", M.l).attr("x2", W - M.r).attr("y1", ry).attr("y2", ry).attr("class", "c-ref");
-        if (b.reference.label) svg.append("text").attr("x", W - M.r).attr("y", ry - 5).attr("text-anchor", "end").attr("class", "c-axis-text").text(b.reference.label);
+        if (b.reference.label) svg.append("text").attr("x", W - M.r).attr("y", ry - 5).attr("text-anchor", "end").attr("class", "c-axis-text c-ref-label").text(b.reference.label);
+        svg.selectAll("g.c-values").raise(); // the values over the line, each on its halo: a dash never runs through "92.4"
       }
       if (ys.length > 1) {
         var lg2 = svg.append("g").attr("transform", "translate(" + M.l + ",4)"), ox = 0;
@@ -403,6 +506,12 @@
         });
       }
       box.replaceChildren(svg.node());
+      if (kind === "bar") fitValues(svg, b.reference && !isNaN(num(b.reference.value)) ? y(num(b.reference.value)) : null, bars);
+      // every category's name whole: fewer of them (every second, third…) until the widest shown fits its slot
+      var ticks = svg.selectAll(".c-axis .tick text").nodes(), widest = 0;
+      ticks.forEach(function (t) { widest = Math.max(widest, t.getComputedTextLength()); });
+      while (every < xs.length && x.step() * every - 6 < widest) every++;
+      ticks.forEach(function (t, i) { if (i % every) t.remove(); });
     } };
   };
 
@@ -412,7 +521,7 @@
     var thead = h("thead"), tbody = h("tbody");
     var table = h("table", { "class": "c-table", "data-source": b.source, "data-row-key": b.key || (cols[0] && cols[0].field) || null }, [thead, tbody]);
     var scroller = h("div", { "class": "c-table-wrap", style: b.maxHeight ? "max-height:" + b.maxHeight + "px" : null }, [table]);
-    var card = h("section", { "class": "c-card c-block" + (b.width === "half" ? "" : " c-full") }, [
+    var card = h("section", { "class": "c-card c-block" + (b.width === "half" ? "" : " c-full"), "data-comment-label": b.title || w("Table", "Táblázat") }, [
       h("div", { "class": "c-block-head" }, [b.title ? h("h2", { "class": "c-h", text: b.title }) : null, search]),
       b.note ? h("p", { "class": "c-note", text: b.note }) : null, scroller]);
     var sortBy = b.sort || null;

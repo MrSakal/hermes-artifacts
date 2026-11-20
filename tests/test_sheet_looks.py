@@ -281,9 +281,9 @@ class AgentTests(unittest.TestCase):
         many = [{"range": f"A{i}", "if": f"=A{i}>0", "bold": True} for i in range(1, 13)]
         edit(aid, {"op": "rules", "rules": many})
         self.assertEqual(self.call("_doc_read", id=aid)["rules"], 12)  # past ten: their count
-        dumped = json.loads(sheets.dump(aid))["sheets"][0]
+        dumped = sheets.snapshot(aid)["sheets"][0]
         self.assertEqual((len(dumped["rules"]), dumped["merges"]), (12, ["A1:E1"]))
-        self.assertFalse({"merges", "rules"} & set(json.loads(sheets.dump(pub({"sheets": [{"name": "S", "rows": [[1]]}]})))["sheets"][0]))
+        self.assertFalse({"merges", "rules"} & set(sheets.snapshot(pub({"sheets": [{"name": "S", "rows": [[1]]}]}))["sheets"][0]))
 
     def test_the_ops_through_the_edit_tool(self):
         aid = pub()

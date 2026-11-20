@@ -31,12 +31,39 @@ class ViewerApiTests(unittest.TestCase):
         self.assertEqual((r["title"], r["type"], r["session"], r["version"]), ("Orders (copy)", "dashboard", "20261106_x", 1))
         self.assertEqual(store.list_files(r["id"]), store.list_files(self.aid))
 
+    def test_a_copy_of_a_copy_counts_on(self):
+        dup = lambda aid, **b: api.handle("POST", f"artifacts/{aid}/duplicate", {}, b)
+        title = "Copies " + self.aid  # a title no other test makes
+        store.update_meta(self.aid, title=title)
+        first = dup(self.aid)
+        self.assertEqual(first["title"], f"{title} (copy)")
+        self.assertEqual(dup(first["id"])["title"], f"{title} (copy 2)")  # not "(copy) (copy)"
+        self.assertEqual(dup(self.aid)["title"], f"{title} (copy 3)")
+        second = [a for a in store.list_all() if a["title"] == f"{title} (copy 2)"][0]
+        self.assertEqual(dup(second["id"])["title"], f"{title} (copy 4)")
+        hu = dup(self.aid, word="másolat")
+        self.assertEqual(hu["title"], f"{title} (másolat)")
+        self.assertEqual(dup(hu["id"], word="másolat")["title"], f"{title} (másolat 2)")
+        self.assertEqual(dup(self.aid, word="a)b")["title"], f"{title} (copy 5)")  # a word that is no word: copy
+
+    def test_copy_title(self):
+        T = api.copy_title
+        self.assertEqual(T("X", "copy", ["X"]), "X (copy)")
+        self.assertEqual(T("X", "copy", ["X", "X (copy)"]), "X (copy 2)")
+        self.assertEqual(T("X (copy)", "copy", ["X", "X (copy)"]), "X (copy 2)")
+        self.assertEqual(T("X (copy 2)", "copy", ["X", "X (copy)", "X (copy 2)"]), "X (copy 3)")
+        self.assertEqual(T("X (copy 2)", "copy", ["X (copy 2)"]), "X (copy)")  # the free one first
+        self.assertEqual(T("X", "copy", ["X", "X (copy 2)"]), "X (copy)")
+        self.assertEqual(T("(copy)", "copy", []), "(copy) (copy)")  # nothing before it: the whole title
+        self.assertEqual(T("X (copyist)", "copy", []), "X (copyist) (copy)")
+        self.assertLessEqual(len(T("y" * 300, "copy", [])), 200)
+
     def test_rename(self):
         self.assertEqual(api.handle("POST", f"artifacts/{self.aid}/meta", {}, {"title": "Orders ✓"})["title"], "Orders ✓")
 
 
 class ChatTests(unittest.TestCase):
-    """Claude's Chat: the artifact's chat while it exists and isn't archived, else a new one it moves to."""
+    """The Chat button: the artifact's chat while it exists and isn't archived, else a new one it moves to."""
 
     def setUp(self):
         self.aid = store.publish(html="<p>x</p>", title="P", session="s-old")["id"]

@@ -232,7 +232,7 @@ class ShellHandler(_Base):
     def _gallery(self) -> str:
         rows = "".join(
             f'<a class="card" href="/a/{htmlmod.escape(m["id"])}"><b>{htmlmod.escape(m["title"])}</b>'
-            f'<span>{htmlmod.escape(m["id"])} · v{len(m["versions"])} · '
+            f'<span>{htmlmod.escape(m["id"])} · v{m["versions"][-1]["n"]} · '
             f'{time.strftime("%Y-%m-%d %H:%M", time.localtime(m.get("updated", 0)))}</span></a>'
             for m in store.list_all()) or '<p class="empty">No artifacts yet.</p>'
         return _shell_html("Hermes artifacts", f'<main class="gallery"><h1>Artifacts</h1>{rows}</main>', {})

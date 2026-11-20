@@ -25,12 +25,12 @@ The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.m
 
 | Type | What it is | Export |
 |---|---|---|
-| **Page** (`page`) | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML |
-| **Dashboard** (`dashboard`) | Numbers, charts and tables drawn from datasets: live MCP queries (loaders with `read.bigquery` / `governed` / `snowflake` / `databricks`), CSV/TSV/JSON files or inline rows. Sources shows where each figure comes from; History, looks (Clay, Ocean, Meadow, a design system), Edit the page, drafts in other formats (Scrollyteller, Visual analysis, Visual short), full screen. Hermes checks it with `ha_check`. | CSV per source, HTML snapshot, JSON |
+| **Page** (`page`) | Any web page: a report, a tool, a prototype. Multi-file, with links between its pages. | HTML (the page alone, its files inlined) |
+| **Dashboard** (`dashboard`) | Numbers, charts and tables drawn from datasets: live MCP queries (loaders with `read.bigquery` / `governed` / `snowflake` / `databricks`), CSV/TSV/JSON files or inline rows. Sources shows where each figure comes from; History, looks (Mist, Ocean, Meadow, a design system), Edit the page, other formats (Scrollyteller, Visual analysis, Visual short), full screen. Hermes checks it with `ha_check`. | CSV per source, HTML snapshot, JSON |
 | **Slides** (`slides`) | A 16:9 deck edited like a slide app: select, drag with snapping guides, resize, edit text in place, insert text, images and shapes, add and reorder slides, undo, speaker notes; every change saves as a version. Present full screen or in presenter view (timer, clock, next slide, notes), with transitions, builds and magic move. | PDF (searchable text), PowerPoint (editable text and tables), PNG, HTML |
 | **Doc** (`doc`) | A live document that you and Hermes write together, in tabs of blocks with stable ids. Outline first, with pending sections Hermes fills in; blocks edited in place as rich text, tables, charts, formulas, dates, mentions and dropdown chips; suggestions you accept or reject, margin comments, history. Hermes edits it with `ha_live_edit`, never by republishing. | Word (.docx), PDF, Markdown, HTML |
-| **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
-| **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members); history with restore. | PNG, SVG |
+| **Sheet** (`sheet`) | A live spreadsheet that you and Hermes edit together: formulas, several sheets, charts, history. A new chart never covers another: it goes to the next free spot. Import from .xlsx or .csv. | Excel (.xlsx), CSV |
+| **Board** (`board`) | A live whiteboard that you and Hermes draw on together: blocks in twelve shapes, sticky notes, text, sections, arrows that follow what they join, pen lines, tables, images, SVG drawings and small working embeds. Hermes leaves the coordinates out and the server sizes and lays the items out (a layered flow from the arrows, sections around their members), and nothing it places overlaps, also when Hermes later writes longer text into an item (what it would cover moves out of its way); history with restore. | PNG, SVG |
 | **Design** (`design`) | A pan/zoom canvas of live artboards (sites, app screens, mockups, posters, social posts) as `.dc.html` files: select and edit text and styles in place, Tweaks, Play for interactive prototypes with links between screens, pages and notes. An artboard mounts the components of a design system. | PNG, PDF (searchable), HTML |
 | **Model** (`model`) | A 3D model in millimetres, described as parts in `model.json`: boxes, cylinders, extrusions of outlines with holes, lathes, sweeps, lofts, hulls, groups and repeats, with parameters the user drags as sliders. Meshes come in from .glb, .gltf, .stl, .obj, .ply or .3mf files. Orbit, section, measure, move and edit parts, quantity takeoff; the gallery card shows a picture the page drew. | GLB, STL, OBJ, PLY, PNG, CSV takeoff |
 | **Motion** (`motion`) | Animations and short films written as code, every frame a function of time: scrub, play, comment on a moment or a range, retype words, recolor, recut scenes, a synthesized score. | MP4 (H.264 + AAC), GIF, PNG |
@@ -47,8 +47,11 @@ const { text } = await hermes.ask('Which region?') // waits for Hermes' answer (
 
 Messages into the chat (`send`, `ask`, comments) are submitted only when they come from a user gesture,
 such as a click in the page or a press on Save; otherwise they only fill the composer draft, so a page
-cannot talk in your name. A page's own edits (slides, docs) are saved as a new version, and only on a
-click or key press.
+cannot talk in your name. The chat shows such a message as its sentence alone; the ids it is about
+(artifact, block, comment, request) reach Hermes with that turn only. A page's own edits (slides,
+designs) are saved as a new version, and only on a click or key press. A typed artifact's short notes
+(saved, copied, an error) show as Hermes' own toast, prefixed with the artifact's title, at most five a minute and one a second, the same note not twice in a
+row; a plain page shows its own.
 
 ### Agent tools
 
@@ -59,7 +62,7 @@ Toolset `artifacts`, 14 tools:
 | `ha_publish` | Publish `files` (`{path: text}`, or `{"base64": ...}` for images), a `path` or `html`, with a `type`. The same `id` adds a version. `base=true` changes only the files you pass. Refuses to republish a live doc, sheet or board. Refuses a publish that would replace a file someone else (the user, another chat) changed since this chat last saw it, handing back that file's text to merge onto; what it hands back counts as seen, so the next publish goes through. Files a `base=true` publish leaves alone are never its concern, and files this chat wrote itself count as seen even after a restart. Refuses a new artifact of a type whose `ha_guide` the chat has not read, handing back that guide (a new page gets its short guide with the result instead); an update is never refused for it, but a format error in one brings the guide. |
 | `ha_guide` | The file format, API and design rules of a type. Read it before the first artifact of that type. |
 | `ha_check` | What an artifact's open page went through, any type: its errors (uncaught errors, console errors, failed loads) and whether the version showed. A dashboard also reports its own check (NaN, empty charts, cut labels, numbers that differ from their data) and how each source ran. |
-| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now. |
+| `ha_live_read` / `ha_live_edit` | Read and edit a live doc, sheet or board in place with ops, as the user sees it now; a doc edit can be a suggestion. An edit over blocks, cells or items the user changed after `base_rev` is refused with them as they are now; one over a part the user is typing in right now (words not saved yet) is refused with nothing changed. |
 | `ha_list` / `ha_read` | List artifacts, or read one's file list and any file (any version), plus its stored data. |
 | `ha_open` | Show it in Hermes Desktop, or in a browser on the Hermes machine. |
 | `ha_comments` | The user's comments: list, reply, resolve, and add a thread of Hermes' own. |
@@ -78,6 +81,14 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   (`#/hermes-artifacts`).
 - The built-in view (images and files from sessions) stays one click away, behind *Session files and
   images →*.
+- Pinning an artifact in the gallery also pins its chat in Hermes' sidebar, since Hermes' *Pinned* section
+  holds chats. Unpinning removes only the pins the plugin made: a chat you pinned yourself stays pinned.
+- *Duplicate* names the copy "X (copy)", then "X (copy 2)", "X (copy 3)"; a copy of a copy counts on from
+  the original.
+- Gallery cards load three at a time, only those in or near the window. A card is a picture: a page's
+  timers stop 3 s after it loads, and its calls to the bridge (no host behind a card) stay out of the log.
+- Folders: *New › Folder* or *Move to*; a folder's chip renames it (what is in it moves along) or deletes it
+  (what is in it moves to *No folder*; no artifact is deleted).
 - A new version loads out of sight: the previous one stays on screen until the new page has loaded. One
   that had an error while starting still replaces it, with a quiet line under the header saying so. One
   that showed nothing, or has not loaded after 10 s, is not swapped in; the line says so, with *Show vN*.
@@ -85,10 +96,16 @@ design, motion, dashboard); in a codebase it lives as files in the project (`ha_
   about 11 s (they share one browser process, which only then ends the stuck page) and loads the page
   again; if that does not bring it back after three tries, the line says to restart Hermes. The browser
   viewer does the same in its status line.
-- An artifact opened from its chat shows beside the chat, or with *Pop out chat* over the chat's area
-  with the chat floating over it (Esc closes it, *Show chat* goes back); the next artifact opens in the
-  layout picked last in that window. On the Artifacts page, *Chat* and *Pop out chat* do the same.
-- UI strings ship in English; what an artifact says is in the language the user works in.
+- Where an artifact opens: from a chat (its card, the titlebar button, a publish) beside the chat or over
+  it, whichever was used last (*Show chat* / *Pop out chat*, kept across restarts; a window under 836 px
+  opens it over the chat), and from the gallery always as the full page, with no chat over it (*Pop out chat*
+  opens one for that artifact). The popup chat over the expanded artifact stays open or closed as it was last
+  left there, also after a restart.
+- The comments list docks beside the artifact where the stage has room (700 px); narrower it opens only when
+  asked (the Comment button, *All comments*, a thread's mark) and then fills the whole stage, with a back arrow
+  to the artifact and Comment to pick an element.
+- The UI follows the app's language (English or Hungarian); what Hermes reads stays English, and what an
+  artifact says is in the language the user works in.
 
 ### CLI
 
@@ -189,6 +206,7 @@ Set under `plugins.entries.hermes-artifacts.settings` in Hermes' `config.yaml`. 
 | `content_port` | int | `8798` | Loopback port the browser viewer serves artifact HTML from (a separate, sandboxed origin). |
 | `require_approval` | bool | `false` | Off: a live dashboard query runs without asking when Hermes ran exactly that call in the chat before publishing it; any other query (one it did not run, one you edit or test in Sources) asks first, in Hermes Desktop's own dialog. On: every new or changed query asks. |
 | `page_diagnostics` | bool | `true` | On: an artifact open in Hermes Desktop or the browser viewer records its page's errors (uncaught errors, console errors, failed loads) and whether it showed, on the Hermes host, for `ha_check`. Off: nothing is recorded, and `ha_check` says so. |
+| `max_versions` | int | `30` | The newest this many versions of each artifact are kept (the latest, and any an open comment was made on, always); older ones go at the next publish, their numbers never reused. `0` keeps all. |
 | `bridge_tools` | str | `""` | Comma-separated tool names an artifact may call through `window.hermes.callTool` in the browser viewer. Empty means none. |
 | `frame_ancestors` | str | `'self'` | Space-separated CSP sources that may show the browser viewer in a frame (its `frame-ancestors`). The default lets no other site frame it. Artifact content always lets the viewer frame it, plus these sources. |
 
@@ -256,8 +274,23 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   that folder exists, else `~/.hermes`). Set `HERMES_ARTIFACTS_DIR` to use another folder instead.
   Artifact versions (each noting whether you or Hermes made it, and from which chat), comments, stored
   values, the inbox, dataset caches, approvals and card pictures
-  (`<id>/previews/`, outside the versions) live there, on the
-  machine the Hermes backend runs on. So does `.run/`: one small file per Hermes process that loaded the
+  (`<id>/previews/`, outside the versions; those of the latest 3 versions are kept) live there, on the
+  machine the Hermes backend runs on. What grows is bounded: the newest `max_versions` versions of each
+  artifact; a live doc's history at most 120 snapshots and 12 MB (one file per snapshot, the newest two
+  always); a sheet's 60 snapshots and 200,000 cells; a board's 40 snapshots and 8 MB; live-query answers
+  24 hours; the marks of what you are typing in now (`typing.json`, 4 s) and the ids waiting for a
+  message's turn (`chat-notes.json`, at most 50, 10 minutes). A sweep, riding the trash purge (at most
+  2 s per call, going on where it stopped), removes typing marks and chat notes past their time, and what
+  nothing will read again and is older than an hour: temp files of writes that died, version folders no
+  version names, pictures of older versions, history files no index names, empty folders, and an
+  unfinished version folder (a publish that died mid-copy) once nothing in it changed for 7 days.
+  It touches only names the plugin itself makes (other things in a folder `HERMES_ARTIFACTS_DIR` points
+  at stay), and skips rather than deletes when in doubt: a lost `meta.json` comes back from its copy or
+  its version folders, and a version folder newer than `meta.json` names is taken back in. That copy,
+  `meta.json.bak` (and the same beside the comments, stored values, approvals, the settings and a live
+  doc's, sheet's or board's state), is written again at every write, so it is never older than the file;
+  a read finds it when the file is cut short, or held by another program for longer than a moment.
+  So does `.run/`: one small file per Hermes process that loaded the
   plugin (its version, process id, when it was last written and its kind: `gateway`, `serve`,
   `compute-host`, `plugin-host` or `cli`), so the gallery can tell which process runs older code than is
   installed; a file goes when its process has, or after a week without being rewritten.
@@ -287,8 +320,11 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   after its deletion, checked when the plugin starts, on every delete, when the gallery's Trash opens, and
   at most once a day from the gallery's own list requests (no timer of its own); an item past its time is
   never listed or restorable even before that. You can also delete one copy for good sooner: **Delete
-  forever** (the trash icon on its row, then the confirm) in the gallery's Trash. The agent cannot:
-  `ha_delete` only moves to the trash, and no tool deletes from it.
+  forever** (the trash icon on its row, then the confirm) in the gallery's Trash. Deleting for good
+  removes the whole folder (every version, picture, comment, stored value and live history; a file
+  another program holds open is retried and finished by the sweep) and the artifact's id from the inbox,
+  views, the settings and the plugin's caches. The agent cannot: `ha_delete` only moves to the trash,
+  and no tool deletes from it.
 - **Design system export:** `ha_design_system_export` writes a design system's files into a folder in the
   chat's working directory (`dir`). It refuses a non-empty folder unless `overwrite=true`, never writes
   outside that folder or through a symlink out of it, so `overwrite` replaces files there and nowhere else.

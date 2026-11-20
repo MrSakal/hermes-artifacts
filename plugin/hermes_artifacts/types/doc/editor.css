@@ -13,7 +13,7 @@
   /* charts: the accent first, then the theme's own colours */
   --w-c1: var(--color-accent); --w-c2: var(--color-fg-secondary); --w-c3: var(--color-warn); --w-c4: var(--color-ok); --w-c5: var(--color-bad); --w-c6: var(--color-fg-muted);
   --w-muted: color-mix(in srgb, var(--color-fg) 22%, transparent);
-  --doc-r: var(--kit-r-sm, 6px); --doc-r-lg: var(--kit-r-lg, 8px); --doc-shadow: var(--shadow-popover, 0 8px 24px rgba(0,0,0,.25));
+  --doc-r: var(--kit-r-sm); --doc-r-lg: var(--kit-r-lg); --doc-shadow: var(--shadow-popover, 0 8px 24px rgba(0,0,0,.25));
   --doc-soft: color-mix(in srgb, var(--color-fg) 7%, transparent); --doc-soft2: color-mix(in srgb, var(--color-fg) 4%, transparent); }
 .doc-prose code { background: var(--doc-soft); }
 .doc-prose pre { background: var(--doc-soft2); }
@@ -29,7 +29,7 @@ html.doc-wide { --doc-measure: 1040px; }
 /* the bar */
 .doc-bar { gap: 2px; }
 .doc-tool { min-width: 30px; height: 30px; padding: 0 6px; justify-content: center; }
-.doc-tool svg { width: 17px; height: 17px; }
+.doc-tool svg { width: 16px; height: 16px; }
 .doc-tool .doc-caret { width: 12px; height: 12px; opacity: .6; margin-left: 1px; }
 .doc-tabbtn { font-size: 13px; gap: 2px; padding: 0 8px; }
 .doc-tabbtn span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -47,7 +47,14 @@ html.doc-suggesting .doc-mode { color: var(--c-green); }
 .doc-blk[data-empty]::before { content: attr(data-empty); position: absolute; left: 10px; color: var(--color-fg-muted); pointer-events: none; }
 .doc-blk pre code[contenteditable] { outline: none; display: block; white-space: pre; }
 .doc-prose li.task { list-style: none; margin-left: -1.4em; }
-.doc-prose li.task > input { accent-color: var(--color-accent); width: 15px; height: 15px; margin: 0 8px 0 0; vertical-align: -2px; cursor: pointer; }
+/* The box in the theme's colours, not the system's native one (a dark system drew an empty box filled dark in a
+   light doc): empty = the page's ground in a strong line; ticked = the accent with a white check. */
+.doc-prose li.task > input { appearance: none; -webkit-appearance: none; box-sizing: border-box; width: 15px; height: 15px; margin: 0 8px 0 0;
+  vertical-align: -2px; cursor: pointer; border: 1.5px solid var(--color-border-strong); border-radius: 4px; background: var(--color-bg) no-repeat center / 11px 11px; }
+.doc-prose li.task > input:checked { border-color: var(--color-accent); background-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+.doc-prose li.task > input:disabled { cursor: default; }
+.doc-prose li.task > input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .doc-prose li.task.done { color: var(--color-fg-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--color-fg) 35%, transparent); }
 .doc-prose mark { background: var(--bg-yellow); color: inherit; border-radius: 2px; padding: 0 1px; }
 .doc-prose mark.doc-cq { background: color-mix(in srgb, var(--c-yellow) 20%, transparent); border-bottom: 2px solid color-mix(in srgb, var(--c-yellow) 65%, transparent); padding: 0; }
@@ -82,7 +89,7 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .chip-select.c-purple { background: var(--bg-purple); color: var(--c-purple); }
 .doc-pop { position: fixed; z-index: 160; padding: 6px; border-radius: var(--doc-r-lg); background: var(--color-elevated, var(--color-panel));
   border: 1px solid var(--color-border-line); box-shadow: var(--shadow-popover); }
-.doc-dateinp { font: inherit; padding: 4px 6px; border-radius: var(--doc-r); border: 1px solid var(--color-border-line); background: transparent; color: var(--color-fg); color-scheme: light dark; }
+.doc-dateinp { font: inherit; padding: 4px 6px; border-radius: var(--kit-r-btn); border: 1px solid var(--color-border-line); background: transparent; color: var(--color-fg); color-scheme: light dark; }
 
 /* widgets: formula, csv, chart, drawing */
 .w-box { position: relative; margin: 0 0 16px; border-radius: var(--doc-r-lg); background: var(--doc-soft2); padding: 8px 14px 12px; }
@@ -110,17 +117,19 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .doc-src-box .doc-src { padding: 12px 14px; margin: 0; font-size: 13.5px; }
 .doc-src-bar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 6px 8px; border-top: 1px solid var(--color-border-line); }
 .doc-src-hint { font-size: 11.5px; color: var(--color-fg-muted); }
-.doc-src-done { font: 500 13px var(--font-sans); padding: 5px 14px; border: 0; border-radius: var(--doc-r); cursor: pointer;
+.doc-src-done { font: 500 13px var(--font-sans); padding: 5px 14px; border: 0; border-radius: var(--kit-r-btn); cursor: pointer;
   background: var(--color-accent); color: var(--color-accent-fg, var(--color-bg)); }
 .doc-src-done:hover { filter: brightness(1.08); }
 
 /* the selection bar and the "/" menu */
 .doc-selbar { align-items: center; gap: 1px; padding: 3px; border-radius: var(--doc-r-lg); }
-.doc-sb { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px; border: 0; border-radius: var(--doc-r);
+.doc-sb { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 6px; border: 0; border-radius: var(--kit-r-icon);
   background: none; color: var(--color-fg-secondary); font: 15px/1 var(--font-sans); cursor: pointer; }
 .doc-sb:hover { background: var(--doc-soft); color: var(--color-fg); }
 .doc-sb svg { width: 16px; height: 16px; }
 .doc-sb.is-hermes { color: var(--color-accent); }
+/* a toggle that is on (Code over code words, Full width): the accent, on the hover's ground */
+.doc-sb[aria-pressed="true"], .doc-tool[aria-pressed="true"] { background: var(--doc-soft); color: var(--color-accent); }
 .doc-sb-sep { width: 1px; height: 18px; background: var(--color-border-line); margin: 0 3px; }
 .doc-slash { position: fixed; z-index: 170; min-width: 220px; max-height: 320px; overflow: auto; }
 .doc-slash[hidden] { display: none; }
@@ -139,15 +148,15 @@ span[class*="md-bg-"] { border-radius: 3px; padding: 0 2px; }
 .doc-card-text { color: var(--color-fg-secondary); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .doc-card-rep { margin-top: 4px; font-size: 12px; color: var(--color-fg-muted); }
 .doc-card.is-sug { cursor: default; border-left: 3px solid var(--c-green); }
-.doc-card-ok, .doc-card-no { border: 0; background: none; cursor: pointer; width: 24px; height: 24px; border-radius: var(--doc-r); font-size: 14px; color: var(--color-fg-muted); }
+.doc-card-ok, .doc-card-no { border: 0; background: none; cursor: pointer; width: 24px; height: 24px; border-radius: var(--kit-r-icon); font-size: 14px; color: var(--color-fg-muted); }
 .doc-card-ok { margin-left: auto; }
 .doc-card-ok:hover { background: var(--bg-green); color: var(--c-green); }
 .doc-card-no:hover { background: var(--bg-red); color: var(--c-red); }
-/* no room beside the page: a small mark per card; a click opens it over the page edge */
+/* no room beside the page: a small mark per suggestion's card; a click opens it over the page edge (a comment has
+   only its numbered mark by its part there: doc.js drawMargin) */
 .doc-card.is-mini { width: 22px; height: 22px; padding: 0; border-radius: var(--doc-r-lg); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .doc-card.is-mini > * { display: none; }
-.doc-card.is-mini::before { content: ""; width: 12px; height: 12px; background: currentColor; color: var(--color-fg-muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 5h16v11H9l-5 4z%27/%3E%3C/svg%3E") center / contain no-repeat; }
-.doc-card.is-mini.is-sug::before { color: var(--c-green); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 20h4L19 9l-4-4L4 16z%27/%3E%3C/svg%3E"); }
+.doc-card.is-mini::before { content: ""; width: 12px; height: 12px; background: currentColor; color: var(--c-green); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27black%27 stroke-width=%272.2%27%3E%3Cpath d=%27M4 20h4L19 9l-4-4L4 16z%27/%3E%3C/svg%3E") center / contain no-repeat; }
 .doc-card.is-mini.is-open { width: 250px; height: auto; padding: 9px 11px; border-radius: var(--doc-r-lg); right: 0; left: auto; display: block; z-index: 44; overflow: visible; }
 .doc-card.is-mini.is-open > * { display: flex; }
 .doc-card.is-mini.is-open > .doc-card-text { display: -webkit-box; }
@@ -168,21 +177,24 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 .doc-gutter { position: fixed; z-index: 45; display: flex; gap: 1px; }
 .doc-gutter[hidden], .doc-tui[hidden], .doc-dropline[hidden] { display: none; }
 .doc-gutter button, .doc-tui { display: inline-flex; align-items: center; justify-content: center; border: 0; padding: 0; cursor: pointer;
-  background: none; color: var(--color-fg-muted); border-radius: 4px; opacity: .75; }
+  background: none; color: var(--color-fg-muted); border-radius: var(--kit-r-icon); opacity: .75; }
 .doc-gutter button { width: 22px; height: 24px; }
 .doc-gutter button svg { width: 14px; height: 14px; }
 .doc-gutter .doc-g-grip { cursor: grab; }
-.doc-gutter .doc-g-grip svg { width: 9px; height: 14px; }
+.doc-gutter .doc-g-grip svg { width: 14px; height: 14px; }
 .doc-gutter button:hover, .doc-tui:hover { background: var(--doc-soft); color: var(--color-fg); opacity: 1; }
 .doc-dropline { position: fixed; z-index: 46; height: 3px; border-radius: 2px; background: var(--color-accent); pointer-events: none; }
 .doc-blk.is-dragging { opacity: .4; }
 .doc-blk.is-empty::before { content: attr(data-ph); position: absolute; left: 10px; top: 0; color: var(--color-fg-muted); opacity: .7; pointer-events: none;
-  line-height: 1.7; white-space: nowrap; }
+  line-height: 1.7; white-space: nowrap; right: 10px; overflow: hidden; text-overflow: ellipsis; }
+/* An empty block of any kind keeps a line's height, so it can be seen, clicked and typed in (an empty heading was
+   0 px); its margin then goes out of the block, so the hint sits at the block's top. */
+.doc-blk[contenteditable=true] :is(h1, h2, h3, h4, h5, h6, p, blockquote, li):empty { min-height: 1lh; }
 .doc-blk.is-empty:has(> h1)::before { font: 600 40px/1.15 var(--font-display); }
-.doc-blk.is-empty:has(> h2)::before { font: 600 27px/1.3 var(--font-display); top: 36px; }
-.doc-blk.is-empty:has(> h3)::before { font: 600 21px/1.3 var(--font-display); top: 28px; }
+.doc-blk.is-empty:has(> h2)::before { font: 600 27px/1.3 var(--font-display); }
+.doc-blk.is-empty:has(> h3)::before { font: 600 21px/1.3 var(--font-display); }
 
-/* tables the way Claude's doc (and Notion) draws them: full width, quiet lines, handles on hover */
+/* tables, Notion-style: full width, quiet lines, handles on hover */
 .doc-prose table { width: 100%; min-width: 0; border: 1px solid var(--color-border-line); border-radius: var(--doc-r-lg); border-collapse: separate; border-spacing: 0;
   overflow: hidden; font-size: 15px; margin: 4px 0 18px; }
 .doc-prose th, .doc-prose td { padding: 9px 12px; min-width: 90px; border-bottom: 1px solid var(--color-border-line); border-right: 1px solid var(--color-border-line); vertical-align: top; }
@@ -190,9 +202,7 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 .doc-prose td:focus-within, .doc-prose th:focus-within { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent) 60%, transparent); }
 .doc-tui { position: fixed; z-index: 45; }
 .doc-tui-row { width: 14px; height: 20px; }
-.doc-tui-row svg { width: 8px; height: 13px; }
 .doc-tui-col { width: 20px; height: 12px; }
-.doc-tui-col svg { width: 13px; height: 8px; }
 .doc-tui-addrow, .doc-tui-addcol { background: var(--doc-soft2); opacity: 0; border-radius: var(--doc-r); transition: opacity .12s; }
 .doc-tui-addrow { height: 18px; }
 .doc-tui-addcol { width: 18px; }
@@ -202,11 +212,11 @@ html[data-thumb] .doc-margin, html[data-thumb] .w-head { display: none; }
 html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 @media (max-width: 560px) { html.doc-live #doc-view { padding-left: 40px; padding-right: 16px; } }
 
-/* Claude's menus: icons, groups, submenus, a swatch row */
-.doc-rmenu { position: fixed; z-index: 180; min-width: 220px; max-height: min(70vh, 560px); overflow: auto; padding: 5px; border-radius: var(--doc-r-lg);
+/* menus: icons, groups, submenus, a swatch row */
+.doc-rmenu { position: fixed; z-index: 180; min-width: 220px; max-height: calc(100vh - 16px); overflow: auto; overscroll-behavior: contain; padding: 5px; border-radius: var(--doc-r-lg);
   background: var(--color-elevated, var(--color-panel)); border: 1px solid var(--color-border-line); box-shadow: var(--doc-shadow); font-size: 13.5px; }
 .doc-rmenu[hidden] { display: none; }
-.doc-rm-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 9px; border: 0; border-radius: var(--doc-r); background: none; color: var(--color-fg);
+.doc-rm-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 9px; border: 0; border-radius: var(--kit-r-md); background: none; color: var(--color-fg);
   font: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
 .doc-rm-item svg { width: 16px; height: 16px; flex: none; color: var(--color-fg-secondary); }
 .doc-rm-item > span { flex: 1; }
@@ -215,7 +225,8 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-rm-item:disabled { opacity: .4; cursor: default; background: none; }
 .doc-rm-item.is-danger, .doc-rm-item.is-danger svg { color: var(--c-red); }
 .doc-rm-item > .doc-rm-noicon { width: 16px; flex: none; }
-.doc-rm-check { font-style: normal; color: var(--color-accent); }
+.doc-rm-check { display: inline-flex; font-style: normal; color: var(--color-accent); }
+.doc-rm-check svg { width: 16px; height: 16px; }
 .doc-rm-sep { height: 1px; margin: 5px 4px; background: var(--color-border-line); }
 .doc-rm-hint { padding: 6px 9px 3px; font-size: 11.5px; color: var(--color-fg-muted); }
 .doc-rm-foot { padding: 6px 9px 3px; font-size: 11.5px; color: var(--color-fg-muted); border-top: 1px solid var(--color-border-line); margin-top: 4px; }
@@ -230,7 +241,7 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-sb-tt { font: 500 14px/1 var(--font-sans); } .doc-sb-tt small { font-size: 9px; }
 .doc-sb .doc-sb-caret { width: 10px; height: 10px; margin-left: 1px; opacity: .6; }
 
-/* tables as Claude's doc draws them: as wide as their content (a blank new one spans the page) */
+/* tables as wide as their content (a blank new one spans the page) */
 .doc-prose table { width: auto; min-width: 0; font-size: 15px; }
 .doc-prose table.t-blank { width: 100%; }
 .doc-prose table.t-blank td, .doc-prose table.t-blank th { width: 33%; }
@@ -246,19 +257,19 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 
 /* a chart's or a CSV's data as a table */
 .w-edit { font: 500 12px var(--font-sans); border: 1px solid var(--color-border-strong); background: var(--color-panel); color: var(--color-fg);
-  border-radius: var(--doc-r); padding: 2px 9px; cursor: pointer; }
+  border-radius: var(--kit-r-btn); padding: 2px 9px; cursor: pointer; }
 .w-edit:hover { border-color: var(--color-accent); }
 .doc-data { margin: 0 0 16px; border: 1px solid var(--color-border-strong); border-radius: var(--doc-r-lg); background: var(--doc-soft2); }
 .doc-data-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; padding: 12px 14px 4px; }
 .doc-data-meta label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--color-fg-muted); }
 .doc-data-meta .doc-data-wide { grid-column: 1 / -1; }
-.doc-data-in { font: 13.5px var(--font-sans); padding: 5px 8px; border: 1px solid var(--color-border-line); border-radius: var(--doc-r);
+.doc-data-in { font: 13.5px var(--font-sans); padding: 5px 8px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-btn);
   background: var(--color-bg); color: var(--color-fg); outline: none; min-width: 0; }
 .doc-data-in:focus, .doc-data-cell:focus { border-color: var(--color-accent); }
 .doc-data-scroll { overflow: auto; padding: 8px 14px; }
 .doc-prose table.doc-data-grid { width: auto; border: 0; margin: 0; border-spacing: 0; }
 .doc-prose .doc-data-grid th, .doc-prose .doc-data-grid td { padding: 2px; border: 0; height: auto; min-width: 0; background: none; position: relative; }
-.doc-data-cell { width: 130px; font: 13.5px var(--font-sans); padding: 5px 8px; border: 1px solid var(--color-border-line); border-radius: var(--doc-r);
+.doc-data-cell { width: 130px; font: 13.5px var(--font-sans); padding: 5px 8px; border: 1px solid var(--color-border-line); border-radius: var(--kit-r-btn);
   background: var(--color-bg); color: var(--color-fg); outline: none; }
 .doc-data-cell.is-head { font-weight: 600; background: var(--doc-soft); }
 .doc-data-grid td.num .doc-data-cell { text-align: right; font-variant-numeric: tabular-nums; }
@@ -267,7 +278,9 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
 .doc-data-x:hover { color: var(--c-red); background: var(--bg-red); }
 .doc-prose .doc-data-grid th .doc-data-x { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
 .doc-data-add, .doc-data-cancel { font: 500 12.5px var(--font-sans); border: 1px solid var(--color-border-line); background: none; color: var(--color-fg-secondary);
-  border-radius: var(--doc-r); padding: 4px 10px; cursor: pointer; }
+  border-radius: var(--kit-r-btn); padding: 4px 10px; cursor: pointer; }
+.doc-data-add { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.doc-data-add svg { width: 13px; height: 13px; flex: none; }
 .doc-data-add:hover, .doc-data-cancel:hover { color: var(--color-fg); border-color: var(--color-border-strong); }
 
 /* Menus and popovers sit on the page colour, so a see-through theme panel never shows what lies under them */
@@ -294,17 +307,23 @@ html.doc-live #doc-view { padding-left: 64px; padding-right: 32px; }
   #doc-bar > .doc-tabbtn { min-width: 44px; }
   #doc-bar .doc-mode .doc-caret { display: none; }
 }
+/* Narrower still: the table, picture and checklist shortcuts go (the + menu has all three), so no tool is cut. */
+@media (max-width: 459.98px) {
+  #doc-bar > .doc-short { display: none; }
+}
 /* hidden always hides, whatever display a class gives */
 [hidden] { display: none !important; }
 /* The page grows with the doc, so the sticky bar stays on screen however far it scrolls (a body one screen tall lets it scroll away). */
 body { height: auto; min-height: 100%; }
+/* The page's scrollbar has its room kept: a doc growing past the window moves nothing sideways (the bar's right group moved 8 px). */
+html { scrollbar-gutter: stable; }
 
 /* A question asked in the page (a name, a link, a yes or no): the sandboxed frame has no dialogs of its own */
 .doc-dlg { position: fixed; z-index: 200; left: 50%; top: 96px; transform: translateX(-50%); width: min(380px, calc(100vw - 32px)); padding: 14px;
   border-radius: var(--doc-r-lg); border: 1px solid var(--color-border-line); box-shadow: var(--doc-shadow);
   background: linear-gradient(var(--color-elevated, var(--color-panel)), var(--color-elevated, var(--color-panel))), var(--color-bg); }
 .doc-dlg-q { font: 500 13.5px var(--font-sans); color: var(--color-fg); margin-bottom: 10px; }
-.doc-dlg-in { display: block; width: 100%; box-sizing: border-box; font: 14px var(--font-sans); padding: 7px 9px; border-radius: var(--doc-r);
+.doc-dlg-in { display: block; width: 100%; box-sizing: border-box; font: 14px var(--font-sans); padding: 7px 9px; border-radius: var(--kit-r-btn);
   border: 1px solid var(--color-border-strong); background: var(--color-bg); color: var(--color-fg); outline: none; }
 .doc-dlg-in:focus { border-color: var(--color-accent); }
 .doc-dlg-bar { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
