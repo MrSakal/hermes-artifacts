@@ -15,7 +15,7 @@ The same 40 seconds as a video, in full quality and with sound: **[demo.mp4](scr
 
 | | |
 |---|---|
-| ![A sheet with formulas](screenshots/sheet.png) | ![A flowchart on a whiteboard](screenshots/board.png) |
+| ![A sheet with formulas](screenshots/sheet.png) | ![A whiteboard after Hermes edited it](screenshots/board.png) |
 | ![A live doc](screenshots/doc.png) | ![A slide deck in the editor](screenshots/slides.png) |
 | ![A dashboard](screenshots/dashboard.png) | ![The Artifacts gallery](screenshots/gallery.png) |
 
