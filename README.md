@@ -9,13 +9,13 @@ open view reloads. It also works when Hermes Desktop is connected to a remote He
 
 ## Demo
 
-[![Hermes Artifacts demo: the gallery, a sheet, a whiteboard Hermes edits, a doc, a deck and a dashboard](screenshots/demo.gif)](screenshots/demo.mp4)
+[![Hermes Artifacts demo: the gallery, a sheet, a whiteboard, a deck, a dashboard and a doc](screenshots/demo.gif)](screenshots/demo.mp4)
 
-The same 85 seconds as a video, in full quality: **[demo.mp4](screenshots/demo.mp4)**.
+The same 40 seconds as a video, in full quality and with sound: **[demo.mp4](screenshots/demo.mp4)**.
 
 | | |
 |---|---|
-| ![A sheet with formulas](screenshots/sheet.png) | ![A whiteboard after Hermes edited it](screenshots/board.png) |
+| ![A sheet with formulas](screenshots/sheet.png) | ![A flowchart on a whiteboard](screenshots/board.png) |
 | ![A live doc](screenshots/doc.png) | ![A slide deck in the editor](screenshots/slides.png) |
 | ![A dashboard](screenshots/dashboard.png) | ![The Artifacts gallery](screenshots/gallery.png) |
 
