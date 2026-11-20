@@ -419,6 +419,9 @@ for i in range(40):
         store.preview_set(aid, url)
     except OSError:
         failed += 1
+    # A page reports its picture a moment apart, never again within microseconds: with no gap a slow runner's
+    # reader, retrying every 5 ms, never met the file free in its 0.5 s.
+    time.sleep(0.01)
 print(failed)
 """
 
