@@ -45,7 +45,9 @@ def stub_module(extra: str = "") -> Path:
 
 def run_node(d: Path, body: str) -> dict:
     """Runs ``body`` (an async function body; ``m`` is the module) and returns the JSON it prints last."""
-    script = (f"import('./plugin.mjs').then(async m => {{ {body} }}).then(() => process.exit(0))"
+    # Exit only once stdout has drained: on a pipe (Linux) process.exit cuts a long line at 64 KiB.
+    script = (f"import('./plugin.mjs').then(async m => {{ {body} }})"
+              ".then(() => new Promise(r => process.stdout.write('', r))).then(() => process.exit(0))"
               ".catch(e => { console.error(String(e && e.stack || e)); process.exit(1) })")
     r = subprocess.run([NODE, "-e", script], cwd=d, capture_output=True, text=True, encoding="utf-8", timeout=60)
     if r.returncode != 0:

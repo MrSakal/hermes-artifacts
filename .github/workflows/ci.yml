@@ -26,7 +26,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
-      - name: Unit tests (stdlib only)
+      # The browser-driven tests (a real Chrome, ~1 h a job) run locally before a release, not on every push.
+      - name: Unit tests (stdlib only, no browser)
+        env:
+          HA_NO_BROWSER: "1"
         run: python -m unittest discover -s tests -v
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

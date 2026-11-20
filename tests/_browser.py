@@ -24,6 +24,8 @@ NODE = shutil.which("node")
 
 
 def find_chrome():
+    if os.environ.get("HA_NO_BROWSER") == "1":  # CI: the browser-driven tests are run locally, before a release
+        return None
     env = os.environ.get("CHROME")
     if env and Path(env).is_file():
         return env

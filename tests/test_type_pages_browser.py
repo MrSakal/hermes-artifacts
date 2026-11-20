@@ -10,6 +10,7 @@
 Skipped without Chrome or node. Starts its own Chrome and a host on free ports."""
 
 import json
+import sys
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,8 @@ import _browser as B
 
 ROOT = Path(__file__).resolve().parent.parent
 EX = ROOT / "examples"
+# Hermes' text font is Segoe UI, a Windows font: elsewhere a wider fallback fits fewer bar values (all or none).
+SEGOE = unittest.skipUnless(sys.platform == "win32", "measured in Segoe UI, Hermes' text font on Windows")
 
 READY = "await api.sleep(300); for (let i = 0; i < 60; i++) { if (await api.top('window.__events.some(e => e.event === \"ready\")')) break; await api.sleep(150) }"
 THEME = {"mode": "dark", "vars": {"bg": "rgb(31, 31, 30)", "fg": "rgb(236, 235, 230)", "accent": "rgb(217, 119, 87)",
@@ -1618,6 +1621,7 @@ class RoundV6Pages(unittest.TestCase):
             self.assertIsNone(r.get("err"), r)
             self.assertEqual(r["out"], theme["vars"]["accent"], theme["mode"])
 
+    @SEGOE
     def test_test_dash2_values_keep_their_ink_off_the_target_line(self):
         # Measured as the eye sees it: each value's glyphs' own ink (the font's tight bounds, not its line box)
         # against every dash of the line drawn, at least 6 px apart (4 px past the halo), in Hermes' font and colours.
@@ -1646,6 +1650,7 @@ class RoundV6Pages(unittest.TestCase):
             for v in o["vals"]:
                 self.assertGreaterEqual(v["d"], 6, (k, v, o))
 
+    @SEGOE
     def test_test_dash2_values_stay_with_their_bars_never_across_the_target_line(self):
         # V6c: "88", "97.9" and "92.4" (bars just under the target of 100) were moved above the line, the line between
         # each and its bar; V6d: still so where the bars are 20 px (a 906 px frame) and in Hermes' real colours (its
@@ -1889,6 +1894,7 @@ class RoundV6ePages(unittest.TestCase):
     def tearDownClass(cls):
         cls.host.close()
 
+    @SEGOE
     def test_test_dash2_values_keep_their_ink_off_every_rule_of_the_plot(self):
         # Each value's glyphs' ink against every rule drawn (the target's dashes, every gridline; a gridline only
         # where no bar covers it), its half stroke counted: at least 4 px apart, in Hermes' font and colours.
