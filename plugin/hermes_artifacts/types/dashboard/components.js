@@ -456,6 +456,8 @@
         ymin = Math.min(ymin, num(b.reference.value));
       }
       if (ymin === 0 && ymax === 0) ymax = 1;
+      var barValuesShown = kind === "bar" && rows.length <= 16 && ys.length === 1;
+      if (barValuesShown && ymin < 0) ymin -= (ymax - ymin) * 0.12;
       var y = d3.scaleLinear([ymin, ymax], [H - M.b, M.t]).nice();
       svg.append("g").attr("class", "c-grid").attr("transform", "translate(" + M.l + ",0)")
         .call(d3.axisLeft(y).ticks(4).tickSize(-(W - M.l - M.r)).tickFormat(function (v) { return format(v, "compact"); }))
@@ -476,7 +478,7 @@
             .on("mouseleave", function () { tooltip(false); });
           if (!j) bars = sel.nodes();
         });
-        if (rows.length <= 16 && ys.length === 1) {
+        if (barValuesShown) {
           svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
             .attr("x", function (d) { return x(String(d[b.x])) + x.bandwidth() / 2; }).attr("y", function (d) { var v = num(d[ys[0]]) || 0; return y(v) + (v < 0 ? 15 : -5); })
             .text(function (d) { return format(d[ys[0]], b.format === "number" || !b.format ? "compact" : b.format); });

@@ -909,12 +909,15 @@ class RoundV2Layout(unittest.TestCase):
                  " const marks = [...svg.querySelectorAll('circle, rect[rx]')].map(m => m.getBoundingClientRect());"
                  " return { marks: marks.length, outside: marks.filter(m => m.top < box.top - 0.5 || m.bottom > box.bottom + 0.5"
                  " || m.left < box.left - 0.5 || m.right > box.right + 0.5).length,"
-                 " flat: marks.filter(m => m.width < 0.5 || m.height < 0.5).length } })")
+                 " flat: marks.filter(m => m.width < 0.5 || m.height < 0.5).length,"
+                 " clash: [...svg.querySelectorAll('.c-value')].filter(v => { const a = v.getBoundingClientRect();"
+                 " return [...svg.querySelectorAll('.c-axis text')].some(t => { const b = t.getBoundingClientRect();"
+                 " return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom }) }).length } })")
         charts = self.drive(aid, f"return await api.frame({json.dumps(probe)})", w=1200, settle=2000)
         self.assertEqual(len(charts), 3, charts)
         for kind, chart in zip(("line", "bar", "hbar"), charts):
             self.assertEqual(chart["marks"], 3, (kind, chart))
-            self.assertEqual((chart["outside"], chart["flat"]), (0, 0), (kind, chart))
+            self.assertEqual((chart["outside"], chart["flat"], chart["clash"]), (0, 0, 0), (kind, chart))
 
     def test_design_properties_sheet_is_above_the_canvas_tools_and_survives_a_resize(self):
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
