@@ -2,7 +2,7 @@
   "name": "hermes-artifacts",
   "label": "Artifacts",
   "description": "Backend for the Hermes Desktop Artifacts page: artifacts, live docs, sheets and boards, live dashboard queries, comments, storage, inbox, export libraries.",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "tab": {
     "path": "/hermes-artifacts",
     "hidden": true
