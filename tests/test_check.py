@@ -177,21 +177,27 @@ class ViewContextTests(unittest.TestCase):
         self.assertIn("hermes tools enable artifacts --platform cli", logged.output[0])
         self.assertEqual(self.p._route_section({"platform": "desktop"}), self.p.ROUTE_LINE)
 
-    def test_the_toolset_check_follows_hermes_own_resolver(self):
+    def test_the_toolset_check_reads_hermes_config(self):
         try:
             import hermes_cli.config as config_module
-            import hermes_cli.tools_config as tools_module
         except Exception:
             self.skipTest("Hermes is not importable here")
-        saved = {"platform_toolsets": {"cli": ["file", "terminal"]}}
+        config = {}
         original = config_module.load_config_readonly
-        config_module.load_config_readonly = lambda: saved
+        config_module.load_config_readonly = lambda: config
         self.addCleanup(setattr, config_module, "load_config_readonly", original)
-        self.assertTrue(self.p._artifacts_toolset_disabled("cli"))
-        self.assertFalse(self.p._artifacts_toolset_disabled("tui"))
-        saved["platform_toolsets"]["cli"] = ["file", "terminal", "artifacts"]
-        self.assertEqual(self.p._artifacts_toolset_disabled("cli"), "artifacts" not in tools_module._get_platform_tools(saved, "cli"))
-        self.assertFalse(self.p._artifacts_toolset_disabled(""))
+        disabled = self.p._artifacts_toolset_disabled
+        self.assertFalse(disabled("cli"))
+        config["platform_toolsets"] = {"cli": ["file", "terminal"]}
+        self.assertFalse(disabled("cli"))
+        config["known_plugin_toolsets"] = {"cli": ["artifacts"]}
+        self.assertTrue(disabled("cli"))
+        self.assertFalse(disabled("tui"))
+        config["platform_toolsets"]["cli"] = "[file, terminal, artifacts]"
+        self.assertFalse(disabled("cli"))
+        config["agent"] = {"disabled_toolsets": ["artifacts"]}
+        self.assertTrue(disabled("tui"))
+        self.assertFalse(disabled(""))
 
     def test_the_messaging_platforms_are_hermes_own_list(self):
         try:
