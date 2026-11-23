@@ -1337,7 +1337,8 @@ class ThemeModeTests(unittest.TestCase):
         cases = [("color(srgb 0.996 0.996 0.996)", None, "light"), ("color(srgb 0.11 0.11 0.11)", None, "dark"),
                  ("oklch(0.98 0.005 90)", None, "light"), ("oklch(0.21 0.01 260)", None, "dark"), ("lab(98 0 0)", None, "light"),
                  ("color(display-p3 0.99 0.99 0.99)", None, "light"), ("rgb(31, 31, 30)", None, "dark"),
-                 ("rgb(31, 31, 30)", "light", "light"), ("rgb(250, 250, 250)", "dark", "dark")]
+                 ("rgb(31, 31, 30)", "light", "light"), ("rgb(250, 250, 250)", "dark", "dark"),
+                 ("transparent", None, "light"), ("rgba(0, 0, 0, 0)", "light", "light")]
         script = "return await api.top(" + json.dumps("(() => { " + fns + " const out = []; for (const [bg, attr] of " + json.dumps(
             [[c[0], c[1]] for c in cases]) + ") { document.body.style.background = bg; if (attr) document.documentElement.dataset.hermesMode = attr;"
             " else delete document.documentElement.dataset.hermesMode; out.push([getComputedStyle(document.body).backgroundColor, hostMode()]) }"

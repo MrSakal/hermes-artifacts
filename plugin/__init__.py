@@ -1836,6 +1836,31 @@ def _is_messaging(platform: str) -> bool:
     return got
 
 
+def _toolset_names(value) -> list:
+    if isinstance(value, str):
+        value = value.strip().strip("[]").split(",")
+    if not isinstance(value, (list, tuple, set)):
+        return []
+    return [str(name).strip().strip("'\"") for name in value if str(name).strip()]
+
+
+def _artifacts_toolset_disabled(platform: str) -> bool:
+    if not platform:
+        return False
+    try:
+        from hermes_cli.config import load_config_readonly
+        config = load_config_readonly() or {}
+        if "artifacts" in _toolset_names((config.get("agent") or {}).get("disabled_toolsets")):
+            return True
+        saved = (config.get("platform_toolsets") or {}).get(platform)
+        if saved is None:
+            return False
+        known = _toolset_names((config.get("known_plugin_toolsets") or {}).get(platform))
+        return "artifacts" in known and "artifacts" not in _toolset_names(saved)
+    except Exception:
+        return False
+
+
 def _route_section(info) -> str:
     """The section's text for one new session ("" skips it): the routing line, for a chat a person
     makes things in (Desktop, CLI, TUI, the web dashboard), not for a delegated sub-agent, a cron job or a
@@ -1845,6 +1870,10 @@ def _route_section(info) -> str:
     except Exception:
         platform = ""
     if platform in ("subagent", "cron") or (platform and _is_messaging(platform)):
+        return ""
+    if _artifacts_toolset_disabled(platform):
+        logger.warning("The 'artifacts' toolset is disabled for platform %r: run "
+                       "'hermes tools enable artifacts --platform %s' to give the agent the ha_ tools", platform, platform)
         return ""
     return ROUTE_LINE
 

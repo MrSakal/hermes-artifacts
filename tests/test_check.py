@@ -156,6 +156,9 @@ class ViewContextTests(unittest.TestCase):
         self.assertFalse(self.p._register_route(other))
 
     def test_the_section_reaches_chats_a_person_makes_things_in_only(self):
+        disabled = self.p._artifacts_toolset_disabled
+        self.p._artifacts_toolset_disabled = lambda platform: False
+        self.addCleanup(setattr, self.p, "_artifacts_toolset_disabled", disabled)
         info = {"session_id": "s", "conversation_id": "c", "model": "m", "provider": "p", "profile_name": "default",
                 "cwd": "", "client": "", "client_version": ""}
         for platform in ("desktop", "cli", "tui", "webui", "local", ""):
@@ -164,6 +167,37 @@ class ViewContextTests(unittest.TestCase):
                          "email", "sms", "api_server"):
             self.assertEqual(self.p._route_section({**info, "platform": platform}), "", platform)
         self.assertEqual(self.p._route_section({}), self.p.ROUTE_LINE)
+
+    def test_the_section_is_left_out_where_the_artifacts_toolset_is_disabled(self):
+        disabled = self.p._artifacts_toolset_disabled
+        self.p._artifacts_toolset_disabled = lambda platform: platform == "cli"
+        self.addCleanup(setattr, self.p, "_artifacts_toolset_disabled", disabled)
+        with self.assertLogs(self.p.logger, level="WARNING") as logged:
+            self.assertEqual(self.p._route_section({"platform": "cli"}), "")
+        self.assertIn("hermes tools enable artifacts --platform cli", logged.output[0])
+        self.assertEqual(self.p._route_section({"platform": "desktop"}), self.p.ROUTE_LINE)
+
+    def test_the_toolset_check_reads_hermes_config(self):
+        try:
+            import hermes_cli.config as config_module
+        except Exception:
+            self.skipTest("Hermes is not importable here")
+        config = {}
+        original = config_module.load_config_readonly
+        config_module.load_config_readonly = lambda: config
+        self.addCleanup(setattr, config_module, "load_config_readonly", original)
+        disabled = self.p._artifacts_toolset_disabled
+        self.assertFalse(disabled("cli"))
+        config["platform_toolsets"] = {"cli": ["file", "terminal"]}
+        self.assertFalse(disabled("cli"))
+        config["known_plugin_toolsets"] = {"cli": ["artifacts"]}
+        self.assertTrue(disabled("cli"))
+        self.assertFalse(disabled("tui"))
+        config["platform_toolsets"]["cli"] = "[file, terminal, artifacts]"
+        self.assertFalse(disabled("cli"))
+        config["agent"] = {"disabled_toolsets": ["artifacts"]}
+        self.assertTrue(disabled("tui"))
+        self.assertFalse(disabled(""))
 
     def test_the_messaging_platforms_are_hermes_own_list(self):
         try:
