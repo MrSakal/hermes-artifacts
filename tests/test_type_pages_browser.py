@@ -899,6 +899,23 @@ class RoundV2Layout(unittest.TestCase):
                          w=1500, settle=2000)
         self.assertIn("Wall panels", out)
 
+    def test_dashboard_charts_show_negative_values_inside_the_plot(self):
+        rows = [{"day": "Mon", "t": 2}, {"day": "Tue", "t": -3.7}, {"day": "Wed", "t": 4.5}]
+        dash = {"title": "Weather", "datasets": {"w": {"title": "Week", "source": {"kind": "rows", "rows": rows}}},
+                "layout": [{"type": "chart", "kind": kind, "title": kind, "source": "w", "x": "day", "y": "t"}
+                           for kind in ("line", "bar", "hbar")]}
+        aid = self.store.publish(title="Weather", type="dashboard", files={"dashboard.json": dash})["id"]
+        probe = ("[...document.querySelectorAll('.c-chart svg')].map(svg => { const box = svg.getBoundingClientRect();"
+                 " const marks = [...svg.querySelectorAll('circle, rect[rx]')].map(m => m.getBoundingClientRect());"
+                 " return { marks: marks.length, outside: marks.filter(m => m.top < box.top - 0.5 || m.bottom > box.bottom + 0.5"
+                 " || m.left < box.left - 0.5 || m.right > box.right + 0.5).length,"
+                 " flat: marks.filter(m => m.width < 0.5 || m.height < 0.5).length } })")
+        charts = self.drive(aid, f"return await api.frame({json.dumps(probe)})", w=1200, settle=2000)
+        self.assertEqual(len(charts), 3, charts)
+        for kind, chart in zip(("line", "bar", "hbar"), charts):
+            self.assertEqual(chart["marks"], 3, (kind, chart))
+            self.assertEqual((chart["outside"], chart["flat"]), (0, 0), (kind, chart))
+
     def test_design_properties_sheet_is_above_the_canvas_tools_and_survives_a_resize(self):
         aid = self.store.publish(path=str(EX / "design"), title="Lumen", type="design")["id"]
         probe = ("(() => { " + MEET + "const p = document.getElementById('dc-panel'); if (!p || p.hidden || !p.getClientRects().length) return 'closed';"

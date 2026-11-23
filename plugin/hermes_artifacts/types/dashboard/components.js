@@ -427,16 +427,21 @@
         var labelW = Math.min(W * 0.4, d3.max(rows, function (d) { return fx(d[b.x]).length; }) * 7 + 12);
         M.l = labelW;
         var yb = d3.scaleBand(rows.map(function (d) { return String(d[b.x]); }), [M.t, H - M.b]).padding(0.28);
-        var xl = d3.scaleLinear([0, d3.max(rows, function (d) { return d3.max(ys, function (y) { return num(d[y]) || 0; }); }) || 1], [M.l, W - M.r - 40]).nice();
+        var hbarValue = function (d) { return num(d[ys[0]]) || 0; };
+        var hbarMin = Math.min(0, d3.min(rows, hbarValue) || 0);
+        var hbarMax = Math.max(0, d3.max(rows, hbarValue) || 0);
+        if (hbarMin === 0 && hbarMax === 0) hbarMax = 1;
+        var xl = d3.scaleLinear([hbarMin, hbarMax], [M.l + (hbarMin < 0 ? 40 : 0), W - M.r - 40]).nice();
         svg.append("g").attr("class", "c-axis").attr("transform", "translate(" + M.l + ",0)").call(d3.axisLeft(yb).tickSize(0).tickFormat(function (v) { return fx(v); }))
           .call(function (g) { g.select(".domain").remove(); });
         svg.append("g").selectAll("rect").data(rows).join("rect")
-          .attr("x", M.l).attr("y", function (d) { return yb(String(d[b.x])); }).attr("height", yb.bandwidth())
-          .attr("width", function (d) { return Math.max(0, xl(num(d[ys[0]]) || 0) - M.l); }).attr("rx", 3).attr("fill", colors[0])
+          .attr("x", function (d) { return Math.min(xl(0), xl(hbarValue(d))); }).attr("y", function (d) { return yb(String(d[b.x])); }).attr("height", yb.bandwidth())
+          .attr("width", function (d) { return Math.abs(xl(hbarValue(d)) - xl(0)); }).attr("rx", 3).attr("fill", colors[0])
           .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) }), h("div", { text: fy(d[ys[0]]) })]); })
           .on("mouseleave", function () { tooltip(false); });
         svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value")
-          .attr("x", function (d) { return xl(num(d[ys[0]]) || 0) + 6; }).attr("y", function (d) { return yb(String(d[b.x])) + yb.bandwidth() / 2; })
+          .attr("x", function (d) { return xl(hbarValue(d)) + (hbarValue(d) < 0 ? -6 : 6); }).attr("text-anchor", function (d) { return hbarValue(d) < 0 ? "end" : "start"; })
+          .attr("y", function (d) { return yb(String(d[b.x])) + yb.bandwidth() / 2; })
           .attr("dy", "0.35em").text(function (d) { return fy(d[ys[0]]); });
         box.replaceChildren(svg.node());
         return;
@@ -444,9 +449,14 @@
 
       var xs = rows.map(function (d) { return String(d[b.x]); });
       var x = d3.scaleBand(xs, [M.l, W - M.r]).padding(kind === "bar" ? 0.24 : 0);
-      var ymax = d3.max(rows, function (d) { return d3.max(ys, function (y) { return num(d[y]) || 0; }); }) || 1;
-      if (b.reference && !isNaN(num(b.reference.value))) ymax = Math.max(ymax, num(b.reference.value));
-      var y = d3.scaleLinear([0, ymax], [H - M.b, M.t]).nice();
+      var ymax = Math.max(0, d3.max(rows, function (d) { return d3.max(ys, function (y) { return num(d[y]) || 0; }); }) || 0);
+      var ymin = Math.min(0, d3.min(rows, function (d) { return d3.min(ys, function (y) { return num(d[y]) || 0; }); }) || 0);
+      if (b.reference && !isNaN(num(b.reference.value))) {
+        ymax = Math.max(ymax, num(b.reference.value));
+        ymin = Math.min(ymin, num(b.reference.value));
+      }
+      if (ymin === 0 && ymax === 0) ymax = 1;
+      var y = d3.scaleLinear([ymin, ymax], [H - M.b, M.t]).nice();
       svg.append("g").attr("class", "c-grid").attr("transform", "translate(" + M.l + ",0)")
         .call(d3.axisLeft(y).ticks(4).tickSize(-(W - M.l - M.r)).tickFormat(function (v) { return format(v, "compact"); }))
         .call(function (g) { g.select(".domain").remove(); });
@@ -459,8 +469,8 @@
         ys.forEach(function (yk, j) {
           var sel = svg.append("g").selectAll("rect").data(rows).join("rect")
             .attr("x", function (d) { return x(String(d[b.x])) + sub(yk); }).attr("width", sub.bandwidth())
-            .attr("y", function (d) { return y(Math.max(0, num(d[yk]) || 0)); })
-            .attr("height", function (d) { return y(0) - y(Math.max(0, num(d[yk]) || 0)); })
+            .attr("y", function (d) { return Math.min(y(0), y(num(d[yk]) || 0)); })
+            .attr("height", function (d) { return Math.abs(y(0) - y(num(d[yk]) || 0)); })
             .attr("rx", 3).attr("fill", colors[j % colors.length])
             .on("mousemove", function (e, d) { tooltip(true, e.clientX, e.clientY, [h("b", { text: fx(d[b.x]) })].concat(ys.map(function (k) { return h("div", { text: k + ": " + fy(d[k]) }); }))); })
             .on("mouseleave", function () { tooltip(false); });
@@ -468,7 +478,7 @@
         });
         if (rows.length <= 16 && ys.length === 1) {
           svg.append("g").attr("class", "c-values").selectAll("text").data(rows).join("text").attr("class", "c-value").attr("text-anchor", "middle")
-            .attr("x", function (d) { return x(String(d[b.x])) + x.bandwidth() / 2; }).attr("y", function (d) { return y(num(d[ys[0]]) || 0) - 5; })
+            .attr("x", function (d) { return x(String(d[b.x])) + x.bandwidth() / 2; }).attr("y", function (d) { var v = num(d[ys[0]]) || 0; return y(v) + (v < 0 ? 15 : -5); })
             .text(function (d) { return format(d[ys[0]], b.format === "number" || !b.format ? "compact" : b.format); });
         }
       } else {

@@ -157,6 +157,17 @@ Artifacts**. If your Desktop talks to a remote server, install the desktop half 
 Git** with only the Desktop component ticked; otherwise the Plugins page shows it as *unavailable
 (remote backend)*.
 
+If your config sets `platform_toolsets` for a platform as an explicit list, Hermes keeps the plugin's
+`artifacts` toolset off there and the agent gets no `ha_` tools. Turn it on for each platform you use,
+then start a new session:
+
+```bash
+hermes tools enable artifacts --platform cli
+```
+
+While it stays off, the plugin leaves out its routing line for that platform and logs a warning with
+this command.
+
 The page API is served by the Hermes **web server** (`hermes dashboard`), a separate process from the
 gateway. Restart it once after the first install of 0.2.1 or later, so it mounts the plugin's router:
 `systemctl --user restart hermes-dashboard`, or stop and rerun `hermes dashboard`. Later updates reload
@@ -416,8 +427,8 @@ behind `mcp_allowlist`), `ctx.register_cli_command` (`hermes artifacts`), a web-
   deck, board, dashboard or page the user asks for is an artifact (`ha_guide`, then `ha_publish`), not a
   file, unless they name a file format. Hermes renders it once per new session and keeps it frozen
   through compression and resume; sessions of a delegated sub-agent, a cron job or a messaging platform
-  (Telegram, Discord, Slack, …: Hermes' own gateway platform list) get none. Known limit: a section cannot
-  see toolsets, so it stays while the `artifacts` toolset is disabled (the plugin itself disabled: gone).
+  (Telegram, Discord, Slack, …: Hermes' own gateway platform list) get none, and neither does a platform
+  whose saved `platform_toolsets` list leaves the `artifacts` toolset off (the plugin itself disabled: gone).
 - **Other hooks:** `on_session_end` (and the next `pre_llm_call`) clears the note that a chat is making
   an artifact; `post_compaction` moves a chat's artifacts to the chat's new id when Hermes compresses it
   (which files the chat had seen follows it; the guides it read may be gone from its context, so a format
